@@ -10,6 +10,7 @@ import { Copy } from '@/routes/Copy';
 import { PnL } from '@/routes/PnL';
 import { ModelLab } from '@/routes/ModelLab';
 import { History } from '@/routes/History';
+import { Wallets } from '@/routes/Wallets';
 import { AppShell } from '@/components/layout/AppShell';
 import { useThemeStore } from '@/stores/theme-store';
 import { ToastHost } from '@/components/feedback/Toast';
@@ -43,6 +44,7 @@ const router = createBrowserRouter([
       { path: 'pnl', element: <PnL /> },
       { path: 'lab', element: <ModelLab /> },
       { path: 'history', element: <History /> },
+      { path: 'wallets', element: <Wallets /> },
     ],
   },
 ]);
