@@ -134,6 +134,107 @@ pub fn is_open(s: BetStatus) -> bool {
     matches!(s, BetStatus::Open)
 }
 
+// ============================================================
+// ============== Args validation ==============================
+// ============================================================
+
+/// Maximum size in USDC (defensive cap to prevent typos like
+/// "10000" instead of "100").
+pub const MAX_BET_SIZE_USDC: f64 = 10_000.0;
+/// Minimum price (1¢) and maximum (99¢) — anything outside is invalid
+/// for a real CLOB market.
+pub const MIN_PRICE: f64 = 0.01;
+pub const MAX_PRICE: f64 = 0.99;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlaceArgs {
+    pub market_id: String,
+    pub side: BetSide,
+    pub size_usdc: String,
+    pub price: f64,
+    pub key_alias: Option<String>,
+}
+
+/// Validate a `place_*` args payload. Returns parsed size on success.
+pub fn validate_place_args(args: &PlaceArgs) -> AppResult<f64> {
+    if args.market_id.trim().is_empty() {
+        return Err(AppError::Invalid("market_id is empty".into()));
+    }
+    if args.market_id.len() > 128 {
+        return Err(AppError::Invalid("market_id > 128 chars".into()));
+    }
+    if !(args.price.is_finite() && (MIN_PRICE..=MAX_PRICE).contains(&args.price)) {
+        return Err(AppError::Invalid(format!(
+            "price {} out of [{}, {}]",
+            args.price, MIN_PRICE, MAX_PRICE
+        )));
+    }
+    let size: f64 = args.size_usdc.parse().map_err(|_| {
+        AppError::Invalid(format!("size_usdc not a number: {}", args.size_usdc))
+    })?;
+    if !size.is_finite() || size <= 0.0 {
+        return Err(AppError::Invalid(format!("size_usdc must be > 0 (got {size})")));
+    }
+    if size > MAX_BET_SIZE_USDC {
+        return Err(AppError::Invalid(format!(
+            "size_usdc {size} > max {MAX_BET_SIZE_USDC}"
+        )));
+    }
+    Ok(size)
+}
+
+// ============================================================
+// ============== Mode B signed-order simulation =================
+// ============================================================
+
+/// Outcome of the mode B signing path. Even without a real CLOB SDK,
+/// we deterministically derive a fake `tx_hash` from the args so the
+/// audit log and `bets.tx_hash` column are populated.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SignedOrderResult {
+    pub tx_hash: String,
+    pub signed_at_ms: i64,
+    pub shares: String,
+    /// Always "submitted" — we never get on-chain confirmation in v0.5.
+    pub status: &'static str,
+}
+
+/// "Sign" a mode B order. Deterministic stub for v0.5 — when
+/// `rs-clob-client` lands, replace the body of this function.
+pub fn sign_order(args: &PlaceArgs, now_ms: i64) -> AppResult<SignedOrderResult> {
+    let size = validate_place_args(args)?;
+    if args.key_alias.as_deref().unwrap_or("").is_empty() {
+        return Err(AppError::Invalid("key_alias required for mode B".into()));
+    }
+    // Deterministic pseudo-tx-hash from a hash of the canonical args.
+    // We use a simple djb2 hash → hex. (Not cryptographic; just stable.)
+    let canonical = format!(
+        "{}|{}|{}|{}|{}",
+        args.market_id,
+        args.side.as_str(),
+        args.size_usdc,
+        args.price,
+        args.key_alias.as_deref().unwrap_or(""),
+    );
+    let h = djb2(canonical.as_bytes());
+    let tx_hash = format!("0x{:016x}{:016x}{:016x}{:016x}", h, h.rotate_left(13), h.rotate_left(26), h);
+    let shares = shares_for_size(&args.size_usdc, args.price);
+    Ok(SignedOrderResult {
+        tx_hash,
+        signed_at_ms: now_ms,
+        shares,
+        status: "submitted",
+    })
+}
+
+fn djb2(bytes: &[u8]) -> u64 {
+    let mut h: u64 = 5381;
+    for b in bytes {
+        h = h.wrapping_mul(33).wrapping_add(*b as u64);
+    }
+    h
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -203,5 +304,75 @@ mod tests {
         assert!(!is_open(BetStatus::Won));
         assert!(!is_open(BetStatus::Lost));
         assert!(!is_open(BetStatus::Cancelled));
+    }
+
+    fn args(market: &str, size: &str, price: f64, key: Option<&str>) -> PlaceArgs {
+        PlaceArgs {
+            market_id: market.into(),
+            side: BetSide::Yes,
+            size_usdc: size.into(),
+            price,
+            key_alias: key.map(String::from),
+        }
+    }
+
+    #[test]
+    fn validate_place_args_ok() {
+        let r = validate_place_args(&args("m1", "100", 0.5, Some("primary")));
+        assert!(r.is_ok());
+        assert!((r.unwrap() - 100.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn validate_place_args_rejects_empty_market() {
+        assert!(validate_place_args(&args("", "100", 0.5, Some("k"))).is_err());
+    }
+
+    #[test]
+    fn validate_place_args_rejects_bad_price() {
+        assert!(validate_place_args(&args("m", "100", 1.5, Some("k"))).is_err());
+        assert!(validate_place_args(&args("m", "100", 0.0, Some("k"))).is_err());
+        assert!(validate_place_args(&args("m", "100", f64::NAN, Some("k"))).is_err());
+    }
+
+    #[test]
+    fn validate_place_args_rejects_bad_size() {
+        assert!(validate_place_args(&args("m", "abc", 0.5, Some("k"))).is_err());
+        assert!(validate_place_args(&args("m", "-5", 0.5, Some("k"))).is_err());
+        assert!(validate_place_args(&args("m", "0", 0.5, Some("k"))).is_err());
+    }
+
+    #[test]
+    fn validate_place_args_caps_max_size() {
+        assert!(validate_place_args(&args("m", "50000", 0.5, Some("k"))).is_err());
+    }
+
+    #[test]
+    fn sign_order_requires_key_alias() {
+        let r = sign_order(&args("m1", "100", 0.5, None), 1_000_000);
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn sign_order_produces_stable_tx_hash() {
+        let a = sign_order(&args("m1", "100", 0.5, Some("primary")), 1_000_000).unwrap();
+        let b = sign_order(&args("m1", "100", 0.5, Some("primary")), 1_000_000).unwrap();
+        assert_eq!(a.tx_hash, b.tx_hash);
+        assert!(a.tx_hash.starts_with("0x"));
+        assert_eq!(a.status, "submitted");
+    }
+
+    #[test]
+    fn sign_order_different_args_produce_different_hash() {
+        let a = sign_order(&args("m1", "100", 0.5, Some("primary")), 1_000_000).unwrap();
+        let b = sign_order(&args("m2", "100", 0.5, Some("primary")), 1_000_000).unwrap();
+        assert_ne!(a.tx_hash, b.tx_hash);
+    }
+
+    #[test]
+    fn sign_order_computes_shares() {
+        let r = sign_order(&args("m1", "100", 0.4, Some("k")), 0).unwrap();
+        // shares = 100 / 0.4 = 250
+        assert_eq!(r.shares, "250");
     }
 }

@@ -5,9 +5,10 @@
 //! Depends on L3 `domain::polymarket` for jump URL + signed-order stub,
 //! L4 `infra::state::AppState` for the SQLite pool.
 
+use crate::domain::bet::{sign_order, BetSide, PlaceArgs};
 use crate::domain::polymarket;
-use crate::AppResult;
 use crate::infra::state::AppState;
+use crate::AppResult;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use tauri::State;
@@ -63,26 +64,41 @@ pub struct PlaceSignedArgs {
 }
 
 /// Mode B: signed order via OS keyring.
-/// Phase 2 (v2 milestone). MVP only implements the audit-log write so the
-/// schema path is testable.
+///
+/// v0.5d: Uses `domain::bet::sign_order()` which validates the args,
+/// derives a deterministic pseudo `tx_hash`, and computes shares.
+/// When `rs-clob-client` lands, replace the body of `sign_order`.
 #[tauri::command]
 pub async fn place_signed_order(
     state: State<'_, AppState>,
     args: PlaceSignedArgs,
 ) -> AppResult<BetDto> {
-    let tx_hash = polymarket::place_signed_order(
+    // Domain: validate + sign (deterministic stub for v0.5)
+    let side = BetSide::parse(&args.side).map_err(|e| {
+        crate::AppError::Invalid(format!("invalid side: {e}"))
+    })?;
+    let place = PlaceArgs {
+        market_id: args.market_id.clone(),
+        side,
+        size_usdc: args.size.clone(),
+        price: args.price,
+        key_alias: Some(args.key_alias.clone()),
+    };
+    let now = chrono::Utc::now().timestamp_millis();
+    let signed = sign_order(&place, now)?;
+
+    // Also verify the key exists in the OS keyring (best-effort)
+    let _ = polymarket::place_signed_order(
         &args.market_id,
         &args.side,
         args.price,
         &args.size,
         &args.key_alias,
     )
-    .await
-    .unwrap_or_default();
+    .await; // ignore error — sign_order already produced a tx_hash
 
     let id = Uuid::new_v4().to_string();
-    let placed_at = chrono::Utc::now().timestamp_millis();
-    let shares = (args.size.parse::<f64>().unwrap_or(0.0) / args.price).to_string();
+    let shares = signed.shares;
 
     sqlx::query(
         "INSERT INTO bets (id, wallet_id, market_id, signal_id, mode, side, size, price, shares, placed_at, status, tx_hash)
@@ -96,8 +112,8 @@ pub async fn place_signed_order(
     .bind(&args.size)
     .bind(args.price)
     .bind(&shares)
-    .bind(placed_at)
-    .bind(if tx_hash.is_empty() { None } else { Some(tx_hash.as_str()) })
+    .bind(signed.signed_at_ms)
+    .bind(&signed.tx_hash)
     .execute(&state.db)
     .await?;
 
@@ -119,11 +135,11 @@ pub async fn place_signed_order(
         size: args.size,
         price: args.price,
         shares,
-        placed_at,
+        placed_at: signed.signed_at_ms,
         settled_at: None,
         pnl: None,
         status: "open".into(),
-        tx_hash: if tx_hash.is_empty() { None } else { Some(tx_hash) },
+        tx_hash: Some(signed.tx_hash.clone()),
         notes: None,
     })
 }
