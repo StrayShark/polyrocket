@@ -49,4 +49,7 @@ src-tauri/.cargo/
 
 # tsbuild cache
 .tsbuild-node/
-*.tsbuildinfodocs/.seed.html
+*.tsbuildinfo
+
+# snapshot script temp file
+docs/.seed.html
