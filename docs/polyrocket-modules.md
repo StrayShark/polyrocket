@@ -1,6 +1,6 @@
 # polyrocket — 功能模块设计 (FSD)
 
-> 版本：v1.9 · 2026-06-16 (v0.4 — 全 13 模块真实现)
+> 版本：v2.0 · 2026-06-16 (v0.5 — 通知 + mirror + signed-order)
 > 配套：[`overview.md`](./overview.md)（5 层架构 + 目录结构） · [`polyrocket-llm-analysis.md`](./polyrocket-llm-analysis.md)（M10/M12 设计） · [`polyrocket-llm-management.md`](./polyrocket-llm-management.md)（M11 设计） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个 flow） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页 × 3 主题 UI 规范）
 > 范围：Tauri 2 桌面客户端的所有功能模块拆解，含职责、依赖、对外接口
 > 想了解**代码在哪一层、目录怎么组织** → 看 `overview.md`
@@ -413,8 +413,9 @@ model_performance({ model_version, window }): ModelPerformanceDto
 | v0.1 | M1 / M2（mock）/ M3（Mode A + Mode B 占位）/ M4 / M5（基础）/ M6 / M8 / M9（主题） |
 | v0.2 | M2 真信号接入 / M3 Mode B 真签名 / M5 镜像策略 / M7 模型性能追踪 / X2 系统通知 |
 | v0.3 | 5-layer 严格分目录 + CI 守门 (check-layers.mjs) |
-| **v0.4 (当前)** | **L3 域全实现** + **L1 真 React 化 18 路由** + audit read-side + onb/notify/help |
-| v0.5 (next) | M3 Mode B 真签名 (rs-clob-client) / M5 镜像策略触发 / M7 Python sidecar / 系统通知 (X2 升级) |
+| v0.4 | **L3 域全实现** + **L1 真 React 化 18 路由** + audit read-side + onb/notify/help |
+| **v0.5 (当前)** | **vitest 88 + mirror 状态机 + 系统通知 + signed-order stub** |
+| v0.6 (next) | M3 Mode B 真签名 (rs-clob-client) / M5 镜像自动执行 / M7 Python sidecar |
 
 ### 6.1 v0.4 — 全 13 模块
 
@@ -437,6 +438,23 @@ model_performance({ model_version, window }): ModelPerformanceDto
 | X1 Audit | ✅ 增 read-side | commands/audit.rs + /audit |
 | X2 Notifications | ✅ toast UI | /notifications + toast-store |
 | Help | ✅ static | /help |
+
+### 6.2 v0.5 — 测试 + 通知 + mirror + signed-order stub
+
+| 阶段 | 内容 | commit | tests |
+|---|---|---|---|
+| v0.5a | TS domain mirror (8 modules) + vitest 4.1.9 | `2c28dfd` | +88 vitest |
+| v0.5b | M5 mirror auto-trigger (MirrorStatus + MirrorPanel) | `c188430` | +4 rust |
+| v0.5c | X2 系统通知 (tauri-plugin-notification) | `37b2b2f` | +10 rust |
+| v0.5d | M3 signed-order stub (validate + djb2 tx_hash) | `46f107f` | +9 rust |
+| **Total v0.5** | **+111 tests, 4 commits, 1 new Cargo dep, 1 new L1 component, 1 new L3 module** |
+
+新增模块：
+- L3 `domain/notify` (NotificationKind + 5 payload builders + should_send)
+- L2 `commands/notify` (send_notification / request_permission / permission_state)
+- L1 `src/lib/domain/*` (8 modules mirroring L3 pure funcs)
+- L1 `src/components/business/MirrorPanel.tsx` (5-stat panel + per-row state)
+- vitest 4.1.9 + 8 .test.ts files
 
 ---
 

@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v1.0 · 2026-06-16
+> 版本：v1.1 · 2026-06-16 (v0.5 — vitest + mirror trigger + 系统通知 + signed-order stub)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
 
@@ -582,6 +582,22 @@ v0.4 增量：
 - 65 个新 unit test
 - 2 个新 Rust command (audit)
 - 1 个新 L1 store (prefs) + toast store + onboarding store
+
+### 5.5 v0.5 — 测试 + 通知 + 真 stub
+
+| 阶段 | 内容 | commit | tests |
+|---|---|---|---|
+| v0.5a | TS domain mirror + vitest 4.1.9 (88 前端单测) | `2c28dfd` | +88 vitest |
+| v0.5b | M5 mirror auto-trigger: MirrorStatus 状态机 + MirrorPanel 组件 | `c188430` | +4 rust |
+| v0.5c | X2 系统通知: tauri-plugin-notification + L3 domain/notify + toast 升级 | `37b2b2f` | +10 rust |
+| v0.5d | M3 signed order 真 stub: validate_place_args + djb2 tx_hash | `46f107f` | +9 rust |
+| **Total v0.5** | **5 子阶段** | **4 commits** | **+111 tests (113→224)** |
+
+v0.5 增量：
+- 前端 vitest 88 个测试（mirror of L3 pure funcs）
+- L3 mirror 状态机 (Pending → Submitted → Filled|Rejected|Expired)
+- 系统通知: macOS Notification Center / Windows toast / Linux libnotify
+- Mode B signed-order: validate + 确定性 tx_hash (替换 rs-clob-client 时只改 sign_order 内部)
 
 ### 5.3 迁移原则
 
