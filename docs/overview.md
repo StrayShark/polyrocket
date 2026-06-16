@@ -523,6 +523,7 @@ sequenceDiagram
 | **CI** | `scripts/check-doc-sync.mjs` + `scripts/check-layers.mjs` | ✅ v0.3f 完成（pre-commit governance） |
 | **CI/CD** | `.github/workflows/{rust,ui,governance}.yml` | ✅ v0.7a 完成（GitHub Actions） |
 | **M7 真 sidecar** | `sidecar/polyrocket_sidecar/` Python 包 + `sidecar_e2e` Rust 集成测试 | ✅ v0.7b 完成（4 Rust e2e + 26 Python unit + 1 smoke） |
+| **Tauri 能力** | `capabilities/default.json` + 7 自检 tests | ✅ v0.7c 完成（notification + sql-close + path + 反误配 guard） |
 
 ### 5.2 v0.4 — 功能模块全实现 (13 模块)
 
