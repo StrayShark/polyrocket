@@ -1,0 +1,49 @@
+@import './themes.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    background: var(--bg);
+    color: var(--fg);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  /* numbers, addresses, ids, timestamps → mono (spec v2.2 §3.2) */
+  .font-mono,
+  code,
+  kbd,
+  samp {
+    font-family: var(--font-mono);
+  }
+  *,
+  *::before,
+  *::after {
+    transition: background-color var(--duration-theme) var(--ease-out),
+      color var(--duration-theme) var(--ease-out),
+      border-color var(--duration-theme) var(--ease-out);
+  }
+}
+
+@layer components {
+  /* Cursor-style scrollbar */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 5px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--border-strong);
+  }
+}

@@ -1,0 +1,153 @@
+CREATE TABLE `audit_log` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`at` integer DEFAULT (unixepoch() * 1000) NOT NULL,
+	`actor` text NOT NULL,
+	`action` text NOT NULL,
+	`target` text,
+	`payload` text,
+	`result` text
+);
+--> statement-breakpoint
+CREATE INDEX `audit_at_idx` ON `audit_log` (`at`);--> statement-breakpoint
+CREATE TABLE `bets` (
+	`id` text PRIMARY KEY NOT NULL,
+	`wallet_id` text NOT NULL,
+	`market_id` text NOT NULL,
+	`signal_id` integer,
+	`mode` text NOT NULL,
+	`side` text NOT NULL,
+	`size` text NOT NULL,
+	`price` real NOT NULL,
+	`shares` text NOT NULL,
+	`placed_at` integer NOT NULL,
+	`settled_at` integer,
+	`pnl` text,
+	`status` text NOT NULL,
+	`tx_hash` text,
+	`notes` text,
+	FOREIGN KEY (`wallet_id`) REFERENCES `wallets`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`market_id`) REFERENCES `markets`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`signal_id`) REFERENCES `signals`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+CREATE INDEX `bets_wallet_idx` ON `bets` (`wallet_id`,`placed_at`);--> statement-breakpoint
+CREATE INDEX `bets_market_idx` ON `bets` (`market_id`,`placed_at`);--> statement-breakpoint
+CREATE INDEX `bets_status_idx` ON `bets` (`status`);--> statement-breakpoint
+CREATE TABLE `copy_events` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`target_id` text NOT NULL,
+	`market_id` text NOT NULL,
+	`detected_at` integer NOT NULL,
+	`side` text NOT NULL,
+	`size` text NOT NULL,
+	`price` real NOT NULL,
+	`tx_hash` text NOT NULL,
+	`matched_bet_id` text,
+	FOREIGN KEY (`target_id`) REFERENCES `copy_targets`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`market_id`) REFERENCES `markets`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`matched_bet_id`) REFERENCES `bets`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `copy_events_tx_hash_unique` ON `copy_events` (`tx_hash`);--> statement-breakpoint
+CREATE INDEX `copy_events_target_time_idx` ON `copy_events` (`target_id`,`detected_at`);--> statement-breakpoint
+CREATE TABLE `copy_targets` (
+	`id` text PRIMARY KEY NOT NULL,
+	`address` text NOT NULL,
+	`label` text,
+	`enabled` integer DEFAULT true NOT NULL,
+	`allocation_cap` text,
+	`min_edge` real DEFAULT 0.05 NOT NULL,
+	`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `copy_targets_address_unique` ON `copy_targets` (`address`);--> statement-breakpoint
+CREATE INDEX `copy_addr_idx` ON `copy_targets` (`address`);--> statement-breakpoint
+CREATE TABLE `markets` (
+	`id` text PRIMARY KEY NOT NULL,
+	`slug` text NOT NULL,
+	`question` text NOT NULL,
+	`description` text,
+	`category` text NOT NULL,
+	`tags` text,
+	`end_date` integer NOT NULL,
+	`active` integer DEFAULT true NOT NULL,
+	`resolved` integer DEFAULT false NOT NULL,
+	`outcome` text,
+	`liquidity` text,
+	`volume_24h` text,
+	`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,
+	`updated_at` integer DEFAULT (unixepoch() * 1000) NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `markets_slug_unique` ON `markets` (`slug`);--> statement-breakpoint
+CREATE INDEX `markets_cat_idx` ON `markets` (`category`,`active`);--> statement-breakpoint
+CREATE INDEX `markets_end_idx` ON `markets` (`end_date`);--> statement-breakpoint
+CREATE TABLE `model_performance` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`model_version` text NOT NULL,
+	`category` text,
+	`window_start` integer NOT NULL,
+	`window_end` integer NOT NULL,
+	`n_predictions` integer NOT NULL,
+	`brier_score` real NOT NULL,
+	`log_loss` real,
+	`win_rate` real,
+	`avg_edge` real,
+	`calibration` text
+);
+--> statement-breakpoint
+CREATE INDEX `perf_model_window_idx` ON `model_performance` (`model_version`,`window_end`);--> statement-breakpoint
+CREATE TABLE `orderbook_snapshots` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`market_id` text NOT NULL,
+	`captured_at` integer NOT NULL,
+	`best_bid` real NOT NULL,
+	`best_ask` real NOT NULL,
+	`mid_price` real NOT NULL,
+	`spread` real NOT NULL,
+	`bid_liquidity` text,
+	`ask_liquidity` text,
+	FOREIGN KEY (`market_id`) REFERENCES `markets`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+CREATE INDEX `snapshots_market_time_idx` ON `orderbook_snapshots` (`market_id`,`captured_at`);--> statement-breakpoint
+CREATE TABLE `signals` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`market_id` text NOT NULL,
+	`computed_at` integer NOT NULL,
+	`model_version` text NOT NULL,
+	`predicted_prob` real NOT NULL,
+	`market_prob` real NOT NULL,
+	`edge` real NOT NULL,
+	`confidence` real NOT NULL,
+	`horizon_hours` integer NOT NULL,
+	`rationale` text,
+	`active` integer DEFAULT true NOT NULL,
+	FOREIGN KEY (`market_id`) REFERENCES `markets`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+CREATE INDEX `signals_market_active_idx` ON `signals` (`market_id`,`active`);--> statement-breakpoint
+CREATE INDEX `signals_edge_idx` ON `signals` (`edge`);--> statement-breakpoint
+CREATE TABLE `ticks` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`market_id` text NOT NULL,
+	`captured_at` integer NOT NULL,
+	`price` real NOT NULL,
+	`side` text NOT NULL,
+	`size` text,
+	FOREIGN KEY (`market_id`) REFERENCES `markets`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+CREATE INDEX `ticks_market_time_idx` ON `ticks` (`market_id`,`captured_at`);--> statement-breakpoint
+CREATE TABLE `wallets` (
+	`id` text PRIMARY KEY NOT NULL,
+	`address` text NOT NULL,
+	`label` text,
+	`chain_id` integer DEFAULT 137 NOT NULL,
+	`wallet_type` text NOT NULL,
+	`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,
+	`last_synced_at` integer
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `wallets_address_unique` ON `wallets` (`address`);--> statement-breakpoint
+CREATE INDEX `wallets_addr_idx` ON `wallets` (`address`);

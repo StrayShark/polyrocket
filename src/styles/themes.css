@@ -1,0 +1,77 @@
+/* polyrocket themes — spec v2.2 §3
+ * 3 themes = SAME layout / structure / typography / radius / shadow / motion.
+ * Only color tokens differ. See polyradar-dev-governance.md §11.
+ */
+
+:root {
+  --font-sans: 'Inter', 'SF Pro Display', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, monospace;
+
+  /* Radius — identical across all themes (spec v2.2 §3.4) */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Motion — identical across all themes (spec v2.2 §3.6) */
+  --duration-fast: 80ms;
+  --duration-base: 160ms;
+  --duration-theme: 180ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html[data-theme='dark'] {
+  --bg: #0E0F12;
+  --surface: #16181D;
+  --surface-2: #1B1D24;
+  --surface-hover: #20232B;
+  --border: #262932;
+  --border-strong: #2E323D;
+  --fg: #E4E6EB;
+  --fg-secondary: #A8ADB8;
+  --muted: #6E7382;
+  --accent: #5B8DEF;
+  --accent-hover: #7BA3F5;
+  --bull: #3FB950;
+  --bear: #F85149;
+  --warning: #D29922;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+html[data-theme='light'] {
+  --bg: #FFFFFF;
+  --surface: #FAFAFA;
+  --surface-2: #F4F4F5;
+  --surface-hover: #ECECEE;
+  --border: #E4E4E7;
+  --border-strong: #D4D4D8;
+  --fg: #1F2328;
+  --fg-secondary: #4B5263;
+  --muted: #6B7280;
+  --accent: #2563EB;
+  --accent-hover: #1D4ED8;
+  --bull: #1A7F37;
+  --bear: #CF222E;
+  --warning: #9A6700;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+html[data-theme='matrix'] {
+  --bg: #0F0F0F;
+  --surface: #1A1A1A;
+  --surface-2: #212121;
+  --surface-hover: #2A2A2A;
+  --border: #2E2E2E;
+  --border-strong: #383838;
+  --fg: #E8E8E8;
+  --fg-secondary: #A8A8A8;
+  --muted: #707070;
+  --accent: #00C853;
+  --accent-hover: #00E676;
+  --bull: #00C853;
+  --bear: #FF5252;
+  --warning: #FFB300;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
