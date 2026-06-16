@@ -79,16 +79,30 @@ pub fn parse_response(
 
 /// Classify an HTTP status (or transport error) into a stable `err::*` code.
 pub fn classify_status(status: u16, body_hint: &str) -> &'static str {
-    match status {
+    // First, status-based classification
+    let from_status = match status {
         401 | 403 => err::AUTH,
         404 if body_hint.to_lowercase().contains("model") => err::MODEL_NOT_FOUND,
         404 => err::PARSE,
         408 => err::TIMEOUT,
         429 => err::RATE_LIMIT,
         s if (500..600).contains(&s) => err::NETWORK,
-        s if (200..300).contains(&s) => err::UNKNOWN, // success; should not be classified
+        s if (200..300).contains(&s) => return err::UNKNOWN, // success; should not be classified
         _ => err::UNKNOWN,
+    };
+    // Body-based override: 4xx with auth-like wording → auth.
+    // Some providers (e.g. Google) return 400 "API key not valid" instead of 401.
+    if (400..500).contains(&status) {
+        let lower = body_hint.to_lowercase();
+        if lower.contains("api key")
+            || lower.contains("auth")
+            || lower.contains("credential")
+            || lower.contains("permission")
+        {
+            return err::AUTH;
+        }
     }
+    from_status
 }
 
 fn truncate(s: &str, max: usize) -> &str {
