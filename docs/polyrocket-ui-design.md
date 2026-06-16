@@ -1,11 +1,12 @@
 # polyrocket — UI 设计规范 (UID)
 
-> 版本：v2.0 · 2026-06-16
+> 版本：v2.1 · 2026-06-16
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（数据来源） · [`polyrocket-flows.md`](./polyrocket-flows.md)（交互流程） · [`polyrocket-llm-analysis.md`](./polyrocket-llm-analysis.md)（M10） · [`polyrocket-llm-management.md`](./polyrocket-llm-management.md)（M11）
 > 设计基线：Cursor IDE（dark / light） + 配色变体（matrix）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异
 >
-> 覆盖范围：18 个页面 / 32 个组件 / 3 个主题 / 9 个状态 / 完整设计 tokens / 完整组件状态机 / 动效 / a11y / 图标 / 数据可视化 / 错误边界 / i18n / Empty-Loading-Error 视觉规范
+> 覆盖范围：18 个页面 / 32 个组件 / 3 个主题 / 9 个状态 / 54 张 PNG 截图（`docs/previews/{dark,light,matrix}/*.png`） / 完整设计 tokens / 完整组件状态机 / 动效 / a11y / 图标 / 数据可视化 / 错误边界 / i18n / Empty-Loading-Error 视觉规范
+> v2.1 新增：54 张 PNG 截图 + Feature Coverage Matrix 验证 17 个 module 全部覆盖
 
 ---
 
@@ -106,19 +107,99 @@
 
 ## 3. 路由 → 页面矩阵
 
-| 路由 | 页面 | 主要组件 | 关键数据源 |
-|---|---|---|---|
-| `/dashboard` | Dashboard | KpiCard × 4, EquityCurve, CalibrationChart, SignalsTable, OpenPositionsList, ActivityTimeline | M1-M6 |
-| `/markets` | Markets | MarketsTable (TanStack Table) | M1 |
-| `/signals` | Signals | SignalsTable (full) + SignalDetailPanel | M2 |
-| `/copy` | Copy Trading | CopyTargetsList, CopyEventsTimeline, MirrorStrategyForm | M5 |
-| `/pnl` | P&L | PnLCurveChart, CategoryBreakdown, BetsHistoryTable | M3, M6 |
-| `/lab` | Model Lab | ModelVersionsList, PerformanceComparison, CalibrationOverlay | M7 |
-| `/wallets` | Wallets (v0.2) | WalletsTable, AddWalletForm, KeyringManager | M4 |
-| `/settings` | Settings | ThemePicker, ThresholdsForm, NotificationsConfig | M9 |
+**18 页面 × 3 主题（dark / light / matrix）= 54 PNG 截图**
+截图存于 `docs/previews/{theme}/{page}.png`，由 `python3 scripts/snapshot_pages.py` 一键重生成。
+
+| 路由 | 页面 | 用途 | 主要模块 | PNG（dark） | 关键组件 |
+|---|---|---|---|---|---|
+| `/dashboard` | Dashboard | 总览：KPI + Equity + Today's Brief | M1-M6 + M12 | ![](previews/dark/dashboard.png) | KpiCard × 4, EquityCurve, CalibrationChart, BriefList |
+| `/markets` | Markets | 市场列表 | M1 | ![](previews/dark/markets.png) | MarketsTable (sortable) + CategorySegmented |
+| `/market-detail` | Market Detail | 单市场深视图（行情+orderbook+LLM+signals） | M1 + M2 + M10 | ![](previews/dark/market-detail.png) | PriceChart, OrderbookTable, BetForm, ConsensusCard, SignalsList |
+| `/signals` | Signals | 全部活跃信号 | M2 | ![](previews/dark/signals.png) | SignalsTable (full) + EdgeChart |
+| `/copy` | Copy Trading | 目标地址监控 + 事件流 | M5 | ![](previews/dark/copy.png) | CopyTargetsList, CopyEventsTimeline, MirrorStrategyForm |
+| `/pnl` | P&L | 聚合统计 + 类别细分 | M3 + M6 | ![](previews/dark/pnl.png) | PnLCurveChart, CategoryBreakdown, BetsHistoryTable |
+| `/history` | Trade History | 全部 bet 明细 | M3 (detail) | ![](previews/dark/history.png) | KPI × 3, BetsTable (10-col) |
+| `/lab` | Model Lab | 模型版本管理 | M7 | ![](previews/dark/lab.png) | ModelVersionsList, PerformanceComparison, CalibrationOverlay |
+| `/analysis` | Analysis | 多 LLM 并行 + 共识 | M10 | ![](previews/dark/analysis.png) | ContextPanel, 4× ProviderCard, ConsensusCard, DecisionBar |
+| `/llm-perf` | LLM Performance | 5 tab 胜率 / Brier / scatter / timeseries / decisions | M10 stats | ![](previews/dark/llm-perf.png) | 5 tab (Table / Heatmap / Scatter / Timeseries / Decisions) |
+| `/llm-mgmt` | LLM Management | Provider + key + 连通性 + 流量 + 异常 | M11 | ![](previews/dark/llm-mgmt.png) | SecretsBanner, ProviderList (collapsible), TrafficCard, WinRateTable, KeyModal |
+| `/brief` | Daily Brief | 每日 top 8 + 评分公式权重 + 缓存 | M12 | ![](previews/dark/brief.png) | WeightsPanel, Top8List (with breakdown), TomorrowPreview |
+| `/wallets` | Wallets | 钱包 + PM CLOB 凭证 | M4 + M11 (PM creds) | ![](previews/dark/wallets.png) | PMCredentialsTable, WalletsTable, KeyringStatusBanner |
+| `/notifications` | Notifications | 集中 toast + 系统事件 | X2 | ![](previews/dark/notifications.png) | KindFilter (5+ 段), EventTable |
+| `/audit` | Audit Log | 所有写操作历史 | X1 | ![](previews/dark/audit.png) | FilterBar, EventTable (6-col) |
+| `/help` | Help & Docs | 5 spec docs 链接 + 快捷键 + troubleshooting | M9 (docs) | ![](previews/dark/help.png) | QuickStartList, ConceptsList, KbdTable, SpecDocsList, TroubleshootingDetails |
+| `/settings` | Preferences | 主题 + 阈值 + 通知 | M9 | ![](previews/dark/settings.png) | ThemeSwitch, TradingDefaults, CopyTrading, DataExport |
+| `/onboarding` | Onboarding (首启) | 4 步引导 | M13 | ![](previews/dark/onboarding.png) | ProgressDots, 4-step wizard, KeyForm |
+
+> 注：`/onboarding` 只在 `localStorage.polyrocket.first-run-done !== '1'` 时自动进入；用户主动从 user menu 也能进（v0.3+）。
 
 ---
 
+## 3.1 Feature Coverage Matrix
+
+**目标**：验证 UI spec 覆盖了 `polyrocket-modules.md` 里声明的所有 17 个 module（M1-M13 + X1 + X2）。
+
+| Module | 描述（缩写） | 主页面 | 次级入口 | 测试可见？ | 状态 |
+|---|---|---|---|---|---|
+| M1 Markets | 市场元数据 | /markets, /market-detail | Dashboard "Today's Brief" | ✅ | v0.1 |
+| M2 Signals | 信号生成 | /signals | /market-detail "Signals" | ✅ | v0.1 |
+| M3 Bets | 下单 / 持仓 / 结算 | /history, /pnl | /market-detail "Place a bet" | ✅ | v0.1 + v0.2 增强 |
+| M4 Wallets | 钱包 + keyring | /wallets | /llm-mgmt 间接 | ✅ | v0.1 + v0.2 keychain |
+| M5 CopyTrading | 目标监控 + 镜像 | /copy | — | ✅ | v0.1 |
+| M6 PnL | 聚合统计 | /pnl | Dashboard KPI | ✅ | v0.1 |
+| M7 ModelLab | 模型版本管理 | /lab | — | ✅ | v0.1 |
+| M8 Dashboard | 跨模块汇总 | /dashboard | — | ✅ | v0.1 |
+| M9 Settings | 主题 / 阈值 / 通知 | /settings | user menu | ✅ | v0.1 |
+| X1 AuditLog | 写操作追溯 | /audit | — | ✅ | v0.1 |
+| X2 Notifications | toast / 系统通知 | /notifications | Topbar 铃铛 | ✅ | v0.1 |
+| M10 LLM Analysis | 多 LLM 并行分析 | /analysis, /llm-perf | /market-detail consensus | ✅ | v0.2 |
+| M11 LLM Management | Provider/Key + 流量 + 健康 | /llm-mgmt | /wallets (PM CLOB) | ✅ | v0.2 + v1.1 keychain + v1.2 scheduler |
+| M12 Daily Brief | 每日 top 8 | /brief | Dashboard "Today's Brief" | ✅ | v0.2 |
+| M13 Onboarding | 首启 4 步 | /onboarding | first-run auto-trigger | ✅ | v0.2 |
+
+**100% 覆盖** — 每个 module 都有至少 1 个主页面 + 1 个次级入口（嵌入到 drill-down 视图）。
+
+**还**加** 2 个辅助页面**（不属于 module，是横切 + 系统）：
+- `/help` — Help & Docs (M9 docs 子集)
+- `/audit` — Audit Log (X1，**也**是独立入口)
+
+**7 大 UI 状态组合**（18 页面 × 3 主题 = 54 PNG 都覆盖）：
+- 正常态（每页主态）
+- 加载态（skeleton — `uiSkeleton()` helper）
+- 空态（empty — `uiEmpty()` helper）
+- 错误态（error — `uiError()` helper）
+- 弹窗态（modal — Add key / Add wallet / Confirm delete）
+- 折叠态（sidebar collapsed / provider row expanded）
+- 主题态（dark / light / matrix）
+
+---
+
+## 3.2 截图重生成
+
+```bash
+# 一次性生成全部 54 张 PNG
+python3 scripts/snapshot_pages.py
+
+# 输出
+# docs/previews/
+#   dark/   <18 pages>.png
+#   light/  <18 pages>.png
+#   matrix/ <18 pages>.png
+```
+
+机制：
+- 1440×900 viewport, device_scale_factor=2 (Retina)
+- seed.html 临时文件写入 localStorage (theme + first-run-done + sidebar.collapsed) → location.replace 到 `prototype.html#<page>`
+- `wait_for_function(data-theme === '<theme>')` 确保 paint 完成
+- `wait_for_timeout(300ms)` 让 lucide icon font + 异步 paint settle
+- `page.screenshot(full_page=True)` — 含 sidebar 完整长度
+- 54 PNG, 54 distinct MD5（**不**会撞缓存坑）
+
+**MD5 不重复保证**：
+- 每次 `goto` 都通过新的 `seed.html` 写 localStorage（值不同 → 渲染不同）
+- 不用 mockito / 不用 cache-buster query — file:// 协议天然无缓存
+
+---
 ## 4. 组件库（24 个核心组件）
 
 ### 基础（shadcn 衍生）
@@ -1335,6 +1416,12 @@ mount → skeleton (immediate)
 
 ## 变更日志
 
+- **v2.1** (2026-06-16) — **PNG 截图 + Feature Coverage Matrix**：
+  - 加 §3.1 Feature Coverage Matrix：17 module（M1-M13 + X1 + X2）100% 覆盖验证，每个 module 都有主页面 + 次级入口
+  - 加 §3.2 截图重生成流程 + 54 PNG 文件位置（`docs/previews/{dark,light,matrix}/*.png`）
+  - §3 路由表扩展到 18 页 × 3 主题，每行附 PNG 内嵌预览图
+  - **修复 bug**：`prototype.html` 中 `const SIGNALS` 等 mock data 移到 `const ROUTES` 之前（修复 route() 首次调用时 TDZ ReferenceError，dashboard 之前截图空白的根因）
+  - 工具：`scripts/snapshot_pages.py` — Python + Playwright，1440×900 viewport, device_scale_factor=2
 - **v2.0** (2026-06-16) — 重大升级：
   - **6 个新页面**（§5.10-5.18）：Analysis / LLM Management / Daily Brief / Onboarding / Market Detail / Notifications / Help / Trade History / Audit Log
   - **§9 Design Tokens 深度规范**：spacing 11 阶 / radius 7 阶 / shadow 5 阶 / motion 6 duration / z-index 8 阶

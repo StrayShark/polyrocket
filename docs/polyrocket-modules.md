@@ -418,6 +418,7 @@ model_performance({ model_version, window }): ModelPerformanceDto
 ## 变更日志
 
 - **v1.6** (2026-06-16) — M10 真实化：4-provider HTTP fan-out 落地。新增 5 个 provider client（OpenAI / Anthropic / Google / DeepSeek / Custom）+ key rotation + retry/backoff + 3 prompt 模板 + 2 个新 IPC（llm_get_recommendation / llm_list_analyses）。代码量 ~1200 行 + 8 个测试（3 unit + 5 integration）。
+- **v1.8** (2026-06-16) — UI v2.1：18 页面 × 3 主题 = 54 PNG 截图（`docs/previews/{dark,light,matrix}/*.png`）通过 `scripts/snapshot_pages.py` 一键生成。修复 `prototype.html` 中 `const SIGNALS` mock data 移位 bug（导致 dashboard 渲染空白）。UI spec 加 Feature Coverage Matrix 验证 17 module 100% 覆盖。
 - **v1.7** (2026-06-16) — M11 后台调度：3 个 tokio loop（health probe 5min / daily brief 00:00 UTC cron / anomaly detect 60min）+ 3-fail auto-disable + 3 个新 IPC（scheduler_status / scheduler_run_health_probe_now / scheduler_run_daily_brief_now）。
 - **v1.5** (2026-06-16) — 新增 **M13 Onboarding**：首启 4 步引导。补强 prototype.html 6 个新页面（Onboarding / Market Detail / Notifications / Help / Trade History / Audit Log）；UI spec v2.0 升级到 18 页面 + 完整 tokens/状态机/动效/a11y/图标/数据可视化/错误边界/i18n/Empty-Loading-Error 规范。
 - **v1.4** (2026-06-16) — M11 升级：**Client-side key persistence 为主路径**。新增 5 个 IPC（llm_key_set_secret / llm_pm_set_credentials / llm_pm_clear_credentials / polyrocket_wallet_set_pk / polyrocket_wallet_clear_pk / secrets_status）；.env 降级为 dev-only（仅 `POLYROCKET_ENV=dev` 读）；keyring alias 命名空间化（`llm/<pid>/<alias>` 等）。

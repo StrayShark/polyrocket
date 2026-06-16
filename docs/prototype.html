@@ -696,6 +696,48 @@
   } catch(e) {}
 
   /* ========== router ========== */
+  /* ========== mock data ========== */
+  const SIGNALS = [
+    { id: 1, cat: 'CS2', q: 'LGD vs Spirit — Map 2 winner', closes: '2h 14m', our: 0.71, mkt: 0.58, edge: +0.13, conf: 0.82, model: 'v0.3.2' },
+    { id: 2, cat: 'Football', q: 'Real Madrid vs Barcelona', closes: '5h 02m', our: 0.63, mkt: 0.54, edge: +0.09, conf: 0.71, model: 'v0.3.2' },
+    { id: 3, cat: 'Politics', q: 'Fed rate cut by Dec 2025', closes: '18d', our: 0.22, mkt: 0.35, edge: -0.13, conf: 0.78, model: 'v0.3.1' },
+    { id: 4, cat: 'CS2', q: 'NaVi vs FaZe — Map 1 handicap', closes: '38m', our: 0.55, mkt: 0.49, edge: +0.06, conf: 0.64, model: 'v0.3.2' },
+    { id: 5, cat: 'Football', q: 'Man City vs Arsenal — over 2.5', closes: '3d 4h', our: 0.68, mkt: 0.61, edge: +0.07, conf: 0.69, model: 'v0.3.2' },
+    { id: 6, cat: 'CS2', q: 'G2 vs Vitality — Map 3 winner', closes: '1d 6h', our: 0.48, mkt: 0.42, edge: +0.06, conf: 0.62, model: 'v0.3.0' },
+    { id: 7, cat: 'Politics', q: 'Senate control after midterms', closes: '64d', our: 0.51, mkt: 0.46, edge: +0.05, conf: 0.58, model: 'v0.3.2' },
+  ];
+  const MARKETS = [
+    { cat: 'CS2', q: 'LGD vs Spirit — Map 2', end: '2h 14m', vol24: '$124k', liq: '$48k', edge: '+13.0%' },
+    { cat: 'Football', q: 'Real Madrid vs Barcelona', end: '5h 02m', vol24: '$890k', liq: '$320k', edge: '+9.0%' },
+    { cat: 'Politics', q: 'Fed rate cut by Dec 2025', end: '18d', vol24: '$2.1M', liq: '$640k', edge: '−13.0%' },
+    { cat: 'CS2', q: 'NaVi vs FaZe — Map 1', end: '38m', vol24: '$67k', liq: '$22k', edge: '+6.0%' },
+    { cat: 'Football', q: 'Man City vs Arsenal', end: '3d 4h', vol24: '$1.2M', liq: '$410k', edge: '+7.0%' },
+    { cat: 'Football', q: 'Bayern vs Dortmund', end: '5d 2h', vol24: '$640k', liq: '$210k', edge: '−' },
+    { cat: 'CS2', q: 'G2 vs Vitality', end: '1d 6h', vol24: '$98k', liq: '$34k', edge: '+6.0%' },
+    { cat: 'Politics', q: 'Senate control midterms', end: '64d', vol24: '$580k', liq: '$190k', edge: '+5.0%' },
+  ];
+  const COPY_TARGETS = [
+    { addr: '@quantumorca', events: 17, pnl: '+$342.10', enabled: true, cap: 500, edge: 5 },
+    { addr: '@coldstorage', events: 3, pnl: '+$12.40', enabled: true, cap: 200, edge: 8 },
+    { addr: '@pausemode', events: 8, pnl: '−$24.00', enabled: false, cap: 100, edge: 10 },
+  ];
+  const COPY_EVENTS = [
+    { time: '14:32', from: 'quantumorca', side: 'YES', price: 0.58, market: 'LGD vs Spirit — Map 2', size: '120 sh' },
+    { time: '14:01', from: 'quantumorca', side: 'NO', price: 0.35, market: 'Fed rate cut by Dec', size: '50 sh' },
+    { time: '13:42', from: 'coldstorage', side: 'YES', price: 0.49, market: 'NaVi vs FaZe — Map 1', size: '200 sh' },
+    { time: '12:18', from: 'quantumorca', side: 'YES', price: 0.61, market: 'Man City vs Arsenal', size: '320 sh' },
+    { time: '11:55', from: 'quantumorca', side: 'NO', price: 0.28, market: 'Senate control', size: '180 sh' },
+  ];
+  const BETS_OPEN = [
+    { side: 'YES', market: 'LGD wins Map 2', size: '120', price: 0.58, pnl: '24.30', pct: '+34.9%' },
+    { side: 'YES', market: 'Real Madrid win', size: '80', price: 0.54, pnl: '12.50', pct: '+22.7%' },
+    { side: 'NO', market: 'Trump wins 2028 GOP', size: '50', price: 0.35, pnl: '−8.10', pct: '−12.4%' },
+    { side: 'YES', market: 'NaVi +1.5', size: '200', price: 0.49, pnl: '11.00', pct: '+11.0%' },
+  ];
+
+  const fmtPct = p => (p * 100).toFixed(0) + '%';
+  const fmtEdge = e => (e >= 0 ? '+' : '') + (e * 100).toFixed(1) + '%';
+
   const ROUTES = {
     dashboard: { label: 'Dashboard', render: renderDashboard },
     markets: { label: 'Markets', render: renderMarkets },
@@ -791,48 +833,6 @@
   route(location.hash.slice(1) || 'dashboard');
   // Trigger first-run onboarding check after a tick (so dashboard can render first if not first-run)
   setTimeout(maybeRouteOnboarding, 50);
-
-  /* ========== mock data ========== */
-  const SIGNALS = [
-    { id: 1, cat: 'CS2', q: 'LGD vs Spirit — Map 2 winner', closes: '2h 14m', our: 0.71, mkt: 0.58, edge: +0.13, conf: 0.82, model: 'v0.3.2' },
-    { id: 2, cat: 'Football', q: 'Real Madrid vs Barcelona', closes: '5h 02m', our: 0.63, mkt: 0.54, edge: +0.09, conf: 0.71, model: 'v0.3.2' },
-    { id: 3, cat: 'Politics', q: 'Fed rate cut by Dec 2025', closes: '18d', our: 0.22, mkt: 0.35, edge: -0.13, conf: 0.78, model: 'v0.3.1' },
-    { id: 4, cat: 'CS2', q: 'NaVi vs FaZe — Map 1 handicap', closes: '38m', our: 0.55, mkt: 0.49, edge: +0.06, conf: 0.64, model: 'v0.3.2' },
-    { id: 5, cat: 'Football', q: 'Man City vs Arsenal — over 2.5', closes: '3d 4h', our: 0.68, mkt: 0.61, edge: +0.07, conf: 0.69, model: 'v0.3.2' },
-    { id: 6, cat: 'CS2', q: 'G2 vs Vitality — Map 3 winner', closes: '1d 6h', our: 0.48, mkt: 0.42, edge: +0.06, conf: 0.62, model: 'v0.3.0' },
-    { id: 7, cat: 'Politics', q: 'Senate control after midterms', closes: '64d', our: 0.51, mkt: 0.46, edge: +0.05, conf: 0.58, model: 'v0.3.2' },
-  ];
-  const MARKETS = [
-    { cat: 'CS2', q: 'LGD vs Spirit — Map 2', end: '2h 14m', vol24: '$124k', liq: '$48k', edge: '+13.0%' },
-    { cat: 'Football', q: 'Real Madrid vs Barcelona', end: '5h 02m', vol24: '$890k', liq: '$320k', edge: '+9.0%' },
-    { cat: 'Politics', q: 'Fed rate cut by Dec 2025', end: '18d', vol24: '$2.1M', liq: '$640k', edge: '−13.0%' },
-    { cat: 'CS2', q: 'NaVi vs FaZe — Map 1', end: '38m', vol24: '$67k', liq: '$22k', edge: '+6.0%' },
-    { cat: 'Football', q: 'Man City vs Arsenal', end: '3d 4h', vol24: '$1.2M', liq: '$410k', edge: '+7.0%' },
-    { cat: 'Football', q: 'Bayern vs Dortmund', end: '5d 2h', vol24: '$640k', liq: '$210k', edge: '−' },
-    { cat: 'CS2', q: 'G2 vs Vitality', end: '1d 6h', vol24: '$98k', liq: '$34k', edge: '+6.0%' },
-    { cat: 'Politics', q: 'Senate control midterms', end: '64d', vol24: '$580k', liq: '$190k', edge: '+5.0%' },
-  ];
-  const COPY_TARGETS = [
-    { addr: '@quantumorca', events: 17, pnl: '+$342.10', enabled: true, cap: 500, edge: 5 },
-    { addr: '@coldstorage', events: 3, pnl: '+$12.40', enabled: true, cap: 200, edge: 8 },
-    { addr: '@pausemode', events: 8, pnl: '−$24.00', enabled: false, cap: 100, edge: 10 },
-  ];
-  const COPY_EVENTS = [
-    { time: '14:32', from: 'quantumorca', side: 'YES', price: 0.58, market: 'LGD vs Spirit — Map 2', size: '120 sh' },
-    { time: '14:01', from: 'quantumorca', side: 'NO', price: 0.35, market: 'Fed rate cut by Dec', size: '50 sh' },
-    { time: '13:42', from: 'coldstorage', side: 'YES', price: 0.49, market: 'NaVi vs FaZe — Map 1', size: '200 sh' },
-    { time: '12:18', from: 'quantumorca', side: 'YES', price: 0.61, market: 'Man City vs Arsenal', size: '320 sh' },
-    { time: '11:55', from: 'quantumorca', side: 'NO', price: 0.28, market: 'Senate control', size: '180 sh' },
-  ];
-  const BETS_OPEN = [
-    { side: 'YES', market: 'LGD wins Map 2', size: '120', price: 0.58, pnl: '24.30', pct: '+34.9%' },
-    { side: 'YES', market: 'Real Madrid win', size: '80', price: 0.54, pnl: '12.50', pct: '+22.7%' },
-    { side: 'NO', market: 'Trump wins 2028 GOP', size: '50', price: 0.35, pnl: '−8.10', pct: '−12.4%' },
-    { side: 'YES', market: 'NaVi +1.5', size: '200', price: 0.49, pnl: '11.00', pct: '+11.0%' },
-  ];
-
-  const fmtPct = p => (p * 100).toFixed(0) + '%';
-  const fmtEdge = e => (e >= 0 ? '+' : '') + (e * 100).toFixed(1) + '%';
 
   /* ========== renderers ========== */
   function renderDashboard() {
@@ -3088,5 +3088,11 @@
     `;
   }
 </script>
+<!--
+  Regenerate PNG previews with:
+    python3 scripts/snapshot_pages.py
+  Writes 54 PNGs to docs/previews/{dark,light,matrix}/<page>.png
+  See docs/polyrocket-ui-design.md §3.1 for the page list.
+-->
 </body>
 </html>
