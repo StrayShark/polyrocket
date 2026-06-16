@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v1.1 · 2026-06-16 (v0.5 — vitest + mirror trigger + 系统通知 + signed-order stub)
+> 版本：v1.2 · 2026-06-16 (v0.6 — mirror auto-exec + sidecar scaffold + dashboard charts)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
 
@@ -598,6 +598,27 @@ v0.5 增量：
 - L3 mirror 状态机 (Pending → Submitted → Filled|Rejected|Expired)
 - 系统通知: macOS Notification Center / Windows toast / Linux libnotify
 - Mode B signed-order: validate + 确定性 tx_hash (替换 rs-clob-client 时只改 sign_order 内部)
+
+### 5.6 v0.6 — mirror 自动执行 + Python sidecar + Dashboard charts
+
+| 阶段 | 内容 | commit | tests |
+|---|---|---|---|
+| v0.6a | M5 mirror executor: 4th scheduler loop picks pending → submits Mode B bets via sign_order | `29cf9e2` | +10 rust |
+| v0.6b | M7 Python sidecar: spawn process + JSON-RPC protocol (predict/ping/train/promote) | `56d5754` | +10 rust |
+| v0.6c | Dashboard charts: Sparkline + BarChart + Equity curve + Calibration + Activity timeline | `1b779e2` | — |
+| v0.6d | Re-generate 54 PNGs (3 themes distinct MD5) + .gitignore fixes | `9cd75c0` | — |
+| **Total v0.6** | **4 子阶段** | **4 commits** | **+20 rust, 5 new IPCs (53 total)** |
+
+v0.6 增量：
+- M5 真的可以自动执行（不只算 decision）
+  - `copy_mirror_queue` 表 + migration helper
+  - `domain::mirror` 9 unit tests
+  - 4th scheduler loop ticks every 30s
+- M7 sidecar 全套协议 + process manager
+  - `domain::lab::sidecar` 7 unit tests
+  - 5 new IPCs: start/stop/status/predict/request
+- Dashboard 加 3 个图表 + 2 个 SVG primitive
+- 54 PNG screenshots 重新生成（distinct theme verification）
 
 ### 5.3 迁移原则
 

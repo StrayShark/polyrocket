@@ -1,6 +1,6 @@
 # polyrocket — 功能模块设计 (FSD)
 
-> 版本：v2.0 · 2026-06-16 (v0.5 — 通知 + mirror + signed-order)
+> 版本：v2.1 · 2026-06-16 (v0.6 — mirror exec + sidecar + charts)
 > 配套：[`overview.md`](./overview.md)（5 层架构 + 目录结构） · [`polyrocket-llm-analysis.md`](./polyrocket-llm-analysis.md)（M10/M12 设计） · [`polyrocket-llm-management.md`](./polyrocket-llm-management.md)（M11 设计） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个 flow） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页 × 3 主题 UI 规范）
 > 范围：Tauri 2 桌面客户端的所有功能模块拆解，含职责、依赖、对外接口
 > 想了解**代码在哪一层、目录怎么组织** → 看 `overview.md`
@@ -414,8 +414,9 @@ model_performance({ model_version, window }): ModelPerformanceDto
 | v0.2 | M2 真信号接入 / M3 Mode B 真签名 / M5 镜像策略 / M7 模型性能追踪 / X2 系统通知 |
 | v0.3 | 5-layer 严格分目录 + CI 守门 (check-layers.mjs) |
 | v0.4 | **L3 域全实现** + **L1 真 React 化 18 路由** + audit read-side + onb/notify/help |
-| **v0.5 (当前)** | **vitest 88 + mirror 状态机 + 系统通知 + signed-order stub** |
-| v0.6 (next) | M3 Mode B 真签名 (rs-clob-client) / M5 镜像自动执行 / M7 Python sidecar |
+| v0.5 | **vitest 88 + mirror 状态机 + 系统通知 + signed-order stub** |
+| **v0.6 (当前)** | **M5 镜像自动执行 + M7 Python sidecar + Dashboard charts** |
+| v0.7 (next) | M3 Mode B 真签名 (rs-clob-client) / M7 真 Python 训练 / M5 真 on-chain 镜像 |
 
 ### 6.1 v0.4 — 全 13 模块
 
@@ -455,6 +456,31 @@ model_performance({ model_version, window }): ModelPerformanceDto
 - L1 `src/lib/domain/*` (8 modules mirroring L3 pure funcs)
 - L1 `src/components/business/MirrorPanel.tsx` (5-stat panel + per-row state)
 - vitest 4.1.9 + 8 .test.ts files
+
+### 6.3 v0.6 — mirror 自动执行 + sidecar + charts
+
+| 阶段 | 内容 | commit | tests |
+|---|---|---|---|
+| v0.6a | M5 mirror executor: 4th scheduler loop, picks pending → submits Mode B bets via sign_order | `29cf9e2` | +10 rust |
+| v0.6b | M7 Python sidecar: spawn process + JSON-RPC protocol (predict/ping/train/promote) | `56d5754` | +10 rust |
+| v0.6c | Dashboard charts: Sparkline + BarChart SVG + equity curve + calibration + activity | `1b779e2` | — |
+| v0.6d | Re-generate 54 PNGs (3 themes distinct MD5) | `9cd75c0` | — |
+| **Total v0.6** | **+20 rust tests, 4 commits, 1 new L2 mod (sidecar), 1 new L3 mod (mirror), 1 new L4 mod (lab_state), 1 new scheduler loop** |
+
+新增模块：
+- L3 `domain::mirror` (ExecutorConfig + RejectReason + pick_next_mirror + find_rejections + execute_pass)
+- L2 `commands::mirror_executor` (enqueue/list/run_pass/queue_stats + 4th scheduler loop integration)
+- L2 `commands::sidecar` (process spawner + JSON-RPC client)
+- L3 `domain::lab::sidecar` (protocol DTOs + parse_line + build_predict_request)
+- L4 `lab_state` (Tauri-managed SidecarState singleton)
+- L1 `Sparkline.tsx` + `BarChart.tsx` (pure-SVG chart primitives)
+
+**New tables:**
+- `copy_mirror_queue` (id, event_id, target_id, market_id, side, size, flipped, status, created_at, submitted_at, filled_at, bet_id, reject_reason)
+
+**New scheduler loop (4th):**
+- `run_mirror_executor_loop` — 10s warmup + 30s tick (env: POLYROCKET_MIRROR_TICK_SEC)
+- Calls `run_mirror_executor_pass` IPC every tick
 
 ---
 
