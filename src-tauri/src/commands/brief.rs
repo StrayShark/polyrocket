@@ -1,3 +1,9 @@
+//! L2 — Daily brief (M12).
+//!
+//! IPCs: `daily_brief_get` (today's top-N with consensus + signal join),
+//! `daily_brief_dismiss`, `daily_brief_refresh` (re-score candidates),
+//! `daily_brief_set_prefs` (weights + max_items per user).
+
 use crate::AppResult;
 use crate::infra::state::AppState;
 use serde::{Deserialize, Serialize};

@@ -1,3 +1,14 @@
+//! L2 — LLM analysis (M10).
+//!
+//! IPCs (12 total):
+//! - CRUD: `list_llm_providers`, `upsert_llm_provider`
+//! - Analysis: `llm_analyze` (fan-out to N providers, build consensus),
+//!   `llm_list_analyses`, `llm_get_recommendation`
+//! - Stats: `llm_performance`, `llm_stats_heatmap`, `llm_stats_scatter`,
+//!   `llm_stats_timeseries`, `llm_stats_decision`
+//! - Logging: `record_llm_decision`
+//! Depends on L3 `domain::llm` (5 clients + dispatch) and L5 `platform::keyring`.
+
 use crate::AppResult;
 use crate::domain::llm::{
     self, AnthropicClient, CustomClient, DeepSeekClient, GoogleClient, OpenAIClient, ProviderKind,

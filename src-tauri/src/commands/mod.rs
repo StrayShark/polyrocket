@@ -1,3 +1,11 @@
+//! L2 — Tauri IPC commands (Application layer).
+//!
+//! One file per bounded module; each function is a `#[tauri::command]`
+//! registered in `lib.rs::run()`. Commands are THIN: they read DTOs
+//! from the frontend, call into L3 (`domain::*`) for business logic,
+//! and persist via L4 (`infra::db`). See overview.md §3.3 for the
+//! full list of 39 IPCs and the modules they live in.
+
 pub mod bet;
 pub mod brief;
 pub mod copy;

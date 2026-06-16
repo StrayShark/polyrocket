@@ -1,3 +1,9 @@
+//! L2 — Copy trading (M7).
+//!
+//! IPCs: `list_copy_targets`, `add_copy_target`, `recent_copy_events`.
+//! Watches whale addresses for on-chain trades; real impl lands in
+//! `domain::copy` per M7 milestone.
+
 use crate::AppResult;
 use crate::infra::state::AppState;
 use serde::{Deserialize, Serialize};

@@ -1,4 +1,7 @@
-//! Manual scheduler triggers — for debugging and user "Run now" buttons.
+//! L2 — Scheduler manual triggers.
+//!
+//! Thin IPC layer over L4 `infra::scheduler` (the 3 background loops
+//! run independently — these IPCs let the UI force a run).
 //!
 //! These IPCs let the UI force a health-probe sweep or daily-brief run
 //! without waiting for the cron tick. Useful in three cases:

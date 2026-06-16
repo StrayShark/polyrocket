@@ -1,4 +1,8 @@
-//! M11 — Secret persistence (Polymarket CLOB + wallet private key)
+//! L2 — Secret persistence (M11, client-paste path).
+//!
+//! Subset of M11: stores Polymarket CLOB credentials and the
+//! polyrocket wallet private key. The full M11 spec also covers
+//! LLM provider keys (see `llm_mgmt.rs`).
 //!
 //! These commands are the *client-paste* path. The user enters the secret
 //! in the Settings UI; the secret is written straight to the OS keyring

@@ -1,3 +1,10 @@
+//! L2 — Bet placement (M6).
+//!
+//! IPCs: `place_jump_link` (mode A, zero compliance risk), `place_signed_order`
+//! (mode B, keyring-signed, stub), `list_bets`.
+//! Depends on L3 `domain::polymarket` for jump URL + signed-order stub,
+//! L4 `infra::state::AppState` for the SQLite pool.
+
 use crate::domain::polymarket;
 use crate::AppResult;
 use crate::infra::state::AppState;

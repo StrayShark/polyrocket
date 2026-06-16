@@ -1,3 +1,8 @@
+//! L2 — Active signals (M5).
+//!
+//! IPCs: `list_active_signals` (filter by min edge + category),
+//! `recompute_signals` (stub — wires to M5 model-lab sidecar later).
+
 use crate::AppResult;
 use crate::infra::state::AppState;
 use serde::{Deserialize, Serialize};

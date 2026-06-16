@@ -1,3 +1,9 @@
+//! L2 — Markets (M4).
+//!
+//! IPCs: `list_markets` (filter by category / active-only / limit),
+//! `sync_markets` (pull from Polymarket Gamma API → SQLite).
+//! Depends on L3 `domain::polymarket::fetch_active_markets`.
+
 use crate::AppResult;
 use crate::domain::polymarket;
 use crate::infra::state::AppState;

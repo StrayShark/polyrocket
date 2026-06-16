@@ -1,3 +1,9 @@
+//! L2 — Wallet management (M3).
+//!
+//! IPCs: `list_wallets`, `add_wallet`. Wallet metadata lives in
+//! SQLite (`wallets` table); the private key is **never** stored
+//! here — it lives in the OS keyring via L5 `platform::keyring`.
+
 use crate::AppResult;
 use crate::infra::state::AppState;
 use serde::{Deserialize, Serialize};

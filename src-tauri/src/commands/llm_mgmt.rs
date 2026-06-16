@@ -1,4 +1,4 @@
-//! M11 — LLM Management commands
+//! L2 — LLM Management (M11).
 //!
 //! Spec: polyrocket-llm-management.md
 //! Provides provider CRUD, key rotation, connectivity test, traffic

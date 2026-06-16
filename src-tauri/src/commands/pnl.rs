@@ -1,3 +1,9 @@
+//! L2 — PnL dashboard KPIs (M8).
+//!
+//! IPC: `dashboard_kpis` — aggregates `bets`, `model_performance`,
+//! `signals` tables for the home dashboard tiles. Computation will
+//! move into `domain::pnl` per M8 milestone.
+
 use crate::AppResult;
 use crate::infra::state::AppState;
 use serde::Serialize;
