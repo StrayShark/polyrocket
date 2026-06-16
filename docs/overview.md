@@ -511,26 +511,26 @@ sequenceDiagram
 
 ## 5. 现状 → 目标 迁移路线
 
-### 5.1 现状（v0.2）
+### 5.1 现状（v0.2 → v0.3a）
 
 | 层 | 路径 | 状态 |
 |---|---|---|
-| L5 platform | `src-tauri/src/keyring.rs` (单文件) | ✅ 基础可用，**未**分 platform/keyring/ 目录 |
-| L4 infra | `src-tauri/src/{db,error,state,scheduler}.rs` (平铺) | ✅ 基础可用 |
+| L5 platform | `src-tauri/src/platform/{keyring,env,paths}/` | ✅ **v0.3a 完成** |
+| L4 infra | `src-tauri/src/{db,error,state,scheduler}.rs` (平铺) | ✅ 基础可用，待 v0.3b 拆 |
 | L3 domain | `src-tauri/src/llm_clients/` + `polymarket.rs` | ✅ LLM 完整，**polymarket 是 stub**，其他 domain module 缺 |
-| L2 application | `src-tauri/src/commands/` (12 个文件) | ✅ 39 IPC 完整 |
+| L2 application | `src-tauri/src/commands/` (12 个文件) | ✅ 39 IPC 完整，待 v0.3d 加 header 注释 |
 | L1 presentation | `src/` (粗粒度目录) | ⚠️ 是 prototype.html mock，**不是真 React** |
 
 ### 5.2 目标（v0.3+）
 
-| 阶段 | 范围 | 工时估 |
-|---|---|---|
-| **v0.3a** | 拆 L5：建 `platform/{keyring,env,paths}/`，把 `keyring.rs` 拆分 mac/win/linux | 0.5d |
-| **v0.3b** | 拆 L4：建 `infra/{db,http,error,state,scheduler}/` | 0.5d |
-| **v0.3c** | 拆 L3：建 `domain/{llm,consensus,polymarket,signal,bet,copy,pnl,lab,wallet}/`，**新增 8 个 stub domain**（把 L2 里的业务逻辑下移） | 2d |
-| **v0.3d** | 拆 L2：`commands/` 不动，但每个文件顶部加 `// L2: <module>` 注释 | 0.2d |
-| **v0.3e** | L1 真 React 化：把 prototype.html 18 页面切到 `src/routes/`，用 TanStack Router + Zustand + React Query，**不**依赖 prototype.html | 3d |
-| **v0.3f** | CI 加层依赖校验脚本（`scripts/check-layers.mjs`） | 0.5d |
+| 阶段 | 范围 | 状态 | 工时估 |
+|---|---|---|---|
+| **v0.3a** | 拆 L5：建 `platform/{keyring,env,paths}/`，把 `keyring.rs` 拆分 mac/win/linux | ✅ **done** | 0.5d |
+| **v0.3b** | 拆 L4：建 `infra/{db,http,error,state,scheduler}/` | 🔄 pending | 0.5d |
+| **v0.3c** | 拆 L3：建 `domain/{llm,consensus,polymarket,signal,bet,copy,pnl,lab,wallet}/`，**新增 8 个 stub domain**（把 L2 里的业务逻辑下移） | 🔄 pending | 2d |
+| **v0.3d** | 拆 L2：`commands/` 不动，但每个文件顶部加 `// L2: <module>` 注释 | 🔄 pending | 0.2d |
+| **v0.3e** | L1 真 React 化：把 prototype.html 18 页面切到 `src/routes/`，用 TanStack Router + Zustand + React Query，**不**依赖 prototype.html | 🔄 pending | 3d |
+| **v0.3f** | CI 加层依赖校验脚本（`scripts/check-layers.mjs`） | 🔄 pending | 0.5d |
 
 **总计 ~7d** 完成 5 层严格分目录。
 

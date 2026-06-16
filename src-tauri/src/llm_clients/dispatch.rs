@@ -9,7 +9,7 @@
 //! - [`RetryPolicy`] — max attempts, base delay, max delay, jitter.
 //! - [`CallLog`] — shape of one row written to `llm_call_logs`.
 
-use crate::keyring;
+use crate::platform::keyring;
 use crate::llm_clients::{CallError, CallRequest, CostRate, LlmClient, err};
 use std::time::Duration;
 

@@ -251,7 +251,7 @@ pub async fn llm_provider_delete(state: State<'_, AppState>, provider_id: String
         .bind(&provider_id)
         .execute(&state.db)
         .await?;
-    let deleted = crate::keyring::delete_provider_keys(&provider_id, &keyring_aliases);
+    let deleted = crate::platform::keyring::delete_provider_keys(&provider_id, &keyring_aliases);
     sqlx::query(
         "INSERT INTO audit_log (actor, action, target, payload, result) VALUES ('user', 'llm.provider.delete', ?, ?, 'ok')",
     )
@@ -311,7 +311,7 @@ pub async fn llm_key_upsert(
     // keyring_alias is the canonical entry name; we use it verbatim.
     if let Some(s) = secret.as_deref() {
         if !s.is_empty() {
-            crate::keyring::set_key(&key.keyring_alias, s)?;
+            crate::platform::keyring::set_key(&key.keyring_alias, s)?;
         }
     }
 
@@ -394,7 +394,7 @@ pub async fn llm_key_set_secret(
             args.key_id
         )));
     };
-    crate::keyring::set_key(&keyring_alias, &args.secret)?;
+    crate::platform::keyring::set_key(&keyring_alias, &args.secret)?;
     sqlx::query(
         "INSERT INTO audit_log (actor, action, target, payload, result) VALUES ('user', 'llm.key.secret.rotate', ?, ?, 'ok')",
     )
@@ -420,7 +420,7 @@ pub async fn llm_key_delete(state: State<'_, AppState>, key_id: String) -> AppRe
         .execute(&state.db)
         .await?;
     if let Some((provider_id, keyring_alias)) = row {
-        if let Err(e) = crate::keyring::delete_key(&keyring_alias) {
+        if let Err(e) = crate::platform::keyring::delete_key(&keyring_alias) {
             tracing::warn!(
                 "keyring delete for {keyring_alias} (provider {provider_id}) failed: {e}"
             );
@@ -474,7 +474,7 @@ pub async fn llm_test_connectivity(
     };
 
     // Fetch the actual key from keyring
-    let secret = match crate::keyring::get_key(&key_alias) {
+    let secret = match crate::platform::keyring::get_key(&key_alias) {
         Ok(s) => s,
         Err(e) => {
             let res = ConnectivityTestResult {

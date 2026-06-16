@@ -20,7 +20,7 @@
 //! - `POLYROCKET_TELEMETRY`                 — when 1, also publishes
 //!   in-process events (future: Sentry).
 
-use crate::keyring;
+use crate::platform::keyring;
 use crate::llm_clients::{self, CostRate, LlmClient, OpenAIClient, AnthropicClient, GoogleClient, DeepSeekClient, CustomClient, ProviderKind};
 use crate::state::AppState;
 use sqlx::SqlitePool;

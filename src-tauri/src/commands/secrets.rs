@@ -36,10 +36,10 @@ pub async fn llm_pm_set_credentials(
             "all three PM CLOB fields are required".into(),
         ));
     }
-    crate::keyring::set_key(crate::keyring::pm_api_alias(), args.api_key.trim())?;
-    crate::keyring::set_key(crate::keyring::pm_secret_alias(), args.api_secret.trim())?;
-    crate::keyring::set_key(
-        crate::keyring::pm_passphrase_alias(),
+    crate::platform::keyring::set_key(crate::platform::keyring::pm_api_alias(), args.api_key.trim())?;
+    crate::platform::keyring::set_key(crate::platform::keyring::pm_secret_alias(), args.api_secret.trim())?;
+    crate::platform::keyring::set_key(
+        crate::platform::keyring::pm_passphrase_alias(),
         args.api_passphrase.trim(),
     )?;
 
@@ -80,11 +80,11 @@ pub async fn llm_pm_set_credentials(
 #[tauri::command]
 pub async fn llm_pm_clear_credentials(state: State<'_, AppState>) -> AppResult<()> {
     for alias in [
-        crate::keyring::pm_api_alias(),
-        crate::keyring::pm_secret_alias(),
-        crate::keyring::pm_passphrase_alias(),
+        crate::platform::keyring::pm_api_alias(),
+        crate::platform::keyring::pm_secret_alias(),
+        crate::platform::keyring::pm_passphrase_alias(),
     ] {
-        let _ = crate::keyring::delete_key(alias);
+        let _ = crate::platform::keyring::delete_key(alias);
     }
     sqlx::query("DELETE FROM _polyrocket_settings WHERE k IN ('pm_host', 'pm_chain_id')")
         .execute(&state.db)
@@ -126,8 +126,8 @@ pub async fn polyrocket_wallet_set_pk(
         return Err(crate::AppError::Invalid("address is empty".into()));
     }
     let alias = args.alias.unwrap_or_else(|| "primary".to_string());
-    let keyring_alias = crate::keyring::wallet_alias(&alias);
-    crate::keyring::set_key(&keyring_alias, pk)?;
+    let keyring_alias = crate::platform::keyring::wallet_alias(&alias);
+    crate::platform::keyring::set_key(&keyring_alias, pk)?;
 
     // Update wallets row (create if absent) — only non-secret fields
     let now = chrono::Utc::now().timestamp_millis();
@@ -165,8 +165,8 @@ pub async fn polyrocket_wallet_clear_pk(
     alias: Option<String>,
 ) -> AppResult<()> {
     let alias = alias.unwrap_or_else(|| "primary".to_string());
-    let keyring_alias = crate::keyring::wallet_alias(&alias);
-    let _ = crate::keyring::delete_key(&keyring_alias);
+    let keyring_alias = crate::platform::keyring::wallet_alias(&alias);
+    let _ = crate::platform::keyring::delete_key(&keyring_alias);
     sqlx::query(
         "UPDATE wallets SET keyring_alias = NULL, updated_at = unixepoch() * 1000 WHERE keyring_alias = ?",
     )
@@ -216,7 +216,7 @@ pub async fn secrets_status(state: State<'_, AppState>) -> AppResult<SecretsStat
         .map(|(id, pid, alias, kra)| SecretStatus {
             kind: "llm_key".into(),
             alias: format!("{pid} / {alias}"),
-            configured: crate::keyring::has_key(&kra),
+            configured: crate::platform::keyring::has_key(&kra),
             label: Some(id),
         })
         .collect();
@@ -225,20 +225,20 @@ pub async fn secrets_status(state: State<'_, AppState>) -> AppResult<SecretsStat
     let polymarket = vec![
         SecretStatus {
             kind: "pm_api".into(),
-            alias: crate::keyring::pm_api_alias().to_string(),
-            configured: crate::keyring::has_key(crate::keyring::pm_api_alias()),
+            alias: crate::platform::keyring::pm_api_alias().to_string(),
+            configured: crate::platform::keyring::has_key(crate::platform::keyring::pm_api_alias()),
             label: Some("Polymarket API key".into()),
         },
         SecretStatus {
             kind: "pm_secret".into(),
-            alias: crate::keyring::pm_secret_alias().to_string(),
-            configured: crate::keyring::has_key(crate::keyring::pm_secret_alias()),
+            alias: crate::platform::keyring::pm_secret_alias().to_string(),
+            configured: crate::platform::keyring::has_key(crate::platform::keyring::pm_secret_alias()),
             label: Some("Polymarket API secret".into()),
         },
         SecretStatus {
             kind: "pm_passphrase".into(),
-            alias: crate::keyring::pm_passphrase_alias().to_string(),
-            configured: crate::keyring::has_key(crate::keyring::pm_passphrase_alias()),
+            alias: crate::platform::keyring::pm_passphrase_alias().to_string(),
+            configured: crate::platform::keyring::has_key(crate::platform::keyring::pm_passphrase_alias()),
             label: Some("Polymarket API passphrase".into()),
         },
     ];
@@ -254,7 +254,7 @@ pub async fn secrets_status(state: State<'_, AppState>) -> AppResult<SecretsStat
         .map(|(address, label, kra)| {
             let configured = kra
                 .as_deref()
-                .map(crate::keyring::has_key)
+                .map(crate::platform::keyring::has_key)
                 .unwrap_or(false);
             SecretStatus {
                 kind: "wallet_pk".into(),
