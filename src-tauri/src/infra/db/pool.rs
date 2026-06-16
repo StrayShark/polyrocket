@@ -31,6 +31,38 @@ pub async fn init_pool(app: &AppHandle) -> AppResult<SqlitePool> {
     sqlx::query("PRAGMA foreign_keys = ON").execute(&pool).await?;
 
     super::settings::ensure_table(&pool).await?;
+    ensure_copy_mirror_queue(&pool).await?;
 
     Ok(pool)
+}
+
+/// Migration helper for the mirror queue (v0.6a M5 auto-execution).
+/// Called by `init_pool` so first launch after upgrade creates the table.
+pub async fn ensure_copy_mirror_queue(pool: &SqlitePool) -> sqlx::Result<()> {
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS copy_mirror_queue (
+            id TEXT PRIMARY KEY,
+            event_id INTEGER NOT NULL,
+            target_id TEXT NOT NULL,
+            market_id TEXT NOT NULL,
+            side TEXT NOT NULL,
+            size TEXT NOT NULL,
+            flipped INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at INTEGER NOT NULL,
+            submitted_at INTEGER,
+            filled_at INTEGER,
+            bet_id TEXT,
+            reject_reason TEXT
+        )",
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS mirror_queue_status_idx
+         ON copy_mirror_queue(status, created_at)",
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
 }

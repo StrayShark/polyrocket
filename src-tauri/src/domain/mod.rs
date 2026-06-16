@@ -24,6 +24,7 @@ pub mod consensus;
 pub mod copy;
 pub mod lab;
 pub mod llm;
+pub mod mirror;
 pub mod notify;
 pub mod pnl;
 pub mod polymarket;

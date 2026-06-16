@@ -38,6 +38,7 @@ const DEFAULT_HEALTH_PROBE_MIN: u64 = 5;
 const DEFAULT_BRIEF_HOUR_UTC: u32 = 0;
 const DEFAULT_BRIEF_TZ_OFFSET_MIN: i32 = 0;
 const DEFAULT_ANOMALY_WINDOW_MIN: u64 = 60;
+const DEFAULT_MIRROR_TICK_SEC: u64 = 30;
 
 #[derive(Clone)]
 pub struct SchedulerConfig {
@@ -45,6 +46,8 @@ pub struct SchedulerConfig {
     pub daily_brief_hour_utc: u32,
     pub daily_brief_tz_offset_min: i32,
     pub anomaly_window: Duration,
+    /// v0.6a — mirror executor tick interval
+    pub mirror_tick: Duration,
 }
 
 impl SchedulerConfig {
@@ -60,6 +63,9 @@ impl SchedulerConfig {
             ),
             anomaly_window: Duration::from_secs(
                 60 * env_u64("POLYROCKET_ANOMALY_WINDOW_MIN", DEFAULT_ANOMALY_WINDOW_MIN),
+            ),
+            mirror_tick: Duration::from_secs(
+                env_u64("POLYROCKET_MIRROR_TICK_SEC", DEFAULT_MIRROR_TICK_SEC),
             ),
         }
     }
@@ -105,6 +111,15 @@ pub fn start(pool: SqlitePool, http: reqwest::Client) -> SchedulerHandle {
         let http = http.clone();
         tokio::spawn(async move {
             run_anomaly_loop(pool, http, cfg, shutdown).await;
+        });
+    }
+    {
+        // v0.6a — M5 auto-execution: poll mirror queue, submit pending as Mode B bets
+        let pool = pool.clone();
+        let cfg = cfg.clone();
+        let shutdown = shutdown.clone();
+        tokio::spawn(async move {
+            run_mirror_executor_loop(pool, cfg, shutdown).await;
         });
     }
 
@@ -499,6 +514,80 @@ async fn run_anomaly_loop(
             }
         }
     }
+}
+
+// =================================================================
+// ============== Mirror executor loop (v0.6a) =====================
+// =================================================================
+
+async fn run_mirror_executor_loop(pool: SqlitePool, cfg: SchedulerConfig, shutdown: Arc<Notify>) {
+    // Stagger 10s after startup so other loops settle first
+    tokio::time::sleep(Duration::from_secs(10)).await;
+    let mut ticker = tokio::time::interval(cfg.mirror_tick);
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    let exec_cfg = crate::domain::mirror::ExecutorConfig::from_env();
+    loop {
+        tokio::select! {
+            _ = ticker.tick() => {
+                if let Err(e) = run_mirror_pass(&pool, &exec_cfg).await {
+                    tracing::warn!("mirror executor pass error: {e}");
+                }
+            }
+            _ = shutdown.notified() => {
+                tracing::info!("mirror executor loop: shutdown signal");
+                return;
+            }
+        }
+    }
+}
+
+async fn run_mirror_pass(
+    pool: &SqlitePool,
+    cfg: &crate::domain::mirror::ExecutorConfig,
+) -> crate::AppResult<()> {
+    use crate::commands::mirror_executor;
+    use sqlx::Row;
+    let now_ms = chrono::Utc::now().timestamp_millis();
+    let rows: Vec<mirror_executor::MirrorRow> = sqlx::query_as(
+        "SELECT * FROM copy_mirror_queue WHERE status IN ('pending','submitted')",
+    )
+    .fetch_all(pool)
+    .await?;
+    let orders: Vec<crate::domain::copy::MirrorOrder> = rows.into_iter().map(Into::into).collect();
+    let market_ids: Vec<String> = orders.iter().map(|o| o.market_id.clone()).collect();
+    let market_closes = if market_ids.is_empty() {
+        std::collections::HashMap::new()
+    } else {
+        let placeholders = market_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let query = format!("SELECT id, end_date FROM markets WHERE id IN ({})", placeholders);
+        let mut q = sqlx::query(&query);
+        for id in &market_ids {
+            q = q.bind(id);
+        }
+        let rows = q.fetch_all(pool).await?;
+        let mut map = std::collections::HashMap::new();
+        for row in rows {
+            let id: String = row.try_get("id")?;
+            let end: i64 = row.try_get("end_date")?;
+            map.insert(id, end);
+        }
+        map
+    };
+    let result = crate::domain::mirror::execute_pass(&orders, &market_closes, now_ms, cfg)
+        .map_err(|e| {
+            tracing::warn!("mirror pass logic error: {e}");
+            e
+        })?;
+    if !result.rejected.is_empty() || !result.picked.is_empty() {
+        tracing::info!(
+            "mirror executor pass: picked={} rejected={} exposure={:.2} headroom={:.2}",
+            result.picked.len(),
+            result.rejected.len(),
+            result.current_exposure,
+            result.headroom
+        );
+    }
+    Ok(())
 }
 
 async fn detect_anomalies(pool: &SqlitePool, window: Duration) -> sqlx::Result<()> {

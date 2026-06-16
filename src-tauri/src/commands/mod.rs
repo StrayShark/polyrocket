@@ -13,6 +13,7 @@ pub mod copy;
 pub mod llm;
 pub mod llm_mgmt;
 pub mod market;
+pub mod mirror_executor;
 pub mod notify;
 pub mod pnl;
 pub mod scheduler;
