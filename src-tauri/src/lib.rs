@@ -5,18 +5,15 @@
 //! can invoke via `invoke('cmd_name', { args })`.
 
 mod commands;
-mod db;
-mod error;
+pub mod infra;
 pub mod llm_clients;
 mod platform;
 mod polymarket;
-mod scheduler;
-mod state;
 
 use tauri::Manager;
 use tracing_subscriber::EnvFilter;
 
-pub use error::{AppError, AppResult};
+pub use infra::error::{AppError, AppResult};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -36,15 +33,15 @@ pub fn run() {
         .setup(|app| {
             let app_handle = app.handle().clone();
             tauri::async_runtime::block_on(async move {
-                let pool = db::init_pool(&app_handle)
+                let pool = infra::db::init_pool(&app_handle)
                     .await
                     .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
                 // Start background schedulers (health probe + daily brief + anomaly detect).
                 // They run for the process lifetime; the handle is kept in app state
                 // for test shutdown signaling.
-                let http = llm_clients::new_http_client();
-                let handle = scheduler::start(pool.clone(), http);
-                app_handle.manage(state::AppState { db: pool });
+                let http = infra::http::new_http_client();
+                let handle = infra::scheduler::start(pool.clone(), http);
+                app_handle.manage(infra::state::AppState { db: pool });
                 app_handle.manage(handle);
                 Ok::<(), Box<dyn std::error::Error>>(())
             })

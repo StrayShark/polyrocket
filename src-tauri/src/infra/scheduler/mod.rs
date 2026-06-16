@@ -1,4 +1,4 @@
-//! Background schedulers — health probe + daily brief cron + anomaly detect.
+//! L4 — Background schedulers — health probe + daily brief cron + anomaly detect.
 //!
 //! All three run as `tokio::spawn` tasks started in `lib.rs::run()` setup.
 //! Each task is self-contained and recovers from DB / network errors
@@ -19,10 +19,16 @@
 //! - `POLYROCKET_ANOMALY_WINDOW_MIN`        — default 60
 //! - `POLYROCKET_TELEMETRY`                 — when 1, also publishes
 //!   in-process events (future: Sentry).
+//!
+//! Layer rules: this module depends on L3 (`llm_clients`) and L5
+//! (`platform::keyring`) — it MUST NOT depend on L1 or L2.
 
+use crate::platform::env::{env_u32, env_u64, env_i32};
 use crate::platform::keyring;
-use crate::llm_clients::{self, CostRate, LlmClient, OpenAIClient, AnthropicClient, GoogleClient, DeepSeekClient, CustomClient, ProviderKind};
-use crate::state::AppState;
+use crate::llm_clients::{
+    AnthropicClient, CostRate, CustomClient, DeepSeekClient, GoogleClient, LlmClient,
+    OpenAIClient, ProviderKind,
+};
 use sqlx::SqlitePool;
 use std::sync::Arc;
 use std::time::Duration;
@@ -48,7 +54,10 @@ impl SchedulerConfig {
                 60 * env_u64("POLYROCKET_HEALTH_PROBE_INTERVAL_MIN", DEFAULT_HEALTH_PROBE_MIN),
             ),
             daily_brief_hour_utc: env_u32("POLYROCKET_DAILY_BRIEF_HOUR_UTC", DEFAULT_BRIEF_HOUR_UTC),
-            daily_brief_tz_offset_min: env_i32("POLYROCKET_DAILY_BRIEF_TZ_OFFSET_MIN", DEFAULT_BRIEF_TZ_OFFSET_MIN),
+            daily_brief_tz_offset_min: env_i32(
+                "POLYROCKET_DAILY_BRIEF_TZ_OFFSET_MIN",
+                DEFAULT_BRIEF_TZ_OFFSET_MIN,
+            ),
             anomaly_window: Duration::from_secs(
                 60 * env_u64("POLYROCKET_ANOMALY_WINDOW_MIN", DEFAULT_ANOMALY_WINDOW_MIN),
             ),
@@ -56,22 +65,14 @@ impl SchedulerConfig {
     }
 }
 
-fn env_u64(name: &str, default: u64) -> u64 {
-    std::env::var(name).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
-}
-fn env_u32(name: &str, default: u32) -> u32 {
-    std::env::var(name).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
-}
-fn env_i32(name: &str, default: i32) -> i32 {
-    std::env::var(name).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
-}
-
 pub struct SchedulerHandle {
     pub shutdown: Arc<Notify>,
 }
 
 impl SchedulerHandle {
-    pub fn shutdown(&self) { self.shutdown.notify_waiters(); }
+    pub fn shutdown(&self) {
+        self.shutdown.notify_waiters();
+    }
 }
 
 /// Start all background schedulers. Returns a handle the caller can
@@ -101,6 +102,7 @@ pub fn start(pool: SqlitePool, http: reqwest::Client) -> SchedulerHandle {
         let pool = pool.clone();
         let cfg = cfg.clone();
         let shutdown = shutdown.clone();
+        let http = http.clone();
         tokio::spawn(async move {
             run_anomaly_loop(pool, http, cfg, shutdown).await;
         });
@@ -186,7 +188,8 @@ async fn probe_one_provider(
     http: &reqwest::Client,
     p: &ProviderProbeRow,
 ) -> sqlx::Result<()> {
-    let keys: Vec<llm_clients::KeyHandle> = {
+    use crate::llm_clients::KeyHandle;
+    let keys: Vec<KeyHandle> = {
         let rows: Vec<(String, String, String)> = sqlx::query_as(
             "SELECT id, alias, keyring_alias
              FROM llm_provider_keys
@@ -197,7 +200,7 @@ async fn probe_one_provider(
         .fetch_all(pool)
         .await?;
         rows.into_iter()
-            .map(|(id, alias, keyring_alias)| llm_clients::KeyHandle { id, alias, keyring_alias })
+            .map(|(id, alias, keyring_alias)| KeyHandle { id, alias, keyring_alias })
             .collect()
     };
     if keys.is_empty() {
@@ -208,8 +211,10 @@ async fn probe_one_provider(
         Ok(s) => s,
         Err(_) => {
             // No secret — record failing probe and update health
-            let _ = insert_health_check(pool, &p.id, Some(&keys[0].id), false, None, None,
-                Some("auth".to_string()), Some("no keyring entry".to_string())).await;
+            let _ = insert_health_check(
+                pool, &p.id, Some(&keys[0].id), false, None, None,
+                Some("auth".to_string()), Some("no keyring entry".to_string()),
+            ).await;
             let _ = update_provider_health(pool, &p.id, false, 0, Some("no keyring entry")).await;
             return Ok(());
         }
@@ -223,11 +228,16 @@ async fn probe_one_provider(
             p.api_base.clone().unwrap_or_else(|| "https://api.anthropic.com".into()),
         )),
         ProviderKind::Google => Arc::new(GoogleClient::with_base(
-            p.api_base.clone().unwrap_or_else(|| "https://generativelanguage.googleapis.com/v1beta".into()),
+            p.api_base
+                .clone()
+                .unwrap_or_else(|| "https://generativelanguage.googleapis.com/v1beta".into()),
         )),
         ProviderKind::Deepseek => Arc::new(DeepSeekClient::new()),
         ProviderKind::OpenaiCompat | ProviderKind::AnthropicCompat => {
-            let base = p.api_base.clone().unwrap_or_else(|| "https://api.openai.com/v1".into());
+            let base = p
+                .api_base
+                .clone()
+                .unwrap_or_else(|| "https://api.openai.com/v1".into());
             if matches!(kind, ProviderKind::AnthropicCompat) {
                 Arc::new(CustomClient::new_anthropic_compat(base, &p.default_model))
             } else {
@@ -235,7 +245,7 @@ async fn probe_one_provider(
             }
         }
     };
-    let req = llm_clients::CallRequest::new(&p.default_model)
+    let req = crate::llm_clients::CallRequest::new(&p.default_model)
         .max_tokens(1)
         .temperature(0.0);
     let cost = CostRate {
@@ -248,11 +258,18 @@ async fn probe_one_provider(
     match outcome {
         Ok(oc) => {
             let status = Some(oc.http_status as i64);
-            let _ = insert_health_check(pool, &p.id, Some(&keys[0].id), true, Some(latency), status, None, None).await;
+            let _ = insert_health_check(
+                pool, &p.id, Some(&keys[0].id), true,
+                Some(latency), status, None, None,
+            ).await;
             let _ = update_provider_health(pool, &p.id, true, latency, None).await;
         }
         Err(e) => {
-            let _ = insert_health_check(pool, &p.id, Some(&keys[0].id), false, Some(latency), e.http_status.map(|s| s as i64), Some(e.code.to_string()), Some(e.message.clone())).await;
+            let _ = insert_health_check(
+                pool, &p.id, Some(&keys[0].id), false,
+                Some(latency), e.http_status.map(|s| s as i64),
+                Some(e.code.to_string()), Some(e.message.clone()),
+            ).await;
             let _ = update_provider_health(pool, &p.id, false, latency, Some(&e.message)).await;
             // Check 3-fail streak → auto-disable
             let _ = maybe_auto_disable(pool, &p.id).await;
@@ -388,7 +405,7 @@ async fn run_daily_brief_loop(
 }
 
 fn seconds_until_next_brief(hour_utc: u32, tz_offset_min: i32) -> Duration {
-    use chrono::{DateTime, Utc, TimeZone};
+    use chrono::{DateTime, TimeZone, Utc};
     let now = Utc::now();
     // Apply tz offset to "wall clock" computation, then back to UTC instant.
     let local = now + chrono::Duration::minutes(tz_offset_min as i64);
@@ -414,9 +431,11 @@ async fn run_daily_brief_once(pool: &SqlitePool) -> sqlx::Result<()> {
     // Lazy init: ensure today's row exists. We compute top-N with a simple
     // heuristic — for v0.2 we just count active markets and write a stub.
     // v0.3+ will plug in the full scoring formula from M12.
-    let n_markets: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM markets WHERE closes_at > unixepoch() * 1000")
-        .fetch_one(pool)
-        .await?;
+    let n_markets: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM markets WHERE closes_at > unixepoch() * 1000",
+    )
+    .fetch_one(pool)
+    .await?;
     let top_n: i64 = std::env::var("DAILY_BRIEF_TOP_N").ok().and_then(|v| v.parse().ok()).unwrap_or(8);
     let expires_at = started + 24 * 3600 * 1000;
 

@@ -7,7 +7,7 @@
 //!  3. dev / QA: simulate a cron run
 
 use crate::AppResult;
-use crate::state::AppState;
+use crate::infra::state::AppState;
 use serde::Serialize;
 use tauri::State;
 
@@ -22,7 +22,7 @@ pub struct SchedulerStatus {
 
 #[tauri::command]
 pub async fn scheduler_status(_state: State<'_, AppState>) -> AppResult<SchedulerStatus> {
-    let cfg = crate::scheduler::SchedulerConfig::from_env();
+    let cfg = crate::infra::scheduler::SchedulerConfig::from_env();
     let now_ms = chrono::Utc::now().timestamp_millis();
     let next = next_brief_unix_ms(cfg.daily_brief_hour_utc, cfg.daily_brief_tz_offset_min, now_ms);
     Ok(SchedulerStatus {
@@ -45,7 +45,7 @@ pub struct TriggerResult {
 #[tauri::command]
 pub async fn scheduler_run_health_probe_now(state: State<'_, AppState>) -> AppResult<TriggerResult> {
     let http = crate::llm_clients::new_http_client();
-    let res = crate::scheduler::run_health_probe_now(&state.db, &http).await;
+    let res = crate::infra::scheduler::run_health_probe_now(&state.db, &http).await;
     Ok(TriggerResult {
         triggered_at_unix_ms: chrono::Utc::now().timestamp_millis(),
         kind: "health_probe".into(),
@@ -56,7 +56,7 @@ pub async fn scheduler_run_health_probe_now(state: State<'_, AppState>) -> AppRe
 
 #[tauri::command]
 pub async fn scheduler_run_daily_brief_now(state: State<'_, AppState>) -> AppResult<TriggerResult> {
-    let res = crate::scheduler::run_daily_brief_now(&state.db).await;
+    let res = crate::infra::scheduler::run_daily_brief_now(&state.db).await;
     Ok(TriggerResult {
         triggered_at_unix_ms: chrono::Utc::now().timestamp_millis(),
         kind: "daily_brief".into(),

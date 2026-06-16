@@ -1,5 +1,5 @@
 use crate::AppResult;
-use crate::state::AppState;
+use crate::infra::state::AppState;
 use serde::Serialize;
 use tauri::State;
 

@@ -8,7 +8,7 @@
 //! See `keyring.rs` for the alias conventions.
 
 use crate::AppResult;
-use crate::state::AppState;
+use crate::infra::state::AppState;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 

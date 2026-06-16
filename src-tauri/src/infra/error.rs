@@ -1,3 +1,13 @@
+//! L4 — Application-wide error type.
+//!
+//! Single error enum that all layers below return. Serializes to a
+//! human-readable string for IPC (frontend gets `err.message`).
+//!
+//! 8 stable error codes are handled at L3 (LLM clients) by mapping
+//! HTTP/SDK errors into a string. This enum does NOT model those
+//! categories — it only cares about the transport layer (Db, Http,
+//! Io, Serde, Keyring, plus Invalid/NotFound/Internal for app logic).
+
 use serde::Serialize;
 use thiserror::Error;
 

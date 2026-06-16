@@ -4,7 +4,7 @@ use crate::llm_clients::{
     MarketContext, OrderbookTop, PeerView, SignalSummary,
     PROMPT_VERSION_MARKET_ANALYSIS, build_market_analysis_request, parse_recommendation,
 };
-use crate::state::AppState;
+use crate::infra::state::AppState;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;

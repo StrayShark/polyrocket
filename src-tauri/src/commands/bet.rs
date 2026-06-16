@@ -1,6 +1,6 @@
 use crate::polymarket;
 use crate::AppResult;
-use crate::state::AppState;
+use crate::infra::state::AppState;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use tauri::State;

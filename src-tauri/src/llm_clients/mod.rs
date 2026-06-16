@@ -15,7 +15,6 @@
 //!   providers.
 
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 
 pub mod anthropic;
 pub mod common;
@@ -209,13 +208,8 @@ pub trait LlmClient: Send + Sync {
 
 // ---------- shared helpers ----------
 
-/// Build a long-lived HTTP client. Connection pool is shared across
-/// providers. Caller is expected to keep this for the process lifetime.
-pub fn new_http_client() -> reqwest::Client {
-    reqwest::Client::builder()
-        .user_agent(concat!("polyrocket/", env!("CARGO_PKG_VERSION")))
-        .connect_timeout(Duration::from_secs(10))
-        .pool_max_idle_per_host(8)
-        .build()
-        .expect("reqwest client build must succeed (rustls feature enabled)")
-}
+/// Re-export the shared HTTP client factory from L4 infra.
+/// Single source of truth lives in [`crate::infra::http::new_http_client`].
+/// This re-export keeps the L3 API surface stable for callers that
+/// import `llm_clients::new_http_client`.
+pub use crate::infra::http::new_http_client;
