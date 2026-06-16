@@ -1,10 +1,19 @@
 #!/usr/bin/env node
 /**
- * DocSync pre-commit check (governance §5).
- * Refuses to commit if code under src/ or src-tauri/ changed without
- * a corresponding update to docs/polyrocket-*.md.
+ * Pre-commit governance checks.
+ *
+ *   1. DocSync: refuses to commit if code under src/ or src-tauri/
+ *      changed without a corresponding update to docs/polyrocket-*.md
+ *      or docs/overview.md.
+ *   2. LayerGuard: refuses to commit if any Rust file imports across
+ *      a disallowed layer edge (see docs/overview.md §1.2).
+ *
+ * Both checks are run from this entry point so a single pre-commit
+ * hook invocation catches both classes of violation.
  */
-import { execSync } from 'node:child_process';
+import { execSync, spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 
 const staged = execSync('git diff --cached --name-only')
   .toString()
@@ -13,7 +22,7 @@ const staged = execSync('git diff --cached --name-only')
   .filter(Boolean);
 
 if (staged.length === 0) {
-  console.log('✓ nothing staged, skipping doc-sync check');
+  console.log('✓ nothing staged, skipping governance checks');
   process.exit(0);
 }
 
@@ -21,9 +30,6 @@ const codeChanged = staged.some(
   (f) => f.startsWith('src/') || f.startsWith('src-tauri/'),
 );
 
-// Doc files that satisfy the sync rule. Both legacy polyradar-* and
-// current polyrocket-* are recognised. overview.md is required whenever
-// the layer directory structure changes.
 const docChanged = staged.some((f) =>
   /^docs\/(polyradar-(blueprint|ui-spec|dev-governance)|polyrocket-.*|overview)\.md$/.test(f) ||
   /^(polyradar-(blueprint|ui-spec|dev-governance)|polyrocket-.*|overview)\.md$/.test(f),
@@ -37,3 +43,15 @@ if (codeChanged && !docChanged) {
 }
 
 console.log('✓ doc-sync OK');
+
+// 2. LayerGuard — only run if Rust files are staged
+const hasRs = staged.some((f) => f.endsWith('.rs') && f.startsWith('src-tauri/'));
+if (hasRs) {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const guard = resolve(here, 'check-layers.mjs');
+  const r = spawnSync('node', [guard], { stdio: 'inherit' });
+  if (r.status !== 0) {
+    console.error('❌ LayerGuard failed (see above)');
+    process.exit(r.status ?? 1);
+  }
+}
