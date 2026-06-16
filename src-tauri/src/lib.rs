@@ -89,6 +89,8 @@ pub fn run() {
             commands::secrets::polyrocket_wallet_set_pk,
             commands::secrets::polyrocket_wallet_clear_pk,
             commands::secrets::secrets_status,
+            commands::audit::list_audit_log,
+            commands::audit::audit_count_for_actor,
             commands::scheduler::scheduler_status,
             commands::scheduler::scheduler_run_health_probe_now,
             commands::scheduler::scheduler_run_daily_brief_now,

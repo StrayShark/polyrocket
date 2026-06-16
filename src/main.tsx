@@ -16,6 +16,10 @@ import { Analysis } from '@/routes/Analysis';
 import { LlmPerf } from '@/routes/LlmPerf';
 import { LlmMgmt } from '@/routes/LlmMgmt';
 import { Brief } from '@/routes/Brief';
+import { Onboarding } from '@/routes/Onboarding';
+import { Audit } from '@/routes/Audit';
+import { Notifications } from '@/routes/Notifications';
+import { Help } from '@/routes/Help';
 import { AppShell } from '@/components/layout/AppShell';
 import { useThemeStore } from '@/stores/theme-store';
 import { ToastHost } from '@/components/feedback/Toast';
@@ -55,6 +59,10 @@ const router = createBrowserRouter([
       { path: 'llm-perf', element: <LlmPerf /> },
       { path: 'llm-mgmt', element: <LlmMgmt /> },
       { path: 'brief', element: <Brief /> },
+      { path: 'onboarding', element: <Onboarding /> },
+      { path: 'audit', element: <Audit /> },
+      { path: 'notifications', element: <Notifications /> },
+      { path: 'help', element: <Help /> },
     ],
   },
 ]);

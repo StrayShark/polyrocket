@@ -44,6 +44,7 @@ import type {
   SchedulerStatus,
   SchedulerTriggerResult,
   SecretsStatus,
+  AuditEntry,
 } from '@/types/shared';
 
 // ---------------------------------------------------------------- Wallet (M4)
@@ -152,6 +153,11 @@ export const schedulerRunHealthProbeNow = () =>
   invoke<SchedulerTriggerResult>('scheduler_run_health_probe_now');
 export const schedulerRunDailyBriefNow = () =>
   invoke<SchedulerTriggerResult>('scheduler_run_daily_brief_now');
+
+// ---------------------------------------------------------------- Audit (X1)
+export const listAuditLog = (limit = 200) => invoke<AuditEntry[]>('list_audit_log', { limit });
+export const auditCountForActor = (actor: string) =>
+  invoke<number>('audit_count_for_actor', { actor });
 
 // ---------------------------------------------------------------- Brief (M12)
 export const dailyBriefGet = (limit = 5) =>
