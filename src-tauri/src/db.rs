@@ -20,5 +20,18 @@ pub async fn init_pool(app: &AppHandle) -> crate::AppResult<SqlitePool> {
     sqlx::query("PRAGMA synchronous = NORMAL").execute(&pool).await?;
     sqlx::query("PRAGMA foreign_keys = ON").execute(&pool).await?;
 
+    // App-level non-secret key/value settings (host, chain id, env flags).
+    // Created on first launch; deliberately NOT in Drizzle schema because
+    // the webview never reads it — only Rust commands touch it.
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS _polyrocket_settings (
+            k TEXT PRIMARY KEY,
+            v TEXT NOT NULL,
+            updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+        )",
+    )
+    .execute(&pool)
+    .await?;
+
     Ok(pool)
 }

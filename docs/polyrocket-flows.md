@@ -25,6 +25,7 @@
 | F14 | 每日看板自动分析 | M12 (Daily Brief) | 时序 + 评分 |
 | **F15** | **LLM 连通性测试** | **M11** | **时序 + 探测** |
 | **F16** | **LLM 流量监控与异常告警** | **M11** | **数据流 + 告警** |
+| **F17** | **客户端密钥持久化（OS keyring 为主，.env 仅 dev）** | **M11** | **时序 + 错误恢复** |
 
 ---
 
@@ -727,8 +728,103 @@ flowchart TD
 
 ---
 
+## F17 — 客户端密钥持久化（M11 v1.1 重点）
+
+**设计原则**：API key **永远不入 SQLite、不入 .env、不入 git**。唯一受信任的存储是 OS keyring。两条写路径，client paste 是主路径，`.env` 仅开发。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as User
+    participant FE as React UI<br/>(Settings / LLM Mgmt)
+    participant R as Rust (Tauri IPC)
+    participant K as OS Keyring<br/>(macOS Keychain / Win Cred Mgr / Linux SS)
+    participant DB as SQLite<br/>(metadata only)
+
+    rect rgba(0,200,100,0.08)
+        Note over U,K: ── 主路径 A: Client paste (任何环境都可用) ──
+        U->>FE: Settings → Provider row → Add key
+        U->>FE: 粘贴 secret + 填 alias
+        FE->>R: invoke('llm_key_upsert', { key, secret })
+        R->>K: set_key("llm/openai/prod-1", secret)
+        K-->>R: ok
+        R->>DB: INSERT/UPDATE llm_provider_keys (keyring_alias only)
+        R->>DB: INSERT audit_log (secret_written=true, no secret)
+        R-->>FE: ok
+        FE->>U: toast ✓ Key saved (前端清空密码框)
+    end
+
+    rect rgba(200,150,0,0.10)
+        Note over U,K: ── 备路径 B: .env dev sync (仅 POLYROCKET_ENV=dev) ──
+        U->>U: cp .env.example .env && vim .env
+        U->>U: POLYROCKET_ENV=dev pnpm tauri dev
+        Note over R: maybe_load_dev_env() 启动钩子
+        R->>R: parse_env_file("./.env")
+        loop 每条 *API_KEY
+            R->>K: has_key(alias)?
+            alt 未配置
+                R->>K: set_key(alias, value)
+                R->>R: log "seeded llm/openai/prod-1 from .env (len=164)"
+            else 已配置 (用户已粘贴)
+                R->>R: skip (前端优先级最高)
+            end
+        end
+    end
+
+    rect rgba(200,80,80,0.08)
+        Note over FE,K: ── 错误恢复 ──
+        FE->>R: invoke('secrets_status')
+        R->>K: has_key(每条 alias)
+        R-->>FE: [{kind: "llm_key", alias: "openai / prod-1", configured: false}]
+        FE->>U: 红色 banner "openai / prod-1 missing — paste to enable"
+        U->>FE: 粘贴
+        FE->>R: invoke('llm_key_set_secret', { key_id, secret })
+        R->>K: set_key(alias, new_secret) (覆盖)
+        R->>DB: audit_log llm.key.secret.rotate
+    end
+```
+
+**三条铁律**：
+1. **client paste 永远胜出** — `.env` 启动同步只 fill 没配置的 alias，已存在的不覆盖。
+2. **SQLite 永远不存 secret** — 所有 audit_log payload 只含 `secret_written: true/false`、长度、keyring alias 名。
+3. **任何 IPC 返回值都不含 secret** — `secrets_status` 只返 `configured: bool`；`llm_key_*` 不返明文。
+
+**keyring alias 命名空间**（lib.rs `keyring::` builders 统一产出，避免拼写漂移）：
+
+```
+llm/<provider_id>/<key_alias>          # LLM API key
+polyrocket/pm/api                      # Polymarket CLOB API key
+polyrocket/pm/secret                   # Polymarket CLOB secret
+polyrocket/pm/passphrase               # Polymarket CLOB passphrase
+polyrocket/wallet/<alias>              # 钱包私钥 (alias 默认 "primary")
+```
+
+**5 个新 IPC**：
+
+| IPC | 用途 | 路径 |
+|---|---|---|
+| `llm_key_upsert { key, secret? }` | 新增/更新 key（含 secret） | A |
+| `llm_key_set_secret { key_id, secret }` | rotate 已有 key 的 secret | A |
+| `llm_key_delete { key_id }` | 删 row + 删 keyring | A |
+| `llm_provider_delete { provider_id }` | 删 provider + 批量清 keyring 命名空间 | A |
+| `llm_pm_set_credentials { api_key, secret, passphrase, host?, chain_id? }` | PM CLOB 三件套 | A |
+| `llm_pm_clear_credentials` | 清 PM 三件套 | A |
+| `polyrocket_wallet_set_pk { private_key, address, alias? }` | 写 wallet pk | A |
+| `polyrocket_wallet_clear_pk { alias? }` | 清 wallet pk | A |
+| `secrets_status` | 列出所有 secret 是否 configured（无明文） | A |
+
+**启动门控**（lib.rs `maybe_load_dev_env`）：
+
+```
+POLYROCKET_ENV=dev && POLYROCKET_KEYRING_ONLY=0  → 读 .env
+其他任何组合                                          → 跳过，client paste 是唯一路径
+```
+
+---
+
 ## 变更日志
 
+- **v1.4** (2026-06-16) — 新增 F17：客户端密钥持久化，明确 client paste 为主路径、.env 降级为 dev-only。9 个新 IPC，5 类 keyring 命名空间，启动门控 2 个 env flag。
 - **v1.3** (2026-06-16) — 新增 F15（LLM 连通性测试）和 F16（流量监控 + 异常告警 + 12 IPC）。
 - **v1.2** (2026-06-16) — 新增 F13（LLM 投注结果多维统计：5 维切面 + 4 视图 + 4 IPC）和 F14（每日看板：评分公式 + 触发机制 + 4 IPC + 缓存表）。
 - **v1.1** (2026-06-16) — 新增 F11（多 LLM 并行分析）和 F12（用户决策 + LLM 胜率统计）。审计日志写入点 +2。

@@ -1,6 +1,6 @@
 # polyrocket — LLM 管理模块需求 (LMN)
 
-> 版本：v1.0 · 2026-06-16
+> 版本：v1.1 · 2026-06-16
 > 配套：[`polyrocket-llm-analysis.md`](./polyrocket-llm-analysis.md)（M10 业务） · [`polyrocket-modules.md`](./polyrocket-modules.md)（模块全景）
 > 模块代号：**M11 — LLM Management**
 > 状态：v0.2 路线
@@ -481,6 +481,93 @@ Sidebar → Workspace → **LLM Management**（图标：`shield-check`）
 
 ---
 
+## 13. Client-side key persistence（v1.1 重点）
+
+API key **永远不入 SQLite、不入 .env、不入 git**。唯一受信任的存储是 OS keyring（macOS Keychain / Windows Credential Manager / Linux Secret Service）。SQLite 只存 `keyring_alias` 字符串（"key 放在 OS 哪里"），不存 secret。
+
+### 13.1 两条写路径
+
+| 路径 | 何时用 | 谁触发 | 写哪里 |
+|---|---|---|---|
+| **A. Client paste（主路径）** | 正常用法 | 用户在 Settings → LLM Management → Provider row → `Add key` 弹窗粘贴 | Rust IPC `llm_key_upsert { key, secret }` → `keyring::set_key(keyring_alias, secret)` + 写 `llm_provider_keys` 行 |
+| **B. .env dev sync（仅开发）** | 本地调试、CI、headless 跑流量 | 启动时 Rust 检查 `POLYROCKET_ENV=dev && POLYROCKET_KEYRING_ONLY=0` | 解析 `.env` → 对每个未配置的 `llm/<provider>/<alias>` 调 `keyring::set_key` |
+
+任何 **不是 dev 环境** 的启动，`.env` 一行都不读；`keyring::has_key()` 返回 false 的 provider 在 M10 调用时直接报 `auth` 错误，前端 toast 提示「未配置 key」并跳转到 Settings。
+
+### 13.2 keyring alias 约定
+
+```
+llm/<provider_id>/<key_alias>          # LLM API key
+  例如 llm/openai/prod-1
+       llm/anthropic/backup
+polyrocket/pm/api                      # Polymarket CLOB API key
+polyrocket/pm/secret                   # Polymarket CLOB secret
+polyrocket/pm/passphrase               # Polymarket CLOB passphrase
+polyrocket/wallet/<alias>              # 钱包私钥
+  例如 polyrocket/wallet/primary
+```
+
+Rust 端 `keyring.rs` 提供 builder：`keyring::llm_alias(provider, key)` / `keyring::pm_api_alias()` / `keyring::wallet_alias(alias)`，所有调用点都用 builder，避免字符串拼写漂移。
+
+### 13.3 新增 IPC（client paste 路径）
+
+| IPC | 入参 | 行为 |
+|---|---|---|
+| `llm_key_upsert { key, secret? }` | LlmProviderKeyDto + 可选 secret | secret 非空时写 keyring（覆盖同 alias 的旧值）；同时 upsert SQLite 行 |
+| `llm_key_set_secret { key_id, secret }` | 现有 key 的 id + 新 secret | 仅替换 keyring 内容，不动 SQLite 行；audit_log `llm.key.secret.rotate` |
+| `llm_key_delete { key_id }` | key id | 删 SQLite 行 + 删 keyring 条目（best-effort） |
+| `llm_provider_delete { provider_id }` | provider id | 删所有 key + provider + 批量清 keyring（仅删 `llm/<pid>/*` 命名空间） |
+| `llm_pm_set_credentials { api_key, api_secret, api_passphrase, host?, chain_id? }` | 三个明文 | 三个 alias 全部写 keyring；host/chain_id 落 `_polyrocket_settings` 表 |
+| `llm_pm_clear_credentials` | — | 清三个 PM alias + `_polyrocket_settings` 中 `pm_*` |
+| `polyrocket_wallet_set_pk { private_key, address, alias? }` | 0x... 64 hex + 0x... 地址 | 验长度/hex 合法性，写 `polyrocket/wallet/<alias>`；同时 upsert `wallets` 行（**不存 pk**） |
+| `polyrocket_wallet_clear_pk { alias? }` | alias | 删 keyring + 清 wallets.keyring_alias |
+| `secrets_status` | — | 返回 `Vec<SecretStatus>`，**只含 kind/alias/configured/label，不含 secret 本身**。UI 用它显示 ✓/✗ |
+
+### 13.4 .env 启动同步规则（lib.rs `maybe_load_dev_env`）
+
+```rust
+fn maybe_load_dev_env() {
+    if env != "dev"                       { return; }   // prod/staging 一律跳过
+    if keyring_only                      { return; }   // 强制 keychain-only 模式
+    let pairs = parse_env_file(".env");
+    sync_env_to_keyring(&pairs);
+}
+```
+
+`sync_env_to_keyring` 只对 **当前 keyring 没有该 alias** 的项写新值，已存在的 **绝不覆盖**（用户已在前端粘贴的优先级永远最高）。每个 alias 写完后只 log 名字 + 长度，**不 log 内容**。
+
+| 环境变量 | 写入的 keyring alias |
+|---|---|
+| `OPENAI_API_KEY` | `llm/openai/openai-prod-1` |
+| `OPENAI_BACKUP_KEY` | `llm/openai/openai-backup` |
+| `ANTHROPIC_API_KEY` | `llm/anthropic/anthropic-prod-1` |
+| `ANTHROPIC_BACKUP_KEY` | `llm/anthropic/anthropic-backup` |
+| `GOOGLE_API_KEY` | `llm/google/google-prod-1` |
+| `DEEPSEEK_API_KEY` | `llm/deepseek/deepseek-prod-1` |
+| `CUSTOM_LLM_API_KEY` | `llm/custom/custom-prod-1` |
+| `POLYMARKET_API_KEY` | `polyrocket/pm/api` |
+| `POLYMARKET_API_SECRET` | `polyrocket/pm/secret` |
+| `POLYMARKET_API_PASSPHRASE` | `polyrocket/pm/passphrase` |
+| `POLYROCKET_WALLET_PRIVATE_KEY` | `polyrocket/wallet/<POLYROCKET_WALLET_ALIAS or "primary">` |
+
+### 13.5 UI 行为
+
+- **Settings → LLM Management → Provider row → Add key**：弹窗内 2 个字段：alias（如 `prod-1`）+ secret 密码框。提交后调 `llm_key_upsert { key, secret }`。密码框提交后立即清空（不留在 DOM）。
+- **Key 行右侧 ✏️ 按钮**：再弹一次粘贴框，调 `llm_key_set_secret`（rotate）。
+- **Key 行右侧 🗑 按钮**：确认对话框「This will also remove the secret from your OS keychain」，调 `llm_key_delete`。
+- **Provider 行右侧 🗑 按钮**：确认对话框列出「Will remove N keys and their OS keychain entries」，调 `llm_provider_delete`。
+- **顶部 banner** `secrets_status` 返回的列表里有 ✗ 的项：用红色 chip 显示「key missing — paste to enable」。
+
+### 13.6 错误恢复
+
+- keyring 写失败（OS 拒绝、keychain 被锁）：前端 toast 红色「OS keychain unavailable, retry or restart」；M10 调用返回 `error_code='auth'`，前端跳 Settings。
+- keyring 条目被人手动清掉：M10 调用报 `auth`，前端提示「API key for `<provider>` no longer in OS keychain, please re-paste」。
+- `.env` 解析失败：tracing warn，**不阻断启动**；前端照常提示粘贴。
+- 数据库有 row 但 keyring 没 secret：`secrets_status` 返回 `configured: false`，UI 灰显 provider row + banner 提示。
+
+---
+
 ## 变更日志
 
+- **v1.1** (2026-06-16) — 新增 §13 Client-side key persistence：明确 client paste 为主路径、.env 仅 dev；新增 4 类 IPC（llm_key_set_secret / llm_pm_set_credentials / polyrocket_wallet_set_pk / secrets_status）；keyring alias builder 化；启动同步仅在 `POLYROCKET_ENV=dev && KEYRING_ONLY=0` 时执行。
 - **v1.0** (2026-06-16) — 初版。基于用户反馈"LLM 管理 + 流量 + 连通性 + 胜率"需求重写。引入 M11 模块、3 张新表、4 类 IPC 扩展、连通性测试、流量监控、胜率统计增强。

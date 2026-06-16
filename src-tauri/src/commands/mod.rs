@@ -5,5 +5,6 @@ pub mod llm;
 pub mod llm_mgmt;
 pub mod market;
 pub mod pnl;
+pub mod secrets;
 pub mod signal;
 pub mod wallet;

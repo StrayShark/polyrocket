@@ -73,7 +73,7 @@ polyrocket 拆为 **10 个功能模块 + 2 个横切关注点**：
 | M8 | Dashboard | 业务（前端聚合） | 跨模块数据汇总视图 | v0.1 |
 | M9 | Settings | 业务 | 用户偏好、主题、阈值、API key（可选） | v0.1 |
 | **M10** | **LLM Analysis** | **业务** | **多 LLM 并行分析、prompt 工程、共识聚合、用户决策追踪、LLM 胜率统计** | **v0.2** |
-| **M11** | **LLM Management** | **业务** | **Provider / Key 配置 + 连通性测试 + 流量监控 + 健康探针 + 配额 + 异常告警** | **v0.2** |
+| **M11** | **LLM Management** | **业务** | **Provider / Key 配置（OS keyring 持久化）+ 连通性测试 + 流量监控 + 健康探针 + 配额 + 异常告警** | **v0.2** |
 | **M12** | **Daily Brief** | **业务** | **每日自动分析今日值得关注的市场，评分 + 缓存 + 用户偏好** | **v0.2** |
 | X1 | AuditLog | 横切 | 所有写操作的可追溯记录 | v0.1 |
 | X2 | Notifications | 横切 | Toast / 系统通知 / 重要事件推送 | v0.1 |
@@ -416,6 +416,7 @@ model_performance({ model_version, window }): ModelPerformanceDto
 
 ## 变更日志
 
+- **v1.4** (2026-06-16) — M11 升级：**Client-side key persistence 为主路径**。新增 5 个 IPC（llm_key_set_secret / llm_pm_set_credentials / llm_pm_clear_credentials / polyrocket_wallet_set_pk / polyrocket_wallet_clear_pk / secrets_status）；.env 降级为 dev-only（仅 `POLYROCKET_ENV=dev` 读）；keyring alias 命名空间化（`llm/<pid>/<alias>` 等）。
 - **v1.3** (2026-06-16) — 新增 **M11 LLM Management**：provider/key CRUD + 连通性测试 + 流量监控 + 健康探针 + 配额。新增 3 张表（llm_provider_keys / llm_call_logs / llm_health_checks）+ 扩 llm_providers（11→27 列）。IPC 命令 +12（27→39）。
 - **v1.2** (2026-06-16) — 新增 **M12 Daily Brief**：每日自动评分 + 缓存 + 用户偏好；markets 加 user_interested + brief_dismissed_at 字段；新增 daily_briefs / user_brief_prefs 2 张表。IPC 命令 +4。
 - **v1.1** (2026-06-16) — 新增 **M10 LLM Analysis**：多 LLM 并行 + prompt 工程 + 共识 + 用户决策追踪 + LLM 胜率统计。依赖图 + IPC 命令数 13→18。

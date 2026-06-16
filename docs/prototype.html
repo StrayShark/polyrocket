@@ -375,6 +375,57 @@
   }
   .toast svg { width: 16px; height: 16px; }
 
+  /* ---------- modal (v1.1) ---------- */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 200;
+  }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    width: 100%;
+    max-width: 560px;
+    max-height: 80vh;
+    display: flex; flex-direction: column;
+  }
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .modal-header h3 { margin: 0; font-size: 14px; font-weight: 500; }
+  .modal-body { padding: 16px 18px; overflow-y: auto; }
+  .modal-footer {
+    display: flex; justify-content: flex-end; gap: 8px;
+    padding: 12px 18px;
+    border-top: 1px solid var(--border);
+  }
+  .btn-icon {
+    background: none; border: none; cursor: pointer; color: var(--muted);
+    padding: 4px; border-radius: 4px; display: inline-flex; align-items: center;
+  }
+  .btn-icon:hover { background: var(--surface-2); color: var(--fg); }
+  .btn-icon svg { width: 16px; height: 16px; }
+
+  .input {
+    background: var(--bg);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 12.5px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.12s var(--ease-out);
+  }
+  .input:focus { border-color: var(--accent); }
+  .input::placeholder { color: var(--muted); }
+  select.input { cursor: pointer; }
+
   /* fade transition for theme */
   .theme-fade, .theme-fade * { transition: background-color var(--duration-theme) var(--ease-out), color var(--duration-theme) var(--ease-out), border-color var(--duration-theme) var(--ease-out); }
 </style>
@@ -1650,6 +1701,19 @@
         </div>
       </div>
 
+      <!-- Secrets status banner (v1.1: client-side key persistence) -->
+      <div class="card" style="margin-bottom:16px;padding:12px 16px;background:rgba(248,81,73,0.08);border-left:3px solid var(--bear);">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <i data-lucide="alert-triangle" style="color:var(--bear);width:18px;height:18px;"></i>
+          <div style="flex:1;font-size:12.5px;">
+            <strong>1 key missing</strong> · <code>azure-proxy / key-1</code> has no secret in your OS keychain.
+            <span style="color:var(--muted);">Paste the API key below to enable this provider.</span>
+          </div>
+          <button class="btn" style="font-size:11px;padding:4px 8px;" onclick="document.getElementById('add-key-modal').classList.remove('hidden')"><i data-lucide="plus"></i> Add key</button>
+          <button class="btn" style="font-size:11px;padding:4px 8px;" onclick="invoke_secrets_status_demo()"><i data-lucide="refresh-cw"></i> Refresh</button>
+        </div>
+      </div>
+
       <!-- Provider list -->
       <div class="card" style="margin-bottom:16px;overflow:hidden;">
         <table>
@@ -1756,9 +1820,9 @@
                             <button class="btn" style="padding:2px 6px;font-size:10px;">Remove</button>
                           </div>
                           ` : ''}
-                          <button class="btn" style="padding:4px 8px;font-size:11px;align-self:flex-start;"><i data-lucide="plus"></i> Add key</button>
+                          <button class="btn" style="padding:4px 8px;font-size:11px;align-self:flex-start;" onclick="openAddKeyModal('${p.id}')"><i data-lucide="plus"></i> Add key</button>
                         </div>
-                      ` : '<button class="btn btn-primary" style="padding:4px 8px;font-size:11px;"><i data-lucide="plus"></i> Add first key</button>'}
+                      ` : '<button class="btn btn-primary" style="padding:4px 8px;font-size:11px;" onclick="openAddKeyModal(\'${p.id}\')"><i data-lucide="plus"></i> Add first key</button>'}
                     </div>
                   </td>
                 </tr>
@@ -1830,7 +1894,214 @@
           </tbody>
         </table>
       </div>
+
+      <!-- Wallets & Polymarket CLOB credentials (v1.1) -->
+      <div class="card" style="margin-top:16px;overflow:hidden;">
+        <div class="card-header">
+          <div>
+            <h3>Wallets &amp; Polymarket CLOB credentials</h3>
+            <div class="hint">Secrets live in your OS keychain (macOS Keychain / Windows Credential Manager). Never in SQLite, never in .env, never in git.</div>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:14px;"></th>
+              <th>Kind</th>
+              <th>Alias / Label</th>
+              <th>Keyring entry</th>
+              <th>Status</th>
+              <th class="right">Last set</th>
+              <th style="width:240px;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Polymarket CLOB (3 entries) -->
+            <tr>
+              <td><span class="dot" style="background:var(--bull);"></span></td>
+              <td><span class="pill">pm_api</span></td>
+              <td>Polymarket API key</td>
+              <td><code style="font-size:11px;">polyrocket/pm/api</code></td>
+              <td><span style="color:var(--bull);">✓ configured</span></td>
+              <td class="num right secondary">2h ago</td>
+              <td>
+                <button class="btn" style="padding:3px 8px;font-size:11px;" onclick="openAddKeyModal('pm_api')"><i data-lucide="key-round"></i> Update</button>
+                <button class="btn" style="padding:3px 8px;font-size:11px;"><i data-lucide="trash-2"></i></button>
+              </td>
+            </tr>
+            <tr>
+              <td><span class="dot" style="background:var(--bull);"></span></td>
+              <td><span class="pill">pm_secret</span></td>
+              <td>Polymarket API secret</td>
+              <td><code style="font-size:11px;">polyrocket/pm/secret</code></td>
+              <td><span style="color:var(--bull);">✓ configured</span></td>
+              <td class="num right secondary">2h ago</td>
+              <td>
+                <button class="btn" style="padding:3px 8px;font-size:11px;" onclick="openAddKeyModal('pm_secret')"><i data-lucide="key-round"></i> Update</button>
+                <button class="btn" style="padding:3px 8px;font-size:11px;"><i data-lucide="trash-2"></i></button>
+              </td>
+            </tr>
+            <tr>
+              <td><span class="dot" style="background:var(--bull);"></span></td>
+              <td><span class="pill">pm_passphrase</span></td>
+              <td>Polymarket API passphrase</td>
+              <td><code style="font-size:11px;">polyrocket/pm/passphrase</code></td>
+              <td><span style="color:var(--bull);">✓ configured</span></td>
+              <td class="num right secondary">2h ago</td>
+              <td>
+                <button class="btn" style="padding:3px 8px;font-size:11px;" onclick="openAddKeyModal('pm_passphrase')"><i data-lucide="key-round"></i> Update</button>
+                <button class="btn" style="padding:3px 8px;font-size:11px;"><i data-lucide="trash-2"></i></button>
+              </td>
+            </tr>
+            <!-- Wallet (mode B) -->
+            <tr>
+              <td><span class="dot" style="background:var(--bull);"></span></td>
+              <td><span class="pill">wallet_pk</span></td>
+              <td>primary · 0x7a3F…e29B</td>
+              <td><code style="font-size:11px;">polyrocket/wallet/primary</code></td>
+              <td><span style="color:var(--bull);">✓ configured</span></td>
+              <td class="num right secondary">1d ago</td>
+              <td>
+                <button class="btn" style="padding:3px 8px;font-size:11px;" onclick="openAddKeyModal('wallet_pk')"><i data-lucide="key-round"></i> Update</button>
+                <button class="btn" style="padding:3px 8px;font-size:11px;"><i data-lucide="trash-2"></i></button>
+              </td>
+            </tr>
+            <!-- .env dev hint -->
+            <tr style="background:var(--surface-2);">
+              <td><i data-lucide="info" style="width:14px;height:14px;color:var(--muted);"></i></td>
+              <td colspan="6" style="font-size:11.5px;color:var(--muted);padding:10px 12px;">
+                <strong>Dev tip:</strong> A <code>.env</code> file in the project root is also supported, but only when both <code>POLYROCKET_ENV=dev</code> and <code>POLYROCKET_KEYRING_ONLY=0</code> are set at startup.
+                Even then, .env only fills in secrets that are NOT already in your keychain — anything you paste here always wins.
+                See <code>docs/polyrocket-llm-management.md</code> §13.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Add / update key modal (v1.1) -->
+      <div id="add-key-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeAddKeyModal()">
+        <div class="modal" style="max-width:480px;">
+          <div class="modal-header">
+            <h3 id="add-key-title">Add API key</h3>
+            <button class="btn-icon" onclick="closeAddKeyModal()"><i data-lucide="x"></i></button>
+          </div>
+          <div class="modal-body">
+            <div id="add-key-provider-row" style="margin-bottom:12px;">
+              <label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:4px;">Provider</label>
+              <select id="add-key-provider" class="input" style="width:100%;">
+                <option value="openai">GPT-4o (OpenAI)</option>
+                <option value="anthropic">Claude Sonnet 4.5 (Anthropic)</option>
+                <option value="google">Gemini 2.5 Pro (Google)</option>
+                <option value="deepseek">DeepSeek V3</option>
+                <option value="custom">Custom OpenAI-compat</option>
+                <option value="pm_api">Polymarket CLOB · API key</option>
+                <option value="pm_secret">Polymarket CLOB · secret</option>
+                <option value="pm_passphrase">Polymarket CLOB · passphrase</option>
+                <option value="wallet_pk">Wallet private key (mode B)</option>
+              </select>
+            </div>
+            <div id="add-key-alias-row" style="margin-bottom:12px;">
+              <label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:4px;">Alias (e.g. <code>prod-1</code>, <code>backup-azure</code>)</label>
+              <input id="add-key-alias" class="input" type="text" placeholder="prod-1" style="width:100%;">
+            </div>
+            <div style="margin-bottom:8px;">
+              <label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:4px;" id="add-key-secret-label">API key / secret</label>
+              <input id="add-key-secret" class="input" type="password" placeholder="sk-..." style="width:100%;font-family:ui-monospace,monospace;">
+              <div style="font-size:10.5px;color:var(--muted);margin-top:4px;">
+                <i data-lucide="shield-check" style="width:11px;height:11px;"></i>
+                Written to <code id="add-key-target-alias">llm/openai/prod-1</code> in your OS keychain. Never stored in SQLite or .env.
+              </div>
+            </div>
+            <div id="add-key-pm-extra" class="hidden" style="margin-bottom:8px;">
+              <label style="font-size:11.5px;color:var(--muted);display:block;margin-bottom:4px;">Host</label>
+              <input id="add-key-pm-host" class="input" type="text" value="https://clob.polymarket.com" style="width:100%;">
+              <label style="font-size:11.5px;color:var(--muted);display:block;margin-top:8px;margin-bottom:4px;">Chain ID</label>
+              <input id="add-key-pm-chain" class="input" type="number" value="137" style="width:100%;">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn" onclick="closeAddKeyModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="submitAddKey()"><i data-lucide="key-round"></i> Save to keychain</button>
+          </div>
+        </div>
+      </div>
     `;
+  }
+
+  function openAddKeyModal(providerId) {
+    const modal = document.getElementById('add-key-modal');
+    if (!modal) return;
+    const providerSel = document.getElementById('add-key-provider');
+    const aliasInput  = document.getElementById('add-key-alias');
+    const targetAlias = document.getElementById('add-key-target-alias');
+    const pmExtra     = document.getElementById('add-key-pm-extra');
+    const aliasRow    = document.getElementById('add-key-alias-row');
+    const secretLabel = document.getElementById('add-key-secret-label');
+    const title       = document.getElementById('add-key-title');
+    if (providerId) providerSel.value = providerId;
+    // Default alias when blank
+    if (!aliasInput.value) aliasInput.value = 'prod-1';
+    // Provider → keyring alias preview
+    const v = providerSel.value;
+    let target;
+    if (v === 'pm_api')            target = 'polyrocket/pm/api';
+    else if (v === 'pm_secret')    target = 'polyrocket/pm/secret';
+    else if (v === 'pm_passphrase') target = 'polyrocket/pm/passphrase';
+    else if (v === 'wallet_pk')    target = 'polyrocket/wallet/' + (aliasInput.value || 'primary');
+    else                           target = `llm/${v}/${aliasInput.value || 'prod-1'}`;
+    targetAlias.textContent = target;
+    // Show/hide conditional fields
+    pmExtra.classList.toggle('hidden', !v.startsWith('pm_'));
+    aliasRow.classList.toggle('hidden', v.startsWith('pm_') || v === 'wallet_pk');
+    if (v === 'wallet_pk') {
+      secretLabel.textContent = 'Private key (64 hex chars, with or without 0x prefix)';
+      title.textContent = 'Set wallet private key';
+    } else if (v.startsWith('pm_')) {
+      secretLabel.textContent = 'Paste value';
+      title.textContent = 'Set Polymarket CLOB credential';
+    } else {
+      secretLabel.textContent = 'API key';
+      title.textContent = 'Add / update API key';
+    }
+    modal.classList.remove('hidden');
+    document.getElementById('add-key-secret').value = '';
+    setTimeout(() => document.getElementById('add-key-secret').focus(), 50);
+  }
+
+  function closeAddKeyModal() {
+    document.getElementById('add-key-modal').classList.add('hidden');
+    document.getElementById('add-key-secret').value = '';
+  }
+
+  function submitAddKey() {
+    // In production this calls:
+    //   await invoke('llm_key_upsert', { args: { key, secret } })
+    //   or  invoke('llm_pm_set_credentials', { args: {...} })
+    //   or  invoke('polyrocket_wallet_set_pk', { args: {...} })
+    // Mock: just close the modal + toast.
+    closeAddKeyModal();
+    showToast('✓ Saved to OS keychain', 'success');
+  }
+
+  // Wire live update of the target-alias preview as user types
+  document.addEventListener('input', (e) => {
+    if (e.target && e.target.id === 'add-key-alias') {
+      const v = document.getElementById('add-key-provider').value;
+      const a = e.target.value || 'prod-1';
+      const target = (v === 'wallet_pk')
+        ? `polyrocket/wallet/${a}`
+        : (v.startsWith('pm_'))
+          ? `polyrocket/pm/${v.slice(3)}`
+          : `llm/${v}/${a}`;
+      const el = document.getElementById('add-key-target-alias');
+      if (el) el.textContent = target;
+    }
+  });
+
+  // secrets_status demo — would invoke('secrets_status')
+  function invoke_secrets_status_demo() {
+    showToast('secrets_status · 5 LLM keys ✓ · 3 PM ✓ · 1 wallet ✓', 'info');
   }
 
   function renderBrief() {

@@ -235,6 +235,14 @@ pub async fn llm_provider_delete(state: State<'_, AppState>, provider_id: String
             "Provider in use by {} recommendations, delete refused", usages
         )));
     }
+    // Pull all keyring_aliases for this provider BEFORE deleting the rows,
+    // so we can clean the OS keyring too.
+    let keyring_aliases: Vec<String> = sqlx::query_scalar(
+        "SELECT keyring_alias FROM llm_provider_keys WHERE provider_id = ?",
+    )
+    .bind(&provider_id)
+    .fetch_all(&state.db)
+    .await?;
     sqlx::query("DELETE FROM llm_provider_keys WHERE provider_id = ?")
         .bind(&provider_id)
         .execute(&state.db)
@@ -243,10 +251,12 @@ pub async fn llm_provider_delete(state: State<'_, AppState>, provider_id: String
         .bind(&provider_id)
         .execute(&state.db)
         .await?;
+    let deleted = crate::keyring::delete_provider_keys(&provider_id, &keyring_aliases);
     sqlx::query(
-        "INSERT INTO audit_log (actor, action, target, result) VALUES ('user', 'llm.provider.delete', ?, 'ok')",
+        "INSERT INTO audit_log (actor, action, target, payload, result) VALUES ('user', 'llm.provider.delete', ?, ?, 'ok')",
     )
     .bind(&provider_id)
+    .bind(serde_json::json!({"keyring_entries_removed": deleted.len()}))
     .execute(&state.db)
     .await?;
     Ok(())
@@ -280,11 +290,31 @@ pub async fn llm_key_list(
     Ok(rows)
 }
 
+#[derive(Debug, Deserialize)]
+pub struct KeyUpsertArgs {
+    pub key: LlmProviderKeyDto,
+    /// Optional plaintext secret. When provided, also written to OS keyring
+    /// (overwriting any prior value at the same keyring_alias).
+    /// When `None`, only the metadata row is upserted.
+    pub secret: Option<String>,
+}
+
 #[tauri::command]
 pub async fn llm_key_upsert(
     state: State<'_, AppState>,
-    key: LlmProviderKeyDto,
+    args: KeyUpsertArgs,
 ) -> AppResult<()> {
+    let key = args.key;
+    let secret = args.secret;
+
+    // Write to OS keyring first (if a secret was provided).
+    // keyring_alias is the canonical entry name; we use it verbatim.
+    if let Some(s) = secret.as_deref() {
+        if !s.is_empty() {
+            crate::keyring::set_key(&key.keyring_alias, s)?;
+        }
+    }
+
     let now = chrono::Utc::now().timestamp_millis();
     sqlx::query(
         "INSERT INTO llm_provider_keys (
@@ -324,7 +354,52 @@ pub async fn llm_key_upsert(
         "INSERT INTO audit_log (actor, action, target, payload, result) VALUES ('user', 'llm.key.upsert', ?, ?, 'ok')",
     )
     .bind(&key.id)
-    .bind(serde_json::json!({"provider_id": key.provider_id, "alias": key.alias}))
+    .bind(serde_json::json!({
+        "provider_id": key.provider_id,
+        "alias": key.alias,
+        "secret_written": secret.as_ref().map(|s| !s.is_empty()).unwrap_or(false),
+    }))
+    .execute(&state.db)
+    .await?;
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+pub struct KeySetSecretArgs {
+    pub key_id: String,
+    pub secret: String,
+}
+
+/// Rotate the secret for an existing key (e.g. user replaced the API key
+/// in their provider dashboard). Looks up the row's `keyring_alias`,
+/// overwrites the OS keyring entry, and audit-logs the rotation. The
+/// plaintext secret is never persisted to SQLite.
+#[tauri::command]
+pub async fn llm_key_set_secret(
+    state: State<'_, AppState>,
+    args: KeySetSecretArgs,
+) -> AppResult<()> {
+    if args.secret.is_empty() {
+        return Err(crate::AppError::Invalid("secret is empty".into()));
+    }
+    let row: Option<(String, String)> = sqlx::query_as(
+        "SELECT provider_id, keyring_alias FROM llm_provider_keys WHERE id = ?",
+    )
+    .bind(&args.key_id)
+    .fetch_optional(&state.db)
+    .await?;
+    let Some((provider_id, keyring_alias)) = row else {
+        return Err(crate::AppError::Invalid(format!(
+            "key id '{}' not found",
+            args.key_id
+        )));
+    };
+    crate::keyring::set_key(&keyring_alias, &args.secret)?;
+    sqlx::query(
+        "INSERT INTO audit_log (actor, action, target, payload, result) VALUES ('user', 'llm.key.secret.rotate', ?, ?, 'ok')",
+    )
+    .bind(&args.key_id)
+    .bind(serde_json::json!({"provider_id": provider_id, "keyring_alias": keyring_alias}))
     .execute(&state.db)
     .await?;
     Ok(())
@@ -332,10 +407,25 @@ pub async fn llm_key_upsert(
 
 #[tauri::command]
 pub async fn llm_key_delete(state: State<'_, AppState>, key_id: String) -> AppResult<()> {
+    // Look up the keyring_alias before deleting the row, so we can also
+    // wipe the secret from the OS keyring (best-effort — ignore error).
+    let row: Option<(String, String)> = sqlx::query_as(
+        "SELECT provider_id, keyring_alias FROM llm_provider_keys WHERE id = ?",
+    )
+    .bind(&key_id)
+    .fetch_optional(&state.db)
+    .await?;
     sqlx::query("DELETE FROM llm_provider_keys WHERE id = ?")
         .bind(&key_id)
         .execute(&state.db)
         .await?;
+    if let Some((provider_id, keyring_alias)) = row {
+        if let Err(e) = crate::keyring::delete_key(&keyring_alias) {
+            tracing::warn!(
+                "keyring delete for {keyring_alias} (provider {provider_id}) failed: {e}"
+            );
+        }
+    }
     sqlx::query(
         "INSERT INTO audit_log (actor, action, target, result) VALUES ('user', 'llm.key.delete', ?, 'ok')",
     )
