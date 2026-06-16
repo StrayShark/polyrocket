@@ -8,6 +8,8 @@
 
 use serde::{Deserialize, Serialize};
 
+pub mod sidecar;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LabRun {
     pub id: String,

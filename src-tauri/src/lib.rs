@@ -7,6 +7,7 @@
 mod commands;
 pub mod domain;
 pub mod infra;
+pub mod lab_state;
 mod platform;
 
 use tauri::Manager;
@@ -36,13 +37,15 @@ pub fn run() {
                 let pool = infra::db::init_pool(&app_handle)
                     .await
                     .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
-                // Start background schedulers (health probe + daily brief + anomaly detect).
+                // Start background schedulers (health probe + daily brief + anomaly detect + mirror executor).
                 // They run for the process lifetime; the handle is kept in app state
                 // for test shutdown signaling.
                 let http = infra::http::new_http_client();
                 let handle = infra::scheduler::start(pool.clone(), http);
                 app_handle.manage(infra::state::AppState { db: pool });
                 app_handle.manage(handle);
+                // v0.6b — Python sidecar (M7) singleton state
+                app_handle.manage(commands::sidecar::SidecarState::new());
                 Ok::<(), Box<dyn std::error::Error>>(())
             })
         })
@@ -99,6 +102,11 @@ pub fn run() {
             commands::mirror_executor::list_mirrors,
             commands::mirror_executor::run_mirror_executor_pass,
             commands::mirror_executor::mirror_queue_stats,
+            commands::sidecar::start_sidecar,
+            commands::sidecar::stop_sidecar,
+            commands::sidecar::sidecar_status,
+            commands::sidecar::sidecar_predict,
+            commands::sidecar::sidecar_request,
             commands::scheduler::scheduler_status,
             commands::scheduler::scheduler_run_health_probe_now,
             commands::scheduler::scheduler_run_daily_brief_now,

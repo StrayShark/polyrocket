@@ -16,6 +16,7 @@ pub mod market;
 pub mod mirror_executor;
 pub mod notify;
 pub mod pnl;
+pub mod sidecar;
 pub mod scheduler;
 pub mod secrets;
 pub mod signal;
