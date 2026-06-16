@@ -3,7 +3,7 @@
  * Mirrors src-tauri/src/domain/copy/mod.rs.
  */
 
-export interface CopyTarget {
+export interface CopyTargetInput {
   id: string;
   address: string;
   label?: string | null;
@@ -13,7 +13,7 @@ export interface CopyTarget {
   createdAt: number;
 }
 
-export interface CopyEvent {
+export interface CopyEventInput {
   id: number;
   targetId: string;
   marketId: string;
@@ -61,7 +61,7 @@ export function validateTargetArgs(
 }
 
 export function shouldMirror(
-  target: CopyTarget,
+  target: CopyTargetInput,
   fillSide: string,
   fillSize: string,
   targetMarketEdge: number,
@@ -82,6 +82,6 @@ export function shouldMirror(
   };
 }
 
-export function isDuplicateTx(events: CopyEvent[], txHash: string): boolean {
+export function isDuplicateTx(events: CopyEventInput[], txHash: string): boolean {
   return events.some((e) => e.txHash === txHash);
 }

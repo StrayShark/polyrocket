@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { shouldMirror, isDuplicateTx, validateTargetArgs, CopyValidationError, type CopyTarget, type CopyEvent } from './copy';
+import { shouldMirror, isDuplicateTx, validateTargetArgs, CopyValidationError, type CopyTargetInput, type CopyEventInput } from './copy';
 
-function target(enabled: boolean, minEdge: number, cap: string | null): CopyTarget {
+function target(enabled: boolean, minEdge: number, cap: string | null): CopyTargetInput {
   return {
     id: 't1',
     address: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045',
@@ -13,7 +13,7 @@ function target(enabled: boolean, minEdge: number, cap: string | null): CopyTarg
   };
 }
 
-function ev(txHash: string): CopyEvent {
+function ev(txHash: string): CopyEventInput {
   return {
     id: 1,
     targetId: 't1',

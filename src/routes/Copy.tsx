@@ -10,6 +10,7 @@ import { Modal } from '@/components/feedback/Modal';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
+import { MirrorPanel } from '@/components/business/MirrorPanel';
 import { toast } from '@/stores/toast-store';
 import { fmtAddress, fmtRelativeTime, fmtUsdc, fmtDateTime } from '@/lib/format';
 import type { CopyTarget, CopyEvent } from '@/types/shared';
@@ -55,6 +56,14 @@ export function Copy() {
             </Button>
           </div>
         </div>
+      </Card>
+
+      {/* Auto-trigger mirror panel — derived client-side from L3 should_mirror() */}
+      <Card
+        title="Mirror activity"
+        description="Live mirror decisions derived from copy events + market signals (client-side L3 mirror)"
+      >
+        <MirrorPanel />
       </Card>
 
       {error ? (
