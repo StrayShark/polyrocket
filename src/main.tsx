@@ -12,6 +12,10 @@ import { ModelLab } from '@/routes/ModelLab';
 import { History } from '@/routes/History';
 import { Wallets } from '@/routes/Wallets';
 import { Settings } from '@/routes/Settings';
+import { Analysis } from '@/routes/Analysis';
+import { LlmPerf } from '@/routes/LlmPerf';
+import { LlmMgmt } from '@/routes/LlmMgmt';
+import { Brief } from '@/routes/Brief';
 import { AppShell } from '@/components/layout/AppShell';
 import { useThemeStore } from '@/stores/theme-store';
 import { ToastHost } from '@/components/feedback/Toast';
@@ -47,6 +51,10 @@ const router = createBrowserRouter([
       { path: 'history', element: <History /> },
       { path: 'wallets', element: <Wallets /> },
       { path: 'settings', element: <Settings /> },
+      { path: 'analysis', element: <Analysis /> },
+      { path: 'llm-perf', element: <LlmPerf /> },
+      { path: 'llm-mgmt', element: <LlmMgmt /> },
+      { path: 'brief', element: <Brief /> },
     ],
   },
 ]);
