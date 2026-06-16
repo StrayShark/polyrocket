@@ -4,6 +4,7 @@ import { RouterProvider, createBrowserRouter, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Dashboard } from '@/routes/Dashboard';
 import { Markets } from '@/routes/Markets';
+import { MarketDetail } from '@/routes/MarketDetail';
 import { Signals } from '@/routes/Signals';
 import { Copy } from '@/routes/Copy';
 import { PnL } from '@/routes/PnL';
@@ -35,6 +36,7 @@ const router = createBrowserRouter([
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: 'dashboard', element: <Dashboard /> },
       { path: 'markets', element: <Markets /> },
+      { path: 'markets/:id', element: <MarketDetail /> },
       { path: 'signals', element: <Signals /> },
       { path: 'copy', element: <Copy /> },
       { path: 'pnl', element: <PnL /> },
