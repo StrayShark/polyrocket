@@ -1,6 +1,6 @@
 # polyrocket — 功能模块设计 (FSD)
 
-> 版本：v1.3 · 2026-06-16
+> 版本：v1.9 · 2026-06-16 (v0.4 — 全 13 模块真实现)
 > 配套：[`overview.md`](./overview.md)（5 层架构 + 目录结构） · [`polyrocket-llm-analysis.md`](./polyrocket-llm-analysis.md)（M10/M12 设计） · [`polyrocket-llm-management.md`](./polyrocket-llm-management.md)（M11 设计） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个 flow） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页 × 3 主题 UI 规范）
 > 范围：Tauri 2 桌面客户端的所有功能模块拆解，含职责、依赖、对外接口
 > 想了解**代码在哪一层、目录怎么组织** → 看 `overview.md`
@@ -410,9 +410,33 @@ model_performance({ model_version, window }): ModelPerformanceDto
 
 | 版本 | 模块覆盖 |
 |---|---|
-| v0.1（当前） | M1 / M2（mock）/ M3（Mode A + Mode B 占位）/ M4 / M5（基础）/ M6 / M8 / M9（主题） |
+| v0.1 | M1 / M2（mock）/ M3（Mode A + Mode B 占位）/ M4 / M5（基础）/ M6 / M8 / M9（主题） |
 | v0.2 | M2 真信号接入 / M3 Mode B 真签名 / M5 镜像策略 / M7 模型性能追踪 / X2 系统通知 |
-| v0.3 | M7 Python sidecar 训练 / Markets 实时行情流 / Model Lab UI 完整版 |
+| v0.3 | 5-layer 严格分目录 + CI 守门 (check-layers.mjs) |
+| **v0.4 (当前)** | **L3 域全实现** + **L1 真 React 化 18 路由** + audit read-side + onb/notify/help |
+| v0.5 (next) | M3 Mode B 真签名 (rs-clob-client) / M5 镜像策略触发 / M7 Python sidecar / 系统通知 (X2 升级) |
+
+### 6.1 v0.4 — 全 13 模块
+
+| 模块 | 状态 | 关键文件 |
+|---|---|---|
+| M-Foundation | ✅ done | src/ipc.ts (41) + 13 组件 + types/ + 2 stores |
+| M1 Markets | ✅ 真实现 | domain/polymarket + /markets + /markets/:id |
+| M2 Signals | ✅ 真实现 | domain/signal + /signals |
+| M3 Bets | ✅ 真实现 | domain/bet + /history |
+| M4 Wallets | ✅ 真实现 | domain/wallet + /wallets |
+| M5 Copy | ✅ 真实现 | domain/copy + /copy |
+| M6 PnL | ✅ 真实现 | domain/pnl + /pnl |
+| M7 ModelLab | ✅ 真实现 | domain/lab + /lab |
+| M8 Dashboard | ✅ 重写 | /dashboard (consumes M1-M7) |
+| M9 Settings | ✅ 真实现 | /settings + prefs-store |
+| M10 LLM Analysis | ✅ 真实现 | /analysis (M10 Rust 已实) |
+| M11 LLM Mgmt | ✅ 真实现 | /llm-mgmt + /llm-perf |
+| M12 Daily Brief | ✅ 真实现 | /brief (M12 Rust 已实) |
+| M13 Onboarding | ✅ 真实现 | /onboarding + onb-store |
+| X1 Audit | ✅ 增 read-side | commands/audit.rs + /audit |
+| X2 Notifications | ✅ toast UI | /notifications + toast-store |
+| Help | ✅ static | /help |
 
 ---
 

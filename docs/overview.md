@@ -511,16 +511,38 @@ sequenceDiagram
 
 ## 5. 现状 → 目标 迁移路线
 
-### 5.1 现状（v0.2 → v0.3f）
+### 5.1 现状（v0.2 → v0.4）
 
 | 层 | 路径 | 状态 |
 |---|---|---|
 | L5 platform | `src-tauri/src/platform/{keyring,env,paths}/` | ✅ v0.3a 完成 |
 | L4 infra | `src-tauri/src/infra/{error,state,http,db,scheduler}/` | ✅ v0.3b 完成 |
-| L3 domain | `src-tauri/src/domain/{llm,polymarket,consensus,signal,bet,copy,pnl,lab,wallet}/` | ✅ v0.3c 完成（8 个新 stub domain） |
-| L2 application | `src-tauri/src/commands/` (12 个文件) | ✅ v0.3d 完成（`//! L2: <module>` 头注释） |
-| L1 presentation | `src/` (粗粒度目录) | ⚠️ 是 prototype.html mock，**不是真 React** |
+| L3 domain | `src-tauri/src/domain/{llm,polymarket,consensus,signal,bet,copy,pnl,lab,wallet}/` | ✅ v0.3c + v0.4 真实现 |
+| L2 application | `src-tauri/src/commands/` (13 个文件) | ✅ v0.3d + v0.4 audit 模块 |
+| L1 presentation | `src/` (18 routes × 13 components × 5 stores) | ✅ v0.4 真 React |
 | **CI** | `scripts/check-doc-sync.mjs` + `scripts/check-layers.mjs` | ✅ v0.3f 完成（pre-commit governance） |
+
+### 5.2 v0.4 — 功能模块全实现 (13 模块)
+
+| # | 模块 | L3 增量 | L1 路由 | IPCs | Tests |
+|---|---|---|---|---|---|
+| Foundation | ipc.ts (41) + 13 组件 + types/ | — | — | — | — |
+| M1 | Markets | +Category classify + parse_liquidity/volume + closing_bucket | `/markets` `/markets/:id` | list/sync | 6 |
+| M2 | Signals | +score + filter_active + sort_by_edge_abs + best_for_market + stats | `/signals` | list/recompute | 8 |
+| M3 | Bets | +BetSide + shares_for_size + pnl + is_open | `/history` | place/list | 7 |
+| M4 | Wallets | +WalletType + validate_address/chain/label + short_address | `/wallets` | list/add | 13 |
+| M5 | Copy | +validate_target_args + should_mirror + is_duplicate_tx | `/copy` | list/add/events | 10 |
+| M6 | PnL | +win_rate + brier_score + realized_pnl + categorize + summarize | `/pnl` | kpis | 11 |
+| M7 | ModelLab | +RunStatus + validate_version + is_older + is_better | `/lab` | llmPerformance | 7 |
+| M8 | Dashboard | — (consumes M1-M7) | `/dashboard` (rewrite) | — | — |
+| M9 | Settings | — (UI prefs store) | `/settings` | — | — |
+| M10 | LLM Analysis | — (already in M3c) | `/analysis` | 12 | — |
+| M11 | LLM Mgmt | — (already in M3c) | `/llm-mgmt` | 14 + 1 audit | — |
+| M12 | Daily Brief | — (already in M3c) | `/brief` | 4 | — |
+| M13 | Onboarding | — (UI store) | `/onboarding` | — | — |
+| X1 | Audit | — (Rust commands/audit.rs) | `/audit` | +2 new | 3 |
+| X2 | Notifications | — (toast store) | `/notifications` | — | — |
+| Help | — (static page) | `/help` | — | — |
 
 ### 5.2 目标（v0.3+）
 
@@ -534,6 +556,32 @@ sequenceDiagram
 | **v0.3f** | CI 加层依赖校验脚本（`scripts/check-layers.mjs`） | ✅ **done** | 0.5d |
 
 **总计 ~7d** 完成 5 层严格分目录。
+
+### 5.4 v0.4 — L3 填实 + L1 真 React 化
+
+| 阶段 | 模块 | commit | tests |
+|---|---|---|---|
+| M-Foundation | ipc.ts (41) + 13 组件 + types/ | `94ae480` | — |
+| M1 | Markets domain + Markets/MarketDetail 路由 | `8a2e107` | +6 |
+| M2 | Signals domain + Signals 路由 | `3c242ca` | +8 |
+| M3 | Bets domain + History 路由 | `2c27f32` | +7 |
+| M4 | Wallets domain + Wallets 路由 | `94435c6` | +13 |
+| M5 | Copy domain + Copy 路由 | `4b7dcc8` | +10 |
+| M6 | PnL domain + PnL 路由 | `89102bc` | +11 |
+| M7 | ModelLab domain + ModelLab 路由 | `5ac9060` | +7 |
+| M8 | Dashboard 重写 (consumes M1-M7) | `afb1764` | — |
+| M9 | Settings 路由 + prefs-store | `4c8689e` | — |
+| M10-M12 | Analysis + LlmPerf + LlmMgmt + Brief 路由 | `e8d24f3` | — |
+| M13+X | Onboarding + Notifications + Audit + Help | `10c50fa` | +3 |
+| **Total v0.4** | **13 模块** | **12 commits** | **+65 unit (48→113)** |
+
+v0.4 增量：
+- 13 个 L1 路由新增/重写
+- 41 个 typed IPC wrapper
+- 13 个 L3 域模块的纯函数实现
+- 65 个新 unit test
+- 2 个新 Rust command (audit)
+- 1 个新 L1 store (prefs) + toast store + onboarding store
 
 ### 5.3 迁移原则
 
