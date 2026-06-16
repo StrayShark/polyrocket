@@ -1,7 +1,7 @@
 //! OpenAI client — native (api.openai.com) and identical wire format.
 
-use crate::llm_clients::{CallError, CallRequest, CostRate, LlmClient, ProviderKind, err};
-use crate::llm_clients::common;
+use crate::domain::llm::{CallError, CallRequest, CostRate, LlmClient, ProviderKind, err};
+use crate::domain::llm::common;
 
 pub struct OpenAIClient {
     pub api_base: String, // e.g. "https://api.openai.com/v1"
@@ -21,7 +21,7 @@ impl LlmClient for OpenAIClient {
         secret: &str,
         req: &CallRequest,
         cost: CostRate,
-    ) -> Result<crate::llm_clients::CallOutcome, CallError> {
+    ) -> Result<crate::domain::llm::CallOutcome, CallError> {
         let url = format!("{}/chat/completions", self.api_base.trim_end_matches('/'));
         let body = common::build_body(req);
         let started = std::time::Instant::now();

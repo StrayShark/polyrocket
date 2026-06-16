@@ -5,7 +5,7 @@
 //! response parsing.
 
 use mockito::Server;
-use polyrocket_lib::llm_clients::{
+use polyrocket_lib::domain::llm::{
     self, CallRequest, CostRate, GoogleClient, LlmClient, ProviderKind,
 };
 
@@ -44,7 +44,7 @@ async fn google_parses_tokens_and_text() {
         .await;
 
     let client = GoogleClient::with_base(server.url());
-    let http = llm_clients::new_http_client();
+    let http = polyrocket_lib::domain::llm::new_http_client();
     let req = CallRequest::new("gemini-2.5-pro")
         .system("You are a precise prediction-market analyst.")
         .user("Will BTC > $100k?")
@@ -69,7 +69,7 @@ async fn google_400_invalid_key_returns_auth() {
         .await;
 
     let client = GoogleClient::with_base(server.url());
-    let http = llm_clients::new_http_client();
+    let http = polyrocket_lib::domain::llm::new_http_client();
     let req = CallRequest::new("gemini-2.5-pro").user("hi");
     let err = client.call(&http, "AIzaBad", &req, CostRate::default()).await
         .expect_err("must error on 400 invalid key");
@@ -89,7 +89,7 @@ async fn google_429_returns_rate_limit() {
         .await;
 
     let client = GoogleClient::with_base(server.url());
-    let http = llm_clients::new_http_client();
+    let http = polyrocket_lib::domain::llm::new_http_client();
     let req = CallRequest::new("gemini-2.5-pro").user("hi");
     let err = client.call(&http, "AIzaX", &req, CostRate::default()).await
         .expect_err("must error on 429");

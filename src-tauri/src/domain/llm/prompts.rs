@@ -1,7 +1,7 @@
 //! Prompt template system — v1 of the polyrocket market-analysis prompt.
 //!
 //! All prompts ask the model to return a **strict JSON** shape so the
-//! parser in [`crate::llm_clients::analyze::parse_recommendation`]
+//! parser in [`crate::domain::llm::analyze::parse_recommendation`]
 //! can extract a clean `(probability, side, confidence, reasoning)` tuple.
 //!
 //! JSON shape returned by every prompt:
@@ -15,7 +15,7 @@
 //! }
 //! ```
 
-use crate::llm_clients::{CallRequest, ChatMessage};
+use crate::domain::llm::{CallRequest, ChatMessage};
 use serde::{Deserialize, Serialize};
 
 /// Bump this when the prompt text or shape changes — used to track

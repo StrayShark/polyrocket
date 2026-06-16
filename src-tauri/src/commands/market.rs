@@ -1,5 +1,5 @@
 use crate::AppResult;
-use crate::polymarket;
+use crate::domain::polymarket;
 use crate::infra::state::AppState;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;

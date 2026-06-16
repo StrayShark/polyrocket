@@ -211,5 +211,5 @@ pub trait LlmClient: Send + Sync {
 /// Re-export the shared HTTP client factory from L4 infra.
 /// Single source of truth lives in [`crate::infra::http::new_http_client`].
 /// This re-export keeps the L3 API surface stable for callers that
-/// import `llm_clients::new_http_client`.
+/// import `llm::new_http_client`.
 pub use crate::infra::http::new_http_client;

@@ -2,7 +2,7 @@
 //! and the Custom OpenAI-compat proxy client.
 
 use mockito::Server;
-use polyrocket_lib::llm_clients::{
+use polyrocket_lib::domain::llm::{
     self, CallError, CallRequest, CostRate, CustomClient, DispatchOutcome, KeyHandle, LlmClient,
     OpenAIClient, RetryPolicy, dispatch, err,
 };
@@ -45,7 +45,7 @@ async fn custom_openai_compat_works() {
         .await;
 
     let client = CustomClient::new_openai_compat(server.url(), "openai/gpt-4o");
-    let http = llm_clients::new_http_client();
+    let http = polyrocket_lib::domain::llm::new_http_client();
     let req = CallRequest::new("openai/gpt-4o").user("hi").json_mode();
     let out = client.call(&http, "sk-or-test", &req, CostRate::default()).await.expect("ok");
     assert!(out.parse_ok);
@@ -65,8 +65,8 @@ struct FlakyClient {
 
 #[async_trait::async_trait]
 impl LlmClient for FlakyClient {
-    fn kind(&self) -> polyrocket_lib::llm_clients::ProviderKind {
-        polyrocket_lib::llm_clients::ProviderKind::Openai
+    fn kind(&self) -> polyrocket_lib::domain::llm::ProviderKind {
+        polyrocket_lib::domain::llm::ProviderKind::Openai
     }
     async fn call(
         &self,
@@ -74,7 +74,7 @@ impl LlmClient for FlakyClient {
         secret: &str,
         _req: &CallRequest,
         _cost: CostRate,
-    ) -> Result<llm_clients::CallOutcome, CallError> {
+    ) -> Result<polyrocket_lib::domain::llm::CallOutcome, CallError> {
         let mut n = self.fail_count.lock().unwrap();
         if secret == "key1" && *n < 1 {
             *n += 1;
@@ -84,7 +84,7 @@ impl LlmClient for FlakyClient {
                 message: "flaky: rate limit".into(),
             })
         } else {
-            Ok(llm_clients::CallOutcome {
+            Ok(polyrocket_lib::domain::llm::CallOutcome {
                 http_status: 200,
                 latency_ms: 42,
                 tokens_in: 10,
@@ -103,7 +103,7 @@ impl LlmClient for FlakyClient {
 async fn dispatch_rotates_keys_on_retryable_error() {
     // key1 fails 1x with rate_limit, key2 succeeds
     let client = FlakyClient { fail_count: std::sync::Mutex::new(0) };
-    let http = llm_clients::new_http_client();
+    let http = polyrocket_lib::domain::llm::new_http_client();
     let keys = vec![
         KeyHandle { id: "k1".into(), alias: "first".into(), keyring_alias: "k1".into() },
         KeyHandle { id: "k2".into(), alias: "second".into(), keyring_alias: "k2".into() },
@@ -137,12 +137,12 @@ async fn dispatch_stops_immediately_on_auth() {
     struct AuthFailClient;
     #[async_trait::async_trait]
     impl LlmClient for AuthFailClient {
-        fn kind(&self) -> polyrocket_lib::llm_clients::ProviderKind {
-            polyrocket_lib::llm_clients::ProviderKind::Openai
+        fn kind(&self) -> polyrocket_lib::domain::llm::ProviderKind {
+            polyrocket_lib::domain::llm::ProviderKind::Openai
         }
         async fn call(
             &self, _http: &reqwest::Client, _secret: &str, _req: &CallRequest, _cost: CostRate,
-        ) -> Result<llm_clients::CallOutcome, CallError> {
+        ) -> Result<polyrocket_lib::domain::llm::CallOutcome, CallError> {
             Err(CallError {
                 http_status: Some(401),
                 code: err::AUTH,
@@ -151,7 +151,7 @@ async fn dispatch_stops_immediately_on_auth() {
         }
     }
     let client = AuthFailClient;
-    let http = llm_clients::new_http_client();
+    let http = polyrocket_lib::domain::llm::new_http_client();
     // We can't easily inject fake keyring secrets here either, so this
     // test mirrors the empty-keys case structure. The "stops on auth"
     // behavior is also covered by the key1/key2 mock via bin/dev_smoke

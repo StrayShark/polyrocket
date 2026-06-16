@@ -1,7 +1,7 @@
 //! Shared wire format for OpenAI-compatible providers
 //! (OpenAI, DeepSeek, OpenRouter, Azure, any `openai_compat` proxy).
 
-use crate::llm_clients::{CallError, CallOutcome, CallRequest, CostRate, err};
+use crate::domain::llm::{CallError, CallOutcome, CallRequest, CostRate, err};
 use serde_json::{Value, json};
 
 /// Build the standard chat/completions JSON body.

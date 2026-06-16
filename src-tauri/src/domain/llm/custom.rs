@@ -1,8 +1,8 @@
 //! Custom OpenAI-compat proxy (OpenRouter, Azure OpenAI, self-hosted).
 //! `provider_kind` = `openai_compat` or `anthropic_compat`.
 
-use crate::llm_clients::{CallError, CallRequest, CostRate, LlmClient, ProviderKind, err};
-use crate::llm_clients::common;
+use crate::domain::llm::{CallError, CallRequest, CostRate, LlmClient, ProviderKind, err};
+use crate::domain::llm::common;
 use serde_json::Value;
 
 pub struct CustomClient {
@@ -38,7 +38,7 @@ impl LlmClient for CustomClient {
         secret: &str,
         req: &CallRequest,
         cost: CostRate,
-    ) -> Result<crate::llm_clients::CallOutcome, CallError> {
+    ) -> Result<crate::domain::llm::CallOutcome, CallError> {
         match self.provider_kind {
             ProviderKind::OpenaiCompat => self.call_openai(http, secret, req, cost).await,
             ProviderKind::AnthropicCompat => self.call_anthropic(http, secret, req, cost).await,
@@ -58,7 +58,7 @@ impl CustomClient {
         secret: &str,
         req: &CallRequest,
         cost: CostRate,
-    ) -> Result<crate::llm_clients::CallOutcome, CallError> {
+    ) -> Result<crate::domain::llm::CallOutcome, CallError> {
         let url = format!("{}/chat/completions", self.api_base.trim_end_matches('/'));
         let body = common::build_body(req);
         let started = std::time::Instant::now();
@@ -88,7 +88,7 @@ impl CustomClient {
         secret: &str,
         req: &CallRequest,
         cost: CostRate,
-    ) -> Result<crate::llm_clients::CallOutcome, CallError> {
+    ) -> Result<crate::domain::llm::CallOutcome, CallError> {
         // Same wire as native Anthropic, just different base URL.
         let url = format!("{}/v1/messages", self.api_base.trim_end_matches('/'));
         let (system, messages) = split_system(&req.messages);
@@ -111,7 +111,7 @@ impl CustomClient {
             })?;
         let status = resp.status().as_u16();
         let text = resp.text().await.unwrap_or_default();
-        let mut out = crate::llm_clients::anthropic::parse_messages_response(status, &text, cost)?;
+        let mut out = crate::domain::llm::anthropic::parse_messages_response(status, &text, cost)?;
         out.latency_ms = started.elapsed().as_millis() as u64;
         if !(200..300).contains(&status) {
             return Err(CallError {
@@ -124,7 +124,7 @@ impl CustomClient {
     }
 }
 
-fn split_system(messages: &[crate::llm_clients::ChatMessage]) -> (Option<String>, Vec<Value>) {
+fn split_system(messages: &[crate::domain::llm::ChatMessage]) -> (Option<String>, Vec<Value>) {
     let mut system = None;
     let mut rest = Vec::new();
     for m in messages {

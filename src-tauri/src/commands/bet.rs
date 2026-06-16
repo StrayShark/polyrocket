@@ -1,4 +1,4 @@
-use crate::polymarket;
+use crate::domain::polymarket;
 use crate::AppResult;
 use crate::infra::state::AppState;
 use serde::{Deserialize, Serialize};

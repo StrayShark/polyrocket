@@ -5,10 +5,9 @@
 //! can invoke via `invoke('cmd_name', { args })`.
 
 mod commands;
+pub mod domain;
 pub mod infra;
-pub mod llm_clients;
 mod platform;
-mod polymarket;
 
 use tauri::Manager;
 use tracing_subscriber::EnvFilter;

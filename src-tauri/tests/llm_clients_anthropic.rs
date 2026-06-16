@@ -1,7 +1,7 @@
 //! Integration tests for the Anthropic Messages API client.
 
 use mockito::Server;
-use polyrocket_lib::llm_clients::{
+use polyrocket_lib::domain::llm::{
     self, AnthropicClient, CallRequest, CostRate, LlmClient, ProviderKind,
 };
 
@@ -36,7 +36,7 @@ async fn anthropic_parses_tokens_and_text() {
         .await;
 
     let client = AnthropicClient::with_base(server.url());
-    let http = llm_clients::new_http_client();
+    let http = polyrocket_lib::domain::llm::new_http_client();
     let req = CallRequest::new("claude-sonnet-4-5")
         .system("You are a precise prediction-market analyst.")
         .user("Will BTC > $100k?")
@@ -61,7 +61,7 @@ async fn anthropic_401_returns_auth_error() {
         .await;
 
     let client = AnthropicClient::with_base(server.url());
-    let http = llm_clients::new_http_client();
+    let http = polyrocket_lib::domain::llm::new_http_client();
     let req = CallRequest::new("claude-sonnet-4-5").user("hi");
     let err = client.call(&http, "sk-ant-bad", &req, CostRate::default()).await
         .expect_err("must error on 401");
@@ -79,7 +79,7 @@ async fn anthropic_429_returns_rate_limit() {
         .await;
 
     let client = AnthropicClient::with_base(server.url());
-    let http = llm_clients::new_http_client();
+    let http = polyrocket_lib::domain::llm::new_http_client();
     let req = CallRequest::new("claude-sonnet-4-5").user("hi");
     let err = client.call(&http, "sk-ant-x", &req, CostRate::default()).await
         .expect_err("must error on 429");
@@ -98,7 +98,7 @@ async fn anthropic_529_overloaded_returns_network() {
         .await;
 
     let client = AnthropicClient::with_base(server.url());
-    let http = llm_clients::new_http_client();
+    let http = polyrocket_lib::domain::llm::new_http_client();
     let req = CallRequest::new("claude-sonnet-4-5").user("hi");
     let err = client.call(&http, "sk-ant-x", &req, CostRate::default()).await
         .expect_err("must error on 529");

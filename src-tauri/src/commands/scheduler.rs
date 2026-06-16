@@ -44,7 +44,7 @@ pub struct TriggerResult {
 
 #[tauri::command]
 pub async fn scheduler_run_health_probe_now(state: State<'_, AppState>) -> AppResult<TriggerResult> {
-    let http = crate::llm_clients::new_http_client();
+    let http = crate::domain::llm::new_http_client();
     let res = crate::infra::scheduler::run_health_probe_now(&state.db, &http).await;
     Ok(TriggerResult {
         triggered_at_unix_ms: chrono::Utc::now().timestamp_millis(),

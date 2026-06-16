@@ -1,5 +1,5 @@
 use crate::AppResult;
-use crate::llm_clients::{
+use crate::domain::llm::{
     self, AnthropicClient, CustomClient, DeepSeekClient, GoogleClient, OpenAIClient, ProviderKind,
     MarketContext, OrderbookTop, PeerView, SignalSummary,
     PROMPT_VERSION_MARKET_ANALYSIS, build_market_analysis_request, parse_recommendation,
@@ -442,11 +442,11 @@ pub async fn llm_stats_decision(
 // Process-wide shared HTTP client (connection pool reused across calls).
 static HTTP: OnceCell<reqwest::Client> = OnceCell::new();
 fn http_client() -> &'static reqwest::Client {
-    HTTP.get_or_init(llm_clients::new_http_client)
+    HTTP.get_or_init(crate::domain::llm::new_http_client)
 }
 
 /// Pick a client implementation for a provider_kind.
-fn client_for(kind: ProviderKind, api_base: Option<&str>, model: &str) -> Arc<dyn llm_clients::LlmClient> {
+fn client_for(kind: ProviderKind, api_base: Option<&str>, model: &str) -> Arc<dyn crate::domain::llm::LlmClient> {
     match kind {
         ProviderKind::Openai => Arc::new(OpenAIClient::new(
             api_base.unwrap_or("https://api.openai.com/v1"),
@@ -533,7 +533,7 @@ async fn build_market_context(
 }
 
 /// Pick enabled keys for a provider ordered by priority ASC.
-async fn pick_keys(state: &AppState, provider_id: &str) -> AppResult<Vec<llm_clients::KeyHandle>> {
+async fn pick_keys(state: &AppState, provider_id: &str) -> AppResult<Vec<crate::domain::llm::KeyHandle>> {
     let rows: Vec<(String, String, String)> = sqlx::query_as(
         "SELECT id, alias, keyring_alias
          FROM llm_provider_keys
@@ -544,11 +544,11 @@ async fn pick_keys(state: &AppState, provider_id: &str) -> AppResult<Vec<llm_cli
     .fetch_all(&state.db)
     .await?;
     Ok(rows.into_iter()
-        .map(|(id, alias, keyring_alias)| llm_clients::KeyHandle { id, alias, keyring_alias })
+        .map(|(id, alias, keyring_alias)| crate::domain::llm::KeyHandle { id, alias, keyring_alias })
         .collect())
 }
 
-async fn insert_call_log(state: &AppState, log: &llm_clients::CallLog, called_at_ms: i64) -> AppResult<i64> {
+async fn insert_call_log(state: &AppState, log: &crate::domain::llm::CallLog, called_at_ms: i64) -> AppResult<i64> {
     let res = sqlx::query(
         "INSERT INTO llm_call_logs (
             analysis_id, provider_id, key_id, called_at, latency_ms, tokens_in, tokens_out,
@@ -618,7 +618,7 @@ async fn insert_recommendation(
     Ok(res.last_insert_rowid())
 }
 
-async fn update_provider_health_from_log(state: &AppState, log: &llm_clients::CallLog) -> AppResult<()> {
+async fn update_provider_health_from_log(state: &AppState, log: &crate::domain::llm::CallLog) -> AppResult<()> {
     let status = match (log.success, log.latency_ms) {
         (false, _) => "failing",
         (true, ms) if ms > 3_000 => "slow",
@@ -733,13 +733,13 @@ pub async fn llm_analyze(
         handles.push(tokio::spawn(async move {
             let kind = kind_for_provider_id(&p_clone.id);
             let client = client_for(kind, p_clone.api_base.as_deref(), &p_clone.default_model);
-            let cost = llm_clients::CostRate {
+            let cost = crate::domain::llm::CostRate {
                 per_1k_in_cents: p_clone.cost_per_1k_in.unwrap_or(0.0),
                 per_1k_out_cents: p_clone.cost_per_1k_out.unwrap_or(0.0),
             };
-            let policy = llm_clients::RetryPolicy::from_provider_row(2);
+            let policy = crate::domain::llm::RetryPolicy::from_provider_row(2);
             let req = build_market_analysis_request(&p_clone.default_model, &ctx_clone);
-            let outcome = llm_clients::dispatch(
+            let outcome = crate::domain::llm::dispatch(
                 client.as_ref(),
                 http_client(),
                 &keys,

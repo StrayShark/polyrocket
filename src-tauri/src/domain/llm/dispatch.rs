@@ -10,7 +10,7 @@
 //! - [`CallLog`] — shape of one row written to `llm_call_logs`.
 
 use crate::platform::keyring;
-use crate::llm_clients::{CallError, CallRequest, CostRate, LlmClient, err};
+use crate::domain::llm::{CallError, CallRequest, CostRate, LlmClient, err};
 use std::time::Duration;
 
 #[derive(Debug, Clone)]
@@ -104,7 +104,7 @@ impl CallLog {
 }
 
 pub struct DispatchOutcome {
-    pub outcome: Result<crate::llm_clients::CallOutcome, CallError>,
+    pub outcome: Result<crate::domain::llm::CallOutcome, CallError>,
     pub key_used: Option<KeyHandle>,
     pub attempts: u32,
     pub log: CallLog,

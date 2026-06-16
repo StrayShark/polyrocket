@@ -1,8 +1,8 @@
 //! DeepSeek — OpenAI-compatible wire (https://api.deepseek.com/v1).
 
-use crate::llm_clients::{CallError, CallRequest, CostRate, LlmClient, ProviderKind};
-use crate::llm_clients::common;
-use crate::llm_clients::openai::OpenAIClient;
+use crate::domain::llm::{CallError, CallRequest, CostRate, LlmClient, ProviderKind};
+use crate::domain::llm::common;
+use crate::domain::llm::openai::OpenAIClient;
 
 pub struct DeepSeekClient {
     inner: OpenAIClient,
@@ -28,7 +28,7 @@ impl LlmClient for DeepSeekClient {
         secret: &str,
         req: &CallRequest,
         cost: CostRate,
-    ) -> Result<crate::llm_clients::CallOutcome, CallError> {
+    ) -> Result<crate::domain::llm::CallOutcome, CallError> {
         // DeepSeek reasons before answering (R1) — bump max_tokens default
         // if caller didn't set it, to avoid truncation on chain-of-thought.
         let mut req = req.clone();

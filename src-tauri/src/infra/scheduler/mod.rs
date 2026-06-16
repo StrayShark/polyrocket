@@ -20,12 +20,12 @@
 //! - `POLYROCKET_TELEMETRY`                 — when 1, also publishes
 //!   in-process events (future: Sentry).
 //!
-//! Layer rules: this module depends on L3 (`llm_clients`) and L5
+//! Layer rules: this module depends on L3 (`domain::llm`) and L5
 //! (`platform::keyring`) — it MUST NOT depend on L1 or L2.
 
 use crate::platform::env::{env_u32, env_u64, env_i32};
 use crate::platform::keyring;
-use crate::llm_clients::{
+use crate::domain::llm::{
     AnthropicClient, CostRate, CustomClient, DeepSeekClient, GoogleClient, LlmClient,
     OpenAIClient, ProviderKind,
 };
@@ -188,7 +188,7 @@ async fn probe_one_provider(
     http: &reqwest::Client,
     p: &ProviderProbeRow,
 ) -> sqlx::Result<()> {
-    use crate::llm_clients::KeyHandle;
+    use crate::domain::llm::KeyHandle;
     let keys: Vec<KeyHandle> = {
         let rows: Vec<(String, String, String)> = sqlx::query_as(
             "SELECT id, alias, keyring_alias
@@ -245,7 +245,7 @@ async fn probe_one_provider(
             }
         }
     };
-    let req = crate::llm_clients::CallRequest::new(&p.default_model)
+    let req = crate::domain::llm::CallRequest::new(&p.default_model)
         .max_tokens(1)
         .temperature(0.0);
     let cost = CostRate {

@@ -15,7 +15,7 @@
 //! - L4 may NOT depend on L3 (LLM clients) — except `scheduler`,
 //!   which is a **runtime bridge** that fans out to L3 clients.
 //!   It uses `pub use` of L3 client types at function call time
-//!   only — the dependency edge is one-way: scheduler → llm_clients.
+//!   only — the dependency edge is one-way: scheduler → domain::llm.
 //! - L4 may NOT depend on L1 (React) or L2 (Tauri commands)
 
 pub mod db;

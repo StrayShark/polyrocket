@@ -19,7 +19,7 @@
 //! This is a development tool, not a runtime path. The actual Tauri app
 //! uses the same code via `commands::llm::llm_analyze`.
 
-use polyrocket_lib::llm_clients::{
+use polyrocket_lib::domain::llm::{
     self, AnthropicClient, CallError, CallRequest, CostRate, CustomClient, DeepSeekClient,
     GoogleClient, LlmClient, OpenAIClient, ProviderKind, RetryPolicy,
 };
@@ -76,7 +76,7 @@ async fn main() {
     }
 
     // -- 4. fan out via the public dispatch() — same code the IPC handler uses
-    let http = llm_clients::new_http_client();
+    let http = polyrocket_lib::domain::llm::new_http_client();
     let providers: Vec<ProviderRow> = sqlx::query_as::<_, (String, Option<String>, String, Option<f64>, Option<f64>)>(
         "SELECT id, api_base, default_model, cost_per_1k_in, cost_per_1k_out FROM llm_providers WHERE enabled = 1 ORDER BY id",
     )

@@ -3,7 +3,7 @@
 //! and verifies the request body + response parsing.
 
 use mockito::Server;
-use polyrocket_lib::llm_clients::{
+use polyrocket_lib::domain::llm::{
     self, CallRequest, CostRate, OpenAIClient, DeepSeekClient, LlmClient, ProviderKind,
 };
 
@@ -40,7 +40,7 @@ async fn openai_parses_tokens_and_text() {
         .await;
 
     let client = OpenAIClient::new(server.url());
-    let http = llm_clients::new_http_client();
+    let http = polyrocket_lib::domain::llm::new_http_client();
     let req = CallRequest::new("gpt-4o-2024-08-06")
         .system("You are a precise prediction-market analyst.")
         .user("Will BTC > $100k?")
@@ -69,7 +69,7 @@ async fn openai_401_returns_auth_error() {
         .await;
 
     let client = OpenAIClient::new(server.url());
-    let http = llm_clients::new_http_client();
+    let http = polyrocket_lib::domain::llm::new_http_client();
     let req = CallRequest::new("gpt-4o-2024-08-06").user("hi");
     let err = client.call(&http, "sk-bad", &req, CostRate::default()).await
         .expect_err("must error on 401");
@@ -87,7 +87,7 @@ async fn openai_429_returns_rate_limit() {
         .await;
 
     let client = OpenAIClient::new(server.url());
-    let http = llm_clients::new_http_client();
+    let http = polyrocket_lib::domain::llm::new_http_client();
     let req = CallRequest::new("gpt-4o-2024-08-06").user("hi");
     let err = client.call(&http, "sk-x", &req, CostRate::default()).await
         .expect_err("must error on 429");
@@ -108,7 +108,7 @@ async fn deepseek_uses_openai_compat_wire() {
     // we test the OpenAIClient against the same wire. The body shape is
     // identical; this guards against accidental divergence in the future.
     let client = OpenAIClient::new(server.url());
-    let http = llm_clients::new_http_client();
+    let http = polyrocket_lib::domain::llm::new_http_client();
     let req = CallRequest::new("deepseek-chat").user("hi").max_tokens(512);
     let out = client.call(&http, "sk-fake", &req, CostRate::default()).await.expect("ok");
     assert_eq!(out.tokens_in, 142);

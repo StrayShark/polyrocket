@@ -1,9 +1,13 @@
-//! Polymarket CLOB v2 client (read + signed order stubs).
+//! L3 — Polymarket CLOB v2 client (read + signed order stubs).
 //! Spec: polyradar-blueprint-v2-client.md §4
 //!
 //! MVP scope: read-only market data + signed order submission (mode B).
 //! Real `py-clob-client` parity is intentionally avoided in favor of a minimal
 //! direct-Rust implementation to keep the binary small and self-contained.
+//!
+//! Layer rules: this module may use L4 (`infra::http::new_http_client`)
+//! but not L2 / L1. L2 `commands::market` and `commands::bet` consume
+//! the public functions below.
 
 use serde::{Deserialize, Serialize};
 

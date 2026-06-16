@@ -8,7 +8,7 @@
 //! - Response uses `candidates[0].content.parts[0].text` for the text.
 //! - Token counts come from `usageMetadata`.
 
-use crate::llm_clients::{CallError, CallOutcome, CallRequest, CostRate, LlmClient, ProviderKind, err};
+use crate::domain::llm::{CallError, CallOutcome, CallRequest, CostRate, LlmClient, ProviderKind, err};
 use serde_json::{Value, json};
 
 pub struct GoogleClient {
@@ -73,7 +73,7 @@ impl LlmClient for GoogleClient {
         if !(200..300).contains(&status) {
             return Err(CallError {
                 http_status: Some(status),
-                code: crate::llm_clients::common::classify_status(status, &text),
+                code: crate::domain::llm::common::classify_status(status, &text),
                 message: truncate(&text, 300).to_string(),
             });
         }
@@ -118,7 +118,7 @@ pub fn parse_response(
     })
 }
 
-fn split_contents(messages: &[crate::llm_clients::ChatMessage]) -> (Option<String>, Vec<Value>) {
+fn split_contents(messages: &[crate::domain::llm::ChatMessage]) -> (Option<String>, Vec<Value>) {
     let mut system = None;
     let mut contents = Vec::new();
     for m in messages {
