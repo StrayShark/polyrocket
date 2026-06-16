@@ -437,9 +437,9 @@ polyrocket/
 │
 └── .github/                            # CI
     └── workflows/
-        ├── rust.yml                    # cargo check + test + clippy
-        ├── ui.yml                      # pnpm typecheck + screenshot
-        └── doc-sync.yml                # docs check
+        ├── rust.yml                    # cargo check + test + clippy + fmt (v0.7a)
+        ├── ui.yml                      # pnpm install + typecheck + vitest + build (v0.7a)
+        └── governance.yml              # doc-sync + layer-guard (v0.7a)
 ```
 
 ---
@@ -521,6 +521,7 @@ sequenceDiagram
 | L2 application | `src-tauri/src/commands/` (13 个文件) | ✅ v0.3d + v0.4 audit 模块 |
 | L1 presentation | `src/` (18 routes × 13 components × 5 stores) | ✅ v0.4 真 React |
 | **CI** | `scripts/check-doc-sync.mjs` + `scripts/check-layers.mjs` | ✅ v0.3f 完成（pre-commit governance） |
+| **CI/CD** | `.github/workflows/{rust,ui,governance}.yml` | ✅ v0.7a 完成（GitHub Actions） |
 
 ### 5.2 v0.4 — 功能模块全实现 (13 模块)
 

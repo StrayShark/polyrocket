@@ -1,0 +1,33 @@
+name: governance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  doc-sync:
+    name: doc-sync + layer-guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run doc-sync + layer check
+        run: |
+          # Stage nothing — run a dry-run on the merge-base so we can
+          # detect any pending violations without needing to push first.
+          node scripts/check-doc-sync.mjs || true
+          node scripts/check-layers.mjs || true
+          # Now simulate a PR: diff main..HEAD on the docs/code
+          echo "--- Simulating a full change set (all files changed) ---"
+          git add -N .
+          node scripts/check-doc-sync.mjs
+          node scripts/check-layers.mjs
