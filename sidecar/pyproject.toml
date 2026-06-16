@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "polyrocket-sidecar"
+version = "0.1.0"
+description = "Python JSON-RPC sidecar for polyrocket (Logistic model + protocol bridge)"
+readme = "polyrocket_sidecar/README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "polyrocket team" }]
+keywords = ["polyrocket", "polymarket", "sidecar", "json-rpc"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/StrayShark/polyrocket"
+Issues = "https://github.com/StrayShark/polyrocket/issues"
+
+[tool.setuptools]
+packages = ["polyrocket_sidecar"]

@@ -30,7 +30,7 @@ if (staged.length === 0) {
 }
 
 const codeChanged = staged.some(
-  (f) => f.startsWith('src/') || f.startsWith('src-tauri/'),
+  (f) => f.startsWith('src/') || f.startsWith('src-tauri/') || f.startsWith('sidecar/'),
 );
 const ciChanged = staged.some((f) => f.startsWith('.github/'));
 const docChanged = staged.some((f) =>
@@ -40,7 +40,7 @@ const docChanged = staged.some((f) =>
 
 if ((codeChanged || ciChanged) && !docChanged) {
   console.error('❌ DocSync violation');
-  console.error('   code or .github/ changed but no polyrocket-*.md or overview.md doc updated');
+  console.error('   code, .github/ or sidecar/ changed but no polyrocket-*.md or overview.md doc updated');
   console.error('   see docs/overview.md §5 for the doc-sync table');
   process.exit(1);
 }

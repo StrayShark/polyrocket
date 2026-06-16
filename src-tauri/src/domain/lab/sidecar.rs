@@ -118,6 +118,15 @@ pub enum ParseResult {
     Response(SidecarResponse),
 }
 
+impl std::fmt::Debug for ParseResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParseResult::Request(r) => f.debug_tuple("Request").field(r).finish(),
+            ParseResult::Response(r) => f.debug_tuple("Response").field(r).finish(),
+        }
+    }
+}
+
 /// Build a `predict` request from market ids + market context.
 /// Pure function: serializes to JSON-line string.
 pub fn build_predict_request(
