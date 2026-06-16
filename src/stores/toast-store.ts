@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { sendNotification } from '@/ipc';
+import { usePrefsStore } from './prefs-store';
 
 export type ToastKind = 'info' | 'success' | 'warning' | 'error';
 
@@ -9,6 +11,8 @@ export interface Toast {
   body?: string;
   /** ms to auto-dismiss; 0 = manual close only. */
   ttl: number;
+  /** If true, also send a system notification (respects prefs.notificationsEnabled). */
+  systemNotify?: boolean;
 }
 
 interface ToastState {
@@ -23,6 +27,23 @@ export const useToastStore = create<ToastState>((set) => ({
   push: (t) => {
     const id = `t_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     set((s) => ({ toasts: [...s.toasts, { ...t, id }] }));
+
+    // Best-effort system notification (fire-and-forget).
+    if (t.systemNotify) {
+      const prefs = usePrefsStore.getState();
+      if (prefs.notificationsEnabled) {
+        // Map toast kind → notify kind for the OS payload.
+        const kind =
+          t.kind === 'success' ? 'info' :
+          t.kind === 'warning' ? 'info' :
+          t.kind === 'error' ? 'keyring_error' :
+          'info';
+        sendNotification(kind, t.title, t.body ?? '', prefs.notificationsEnabled).catch(() => {
+          // Silently ignore — best-effort only
+        });
+      }
+    }
+
     if (t.ttl > 0) {
       setTimeout(() => {
         set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) }));
@@ -36,12 +57,12 @@ export const useToastStore = create<ToastState>((set) => ({
 
 /** Convenience helpers */
 export const toast = {
-  info: (title: string, body?: string) =>
-    useToastStore.getState().push({ kind: 'info', title, body, ttl: 4000 }),
-  success: (title: string, body?: string) =>
-    useToastStore.getState().push({ kind: 'success', title, body, ttl: 4000 }),
-  warning: (title: string, body?: string) =>
-    useToastStore.getState().push({ kind: 'warning', title, body, ttl: 6000 }),
-  error: (title: string, body?: string) =>
-    useToastStore.getState().push({ kind: 'error', title, body, ttl: 0 }),
+  info: (title: string, body?: string, systemNotify = false) =>
+    useToastStore.getState().push({ kind: 'info', title, body, ttl: 4000, systemNotify }),
+  success: (title: string, body?: string, systemNotify = false) =>
+    useToastStore.getState().push({ kind: 'success', title, body, ttl: 4000, systemNotify }),
+  warning: (title: string, body?: string, systemNotify = true) =>
+    useToastStore.getState().push({ kind: 'warning', title, body, ttl: 6000, systemNotify }),
+  error: (title: string, body?: string, systemNotify = true) =>
+    useToastStore.getState().push({ kind: 'error', title, body, ttl: 0, systemNotify }),
 };

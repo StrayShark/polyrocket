@@ -154,6 +154,21 @@ export const schedulerRunHealthProbeNow = () =>
 export const schedulerRunDailyBriefNow = () =>
   invoke<SchedulerTriggerResult>('scheduler_run_daily_brief_now');
 
+// ---------------------------------------------------------------- Notify (X2)
+export const sendNotification = (
+  kind: 'new_signal' | 'order_fill' | 'keyring_ok' | 'keyring_error' |
+        'provider_auto_disable' | 'daily_brief' | 'mirror_decision' | 'info',
+  title: string,
+  body: string,
+  prefsEnabled = true,
+) => invoke<number>('send_notification', {
+  args: { kind, title, body, prefs_enabled: prefsEnabled },
+});
+export const requestNotificationPermission = () =>
+  invoke<boolean>('request_notification_permission');
+export const notificationPermissionState = () =>
+  invoke<string>('notification_permission_state');
+
 // ---------------------------------------------------------------- Audit (X1)
 export const listAuditLog = (limit = 200) => invoke<AuditEntry[]>('list_audit_log', { limit });
 export const auditCountForActor = (actor: string) =>

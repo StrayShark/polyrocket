@@ -28,6 +28,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .setup(|app| {
             let app_handle = app.handle().clone();
@@ -91,6 +92,9 @@ pub fn run() {
             commands::secrets::secrets_status,
             commands::audit::list_audit_log,
             commands::audit::audit_count_for_actor,
+            commands::notify::send_notification,
+            commands::notify::request_notification_permission,
+            commands::notify::notification_permission_state,
             commands::scheduler::scheduler_status,
             commands::scheduler::scheduler_run_health_probe_now,
             commands::scheduler::scheduler_run_daily_brief_now,
