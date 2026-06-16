@@ -21,15 +21,18 @@ const codeChanged = staged.some(
   (f) => f.startsWith('src/') || f.startsWith('src-tauri/'),
 );
 
+// Doc files that satisfy the sync rule. Both legacy polyradar-* and
+// current polyrocket-* are recognised. overview.md is required whenever
+// the layer directory structure changes.
 const docChanged = staged.some((f) =>
-  /^docs\/polyradar-(blueprint|ui-spec|dev-governance)/.test(f) ||
-  /^(polyradar-blueprint|polyradar-ui-spec|polyradar-dev-governance)/.test(f),
+  /^docs\/(polyradar-(blueprint|ui-spec|dev-governance)|polyrocket-.*|overview)\.md$/.test(f) ||
+  /^(polyradar-(blueprint|ui-spec|dev-governance)|polyrocket-.*|overview)\.md$/.test(f),
 );
 
 if (codeChanged && !docChanged) {
   console.error('❌ DocSync violation');
-  console.error('   code changed but no polyrocket-*.md doc updated');
-  console.error('   see polyradar-dev-governance.md §2 for the sync table');
+  console.error('   code changed but no polyrocket-*.md or overview.md doc updated');
+  console.error('   see docs/overview.md §5 for the doc-sync table');
   process.exit(1);
 }
 

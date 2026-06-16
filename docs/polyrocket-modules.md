@@ -1,8 +1,9 @@
 # polyrocket — 功能模块设计 (FSD)
 
-> 版本：v1.2 · 2026-06-16
-> 配套：[`polyradar-blueprint-v2-client.md`](./polyradar-blueprint-v2-client.md)（架构基线） · [`polyrocket-llm-analysis.md`](./polyrocket-llm-analysis.md)（M10/M12 设计）
+> 版本：v1.3 · 2026-06-16
+> 配套：[`overview.md`](./overview.md)（5 层架构 + 目录结构） · [`polyrocket-llm-analysis.md`](./polyrocket-llm-analysis.md)（M10/M12 设计） · [`polyrocket-llm-management.md`](./polyrocket-llm-management.md)（M11 设计） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个 flow） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页 × 3 主题 UI 规范）
 > 范围：Tauri 2 桌面客户端的所有功能模块拆解，含职责、依赖、对外接口
+> 想了解**代码在哪一层、目录怎么组织** → 看 `overview.md`
 
 ---
 
