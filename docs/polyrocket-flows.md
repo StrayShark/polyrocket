@@ -26,6 +26,9 @@
 | **F15** | **LLM 连通性测试** | **M11** | **时序 + 探测** |
 | **F16** | **LLM 流量监控与异常告警** | **M11** | **数据流 + 告警** |
 | **F17** | **客户端密钥持久化（OS keyring 为主，.env 仅 dev）** | **M11** | **时序 + 错误恢复** |
+| **F18** | **首启 Onboarding（4 步引导）** | **M13** | **时序 + 状态机** |
+| **F19** | **Market Detail 钻取（行情 + orderbook + LLM 一致性）** | **M2 / M10** | **时序 + 多源聚合** |
+| **F20** | **Notifications Center（X2 横切）** | **X2** | **时序 + 订阅** |
 
 ---
 
@@ -822,8 +825,130 @@ POLYROCKET_ENV=dev && POLYROCKET_KEYRING_ONLY=0  → 读 .env
 
 ---
 
+## F18 — 首启 Onboarding（M13 v2.0 新增）
+
+```mermaid
+flowchart TD
+    Start([App launch]) --> Check{localStorage<br/>first-run-done?}
+    Check -->|yes| Dashboard[route 'dashboard']
+    Check -->|no| Status[invoke 'secrets_status']
+    Status --> Empty{llm_keys.length==0<br/>OR wallets.length==0?}
+    Empty -->|no| Mark[set first-run-done=1<br/>route dashboard]
+    Empty -->|yes| Onboard[route 'onboarding']
+    Onboard --> Step1[Step 1: Welcome<br/>hero + 3 主题预览 + Get started]
+    Step1 --> Step2[Step 2: Theme<br/>3 大预览卡 + 实时切换]
+    Step2 --> Step3[Step 3: Wallets<br/>地址 + 可选 pk]
+    Step3 --> Step4[Step 4: LLM providers<br/>4 provider 卡 + 粘贴 key]
+    Step4 --> Submit[Save & finish]
+    Submit --> Done[set first-run-done=1<br/>route dashboard]
+    Step1 -.skip.-> Mark
+    Step2 -.skip.-> Mark
+    Step3 -.skip.-> Mark
+    Step4 -.skip.-> Mark
+
+    style Onboard fill:#007ACC,color:#fff
+    style Submit fill:#4EC9B0,color:#fff
+```
+
+**关键约束**：
+- 进度指示（顶部 4 dot）始终可见
+- 任一步可「Skip for now」直接进 dashboard（保留 `first-run-done=0`，下次启动还会回 onboarding）
+- 「Save & finish」写 `localStorage` + 跳 dashboard
+- 真实环境：每步的 secret 走 client paste（参见 F17 主路径）
+
+---
+
+## F19 — Market Detail 钻取（M2 + M10 v2.0 新增）
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant FE as React /market-detail
+    participant R as Rust IPC
+    participant DB as SQLite
+    participant PM as Polymarket CLOB
+    participant LLM as 4 LLM Providers
+
+    U->>FE: click Markets 行
+    FE->>R: invoke('market_detail_get', {id})
+    R->>DB: SELECT markets + orderbook_snapshots
+    DB-->>R: market + last 200 ticks
+    R-->>FE: {market, price_chart, orderbook, signals}
+    FE->>FE: render left (chart + orderbook)
+    FE->>FE: render right card 1 (bet)
+    FE->>FE: render right card 2 (LLM consensus)
+
+    par 异步加载 LLM consensus
+        FE->>R: invoke('llm_analyze', {market_id})
+        R->>LLM: 4 parallel POST (F11)
+        LLM-->>R: 4 recommendations
+        R->>DB: INSERT llm_analyses + llm_recommendations
+        R-->>FE: 4 results
+        FE->>FE: render card 2 with 4 LLM chips
+    and 异步加载 signals
+        FE->>R: invoke('signals_for_market', {id})
+        R->>DB: SELECT signals WHERE market_id=?
+        R-->>FE: signals
+        FE->>FE: render card 3
+    end
+
+    U->>FE: hover orderbook 行
+    FE->>FE: highlight 同价位 bid/ask
+    U->>FE: click 'Run LLM analysis'
+    FE->>R: invoke('llm_analyze', {market_id, force=true})
+    R-->>FE: new results
+    FE->>FE: re-render card 2 + toast 'Refreshed'
+```
+
+**3 张卡的占位策略**：
+- card 1 (bet)：无异步，立即渲染
+- card 2 (LLM consensus)：3-5s loading → render 4 provider chips
+- card 3 (signals)：<500ms loading → render 4 indicator rows
+- 任何异步失败 → 卡片显示 `uiError` + Retry 按钮，**不**阻塞其他 2 张
+
+---
+
+## F20 — Notifications Center（X2 v2.0 深化）
+
+```mermaid
+flowchart LR
+    Event[Write op 触发<br/>IPC / cron / probe] --> Audit[audit_log INSERT]
+    Audit --> Notif{event<br/>subscribed?}
+    Notif -->|yes| Toast[toast 右下角<br/>3.5s 自动消失]
+    Notif -->|yes| Persist[内存 ring buffer<br/>last 7 days]
+    Toast --> Hover{user hover?}
+    Hover -->|yes| Pause[暂停 leave timer]
+    Hover -->|no| Leave[4s 后 fade out]
+    Persist --> Center[/notifications page]
+    Center --> Filter{filter kind?}
+    Center --> Click{click row?}
+    Click -->|yes| Jump[route 目标页面]
+    Filter --> Mark[Mark all read]
+    Mark --> Update[更新内存状态]
+
+    style Toast fill:#10A37F,color:#fff
+    style Center fill:#007ACC,color:#fff
+```
+
+**7 种 event kind × 颜色映射**：
+
+| kind | icon | 颜色 | 触发 |
+|---|---|---|---|
+| `success` | check-circle-2 | var(--bull) | analyze complete、sync ok |
+| `warn` | alert-triangle | var(--warning) | rate limit hit、quota 80% |
+| `error` | x-circle | var(--bear) | auth fail、network error、db corruption |
+| `info` | info | var(--accent) | signal fired、brief refreshed |
+| `trade` | receipt | var(--bull/bear) | bet placed / won / lost |
+| `system` | cog | var(--muted) | settings changed、model promoted |
+| `key` | key-round | var(--warning) | key rotated、key missing |
+
+**订阅偏好**（preferences modal）：每 kind 可独立开关 + 频率上限（如「rate limit 警告 1 小时内最多 3 条」）
+
+---
+
 ## 变更日志
 
+- **v1.5** (2026-06-16) — 新增 F18（首启 Onboarding 4 步）、F19（Market Detail 钻取：chart + orderbook + LLM + signals 三卡）、F20（Notifications Center 7 kind 订阅）。UI prototype 加 6 个新页面（Onboarding / Market Detail / Notifications / Help / Trade History / Audit Log）+ 完整 tokens / 状态机 / 动效 / a11y / Empty-Loading-Error 规范。
 - **v1.4** (2026-06-16) — 新增 F17：客户端密钥持久化，明确 client paste 为主路径、.env 降级为 dev-only。9 个新 IPC，5 类 keyring 命名空间，启动门控 2 个 env flag。
 - **v1.3** (2026-06-16) — 新增 F15（LLM 连通性测试）和 F16（流量监控 + 异常告警 + 12 IPC）。
 - **v1.2** (2026-06-16) — 新增 F13（LLM 投注结果多维统计：5 维切面 + 4 视图 + 4 IPC）和 F14（每日看板：评分公式 + 触发机制 + 4 IPC + 缓存表）。

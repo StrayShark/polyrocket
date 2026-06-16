@@ -426,6 +426,65 @@
   .input::placeholder { color: var(--muted); }
   select.input { cursor: pointer; }
 
+  /* ---------- state components (v2.0) ---------- */
+  .toast-container {
+    position: fixed; top: 16px; right: 16px;
+    display: flex; flex-direction: column; gap: 8px;
+    z-index: 300; pointer-events: none;
+  }
+  .toast-container .toast { pointer-events: auto; }
+  .toast-success { border-left: 3px solid var(--bull); }
+  .toast-warn    { border-left: 3px solid var(--warning); }
+  .toast-error   { border-left: 3px solid var(--bear); }
+  .toast-info    { border-left: 3px solid var(--accent); }
+  .toast { transition: opacity 0.4s var(--ease-out), transform 0.4s var(--ease-out); }
+
+  .skeleton {
+    background: linear-gradient(90deg, var(--surface-2) 0%, var(--surface) 50%, var(--surface-2) 100%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.4s infinite linear;
+    border-radius: 4px;
+  }
+  @keyframes skeleton-shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center;
+    padding: 64px 32px;
+    color: var(--muted);
+  }
+  .empty-icon { width: 48px; height: 48px; opacity: 0.4; margin-bottom: 16px; }
+  .empty-title { font-size: 15px; font-weight: 500; color: var(--fg); margin-bottom: 6px; }
+  .empty-subtitle { font-size: 12.5px; max-width: 320px; }
+
+  .error-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center;
+    padding: 48px 32px;
+    background: rgba(248, 81, 73, 0.06);
+    border: 1px solid rgba(248, 81, 73, 0.2);
+    border-radius: 8px;
+    margin: 16px 0;
+  }
+  .error-icon { width: 40px; height: 40px; color: var(--bear); margin-bottom: 12px; }
+  .error-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+  .error-reason { font-size: 12px; color: var(--muted); font-family: var(--font-mono); max-width: 480px; }
+
+  /* ---------- kbd (v2.0) ---------- */
+  kbd {
+    display: inline-block;
+    padding: 1px 6px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    box-shadow: 0 1px 0 var(--border);
+  }
+
   /* fade transition for theme */
   .theme-fade, .theme-fade * { transition: background-color var(--duration-theme) var(--ease-out), color var(--duration-theme) var(--ease-out), border-color var(--duration-theme) var(--ease-out); }
 </style>
@@ -455,6 +514,7 @@
       <a class="nav-item" data-route="llm-perf" data-tooltip="LLM Performance"><span class="icon-wrap"><i data-lucide="trophy"></i></span><span>LLM Perf</span></a>
       <a class="nav-item" data-route="llm-mgmt" data-tooltip="LLM Management"><span class="icon-wrap"><i data-lucide="shield-check"></i></span><span>LLM Mgmt</span></a>
       <a class="nav-item" data-route="brief" data-tooltip="Daily Brief"><span class="icon-wrap"><i data-lucide="calendar-check"></i></span><span>Brief</span><span class="badge">5</span></a>
+      <a class="nav-item" data-route="history" data-tooltip="Trade History"><span class="icon-wrap"><i data-lucide="receipt"></i></span><span>History</span></a>
 
       <div class="nav-label">Categories</div>
       <div class="nav-item" data-tooltip="Football"><span class="icon-wrap"><i data-lucide="circle-dot"></i></span><span>Football</span><span class="count">62</span></div>
@@ -464,6 +524,9 @@
       <div class="nav-label">Settings</div>
       <a class="nav-item" data-route="settings" data-tooltip="Preferences"><span class="icon-wrap"><i data-lucide="settings"></i></span><span>Preferences</span></a>
       <a class="nav-item" data-route="wallets" data-tooltip="Wallets"><span class="icon-wrap"><i data-lucide="key-round"></i></span><span>Wallets</span></a>
+      <a class="nav-item" data-route="notifications" data-tooltip="Notifications"><span class="icon-wrap"><i data-lucide="bell"></i></span><span>Notifs</span><span class="badge">3</span></a>
+      <a class="nav-item" data-route="audit" data-tooltip="Audit Log"><span class="icon-wrap"><i data-lucide="file-clock"></i></span><span>Audit</span></a>
+      <a class="nav-item" data-route="help" data-tooltip="Help"><span class="icon-wrap"><i data-lucide="help-circle"></i></span><span>Help</span></a>
     </nav>
 
     <div class="sidebar-bottom">
@@ -487,7 +550,8 @@
         <div class="user-menu-section">
           <div class="user-menu-item" data-action="sync"><i data-lucide="refresh-cw"></i><span class="label">Sync markets now</span><span class="kbd">⌘R</span></div>
           <div class="user-menu-item" data-action="recompute"><i data-lucide="zap"></i><span class="label">Recompute signals</span></div>
-          <div class="user-menu-item" data-action="notifications"><i data-lucide="bell"></i><span class="label">Notifications</span><span class="kbd">3</span></div>
+          <div class="user-menu-item" data-route="notifications"><i data-lucide="bell"></i><span class="label">Notifications</span><span class="kbd">3</span></div>
+          <div class="user-menu-item" data-route="history"><i data-lucide="receipt"></i><span class="label">Trade history</span></div>
           <div class="user-menu-item" data-action="export"><i data-lucide="download"></i><span class="label">Export data</span></div>
         </div>
 
@@ -498,7 +562,8 @@
         </div>
 
         <div class="user-menu-section">
-          <div class="user-menu-item" data-action="docs"><i data-lucide="file-text"></i><span class="label">Documentation</span></div>
+          <div class="user-menu-item" data-route="help"><i data-lucide="file-text"></i><span class="label">Documentation</span></div>
+          <div class="user-menu-item" data-route="audit"><i data-lucide="file-clock"></i><span class="label">Audit log</span></div>
           <div class="user-menu-item" data-action="logout"><i data-lucide="log-out"></i><span class="label" style="color:var(--bear);">Sign out</span></div>
         </div>
       </div>
@@ -529,6 +594,17 @@
         <span>Search markets, signals, wallets…</span>
         <span class="kbd">⌘K</span>
       </div>
+
+      <div class="topbar-actions">
+        <button class="btn-icon" onclick="route('notifications')" title="Notifications" style="position:relative;">
+          <i data-lucide="bell"></i>
+          <span class="notif-dot" style="position:absolute;top:4px;right:4px;width:6px;height:6px;background:var(--bear);border-radius:50%;"></span>
+        </button>
+        <button class="btn-icon" onclick="route('help')" title="Help"><i data-lucide="help-circle"></i></button>
+        <button class="btn-icon" id="userMenuTrigger" onclick="toggleUserMenu()" title="Account">
+          <div class="avatar" style="width:22px;height:22px;border-radius:50%;background:var(--accent);color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;">M</div>
+        </button>
+      </div>
     </header>
 
     <div class="content" id="content"></div>
@@ -548,6 +624,23 @@
     b.addEventListener('click', e => { e.stopPropagation(); applyTheme(b.getAttribute('data-theme-set')); }));
   try { applyTheme(localStorage.getItem('polyrocket.theme') || 'dark'); }
   catch(e) { applyTheme('dark'); }
+
+  /* ========== first-run check (v2.0) ========== */
+  // If we have no LLM key AND no wallet, route to onboarding.
+  // In real app this is gated by `await invoke('secrets_status')`.
+  let firstRunDone = false;
+  try { firstRunDone = localStorage.getItem('polyrocket.first-run-done') === '1'; } catch(e) {}
+  function maybeRouteOnboarding() {
+    if (firstRunDone) return;
+    // Simulated: production would await invoke('secrets_status') and check
+    // if llm_keys and wallets are both empty.
+    const llmKeys = (window.__mockSecrets || { llm: 5, wallet: 1, pm: 3 });
+    if (llmKeys.llm === 0 || llmKeys.wallet === 0) {
+      route('onboarding');
+    } else {
+      try { localStorage.setItem('polyrocket.first-run-done', '1'); } catch(e) {}
+    }
+  }
 
   /* ========== sidebar collapse ========== */
   function setSidebarCollapsed(collapsed) {
@@ -606,17 +699,82 @@
   const ROUTES = {
     dashboard: { label: 'Dashboard', render: renderDashboard },
     markets: { label: 'Markets', render: renderMarkets },
+    'market-detail': { label: 'Market Detail', render: renderMarketDetail },
     signals: { label: 'Signals', render: renderSignals },
     copy: { label: 'Copy Trading', render: renderCopy },
     pnl: { label: 'P&L', render: renderPnL },
+    history: { label: 'Trade History', render: renderHistory },
     lab: { label: 'Model Lab', render: renderLab },
     analysis: { label: 'Analysis', render: renderAnalysis },
     'llm-perf': { label: 'LLM Performance', render: renderLlmPerf },
     'llm-mgmt': { label: 'LLM Management', render: renderLlmMgmt },
     brief: { label: 'Daily Brief', render: renderBrief },
     wallets: { label: 'Wallets', render: renderWallets },
+    notifications: { label: 'Notifications', render: renderNotifications },
+    audit: { label: 'Audit Log', render: renderAudit },
+    help: { label: 'Help & Docs', render: renderHelp },
     settings: { label: 'Settings', render: renderSettings },
+    onboarding: { label: 'Welcome', render: renderOnboarding },
   };
+
+  // ================ UI state helpers (v2.0) ================
+
+  function showToast(msg, kind = 'info') {
+    const c = document.getElementById('toast-container') || (() => {
+      const d = document.createElement('div');
+      d.id = 'toast-container';
+      d.className = 'toast-container';
+      document.body.appendChild(d);
+      return d;
+    })();
+    const el = document.createElement('div');
+    el.className = 'toast toast-' + kind;
+    const icon = kind === 'success' ? 'check-circle-2' : kind === 'warn' ? 'alert-triangle' : kind === 'error' ? 'x-circle' : 'info';
+    el.innerHTML = `<i data-lucide="${icon}"></i><span>${msg}</span>`;
+    c.appendChild(el);
+    if (window.lucide) window.lucide.createIcons({ attrs: { class: 'lucide' } });
+    setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(-4px)'; }, 3500);
+    setTimeout(() => el.remove(), 4000);
+  }
+
+  // Loading skeleton — 3 bar shapes per row
+  function uiSkeleton(rows = 5) {
+    return `
+      <div class="card padded" style="margin-bottom:16px;">
+        ${Array.from({length: rows}, () => `
+          <div style="display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);">
+            <div class="skeleton" style="width:80px;height:12px;"></div>
+            <div class="skeleton" style="flex:1;height:12px;"></div>
+            <div class="skeleton" style="width:60px;height:12px;"></div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  // Empty state — title + subtitle + icon + optional CTA
+  function uiEmpty({ icon = 'inbox', title = 'Nothing here yet', subtitle = '', cta = null }) {
+    return `
+      <div class="empty-state">
+        <i data-lucide="${icon}" class="empty-icon"></i>
+        <div class="empty-title">${title}</div>
+        ${subtitle ? `<div class="empty-subtitle">${subtitle}</div>` : ''}
+        ${cta ? `<button class="btn btn-primary" style="margin-top:16px;" onclick="${cta.onclick}">${cta.label}</button>` : ''}
+      </div>
+    `;
+  }
+
+  // Error state — title + reason + retry button
+  function uiError({ title = 'Something went wrong', reason = '', onRetry = null }) {
+    return `
+      <div class="error-state">
+        <i data-lucide="alert-octagon" class="error-icon"></i>
+        <div class="error-title">${title}</div>
+        ${reason ? `<div class="error-reason">${reason}</div>` : ''}
+        ${onRetry ? `<button class="btn" style="margin-top:16px;" onclick="${onRetry}"><i data-lucide="refresh-cw"></i> Retry</button>` : ''}
+      </div>
+    `;
+  }
 
   function route(name) {
     if (!ROUTES[name]) name = 'dashboard';
@@ -631,6 +789,8 @@
     n.addEventListener('click', e => { e.preventDefault(); route(n.getAttribute('data-route')); }));
   window.addEventListener('hashchange', () => route(location.hash.slice(1)));
   route(location.hash.slice(1) || 'dashboard');
+  // Trigger first-run onboarding check after a tick (so dashboard can render first if not first-run)
+  setTimeout(maybeRouteOnboarding, 50);
 
   /* ========== mock data ========== */
   const SIGNALS = [
@@ -922,7 +1082,7 @@
           </tr></thead>
           <tbody>
             ${MARKETS.map(m => `
-              <tr>
+              <tr style="cursor:pointer;" onclick="route('market-detail')">
                 <td style="font-weight:500;">${m.q}</td>
                 <td><span class="pill">${m.cat}</span></td>
                 <td class="num secondary">${m.end}</td>
@@ -930,7 +1090,7 @@
                 <td class="num right">${m.liq}</td>
                 <td class="num right" style="font-weight:600;color:${m.edge.startsWith('+')?'var(--bull)':m.edge.startsWith('−')?'var(--bear)':'var(--muted)'};">${m.edge}</td>
                 <td class="right">
-                  <button class="btn" style="padding:4px 8px;"><i data-lucide="external-link"></i> Open</button>
+                  <button class="btn" style="padding:4px 8px;" onclick="event.stopPropagation();route('market-detail');"><i data-lucide="external-link"></i> Open</button>
                 </td>
               </tr>
             `).join('')}
@@ -1182,27 +1342,85 @@
       <div class="page-header">
         <div>
           <h1>Wallets</h1>
-          <p class="subtitle">2 wallets · 1 key in OS keychain</p>
+          <p class="subtitle">2 wallets · 1 wallet key in OS keychain · PM CLOB ✓ configured</p>
         </div>
         <div class="page-actions">
+          <button class="btn"><i data-lucide="download"></i> Export</button>
           <button class="btn btn-primary"><i data-lucide="plus"></i> Add wallet</button>
         </div>
       </div>
 
-      <div class="card">
+      <!-- Polymarket CLOB credentials (consolidated here for clarity) -->
+      <div class="card" style="margin-bottom:16px;overflow:hidden;">
+        <div class="card-header">
+          <div>
+            <h3>Polymarket CLOB API credentials</h3>
+            <div class="hint">Required for mode B signed betting · all 3 values stored in OS keychain</div>
+          </div>
+          <div>
+            <span class="pill pill-success"><i data-lucide="check"></i> configured</span>
+          </div>
+        </div>
         <table>
-          <thead><tr><th>Address</th><th>Label</th><th>Chain</th><th>Type</th><th>Keys</th><th class="right">Created</th><th class="right">Action</th></tr></thead>
+          <thead><tr><th>Field</th><th>Keychain entry</th><th>Host</th><th>Chain ID</th><th class="right">Set</th><th class="right">Action</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>API key</td>
+              <td><code style="font-size:11px;">polyrocket/pm/api</code></td>
+              <td class="num">clob.polymarket.com</td>
+              <td class="num">137</td>
+              <td class="num right secondary">2h ago</td>
+              <td class="right">
+                <button class="btn" style="padding:3px 8px;font-size:11px;" onclick="openAddKeyModal('pm_api')">Update</button>
+                <button class="btn btn-danger" style="padding:3px 8px;font-size:11px;">Clear</button>
+              </td>
+            </tr>
+            <tr>
+              <td>API secret</td>
+              <td><code style="font-size:11px;">polyrocket/pm/secret</code></td>
+              <td class="num secondary">—</td>
+              <td class="num secondary">—</td>
+              <td class="num right secondary">2h ago</td>
+              <td class="right">
+                <button class="btn" style="padding:3px 8px;font-size:11px;" onclick="openAddKeyModal('pm_secret')">Update</button>
+                <button class="btn btn-danger" style="padding:3px 8px;font-size:11px;">Clear</button>
+              </td>
+            </tr>
+            <tr>
+              <td>API passphrase</td>
+              <td><code style="font-size:11px;">polyrocket/pm/passphrase</code></td>
+              <td class="num secondary">—</td>
+              <td class="num secondary">—</td>
+              <td class="num right secondary">2h ago</td>
+              <td class="right">
+                <button class="btn" style="padding:3px 8px;font-size:11px;" onclick="openAddKeyModal('pm_passphrase')">Update</button>
+                <button class="btn btn-danger" style="padding:3px 8px;font-size:11px;">Clear</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h3>Wallets</h3>
+            <div class="hint">Polygon wallets for mode B betting · private keys in OS keychain</div>
+          </div>
+        </div>
+        <table>
+          <thead><tr><th>Address</th><th>Label</th><th>Chain</th><th>Type</th><th>Key</th><th class="right">Created</th><th class="right">Action</th></tr></thead>
           <tbody>
             <tr>
               <td class="num">0x4f3a8b…91c2d4e7</td>
               <td>primary</td>
               <td class="num">Polygon</td>
               <td><span class="pill">EOA</span></td>
-              <td><span class="pill pill-success">1 key</span></td>
+              <td><span class="pill pill-success"><i data-lucide="check"></i> in keychain</span></td>
               <td class="num right secondary">2025-11-09</td>
               <td class="right">
                 <button class="btn" style="padding:4px 8px;"><i data-lucide="pencil"></i></button>
-                <button class="btn" style="padding:4px 8px;"><i data-lucide="key"></i></button>
+                <button class="btn" style="padding:4px 8px;" onclick="openAddKeyModal('wallet_pk')"><i data-lucide="key"></i></button>
                 <button class="btn btn-danger" style="padding:4px 8px;"><i data-lucide="trash-2"></i></button>
               </td>
             </tr>
@@ -1211,16 +1429,21 @@
               <td>cold-storage</td>
               <td class="num">Polygon</td>
               <td><span class="pill">EOA</span></td>
-              <td><span class="pill">0 keys</span></td>
+              <td><span class="pill"><i data-lucide="x"></i> read-only</span></td>
               <td class="num right secondary">2025-12-01</td>
               <td class="right">
                 <button class="btn" style="padding:4px 8px;"><i data-lucide="pencil"></i></button>
-                <button class="btn" style="padding:4px 8px;"><i data-lucide="key"></i></button>
+                <button class="btn" style="padding:4px 8px;" onclick="openAddKeyModal('wallet_pk')"><i data-lucide="key"></i></button>
                 <button class="btn btn-danger" style="padding:4px 8px;"><i data-lucide="trash-2"></i></button>
               </td>
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div style="margin-top:12px;padding:12px;background:var(--surface-2);border-radius:6px;font-size:11.5px;color:var(--muted);">
+        <i data-lucide="shield-check" style="width:12px;height:12px;color:var(--bull);"></i>
+        Private keys and CLOB credentials live in macOS Keychain only. They are never written to <code>polyrocket.db</code>, <code>.env</code>, or any other file. To rotate a key, click the <i data-lucide="key" style="width:11px;height:11px;"></i> icon.
       </div>
     `;
   }
@@ -2222,6 +2445,573 @@
             </div>
           </div>
         `).join('')}
+      </div>
+    `;
+  }
+
+  // ================ 6 new pages (v2.0) ================
+
+  function renderOnboarding() {
+    // 4-step wizard: welcome → theme → wallet → LLM keys
+    // v0.2 only shows this on first run (no wallet + no LLM key configured)
+    return `
+      <div style="max-width:760px;margin:24px auto;padding:0 24px;">
+        <!-- progress -->
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:24px;">
+          <div class="dot" style="background:var(--accent);"></div>
+          <div style="height:2px;width:48px;background:var(--accent);"></div>
+          <div class="dot" style="background:var(--accent);"></div>
+          <div style="height:2px;width:48px;background:var(--accent);"></div>
+          <div class="dot" style="background:var(--accent);"></div>
+          <div style="height:2px;width:48px;background:var(--border);"></div>
+          <div class="dot" style="background:var(--border);"></div>
+          <div style="margin-left:12px;font-size:12px;color:var(--muted);">step 3 of 4 — LLM providers</div>
+        </div>
+
+        <div class="card padded" style="padding:32px;">
+          <h1 style="margin:0 0 4px;">Add your first LLM API key</h1>
+          <p class="subtitle" style="margin:0 0 24px;">polyrocket needs at least one LLM to run analysis. You can add more later in Settings → LLM Management.</p>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+            <div class="card" style="padding:14px;cursor:pointer;border:1px solid var(--accent);background:rgba(0,122,204,0.06);">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <i data-lucide="zap" style="color:var(--accent);"></i>
+                <strong style="font-size:13px;">OpenAI · GPT-4o</strong>
+                <span class="pill pill-success" style="margin-left:auto;font-size:10px;">recommended</span>
+              </div>
+              <div style="font-size:11px;color:var(--muted);">Fast, cheap, strong baseline. ~$0.008/call.</div>
+            </div>
+            <div class="card" style="padding:14px;cursor:pointer;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <i data-lucide="zap"></i>
+                <strong style="font-size:13px;">Anthropic · Claude Sonnet 4.5</strong>
+              </div>
+              <div style="font-size:11px;color:var(--muted);">Long context, careful reasoning. ~$0.012/call.</div>
+            </div>
+            <div class="card" style="padding:14px;cursor:pointer;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <i data-lucide="zap"></i>
+                <strong style="font-size:13px;">Google · Gemini 2.5 Pro</strong>
+              </div>
+              <div style="font-size:11px;color:var(--muted);">Multimodal, large free tier. ~$0.0075/call.</div>
+            </div>
+            <div class="card" style="padding:14px;cursor:pointer;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <i data-lucide="zap"></i>
+                <strong style="font-size:13px;">DeepSeek · V3</strong>
+              </div>
+              <div style="font-size:11px;color:var(--muted);">Cheapest, decent. ~$0.0009/call.</div>
+            </div>
+          </div>
+
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:14px;margin-bottom:16px;">
+            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;">OpenAI API key</label>
+            <input class="input" type="password" placeholder="sk-..." style="width:100%;font-family:var(--font-mono);">
+            <div style="font-size:11px;color:var(--muted);margin-top:6px;display:flex;align-items:center;gap:6px;">
+              <i data-lucide="shield-check" style="width:12px;height:12px;color:var(--bull);"></i>
+              Written to <code>llm/openai/prod-1</code> in macOS Keychain. Never stored in SQLite or .env.
+            </div>
+          </div>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <button class="btn">← Back</button>
+            <div style="display:flex;gap:8px;">
+              <button class="btn">Skip for now</button>
+              <button class="btn btn-primary" onclick="route('dashboard')">Save & finish →</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="text-align:center;font-size:11px;color:var(--muted);margin-top:16px;">
+          <i data-lucide="info" style="width:11px;height:11px;"></i>
+          You can change every choice later in Settings.
+        </div>
+      </div>
+    `;
+  }
+
+  function renderMarketDetail() {
+    return `
+      <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-bottom:8px;">
+        <a href="#" onclick="route('markets');return false;" style="color:var(--accent);text-decoration:none;">← Markets</a>
+        <span>/</span>
+        <span>Will BTC close &gt; $100k on 2026-12-31?</span>
+        <span class="pill" style="margin-left:8px;">crypto</span>
+        <span class="pill pill-success">live · resolves in 198d</span>
+      </div>
+
+      <div class="page-header" style="margin-bottom:16px;">
+        <div>
+          <h1 style="font-size:20px;">Will BTC close &gt; $100k on 2026-12-31?</h1>
+          <p class="subtitle num" style="font-family:var(--font-mono);">
+            0x4a7e3b…f29c · Polymarket CLOB · volume $2.4M · 24h vol $48K
+          </p>
+        </div>
+        <div class="page-actions">
+          <button class="btn"><i data-lucide="refresh-cw"></i> Refresh</button>
+          <button class="btn"><i data-lucide="bookmark"></i> Watch</button>
+          <button class="btn btn-primary"><i data-lucide="zap"></i> Run LLM analysis</button>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-bottom:16px;gap:16px;">
+        <!-- left: orderbook + price chart -->
+        <div>
+          <div class="card padded" style="margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;">
+              <div>
+                <div style="font-size:11px;color:var(--muted);">YES price</div>
+                <div class="num" style="font-size:32px;font-weight:600;color:var(--bull);">¢ 64.5</div>
+                <div class="num" style="font-size:11.5px;color:var(--bull);">+1.2 (1h) · +3.4 (24h)</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:11px;color:var(--muted);">NO price</div>
+                <div class="num" style="font-size:20px;font-weight:500;">¢ 35.5</div>
+                <div class="num" style="font-size:11.5px;color:var(--muted);">spread ¢ 0.4</div>
+              </div>
+            </div>
+            <svg viewBox="0 0 400 100" style="width:100%;height:100px;background:var(--surface-2);border-radius:4px;">
+              <polyline points="0,60 20,55 40,58 60,50 80,48 100,52 120,45 140,40 160,42 180,38 200,35 220,30 240,32 260,28 280,25 300,28 320,22 340,25 360,20 380,18 400,15" fill="none" stroke="var(--bull)" stroke-width="1.5"/>
+            </svg>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:4px;font-family:var(--font-mono);">
+              <span>−7d</span><span>−24h</span><span>−1h</span><span>now</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h3>Orderbook · YES</h3></div>
+            <table>
+              <thead><tr><th>Side</th><th class="right">Price</th><th class="right">Size</th><th class="right">Total</th></tr></thead>
+              <tbody>
+                <tr><td class="num" style="color:var(--bull);">BID</td><td class="num right">64.4</td><td class="num right">1,240</td><td class="num right">$798.56</td></tr>
+                <tr><td class="num" style="color:var(--bull);">BID</td><td class="num right">64.3</td><td class="num right">3,500</td><td class="num right">$2,250.50</td></tr>
+                <tr><td class="num" style="color:var(--bull);">BID</td><td class="num right">64.2</td><td class="num right">8,200</td><td class="num right">$5,264.40</td></tr>
+                <tr style="background:var(--surface-2);"><td colspan="4" style="text-align:center;font-size:10.5px;color:var(--muted);">spread ¢ 0.4 · midpoint ¢ 64.5</td></tr>
+                <tr><td class="num" style="color:var(--bear);">ASK</td><td class="num right">64.6</td><td class="num right">920</td><td class="num right">$594.32</td></tr>
+                <tr><td class="num" style="color:var(--bear);">ASK</td><td class="num right">64.7</td><td class="num right">2,800</td><td class="num right">$1,811.60</td></tr>
+                <tr><td class="num" style="color:var(--bear);">ASK</td><td class="num right">64.8</td><td class="num right">6,100</td><td class="num right">$3,952.80</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- right: bet + LLM + signals -->
+        <div>
+          <div class="card padded" style="margin-bottom:16px;">
+            <div style="font-size:13px;font-weight:500;margin-bottom:12px;">Place a bet</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+              <button class="btn" style="background:rgba(63,185,80,0.15);color:var(--bull);border-color:var(--bull);padding:10px;">Buy YES @ 64.5¢</button>
+              <button class="btn" style="background:rgba(248,81,73,0.12);color:var(--bear);border-color:var(--bear);padding:10px;">Buy NO @ 35.5¢</button>
+            </div>
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:8px;">
+              <input class="input" type="number" placeholder="size" value="100">
+              <div class="input" style="background:var(--surface-2);display:flex;align-items:center;justify-content:flex-end;font-family:var(--font-mono);">$64.50</div>
+            </div>
+            <div style="font-size:10.5px;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:12px;">
+              <span>Mode A: jump to Polymarket (zero compliance)</span>
+              <a href="#" style="color:var(--accent);">switch to mode B →</a>
+            </div>
+            <button class="btn btn-primary" style="width:100%;padding:10px;"><i data-lucide="external-link"></i> Open on Polymarket</button>
+          </div>
+
+          <div class="card padded" style="margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+              <div style="font-size:13px;font-weight:500;">Latest LLM consensus</div>
+              <span class="pill pill-success" style="font-size:10px;">2h ago</span>
+            </div>
+            <div style="display:flex;gap:8px;margin-bottom:10px;">
+              <div style="flex:1;background:var(--surface-2);border-radius:4px;padding:8px;text-align:center;">
+                <div class="num" style="font-size:18px;font-weight:600;color:var(--bull);">YES 68%</div>
+                <div style="font-size:10px;color:var(--muted);">consensus</div>
+              </div>
+              <div style="flex:1;background:var(--surface-2);border-radius:4px;padding:8px;text-align:center;">
+                <div class="num" style="font-size:18px;font-weight:600;">edge +3.5%</div>
+                <div style="font-size:10px;color:var(--muted);">vs market</div>
+              </div>
+            </div>
+            <div style="font-size:11px;color:var(--muted);">
+              <div>GPT-4o: <span class="num" style="color:var(--bull);">YES 71%</span> · Claude: <span class="num" style="color:var(--bull);">YES 70%</span></div>
+              <div>Gemini: <span class="num">YES 65%</span> · DeepSeek: <span class="num" style="color:var(--bull);">YES 66%</span></div>
+            </div>
+            <a href="#" onclick="route('analysis');return false;" style="font-size:11px;color:var(--accent);display:inline-block;margin-top:8px;">view full analysis →</a>
+          </div>
+
+          <div class="card padded">
+            <div style="font-size:13px;font-weight:500;margin-bottom:10px;">Signals on this market</div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <div style="display:flex;justify-content:space-between;font-size:12px;">
+                <span>BTC price momentum (24h)</span>
+                <span class="num pos">+2.1%</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;">
+                <span>Order book imbalance</span>
+                <span class="num pos">+1.8%</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;">
+                <span>Funding rate (8h)</span>
+                <span class="num pos">+0.04%</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;">
+                <span>Fear &amp; greed index</span>
+                <span class="num">72 (greed)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderNotifications() {
+    const items = [
+      { kind: 'success', icon: 'check-circle-2', title: 'GPT-4o analysis complete', body: 'YES 71% on "Will BTC close > $100k on 2026-12-31?"', time: '2m ago', read: false, route: 'analysis' },
+      { kind: 'warn',    icon: 'alert-triangle', title: 'Claude Sonnet rate limit hit', body: '429 on 3 of last 5 calls. Will retry in 47s.', time: '8m ago', read: false, route: 'llm-mgmt' },
+      { kind: 'info',    icon: 'sparkles', title: 'Daily Brief refreshed', body: '5 new markets scored above threshold. 1 in your interest list.', time: '1h ago', read: false, route: 'brief' },
+      { kind: 'success', icon: 'trending-up', title: 'Signal fired: +EV on Lakers-Celtics', body: 'edge +6.2%, confidence 72%, model v0.3.2', time: '2h ago', read: true, route: 'signals' },
+      { kind: 'error',   icon: 'shield-x', title: 'PM CLOB API key rejected', body: 'Signature failed for host clob.polymarket.com. Re-paste in Settings → Wallets.', time: '3h ago', read: true, route: 'wallets' },
+      { kind: 'info',    icon: 'database', title: 'Model Lab: training complete', body: 'job-4128 Brier 0.131 → 0.123 (−0.008). Promote to active?', time: '4h ago', read: true, route: 'lab' },
+      { kind: 'success', icon: 'check', title: 'Sync complete', body: '128 markets refreshed, 7 signals recomputed, 0 errors.', time: '1d ago', read: true, route: 'dashboard' },
+    ];
+    const colorFor = (k) => k === 'success' ? 'var(--bull)' : k === 'warn' ? 'var(--warning)' : k === 'error' ? 'var(--bear)' : 'var(--accent)';
+    return `
+      <div class="page-header">
+        <div>
+          <h1>Notifications</h1>
+          <p class="subtitle">3 unread · last 24h grouped</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn"><i data-lucide="check-check"></i> Mark all read</button>
+          <button class="btn"><i data-lucide="settings"></i> Preferences</button>
+        </div>
+      </div>
+
+      <div class="seg" style="margin-bottom:16px;">
+        <button class="active">All (7)</button>
+        <button>Unread (3)</button>
+        <button>Trades (1)</button>
+        <button>LLM (2)</button>
+        <button>System (1)</button>
+        <button>Signals (1)</button>
+      </div>
+
+      <div class="card">
+        <table>
+          <thead><tr><th style="width:14px;"></th><th>Event</th><th>Detail</th><th class="right">When</th><th class="right">Status</th><th></th></tr></thead>
+          <tbody>
+            ${items.map(n => `
+              <tr style="cursor:pointer;${n.read ? '' : 'background:rgba(0,122,204,0.04);'}" onclick="route('${n.route}')">
+                <td><i data-lucide="${n.icon}" style="width:14px;height:14px;color:${colorFor(n.kind)};"></i></td>
+                <td><div style="font-weight:${n.read ? '400' : '500'};">${n.title}</div></td>
+                <td><div class="secondary" style="font-size:11.5px;">${n.body}</div></td>
+                <td class="num right secondary" style="font-size:11px;">${n.time}</td>
+                <td class="right">${n.read ? '<span class="num secondary" style="font-size:11px;">read</span>' : '<span class="pill pill-success" style="font-size:10px;">new</span>'}</td>
+                <td><i data-lucide="chevron-right" style="width:12px;height:12px;color:var(--muted);"></i></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:16px;padding:12px;background:var(--surface-2);border-radius:6px;font-size:11.5px;color:var(--muted);">
+        <i data-lucide="info" style="width:12px;height:12px;"></i>
+        In-app notifications are ephemeral (last 7 days). For audit-grade history, see <a href="#" onclick="route('audit');return false;" style="color:var(--accent);">Audit Log</a>.
+      </div>
+    `;
+  }
+
+  function renderAudit() {
+    const events = [
+      { ts: '2026-06-16 20:38:12', actor: 'user',         action: 'llm.key.upsert',         target: 'key-7a3f…e29b', payload: '{"provider_id":"openai","alias":"prod-1","secret_written":true}', result: 'ok' },
+      { ts: '2026-06-16 20:36:55', actor: 'user',         action: 'llm.test_connectivity',  target: 'openai',        payload: '{"key_id":"key-7a3f"}',                                              result: 'ok' },
+      { ts: '2026-06-16 20:21:08', actor: 'system',       action: 'signal.recompute',       target: 'all',           payload: '{"trigger":"market.sync","n_markets":128,"n_signals":7}',          result: 'ok' },
+      { ts: '2026-06-16 19:55:42', actor: 'user',         action: 'bet.place.jump',         target: '0x4a7e3b…f29c', payload: '{"side":"YES","size":100,"mode":"A"}',                              result: 'ok' },
+      { ts: '2026-06-16 19:30:11', actor: 'system',       action: 'llm.analyze',            target: '0x4a7e3b…f29c', payload: '{"providers":4,"prompt_version":"v1.2","n_recs":4}',               result: 'ok' },
+      { ts: '2026-06-16 18:14:00', actor: 'user',         action: 'wallet.pk.set',          target: '0x7a3F…e29B',   payload: '{"alias":"primary","pk_len":64}',                                    result: 'ok' },
+      { ts: '2026-06-16 17:02:33', actor: 'user',         action: 'pm.credentials.set',     target: 'polyrocket/pm', payload: '{"host":"clob.polymarket.com","chain_id":137,"lengths":{...}}',     result: 'ok' },
+      { ts: '2026-06-16 15:45:21', actor: 'background',   action: 'llm.health.probe',       target: 'anthropic',     payload: '{"trigger":"interval","success":true,"latency_ms":1842}',           result: 'ok' },
+      { ts: '2026-06-16 14:00:00', actor: 'system',       action: 'brief.refresh',          target: 'all',           payload: '{"trigger":"cron.utc_00","n_markets":128,"top_n":5}',               result: 'ok' },
+      { ts: '2026-06-16 12:18:50', actor: 'user',         action: 'llm.provider.delete',    target: 'custom-azure',  payload: '{"reason":"in_use","n_uses":4}',                                    result: 'rejected' },
+    ];
+    return `
+      <div class="page-header">
+        <div>
+          <h1>Audit Log</h1>
+          <p class="subtitle">X1 · every write op · 1,287 events · last 90 days</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn"><i data-lucide="download"></i> Export JSONL</button>
+          <button class="btn"><i data-lucide="search"></i> Filter</button>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+        <input class="input" type="text" placeholder="filter action: e.g. llm.*, bet.*" style="flex:1;min-width:200px;">
+        <input class="input" type="text" placeholder="target / actor" style="width:200px;">
+        <select class="input"><option>all results</option><option>ok</option><option>rejected</option><option>error</option></select>
+        <input class="input" type="date" style="width:140px;">
+      </div>
+
+      <div class="card" style="overflow:hidden;">
+        <table>
+          <thead>
+            <tr>
+              <th>timestamp</th>
+              <th>actor</th>
+              <th>action</th>
+              <th>target</th>
+              <th>payload (truncated)</th>
+              <th class="right">result</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${events.map(e => {
+              const rc = e.result === 'ok' ? 'pos' : e.result === 'rejected' ? 'num muted' : 'neg';
+              return `
+                <tr>
+                  <td class="num secondary" style="font-size:11px;">${e.ts}</td>
+                  <td><span class="pill">${e.actor}</span></td>
+                  <td class="num" style="font-size:11.5px;">${e.action}</td>
+                  <td class="num" style="font-size:11.5px;">${e.target}</td>
+                  <td class="num secondary" style="font-size:10.5px;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.payload}</td>
+                  <td class="right ${rc}">${e.result}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--muted);">
+        <span>Showing 10 of 1,287 events</span>
+        <div style="display:flex;gap:6px;">
+          <button class="btn" style="padding:4px 8px;font-size:11px;">← Prev</button>
+          <button class="btn" style="padding:4px 8px;font-size:11px;">Next →</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderHistory() {
+    return `
+      <div class="page-header">
+        <div>
+          <h1>Trade History</h1>
+          <p class="subtitle">All bets · 87 placed · 62 settled · 25 open · $4,200 P&amp;L (90D)</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn"><i data-lucide="filter"></i> Filter</button>
+          <button class="btn"><i data-lucide="download"></i> Export CSV</button>
+        </div>
+      </div>
+
+      <div class="grid-3" style="margin-bottom:16px;gap:12px;">
+        <div class="card padded" style="text-align:center;">
+          <div class="num" style="font-size:11px;color:var(--muted);">Realized P&amp;L (90D)</div>
+          <div class="num" style="font-size:24px;font-weight:600;margin-top:4px;" class="pos">+$4,200</div>
+          <div class="num" style="font-size:11px;color:var(--bull);">+18.4% ROI</div>
+        </div>
+        <div class="card padded" style="text-align:center;">
+          <div class="num" style="font-size:11px;color:var(--muted);">Win rate (settled)</div>
+          <div class="num" style="font-size:24px;font-weight:600;margin-top:4px;">71.0%</div>
+          <div class="num" style="font-size:11px;color:var(--muted);">44 / 62</div>
+        </div>
+        <div class="card padded" style="text-align:center;">
+          <div class="num" style="font-size:11px;color:var(--muted);">Avg hold time</div>
+          <div class="num" style="font-size:24px;font-weight:600;margin-top:4px;">12d 4h</div>
+          <div class="num" style="font-size:11px;color:var(--muted);">median 8d</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <table>
+          <thead>
+            <tr>
+              <th>placed</th>
+              <th>market</th>
+              <th>side</th>
+              <th class="right">size</th>
+              <th class="right">@price</th>
+              <th class="right">filled</th>
+              <th>status</th>
+              <th class="right">P&amp;L</th>
+              <th>mode</th>
+              <th>llm assist</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="num secondary" style="font-size:11px;">2h ago</td>
+              <td>Will BTC close &gt; $100k…</td>
+              <td><span class="pill pill-success">YES</span></td>
+              <td class="num right">$100.00</td>
+              <td class="num right">64.5¢</td>
+              <td class="num right">$100.00</td>
+              <td><span class="pill">open</span></td>
+              <td class="num right muted">—</td>
+              <td><span class="pill">A</span></td>
+              <td>GPT-4o 71%</td>
+            </tr>
+            <tr>
+              <td class="num secondary" style="font-size:11px;">1d ago</td>
+              <td>Lakers vs Celtics · ML</td>
+              <td><span class="pill pill-success">YES</span></td>
+              <td class="num right">$50.00</td>
+              <td class="num right">52.0¢</td>
+              <td class="num right">$50.00</td>
+              <td><span class="pill pill-success">won</span></td>
+              <td class="num right pos">+$46.15</td>
+              <td><span class="pill">A</span></td>
+              <td>consensus 68%</td>
+            </tr>
+            <tr>
+              <td class="num secondary" style="font-size:11px;">3d ago</td>
+              <td>Fed rate cut March 2026</td>
+              <td><span class="pill pill-danger">NO</span></td>
+              <td class="num right">$200.00</td>
+              <td class="num right">28.0¢</td>
+              <td class="num right">$200.00</td>
+              <td><span class="pill pill-success">won</span></td>
+              <td class="num right pos">+$514.29</td>
+              <td><span class="pill">B</span></td>
+              <td>GPT-4o 78%</td>
+            </tr>
+            <tr>
+              <td class="num secondary" style="font-size:11px;">5d ago</td>
+              <td>G2 vs NaVi · Map 2 winner</td>
+              <td><span class="pill pill-danger">NO</span></td>
+              <td class="num right">$25.00</td>
+              <td class="num right">41.0¢</td>
+              <td class="num right">$25.00</td>
+              <td><span class="pill pill-danger">lost</span></td>
+              <td class="num right neg">−$25.00</td>
+              <td><span class="pill">A</span></td>
+              <td>no</td>
+            </tr>
+            <tr>
+              <td class="num secondary" style="font-size:11px;">1w ago</td>
+              <td>BTC &gt; $95k by EOFeb</td>
+              <td><span class="pill pill-success">YES</span></td>
+              <td class="num right">$150.00</td>
+              <td class="num right">78.0¢</td>
+              <td class="num right">$150.00</td>
+              <td><span class="pill pill-success">won</span></td>
+              <td class="num right pos">+$42.31</td>
+              <td><span class="pill">B</span></td>
+              <td>Claude 65%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function renderHelp() {
+    return `
+      <div class="page-header">
+        <div>
+          <h1>Help &amp; Docs</h1>
+          <p class="subtitle">polyrocket v0.2 · 5 modules · 39 IPC · 19 tables</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn"><i data-lucide="github"></i> Open on GitHub</button>
+        </div>
+      </div>
+
+      <div class="grid-2" style="gap:16px;align-items:start;">
+        <div>
+          <div class="card padded" style="margin-bottom:16px;">
+            <div style="font-size:13px;font-weight:500;margin-bottom:10px;">Quick start</div>
+            <ol style="font-size:12.5px;line-height:1.8;padding-left:20px;margin:0;">
+              <li>Add at least one LLM API key in <a href="#" onclick="route('llm-mgmt');return false;" style="color:var(--accent);">Settings → LLM Management</a></li>
+              <li>Paste a wallet private key in <a href="#" onclick="route('wallets');return false;" style="color:var(--accent);">Wallets</a> for mode B signed betting</li>
+              <li>Browse active signals on <a href="#" onclick="route('signals');return false;" style="color:var(--accent);">Signals</a> or <a href="#" onclick="route('markets');return false;" style="color:var(--accent);">Markets</a></li>
+              <li>Run multi-LLM analysis with one click on any market</li>
+              <li>Read the daily brief every morning UTC 00:00</li>
+            </ol>
+          </div>
+
+          <div class="card padded" style="margin-bottom:16px;">
+            <div style="font-size:13px;font-weight:500;margin-bottom:10px;">Concepts</div>
+            <div style="display:flex;flex-direction:column;gap:6px;font-size:12.5px;">
+              <div><a href="#" style="color:var(--accent);">→ What is a "signal"?</a></div>
+              <div><a href="#" style="color:var(--accent);">→ How consensus works (4 LLM → weighted median)</a></div>
+              <div><a href="#" style="color:var(--accent);">→ Mode A vs Mode B betting</a></div>
+              <div><a href="#" style="color:var(--accent);">→ Brier score and calibration</a></div>
+              <div><a href="#" style="color:var(--accent);">→ Why OS keychain (not .env)</a></div>
+              <div><a href="#" style="color:var(--accent);">→ Prompt version A/B testing</a></div>
+            </div>
+          </div>
+
+          <div class="card padded">
+            <div style="font-size:13px;font-weight:500;margin-bottom:10px;">Keyboard shortcuts</div>
+            <table>
+              <tbody>
+                <tr><td><kbd>⌘ B</kbd></td><td>Toggle sidebar</td></tr>
+                <tr><td><kbd>⌘ K</kbd></td><td>Command palette</td></tr>
+                <tr><td><kbd>⌘ ,</kbd></td><td>Settings</td></tr>
+                <tr><td><kbd>⌘ R</kbd></td><td>Refresh current page</td></tr>
+                <tr><td><kbd>?</kbd></td><td>Show all shortcuts</td></tr>
+                <tr><td><kbd>1..9</kbd></td><td>Jump to sidebar item</td></tr>
+                <tr><td><kbd>esc</kbd></td><td>Close modal / dismiss toast</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <div class="card padded" style="margin-bottom:16px;">
+            <div style="font-size:13px;font-weight:500;margin-bottom:10px;">Specification docs</div>
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:12.5px;">
+              <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><a href="#" style="color:var(--accent);">polyrocket-modules.md</a><span class="num secondary" style="font-size:10.5px;">v1.4 · module map</span></div>
+              <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><a href="#" style="color:var(--accent);">polyrocket-flows.md</a><span class="num secondary" style="font-size:10.5px;">v1.4 · 17 flows</span></div>
+              <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><a href="#" style="color:var(--accent);">polyrocket-ui-design.md</a><span class="num secondary" style="font-size:10.5px;">v2.0 · this file</span></div>
+              <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><a href="#" style="color:var(--accent);">polyrocket-llm-analysis.md</a><span class="num secondary" style="font-size:10.5px;">v1.1 · M10</span></div>
+              <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);"><a href="#" style="color:var(--accent);">polyrocket-llm-management.md</a><span class="num secondary" style="font-size:10.5px;">v1.1 · M11</span></div>
+            </div>
+          </div>
+
+          <div class="card padded" style="margin-bottom:16px;">
+            <div style="font-size:13px;font-weight:500;margin-bottom:10px;">Troubleshooting</div>
+            <details style="margin-bottom:8px;">
+              <summary style="cursor:pointer;font-size:12.5px;">LLM analysis returns "auth" error</summary>
+              <div style="font-size:11.5px;color:var(--muted);padding:8px 0;">
+                API key is missing or invalid. Open Settings → LLM Management and verify the key icon shows ✓. If recently rotated, click Update to re-paste.
+              </div>
+            </details>
+            <details style="margin-bottom:8px;">
+              <summary style="cursor:pointer;font-size:12.5px;">Polymarket order fails to fill</summary>
+              <div style="font-size:11.5px;color:var(--muted);padding:8px 0;">
+                Mode A opens a browser tab to PM UI — you place the bet there. Mode B signs in-app but may fail if CLOB API credentials expired. Check Audit Log → pm.* for details.
+              </div>
+            </details>
+            <details style="margin-bottom:8px;">
+              <summary style="cursor:pointer;font-size:12.5px;">Daily Brief is empty</summary>
+              <div style="font-size:11.5px;color:var(--muted);padding:8px 0;">
+                Either no markets cleared the scoring threshold, or the cache expired. Click "Refresh now" to force-recompute.
+              </div>
+            </details>
+            <details>
+              <summary style="cursor:pointer;font-size:12.5px;">App is slow / health checks failing</summary>
+              <div style="font-size:11.5px;color:var(--muted);padding:8px 0;">
+                Check LLM Management → provider status. Slow = p95 &gt; 3s. Failing = 3 consecutive probe failures. Auto-disable kicks in at 3 fails to protect quota.
+              </div>
+            </details>
+          </div>
+
+          <div class="card padded">
+            <div style="font-size:13px;font-weight:500;margin-bottom:10px;">Version &amp; build</div>
+            <table>
+              <tbody>
+                <tr><td class="num secondary">app</td><td class="num">polyrocket v0.2.0-dev</td></tr>
+                <tr><td class="num secondary">tauri</td><td class="num">2.x</td></tr>
+                <tr><td class="num secondary">sqlite</td><td class="num">3.45 + WAL</td></tr>
+                <tr><td class="num secondary">schema</td><td class="num">19 tables</td></tr>
+                <tr><td class="num secondary">ipc</td><td class="num">39 commands</td></tr>
+                <tr><td class="num secondary">build</td><td class="num">2026-06-16T20:50Z</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     `;
   }
