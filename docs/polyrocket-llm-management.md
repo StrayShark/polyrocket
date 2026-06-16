@@ -567,7 +567,120 @@ fn maybe_load_dev_env() {
 
 ---
 
+## 14. 后台调度（v1.2 重点）
+
+3 个独立 tokio task，进程启动时由 `lib.rs::run()` 的 `setup` 钩子 `scheduler::start(pool, http)` 启动，每个 task 自我恢复（DB / 网络错误不终止进程）。
+
+### 14.1 3 个 task 概览
+
+| Task | 间隔 | 起的作用 | 写入表 |
+|---|---|---|---|
+| `run_health_probe_loop` | `HEALTH_PROBE_INTERVAL_MIN` (默认 5) | 对每个 enabled provider 跑 1-token 连通性探针 | `llm_health_checks` + `llm_providers.health_*` + `audit_log` (auto_disable) |
+| `run_daily_brief_loop` | 24h cron, `DAILY_BRIEF_HOUR_UTC` (默认 0) | 每日 00:00 UTC 刷新 Daily Brief | `daily_briefs` (upsert) + `audit_log` |
+| `run_anomaly_loop` | `ANOMALY_WINDOW_MIN` (默认 60) | 滚动窗口异常检测（rate limit spike / cost spike / 低成功率 / 零活动） | `audit_log` (`anomaly.detected`) |
+
+### 14.2 Health Probe 细节
+
+每次 sweep：
+1. 查 `llm_providers WHERE enabled = 1`
+2. 对每个 provider 取 priority 最低的 1 个 key
+3. 用 `CallRequest { max_tokens: 1, temperature: 0.0 }` 跑真实 LLM call
+4. 写 `llm_health_checks` (trigger='background') + 更新 `llm_providers.health_status` + EMA 更新 `health_latency_p50_ms` (新值 = (旧值 × 4 + 新值) / 5)
+5. 失败时检查 `llm_health_checks` 最近 3 条是否都 fail → `UPDATE llm_providers SET enabled = 0` + audit_log
+
+**关键不变量**：
+- probe 单个 provider 在独立 tokio::spawn 里跑，1 个慢/挂的 provider 不阻塞其他
+- `enabled=0` 不会被 probe（避免无意义的 401）
+- keyring 没有 secret 不会 panic，记 `auth` 错 + 触发 auto-disable streak
+- 启动后 5s 延迟 first probe（避免冷启动时序问题）
+
+### 14.3 Daily Brief cron 细节
+
+```
+启动
+  ↓
+seconds_until_next_brief(0, 0) = 距下次 00:00 UTC 的秒数
+  ↓
+sleep(...)
+  ↓
+run_daily_brief_once()
+  ↓
+sleep(24h)
+  ↓ (loop)
+run_daily_brief_once()
+  ...
+```
+
+每次 `run_daily_brief_once`：
+1. 查 `markets WHERE closes_at > now` 数活跃市场
+2. 读 `DAILY_BRIEF_TOP_N` env (默认 8)
+3. `INSERT INTO daily_briefs (...) ON CONFLICT(brief_date) DO UPDATE` — 同一天只 1 行
+4. 写 audit_log `brief.refresh` (trigger=cron)
+
+**v0.2 简化**：用活跃市场数 + stub JSON 填充，**不**算完整 M12 评分公式（v0.3 加）。triggers 是 user-callable：`scheduler_run_daily_brief_now`。
+
+### 14.4 Anomaly Detection 细节
+
+每 `ANOMALY_WINDOW_MIN` (默认 60) 分钟跑一次，4 种异常：
+
+| 异常 | 触发条件 | 用途 |
+|---|---|---|
+| `rate_limit_spike` | 当前窗口 rate_limit_hits ≥ 5 | 限流预警，调 quota |
+| `cost_spike` | cost > prev_window × 3 | 异常花销，调查 loop bug |
+| `zero_activity` | 当前窗口 0 call, 之前 > 0 | provider 死了，没任务来 |
+| `low_success_rate` | success_rate < 0.7 且 call ≥ 3 | 综合健康度告警 |
+
+每条异常写 `audit_log` action='anomaly.detected'，payload 包含：
+```json
+{
+  "window_min": 60,
+  "kinds": ["rate_limit_spike", "low_success_rate"],
+  "calls": 87,
+  "rate_limit_hits": 6,
+  "cost_cents": 0.42,
+  "success_rate": 0.65
+}
+```
+
+前端 `/audit` 可看；`/notifications` 用 kind=system 显示 toast。
+
+### 14.5 启动/停止
+
+- **启动**：`lib.rs::run()` 的 `setup` 钩子调 `scheduler::start(pool, http)`，3 个 task 自动 spawn
+- **停止**：当前未实现停止（task 跟进程同寿）。`SchedulerHandle.shutdown()` 存在但**不**被 lib.rs 调
+- **测试**：用 `run_health_probe_now(pool, http)` / `run_daily_brief_now(pool)` 单次跑（v0.2 新增 public 函数）
+
+### 14.6 env 调优
+
+```bash
+POLYROCKET_HEALTH_PROBE_INTERVAL_MIN=5      # 默认 5
+POLYROCKET_DAILY_BRIEF_HOUR_UTC=0           # 默认 0
+POLYROCKET_DAILY_BRIEF_TZ_OFFSET_MIN=0      # 默认 0 (UTC); 上海 = +480
+POLYROCKET_ANOMALY_WINDOW_MIN=60            # 默认 60
+DAILY_BRIEF_TOP_N=8                         # 默认 8
+```
+
+### 14.7 新增 IPC（手动触发）
+
+| IPC | 用途 | 返回 |
+|---|---|---|
+| `scheduler_status` | 显示当前 config + 下次 brief 触发时间 | `{ health_probe_interval_sec, daily_brief_hour_utc, next_brief_run_at_unix_ms, ... }` |
+| `scheduler_run_health_probe_now` | 立刻跑一次 probe sweep | `{ triggered_at_unix_ms, kind: 'health_probe', ok, error? }` |
+| `scheduler_run_daily_brief_now` | 立刻跑一次 brief | `{ ..., kind: 'daily_brief', ... }` |
+
+### 14.8 错误恢复
+
+| 错误 | 行为 |
+|---|---|
+| DB 连接断开 | 整 loop 静默 catch 1 次 + warn，下个 tick 继续 |
+| 单 provider HTTP 超时 | 仅该 provider 记 failing，其他继续 |
+| keyring 不可用 | 记 `auth` 错，整 provider fail |
+| audit_log INSERT 失败 | 不阻塞 scheduler 主路径，仅 tracing::warn |
+
+---
+
 ## 变更日志
 
+- **v1.2** (2026-06-16) — 新增 §14 后台调度：3 个 tokio task（health probe / daily brief cron / anomaly detection）+ 3 个新 IPC（scheduler_status / scheduler_run_health_probe_now / scheduler_run_daily_brief_now）。3-fail auto-disable 落地。
 - **v1.1** (2026-06-16) — 新增 §13 Client-side key persistence：明确 client paste 为主路径、.env 仅 dev；新增 4 类 IPC（llm_key_set_secret / llm_pm_set_credentials / polyrocket_wallet_set_pk / secrets_status）；keyring alias builder 化；启动同步仅在 `POLYROCKET_ENV=dev && KEYRING_ONLY=0` 时执行。
 - **v1.0** (2026-06-16) — 初版。基于用户反馈"LLM 管理 + 流量 + 连通性 + 胜率"需求重写。引入 M11 模块、3 张新表、4 类 IPC 扩展、连通性测试、流量监控、胜率统计增强。

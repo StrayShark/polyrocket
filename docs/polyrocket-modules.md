@@ -418,6 +418,7 @@ model_performance({ model_version, window }): ModelPerformanceDto
 ## 变更日志
 
 - **v1.6** (2026-06-16) — M10 真实化：4-provider HTTP fan-out 落地。新增 5 个 provider client（OpenAI / Anthropic / Google / DeepSeek / Custom）+ key rotation + retry/backoff + 3 prompt 模板 + 2 个新 IPC（llm_get_recommendation / llm_list_analyses）。代码量 ~1200 行 + 8 个测试（3 unit + 5 integration）。
+- **v1.7** (2026-06-16) — M11 后台调度：3 个 tokio loop（health probe 5min / daily brief 00:00 UTC cron / anomaly detect 60min）+ 3-fail auto-disable + 3 个新 IPC（scheduler_status / scheduler_run_health_probe_now / scheduler_run_daily_brief_now）。
 - **v1.5** (2026-06-16) — 新增 **M13 Onboarding**：首启 4 步引导。补强 prototype.html 6 个新页面（Onboarding / Market Detail / Notifications / Help / Trade History / Audit Log）；UI spec v2.0 升级到 18 页面 + 完整 tokens/状态机/动效/a11y/图标/数据可视化/错误边界/i18n/Empty-Loading-Error 规范。
 - **v1.4** (2026-06-16) — M11 升级：**Client-side key persistence 为主路径**。新增 5 个 IPC（llm_key_set_secret / llm_pm_set_credentials / llm_pm_clear_credentials / polyrocket_wallet_set_pk / polyrocket_wallet_clear_pk / secrets_status）；.env 降级为 dev-only（仅 `POLYROCKET_ENV=dev` 读）；keyring alias 命名空间化（`llm/<pid>/<alias>` 等）。
 - **v1.3** (2026-06-16) — 新增 **M11 LLM Management**：provider/key CRUD + 连通性测试 + 流量监控 + 健康探针 + 配额。新增 3 张表（llm_provider_keys / llm_call_logs / llm_health_checks）+ 扩 llm_providers（11→27 列）。IPC 命令 +12（27→39）。

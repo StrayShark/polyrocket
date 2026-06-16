@@ -10,6 +10,7 @@ mod error;
 mod keyring;
 pub mod llm_clients;
 mod polymarket;
+mod scheduler;
 mod state;
 
 use tauri::Manager;
@@ -126,7 +127,13 @@ pub fn run() {
                 let pool = db::init_pool(&app_handle)
                     .await
                     .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+                // Start background schedulers (health probe + daily brief + anomaly detect).
+                // They run for the process lifetime; the handle is kept in app state
+                // for test shutdown signaling.
+                let http = llm_clients::new_http_client();
+                let handle = scheduler::start(pool.clone(), http);
                 app_handle.manage(state::AppState { db: pool });
+                app_handle.manage(handle);
                 Ok::<(), Box<dyn std::error::Error>>(())
             })
         })
@@ -174,6 +181,9 @@ pub fn run() {
             commands::secrets::polyrocket_wallet_set_pk,
             commands::secrets::polyrocket_wallet_clear_pk,
             commands::secrets::secrets_status,
+            commands::scheduler::scheduler_status,
+            commands::scheduler::scheduler_run_health_probe_now,
+            commands::scheduler::scheduler_run_daily_brief_now,
             commands::brief::daily_brief_get,
             commands::brief::daily_brief_dismiss,
             commands::brief::daily_brief_refresh,
