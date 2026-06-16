@@ -49,4 +49,4 @@ src-tauri/.cargo/
 
 # tsbuild cache
 .tsbuild-node/
-*.tsbuildinfo
+*.tsbuildinfodocs/.seed.html
