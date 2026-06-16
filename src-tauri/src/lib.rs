@@ -8,6 +8,7 @@ mod commands;
 mod db;
 mod error;
 mod keyring;
+pub mod llm_clients;
 mod polymarket;
 mod state;
 
@@ -152,6 +153,8 @@ pub fn run() {
             commands::llm::llm_stats_scatter,
             commands::llm::llm_stats_timeseries,
             commands::llm::llm_stats_decision,
+            commands::llm::llm_get_recommendation,
+            commands::llm::llm_list_analyses,
             commands::llm_mgmt::llm_provider_list,
             commands::llm_mgmt::llm_provider_upsert,
             commands::llm_mgmt::llm_provider_delete,

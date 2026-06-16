@@ -797,7 +797,191 @@ daily_brief_set_prefs({weights, max_items, min_liquidity, categories}): void
 
 ---
 
+## 13. 真实 HTTP client 实现（v0.2 落地）
+
+> 本节描述 `src-tauri/src/llm_clients/` 模块的工程实现，与 §3 prompt 工程配套使用。
+
+### 13.1 模块结构
+
+```
+llm_clients/
+  mod.rs        // traits (LlmClient) + 公共类型 (CallRequest, CallOutcome, CostRate, ProviderKind)
+  openai.rs     // OpenAIClient        — chat_completions
+  anthropic.rs  // AnthropicClient     — Messages API
+  google.rs     // GoogleClient        — generateContent
+  deepseek.rs   // DeepSeekClient      — OpenAI 兼容 + R1 推理 max_tokens bump
+  custom.rs     // CustomClient        — OpenAI/Anthropic 兼容代理
+  common.rs     // build_body + parse_response (chat_completions 共享)
+  dispatch.rs   // key rotation + retry/backoff + per-call log
+  prompts.rs    // 3 个内嵌 prompt + parse_recommendation
+```
+
+### 13.2 5 个 provider 适配
+
+| Provider | Wire | Auth | 系统指令 | Token 字段 | 备注 |
+|---|---|---|---|---|---|
+| **OpenAI** | `POST /chat/completions` | `Authorization: Bearer …` | `messages[0].role=system` | `usage.prompt_tokens` / `completion_tokens` | 基准 |
+| **Anthropic** | `POST /v1/messages` | `x-api-key: …` + `anthropic-version: 2023-06-01` | 顶层 `system` 字段 | `usage.input_tokens` / `output_tokens` | system 单独字段，messages 只能 user/assistant |
+| **Google Gemini** | `POST /models/{m}:generateContent?key=…` | API key as query param | `systemInstruction.parts[0].text` | `usageMetadata.promptTokenCount` / `candidatesTokenCount` | role `assistant` → `model` |
+| **DeepSeek** | OpenAI 兼容 | Bearer | 同 OpenAI | 同 OpenAI | R1 推理模型：默认 max_tokens 从 1024 自动 bump 到 2048 |
+| **Custom** | OpenAI 或 Anthropic 兼容 | Bearer 或 x-api-key | 跟所选 kind 一致 | 跟所选 kind 一致 | `provider_kind = openai_compat` 或 `anthropic_compat` |
+
+所有 client 实现同一个 `LlmClient` trait：
+
+```rust
+#[async_trait::async_trait]
+pub trait LlmClient: Send + Sync {
+    fn kind(&self) -> ProviderKind;
+    async fn call(
+        &self,
+        http: &reqwest::Client,
+        secret: &str,
+        req: &CallRequest,
+        cost: CostRate,
+    ) -> CallResult;
+}
+```
+
+### 13.3 key 轮询 + 重试（`dispatch.rs`）
+
+调用 `dispatch(client, http, keys, req, cost, policy, ...)`：
+
+1. 按 `llm_provider_keys.priority ASC, created_at ASC` 排序
+2. 取第 1 个 key 调 client.call()
+3. 错误码 `rate_limit | timeout | network` → 重试下一个 key（退避后）
+4. 错误码 `auth | parse | model_not_found` → 立即停（rotate 也救不了）
+5. 成功 → 立即返回，附 `CallLog`
+
+**退避策略**（`RetryPolicy`）：
+- `max_attempts` 默认 2（最多换 1 个 key）
+- 指数退避：base=800ms，max=8s，**full jitter**（AWS 模式）
+- 0..base 区间随机
+- `max_retries` 字段从 `llm_providers.max_retries` 读
+
+### 13.4 错误码（`err::*` 8 个稳定值）
+
+```rust
+pub const AUTH: &str = "auth";            // 401/403
+pub const RATE_LIMIT: &str = "rate_limit"; // 429
+pub const TIMEOUT: &str = "timeout";       // reqwest timeout
+pub const NETWORK: &str = "network";       // 5xx, transport
+pub const PARSE: &str = "parse";           // model returned non-JSON
+pub const MODEL_NOT_FOUND: &str = "model_not_found";
+pub const QUOTA: &str = "quota";           // daily/monthly cap hit
+pub const UNKNOWN: &str = "unknown";
+```
+
+写 `llm_call_logs.error_code` 时用这些字符串，**不**用 provider-specific 错误码（保持前端稳定）。
+
+### 13.5 成本计算（`CostRate`）
+
+```rust
+let cost_cents = (tokens_in  / 1000.0) * cost.per_1k_in_cents
+               + (tokens_out / 1000.0) * cost.per_1k_out_cents;
+```
+
+价格从 `llm_providers.cost_per_1k_in` / `cost_per_1k_out` 读，**cents**（USD）单位。写 `llm_call_logs.cost_cents` + 累加到 `llm_recommendations.cost_cents` + 累加到 `llm_analyses.cost_cents`。
+
+### 13.6 Prompt 模板（`prompts.rs`）
+
+3 个内嵌 prompt 版本：
+
+| name | constant | 用途 | 输出 JSON 字段 |
+|---|---|---|---|
+| `market.v1.0` | `PROMPT_VERSION_MARKET_ANALYSIS` | 单市场深度分析（默认） | `probability, side, confidence, reasoning, key_factors` |
+| `thesis.v1.0` | `PROMPT_VERSION_QUICK_THESIS` | 一句话结论 | `thesis, action, confidence, edge_pct` |
+| `consensus.v1.0` | `PROMPT_VERSION_CONSENSUS_VOTE` | 第 5 个 model 看 4 个 model 输出做最终判定 | `final_probability, side, confidence, dissent` |
+
+所有 prompt 要求 model 返回 **strict JSON**，`json_mode` flag 让 OpenAI/Gemini 强制（Anthropic 没原生 json_mode，靠 prompt 强约束）。解析在 `parse_recommendation()` — 接受 3 种格式：
+
+1. 纯 JSON
+2. ```json ... ``` markdown 围栏
+3. 任意文本 + 第一个 `{...}` 块
+
+### 13.7 4-Provider Fan-out 真实流程
+
+`commands::llm::llm_analyze` 是入口（v0.2 真实化）：
+
+```
+INSERT llm_analyses (status=pending)
+  ↓
+build_market_context(market_id)
+  - SELECT markets JOIN last orderbook JOIN last 3 signals
+  ↓
+for each enabled provider: pick_keys + tokio::spawn(dispatch)
+  ↓
+collect all tasks (parallel await)
+  ↓
+for each result:
+  - INSERT llm_call_logs
+  - UPDATE llm_providers.health_status + last_health_error
+  - parse_recommendation(text) → (prob, side, conf, reason)
+  - INSERT llm_recommendations
+  ↓
+compute weighted median consensus
+  ↓
+UPDATE llm_analyses (status, consensus_*, total_latency, cost)
+  ↓
+INSERT audit_log 'llm.analyze' with consensus + status
+  ↓
+return LlmAnalysisDto with all recommendations
+```
+
+**关键不变量**：
+- 任何一个 provider fail 不阻塞其他 3 个
+- 1..4 个成功 → status = `partial`
+- 4 个全成功 → status = `completed`
+- 0 个成功 → status = `failed`
+- consensus 永远有值（median of 解析成功的 predictions）
+- 失败也写 `llm_recommendations` 行（`parse_ok=0` + `parse_error=...`），UI 能看到哪个 LLM 失败
+
+### 13.8 HTTP client 单例
+
+`static HTTP: OnceCell<reqwest::Client>` 进程级共享：
+
+- 连接池复用（8 idle per host）
+- 10s connect timeout（per-request timeout 由各 client 设）
+- 复用 `user_agent = "polyrocket/{version}"`
+- **不**为每个 call 创建新 client（避免 TLS handshake 抖动）
+
+### 13.9 8 个错误码 vs provider-specific 错误码
+
+| Provider | Provider error | → polyrocket code |
+|---|---|---|
+| OpenAI 401 "Incorrect API key" | invalid_request_error | `auth` |
+| OpenAI 429 "rate_limit_exceeded" | rate_limit_error | `rate_limit` |
+| OpenAI 404 "model_not_found" | invalid_request_error | `model_not_found` |
+| OpenAI 500 | server_error | `network` |
+| Anthropic 401 | authentication_error | `auth` |
+| Anthropic 429 | rate_limit_error | `rate_limit` |
+| Anthropic 529 | overloaded_error | `network` |
+| Gemini 400 "API key not valid" | INVALID_ARGUMENT | `auth` |
+| Gemini 429 | RESOURCE_EXHAUSTED | `rate_limit` |
+| reqwest timeout | — | `timeout` |
+| reqwest connect error | — | `network` |
+| response not valid JSON | — | `parse` |
+
+**核心原则**：前端代码只认 8 个 polyrocket code，**不**解 provider 错误细节；细节塞 `error_message` 字段供 audit log 查看。
+
+### 13.10 测试覆盖
+
+| Test | Type | 覆盖 |
+|---|---|---|
+| `parses_clean_json` | unit | 纯 JSON 解析 |
+| `parses_fenced_json` | unit | markdown 围栏 JSON |
+| `normalizes_side_aliases` | unit | YES/NO/skip 归一化 |
+| `openai_parses_tokens_and_text` | integration (mockito) | 200 OK + token 计数 + cost 算 |
+| `openai_401_returns_auth_error` | integration | auth 错误码分类 |
+| `openai_429_returns_rate_limit` | integration | rate_limit 错误码分类 |
+| `deepseek_uses_openai_compat_wire` | integration | DeepSeek 走 OpenAI 协议 |
+| `deepseek_client_bumps_max_tokens_for_reasoning` | unit | R1 推理 max_tokens bump |
+
+跑：`cargo test --tests`
+
+---
+
 ## 变更日志
 
+- **v1.2** (2026-06-16) — 真实 HTTP client 落地（§13）：5 provider 适配 + key rotation + 8 错误码 + 3 prompt 模板 + 4-provider fan-out 真实化 + 8 个测试。代码量：~1200 行（llm_clients/ + 真实化 llm_analyze + tests）。
 - **v1.1** (2026-06-16) — 加 §11 LLM 投注结果统计（5 维切面 + 4 可视化 + 4 IPC）+ §12 每日看板（评分公式 + 触发机制 + 缓存表 + UI 集成）。
 - **v1.0** (2026-06-16) — 初版。基于用户反馈"多 LLM 并行 + 用户决策 + 全链路追踪"重写。引入 M10 LLMAnalysis 模块、4 张新表、Prompt 工程层、LLM Performance 页面。

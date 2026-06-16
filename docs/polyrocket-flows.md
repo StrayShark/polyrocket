@@ -949,6 +949,7 @@ flowchart LR
 ## 变更日志
 
 - **v1.5** (2026-06-16) — 新增 F18（首启 Onboarding 4 步）、F19（Market Detail 钻取：chart + orderbook + LLM + signals 三卡）、F20（Notifications Center 7 kind 订阅）。UI prototype 加 6 个新页面（Onboarding / Market Detail / Notifications / Help / Trade History / Audit Log）+ 完整 tokens / 状态机 / 动效 / a11y / Empty-Loading-Error 规范。
+- **v1.6** (2026-06-16) — F11 真实化：4 provider 真 HTTP fan-out + key rotation + retry/backoff。5 个 provider client (OpenAI/Anthropic/Google/DeepSeek/Custom) + 8 错误码 + 3 prompt 模板。2 个新 IPC（llm_get_recommendation / llm_list_analyses）。
 - **v1.4** (2026-06-16) — 新增 F17：客户端密钥持久化，明确 client paste 为主路径、.env 降级为 dev-only。9 个新 IPC，5 类 keyring 命名空间，启动门控 2 个 env flag。
 - **v1.3** (2026-06-16) — 新增 F15（LLM 连通性测试）和 F16（流量监控 + 异常告警 + 12 IPC）。
 - **v1.2** (2026-06-16) — 新增 F13（LLM 投注结果多维统计：5 维切面 + 4 视图 + 4 IPC）和 F14（每日看板：评分公式 + 触发机制 + 4 IPC + 缓存表）。
