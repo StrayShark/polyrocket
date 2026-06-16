@@ -40,6 +40,8 @@ export const markets = sqliteTable(
     outcome: text('outcome'), // 'YES' | 'NO' | null when unresolved
     liquidity: text('liquidity'), // decimal string, USDC
     volume24h: text('volume_24h'),
+    userInterested: integer('user_interested', { mode: 'boolean' }).notNull().default(false), // v0.2: user watchlist
+    briefDismissedAt: integer('brief_dismissed_at'), // v0.2: last time user dismissed this from daily brief
     createdAt: integer('created_at').notNull().default(sql`(unixepoch() * 1000)`),
     updatedAt: integer('updated_at').notNull().default(sql`(unixepoch() * 1000)`),
   },
@@ -135,6 +137,8 @@ export const bets = sqliteTable(
     walletId: text('wallet_id').notNull().references(() => wallets.id),
     marketId: text('market_id').notNull().references(() => markets.id),
     signalId: integer('signal_id').references(() => signals.id), // null = manual
+    decisionId: integer('decision_id').references(() => llmDecisions.id), // v0.2: link to LLM decision
+    wasLlmAssisted: integer('was_llm_assisted', { mode: 'boolean' }).notNull().default(false), // v0.2
     mode: text('mode').notNull(), // 'A_jump' | 'B_signed' | 'manual'
     side: text('side').notNull(), // 'YES' | 'NO'
     size: text('size').notNull(), // decimal string, USDC
@@ -203,6 +207,128 @@ export const auditLog = sqliteTable(
   (t) => ({ atIdx: index('audit_at_idx').on(t.at) }),
 );
 
+// === M10 LLM Analysis (v0.2) ===
+
+// 11. llm_providers — provider config (API keys stored in OS keyring)
+export const llmProviders = sqliteTable(
+  'llm_providers',
+  {
+    id: text('id').primaryKey(), // 'openai' | 'anthropic' | 'google' | 'deepseek' | 'xai'
+    displayName: text('display_name').notNull(), // 'GPT-4o' | 'Claude Sonnet 4' | ...
+    enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+    apiBase: text('api_base'), // 自建代理/第三方转发
+    keyAlias: text('key_alias').notNull(), // alias in OS keyring, e.g. 'llm.openai'
+    defaultModel: text('default_model').notNull(), // 'gpt-4o-2024-08-06' / etc
+    timeoutMs: integer('timeout_ms').notNull().default(30000),
+    costPer1kIn: real('cost_per_1k_in'), // cents
+    costPer1kOut: real('cost_per_1k_out'),
+    createdAt: integer('created_at').notNull().default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer('updated_at').notNull().default(sql`(unixepoch() * 1000)`),
+  },
+);
+
+// 12. llm_analyses — one multi-LLM analysis request
+export const llmAnalyses = sqliteTable(
+  'llm_analyses',
+  {
+    id: text('id').primaryKey(), // uuid
+    marketId: text('market_id').notNull().references(() => markets.id),
+    signalId: integer('signal_id').references(() => signals.id),
+    promptVersion: text('prompt_version').notNull(), // 'v3.2'
+    requestedAt: integer('requested_at').notNull(),
+    completedAt: integer('completed_at'),
+    status: text('status').notNull(), // 'pending' | 'completed' | 'partial' | 'failed'
+    consensusPredicted: real('consensus_predicted'), // weighted median 0..1
+    consensusSide: text('consensus_side'), // 'YES' | 'NO' | 'skip'
+    consensusConf: real('consensus_conf'),
+    totalLatencyMs: integer('total_latency_ms'),
+    costCents: real('cost_cents'),
+    triggeredBy: text('triggered_by').notNull(), // 'user:<id>' | 'auto:signal_refresh'
+  },
+  (t) => ({
+    marketTimeIdx: index('analyses_market_time_idx').on(t.marketId, t.requestedAt),
+    statusIdx: index('analyses_status_idx').on(t.status),
+  }),
+);
+
+// 13. llm_recommendations — each LLM's output for an analysis
+export const llmRecommendations = sqliteTable(
+  'llm_recommendations',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    analysisId: text('analysis_id').notNull().references(() => llmAnalyses.id),
+    providerId: text('provider_id').notNull().references(() => llmProviders.id),
+    predictedProb: real('predicted_prob'), // 0..1
+    side: text('side'), // 'YES' | 'NO' | 'skip'
+    confidence: real('confidence'), // 0..1
+    reasoning: text('reasoning'), // LLM natural language
+    latencyMs: integer('latency_ms'),
+    tokensIn: integer('tokens_in'),
+    tokensOut: integer('tokens_out'),
+    costCents: real('cost_cents'),
+    rawResponse: text('raw_response'), // full JSON, debug only
+    parseOk: integer('parse_ok', { mode: 'boolean' }).notNull(),
+    parseError: text('parse_error'),
+    createdAt: integer('created_at').notNull().default(sql`(unixepoch() * 1000)`),
+  },
+  (t) => ({
+    analysisIdx: index('recs_analysis_idx').on(t.analysisId),
+    providerIdx: index('recs_provider_idx').on(t.providerId),
+  }),
+);
+
+// 14. llm_decisions — user's final decision (followed LLM or not)
+export const llmDecisions = sqliteTable(
+  'llm_decisions',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    analysisId: text('analysis_id').notNull().references(() => llmAnalyses.id),
+    betId: text('bet_id').references(() => bets.id), // null when skip
+    userDecision: text('user_decision').notNull(), // 'follow_top' | 'manual_yes' | 'manual_no' | 'skip' | 're_analyze'
+    userDecidedSide: text('user_decided_side'), // YES / NO / NULL
+    followedLlmId: integer('followed_llm_id').references(() => llmRecommendations.id),
+    decidedAt: integer('decided_at').notNull(),
+    contextSnapshot: text('context_snapshot'), // UI state JSON for replay
+  },
+  (t) => ({
+    analysisIdx: index('decisions_analysis_idx').on(t.analysisId),
+    betIdx: index('decisions_bet_idx').on(t.betId),
+  }),
+);
+
+// === v0.2 — Daily Brief ===
+
+// 15. daily_briefs — cached top-N markets for today's brief
+export const dailyBriefs = sqliteTable(
+  'daily_briefs',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    marketId: text('market_id').notNull().references(() => markets.id),
+    rank: integer('rank').notNull(), // 1..N (by match_score DESC)
+    matchScore: real('match_score').notNull(),
+    scoreBreakdown: text('score_breakdown'), // JSON: {edge: 0.85, confidence: 0.7, ...}
+    computedAt: integer('computed_at').notNull(),
+    expiresAt: integer('expires_at').notNull(), // = today end
+  },
+  (t) => ({
+    rankIdx: index('daily_briefs_rank_idx').on(t.rank, t.computedAt),
+    marketIdx: index('daily_briefs_market_idx').on(t.marketId, t.computedAt),
+  }),
+);
+
+// 16. user_brief_prefs — user preferences for daily brief (1 row per user)
+export const userBriefPrefs = sqliteTable(
+  'user_brief_prefs',
+  {
+    userId: text('user_id').primaryKey(), // wallet address or 'default'
+    weightsJson: text('weights_json').notNull(), // {w1: 0.35, w2: 0.2, ...}
+    maxItems: integer('max_items').notNull().default(5),
+    minLiquidity: text('min_liquidity'), // decimal string, USDC
+    categories: text('categories'), // JSON array: ['football', 'cs2']
+    updatedAt: integer('updated_at').notNull().default(sql`(unixepoch() * 1000)`),
+  },
+);
+
 export type Wallet = typeof wallets.$inferSelect;
 export type Market = typeof markets.$inferSelect;
 export type Signal = typeof signals.$inferSelect;
@@ -210,3 +336,7 @@ export type Bet = typeof bets.$inferSelect;
 export type CopyTarget = typeof copyTargets.$inferSelect;
 export type CopyEvent = typeof copyEvents.$inferSelect;
 export type ModelPerformance = typeof modelPerformance.$inferSelect;
+export type LlmProvider = typeof llmProviders.$inferSelect;
+export type LlmAnalysis = typeof llmAnalyses.$inferSelect;
+export type LlmRecommendation = typeof llmRecommendations.$inferSelect;
+export type LlmDecision = typeof llmDecisions.$inferSelect;

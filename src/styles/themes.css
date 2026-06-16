@@ -20,29 +20,30 @@
 }
 
 html[data-theme='dark'] {
-  --bg: #0E0F12;
-  --surface: #16181D;
-  --surface-2: #1B1D24;
-  --surface-hover: #20232B;
-  --border: #262932;
-  --border-strong: #2E323D;
-  --fg: #E4E6EB;
-  --fg-secondary: #A8ADB8;
-  --muted: #6E7382;
-  --accent: #5B8DEF;
-  --accent-hover: #7BA3F5;
-  --bull: #3FB950;
-  --bear: #F85149;
-  --warning: #D29922;
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.5);
+  /* Cursor / VS Code Dark+ inspired */
+  --bg: #1E1E1E;
+  --surface: #181818;
+  --surface-2: #252526;
+  --surface-hover: #2A2D2E;
+  --border: #2D2D2D;
+  --border-strong: #3F3F46;
+  --fg: #D4D4D4;
+  --fg-secondary: #9D9D9D;
+  --muted: #6B6B6B;
+  --accent: #007ACC;
+  --accent-hover: #1F8AD2;
+  --bull: #4EC9B0;
+  --bear: #F48771;
+  --warning: #DCDCAA;
+  --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.4);
+  --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.6);
 }
 
 html[data-theme='light'] {
   --bg: #FFFFFF;
-  --surface: #FAFAFA;
-  --surface-2: #F4F4F5;
-  --surface-hover: #ECECEE;
+  --surface: #F3F3F3;
+  --surface-2: #ECECEC;
+  --surface-hover: #E5E5E5;
   --border: #E4E4E7;
   --border-strong: #D4D4D8;
   --fg: #1F2328;
@@ -58,20 +59,21 @@ html[data-theme='light'] {
 }
 
 html[data-theme='matrix'] {
-  --bg: #0F0F0F;
-  --surface: #1A1A1A;
-  --surface-2: #212121;
-  --surface-hover: #2A2A2A;
-  --border: #2E2E2E;
-  --border-strong: #383838;
-  --fg: #E8E8E8;
-  --fg-secondary: #A8A8A8;
-  --muted: #707070;
-  --accent: #00C853;
-  --accent-hover: #00E676;
-  --bull: #00C853;
-  --bear: #FF5252;
-  --warning: #FFB300;
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.45);
+  /* OpenAI Codex CLI matrix inspired */
+  --bg: #0A0A0A;
+  --surface: #0F0F0F;
+  --surface-2: #161616;
+  --surface-hover: #1C1C1C;
+  --border: #1F1F1F;
+  --border-strong: #2A2A2A;
+  --fg: #D4D4D4;
+  --fg-secondary: #8A8A8A;
+  --muted: #5C5C5C;
+  --accent: #10A37F;
+  --accent-hover: #1AB892;
+  --bull: #10A37F;
+  --bear: #E84A4A;
+  --warning: #D4A72C;
+  --shadow-card: none;
+  --shadow-overlay: 0 8px 32px rgba(0, 0, 0, 0.7);
 }

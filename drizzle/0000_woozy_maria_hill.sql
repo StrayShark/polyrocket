@@ -14,6 +14,8 @@ CREATE TABLE `bets` (
 	`wallet_id` text NOT NULL,
 	`market_id` text NOT NULL,
 	`signal_id` integer,
+	`decision_id` integer,
+	`was_llm_assisted` integer DEFAULT false NOT NULL,
 	`mode` text NOT NULL,
 	`side` text NOT NULL,
 	`size` text NOT NULL,
@@ -27,7 +29,8 @@ CREATE TABLE `bets` (
 	`notes` text,
 	FOREIGN KEY (`wallet_id`) REFERENCES `wallets`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`market_id`) REFERENCES `markets`(`id`) ON UPDATE no action ON DELETE no action,
-	FOREIGN KEY (`signal_id`) REFERENCES `signals`(`id`) ON UPDATE no action ON DELETE no action
+	FOREIGN KEY (`signal_id`) REFERENCES `signals`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`decision_id`) REFERENCES `llm_decisions`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
 CREATE INDEX `bets_wallet_idx` ON `bets` (`wallet_id`,`placed_at`);--> statement-breakpoint
@@ -62,6 +65,91 @@ CREATE TABLE `copy_targets` (
 --> statement-breakpoint
 CREATE UNIQUE INDEX `copy_targets_address_unique` ON `copy_targets` (`address`);--> statement-breakpoint
 CREATE INDEX `copy_addr_idx` ON `copy_targets` (`address`);--> statement-breakpoint
+CREATE TABLE `daily_briefs` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`market_id` text NOT NULL,
+	`rank` integer NOT NULL,
+	`match_score` real NOT NULL,
+	`score_breakdown` text,
+	`computed_at` integer NOT NULL,
+	`expires_at` integer NOT NULL,
+	FOREIGN KEY (`market_id`) REFERENCES `markets`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+CREATE INDEX `daily_briefs_rank_idx` ON `daily_briefs` (`rank`,`computed_at`);--> statement-breakpoint
+CREATE INDEX `daily_briefs_market_idx` ON `daily_briefs` (`market_id`,`computed_at`);--> statement-breakpoint
+CREATE TABLE `llm_analyses` (
+	`id` text PRIMARY KEY NOT NULL,
+	`market_id` text NOT NULL,
+	`signal_id` integer,
+	`prompt_version` text NOT NULL,
+	`requested_at` integer NOT NULL,
+	`completed_at` integer,
+	`status` text NOT NULL,
+	`consensus_predicted` real,
+	`consensus_side` text,
+	`consensus_conf` real,
+	`total_latency_ms` integer,
+	`cost_cents` real,
+	`triggered_by` text NOT NULL,
+	FOREIGN KEY (`market_id`) REFERENCES `markets`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`signal_id`) REFERENCES `signals`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+CREATE INDEX `analyses_market_time_idx` ON `llm_analyses` (`market_id`,`requested_at`);--> statement-breakpoint
+CREATE INDEX `analyses_status_idx` ON `llm_analyses` (`status`);--> statement-breakpoint
+CREATE TABLE `llm_decisions` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`analysis_id` text NOT NULL,
+	`bet_id` text,
+	`user_decision` text NOT NULL,
+	`user_decided_side` text,
+	`followed_llm_id` integer,
+	`decided_at` integer NOT NULL,
+	`context_snapshot` text,
+	FOREIGN KEY (`analysis_id`) REFERENCES `llm_analyses`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`bet_id`) REFERENCES `bets`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`followed_llm_id`) REFERENCES `llm_recommendations`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+CREATE INDEX `decisions_analysis_idx` ON `llm_decisions` (`analysis_id`);--> statement-breakpoint
+CREATE INDEX `decisions_bet_idx` ON `llm_decisions` (`bet_id`);--> statement-breakpoint
+CREATE TABLE `llm_providers` (
+	`id` text PRIMARY KEY NOT NULL,
+	`display_name` text NOT NULL,
+	`enabled` integer DEFAULT true NOT NULL,
+	`api_base` text,
+	`key_alias` text NOT NULL,
+	`default_model` text NOT NULL,
+	`timeout_ms` integer DEFAULT 30000 NOT NULL,
+	`cost_per_1k_in` real,
+	`cost_per_1k_out` real,
+	`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,
+	`updated_at` integer DEFAULT (unixepoch() * 1000) NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE `llm_recommendations` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`analysis_id` text NOT NULL,
+	`provider_id` text NOT NULL,
+	`predicted_prob` real,
+	`side` text,
+	`confidence` real,
+	`reasoning` text,
+	`latency_ms` integer,
+	`tokens_in` integer,
+	`tokens_out` integer,
+	`cost_cents` real,
+	`raw_response` text,
+	`parse_ok` integer NOT NULL,
+	`parse_error` text,
+	`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,
+	FOREIGN KEY (`analysis_id`) REFERENCES `llm_analyses`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`provider_id`) REFERENCES `llm_providers`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+CREATE INDEX `recs_analysis_idx` ON `llm_recommendations` (`analysis_id`);--> statement-breakpoint
+CREATE INDEX `recs_provider_idx` ON `llm_recommendations` (`provider_id`);--> statement-breakpoint
 CREATE TABLE `markets` (
 	`id` text PRIMARY KEY NOT NULL,
 	`slug` text NOT NULL,
@@ -75,6 +163,8 @@ CREATE TABLE `markets` (
 	`outcome` text,
 	`liquidity` text,
 	`volume_24h` text,
+	`user_interested` integer DEFAULT false NOT NULL,
+	`brief_dismissed_at` integer,
 	`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,
 	`updated_at` integer DEFAULT (unixepoch() * 1000) NOT NULL
 );
@@ -139,6 +229,15 @@ CREATE TABLE `ticks` (
 );
 --> statement-breakpoint
 CREATE INDEX `ticks_market_time_idx` ON `ticks` (`market_id`,`captured_at`);--> statement-breakpoint
+CREATE TABLE `user_brief_prefs` (
+	`user_id` text PRIMARY KEY NOT NULL,
+	`weights_json` text NOT NULL,
+	`max_items` integer DEFAULT 5 NOT NULL,
+	`min_liquidity` text,
+	`categories` text,
+	`updated_at` integer DEFAULT (unixepoch() * 1000) NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE `wallets` (
 	`id` text PRIMARY KEY NOT NULL,
 	`address` text NOT NULL,

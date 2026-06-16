@@ -49,6 +49,19 @@ pub fn run() {
             commands::copy::add_copy_target,
             commands::copy::recent_copy_events,
             commands::pnl::dashboard_kpis,
+            commands::llm::list_llm_providers,
+            commands::llm::upsert_llm_provider,
+            commands::llm::llm_analyze,
+            commands::llm::llm_performance,
+            commands::llm::record_llm_decision,
+            commands::llm::llm_stats_heatmap,
+            commands::llm::llm_stats_scatter,
+            commands::llm::llm_stats_timeseries,
+            commands::llm::llm_stats_decision,
+            commands::brief::daily_brief_get,
+            commands::brief::daily_brief_dismiss,
+            commands::brief::daily_brief_refresh,
+            commands::brief::daily_brief_set_prefs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running polyrocket");
