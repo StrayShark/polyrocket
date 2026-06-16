@@ -21,8 +21,10 @@
 | F10 | 模型性能追踪 | M7 | 数据流 |
 | F11 | 多 LLM 并行分析 | M10 | 时序 |
 | F12 | 用户决策 + LLM 胜率统计 | M10 / M3 | 时序 + 数据流 |
-| **F13** | **LLM 投注结果多维统计** | **M10** | **数据流 + 4 视图** |
-| **F14** | **每日看板自动分析** | **M12 (Daily Brief)** | **时序 + 评分** |
+| F13 | LLM 投注结果多维统计 | M10 | 数据流 + 4 视图 |
+| F14 | 每日看板自动分析 | M12 (Daily Brief) | 时序 + 评分 |
+| **F15** | **LLM 连通性测试** | **M11** | **时序 + 探测** |
+| **F16** | **LLM 流量监控与异常告警** | **M11** | **数据流 + 告警** |
 
 ---
 
@@ -622,8 +624,112 @@ match_score = 0.35·|edge| + 0.20·confidence + 0.20·consensus_strength
 
 ---
 
+## F15 — LLM 连通性测试（M11）
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant FE as React UI
+    participant R as Rust (llm_test_connectivity)
+    participant K as OS Keyring
+    participant API as Provider (OpenAI/Anthropic/...)
+
+    U->>FE: Settings → LLM → row[Test]
+    FE->>R: invoke('llm_test_connectivity', {provider_id, key_id?})
+    R->>R: build_test_url(provider) — by provider_kind
+    R->>R: build_test_body(provider) — minimal prompt
+    R->>K: get_key(keyring_alias)
+    K-->>R: secret
+
+    R->>API: POST {url} (bearer auth, 30s timeout)
+    alt 2xx
+        API-->>R: 200 OK
+        R->>DB: INSERT llm_health_checks (success=1, latency_ms, http_status)
+        R->>DB: UPDATE llm_providers SET health_status='ok'/'slow'
+        R-->>FE: {success: true, latency_ms: 1234, http_status: 200}
+        FE->>U: toast "✓ GPT-4o · 1.2s"
+    else 401/403
+        API-->>R: 401
+        R->>DB: INSERT llm_health_checks (error_code='auth')
+        R->>DB: UPDATE llm_providers SET health_status='failing', last_health_error
+        R-->>FE: {success: false, error_code: 'auth'}
+        FE->>U: toast "✗ GPT-4o · key invalid, reconfigure"
+    else 429
+        API-->>R: 429
+        R->>DB: INSERT llm_health_checks (error_code='rate_limit')
+        R-->>FE: {success: false, error_code: 'rate_limit'}
+        FE->>U: toast "⚠ GPT-4o rate-limited, retry in 60s"
+    else timeout
+        R-->>FE: {success: false, error_code: 'timeout'}
+        FE->>U: toast "✗ GPT-4o · endpoint unreachable"
+    end
+```
+
+**后台持续探针**（每 5min 一次，仅对 `enabled=1` 的 provider）：
+- tokio::spawn interval task
+- 同样写 `llm_health_checks` + 更新 `health_status` / `health_latency_p50/p95`
+- 连续 3 次失败 → 临时 `enabled=0` + audit_log
+
+---
+
+## F16 — LLM 流量监控与异常告警（M11）
+
+```mermaid
+flowchart TD
+    Call[每次 LLM HTTP 调用<br/>M10/M12/测试/探针] --> Log[INSERT llm_call_logs<br/>latency, tokens, cost, status, error_code]
+
+    Log --> Q1[provider=OpenAI, last 1h]
+    Log --> Q2[provider=Anthropic, last 24h]
+    Log --> Q3[by prompt_version A/B]
+
+    Q1 --> R[llm_traffic_summary<br/>calls / success_rate / p50/p95 / cost / rate_limit_hits]
+    Q2 --> R
+    R --> UI[LLM Management 页<br/>per-provider 流量表 + sparkline]
+
+    Q1 --> A1[异常检测]
+    A1 --> A2[1h 内 429 > 5?]
+    A2 -->|yes| T1[toast 通知 + provider 行变橙]
+    A1 --> A3[单笔 cost > p99 × 3?]
+    A3 -->|yes| T2[toast 异常告警]
+    A1 --> A4[quota 80% / 95% / 100%?]
+    A4 -->|yes| T3[toast 预算告警]
+    A4 -->|100%| Auto[自动 disable provider<br/>audit_log 'llm.quota.exceeded']
+
+    style Auto fill:#F85149,color:#fff
+    style T1 fill:#D29922,color:#fff
+```
+
+**关键指标**（per provider × window）：
+
+| 指标 | 用途 |
+|---|---|
+| `calls_total / success / failed` | 容量规划 |
+| `success_rate` | 健康度 |
+| `avg_latency_ms / p95` | 性能追踪 |
+| `total_tokens_in/out` | 用量审计 |
+| `total_cost_cents` | 成本控制 |
+| `rate_limit_hits` | 配额预警 |
+| `delta_calls / delta_cost` | 异常增量 |
+
+**8 个 IPC**（M11 全部）：
+
+| IPC | 用途 |
+|---|---|
+| `llm_provider_list / upsert / delete` | Provider CRUD |
+| `llm_key_list / upsert / delete` | Key CRUD（含多 key） |
+| `llm_test_connectivity` | 一键连通性测试 |
+| `llm_traffic_summary` | 流量聚合（1h/24h/30d） |
+| `llm_health_history` | 健康历史（最近 100 条） |
+| `llm_stats_by_confidence` | 按置信度分桶胜率 |
+| `llm_stats_by_prompt` | 按 prompt 版本 A/B |
+| `llm_stats_cost_efficiency` | 每 cent 换多少 P&L |
+| `llm_stats_export` | 导出 CSV/JSON |
+
+---
+
 ## 变更日志
 
+- **v1.3** (2026-06-16) — 新增 F15（LLM 连通性测试）和 F16（流量监控 + 异常告警 + 12 IPC）。
 - **v1.2** (2026-06-16) — 新增 F13（LLM 投注结果多维统计：5 维切面 + 4 视图 + 4 IPC）和 F14（每日看板：评分公式 + 触发机制 + 4 IPC + 缓存表）。
 - **v1.1** (2026-06-16) — 新增 F11（多 LLM 并行分析）和 F12（用户决策 + LLM 胜率统计）。审计日志写入点 +2。
 - **v1.0** (2026-06-16) — 初版。10 个核心流程，覆盖所有模块。

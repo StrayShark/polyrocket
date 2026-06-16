@@ -7,6 +7,7 @@
 mod commands;
 mod db;
 mod error;
+mod keyring;
 mod polymarket;
 mod state;
 
@@ -58,6 +59,19 @@ pub fn run() {
             commands::llm::llm_stats_scatter,
             commands::llm::llm_stats_timeseries,
             commands::llm::llm_stats_decision,
+            commands::llm_mgmt::llm_provider_list,
+            commands::llm_mgmt::llm_provider_upsert,
+            commands::llm_mgmt::llm_provider_delete,
+            commands::llm_mgmt::llm_key_list,
+            commands::llm_mgmt::llm_key_upsert,
+            commands::llm_mgmt::llm_key_delete,
+            commands::llm_mgmt::llm_test_connectivity,
+            commands::llm_mgmt::llm_traffic_summary,
+            commands::llm_mgmt::llm_health_history,
+            commands::llm_mgmt::llm_stats_by_confidence,
+            commands::llm_mgmt::llm_stats_by_prompt,
+            commands::llm_mgmt::llm_stats_cost_efficiency,
+            commands::llm_mgmt::llm_stats_export,
             commands::brief::daily_brief_get,
             commands::brief::daily_brief_dismiss,
             commands::brief::daily_brief_refresh,

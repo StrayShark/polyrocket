@@ -98,6 +98,32 @@ CREATE TABLE `llm_analyses` (
 --> statement-breakpoint
 CREATE INDEX `analyses_market_time_idx` ON `llm_analyses` (`market_id`,`requested_at`);--> statement-breakpoint
 CREATE INDEX `analyses_status_idx` ON `llm_analyses` (`status`);--> statement-breakpoint
+CREATE TABLE `llm_call_logs` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`analysis_id` text,
+	`provider_id` text NOT NULL,
+	`key_id` text,
+	`called_at` integer NOT NULL,
+	`latency_ms` integer NOT NULL,
+	`tokens_in` integer DEFAULT 0 NOT NULL,
+	`tokens_out` integer DEFAULT 0 NOT NULL,
+	`cost_cents` real DEFAULT 0 NOT NULL,
+	`http_status` integer NOT NULL,
+	`success` integer NOT NULL,
+	`error_code` text,
+	`error_message` text,
+	`prompt_version` text,
+	`predicted_prob` real,
+	`recommended_side` text,
+	`caller` text NOT NULL,
+	`retry_count` integer DEFAULT 0 NOT NULL,
+	FOREIGN KEY (`provider_id`) REFERENCES `llm_providers`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`key_id`) REFERENCES `llm_provider_keys`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+CREATE INDEX `call_logs_provider_time_idx` ON `llm_call_logs` (`provider_id`,`called_at`);--> statement-breakpoint
+CREATE INDEX `call_logs_analysis_idx` ON `llm_call_logs` (`analysis_id`);--> statement-breakpoint
+CREATE INDEX `call_logs_success_time_idx` ON `llm_call_logs` (`success`,`called_at`);--> statement-breakpoint
 CREATE TABLE `llm_decisions` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`analysis_id` text NOT NULL,
@@ -114,16 +140,71 @@ CREATE TABLE `llm_decisions` (
 --> statement-breakpoint
 CREATE INDEX `decisions_analysis_idx` ON `llm_decisions` (`analysis_id`);--> statement-breakpoint
 CREATE INDEX `decisions_bet_idx` ON `llm_decisions` (`bet_id`);--> statement-breakpoint
+CREATE TABLE `llm_health_checks` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`provider_id` text NOT NULL,
+	`key_id` text,
+	`checked_at` integer NOT NULL,
+	`trigger` text NOT NULL,
+	`success` integer NOT NULL,
+	`latency_ms` integer,
+	`http_status` integer,
+	`error_code` text,
+	`error_message` text,
+	`model_used` text,
+	`test_request_id` text,
+	FOREIGN KEY (`provider_id`) REFERENCES `llm_providers`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`key_id`) REFERENCES `llm_provider_keys`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+CREATE INDEX `health_provider_time_idx` ON `llm_health_checks` (`provider_id`,`checked_at`);--> statement-breakpoint
+CREATE INDEX `health_success_time_idx` ON `llm_health_checks` (`success`,`checked_at`);--> statement-breakpoint
+CREATE TABLE `llm_provider_keys` (
+	`id` text PRIMARY KEY NOT NULL,
+	`provider_id` text NOT NULL,
+	`alias` text NOT NULL,
+	`keyring_alias` text NOT NULL,
+	`enabled` integer DEFAULT true NOT NULL,
+	`priority` integer DEFAULT 0 NOT NULL,
+	`weight` integer DEFAULT 1 NOT NULL,
+	`last_used_at` integer,
+	`last_error` text,
+	`last_error_at` integer,
+	`total_calls` integer DEFAULT 0 NOT NULL,
+	`total_errors` integer DEFAULT 0 NOT NULL,
+	`notes` text,
+	`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,
+	`updated_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,
+	FOREIGN KEY (`provider_id`) REFERENCES `llm_providers`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+CREATE INDEX `llm_keys_provider_idx` ON `llm_provider_keys` (`provider_id`,`priority`);--> statement-breakpoint
 CREATE TABLE `llm_providers` (
 	`id` text PRIMARY KEY NOT NULL,
 	`display_name` text NOT NULL,
+	`provider_kind` text DEFAULT 'openai' NOT NULL,
+	`request_format` text DEFAULT 'chat_completions' NOT NULL,
+	`supports_streaming` integer DEFAULT false NOT NULL,
 	`enabled` integer DEFAULT true NOT NULL,
 	`api_base` text,
 	`key_alias` text NOT NULL,
 	`default_model` text NOT NULL,
 	`timeout_ms` integer DEFAULT 30000 NOT NULL,
+	`request_timeout_ms` integer DEFAULT 30000 NOT NULL,
+	`max_retries` integer DEFAULT 2 NOT NULL,
 	`cost_per_1k_in` real,
 	`cost_per_1k_out` real,
+	`rate_limit_rpm` integer,
+	`rate_limit_tpm` integer,
+	`quota_daily_cents` real,
+	`quota_monthly_cents` real,
+	`key_rotation_strategy` text DEFAULT 'failover' NOT NULL,
+	`health_status` text DEFAULT 'unknown' NOT NULL,
+	`health_latency_p50_ms` integer,
+	`health_latency_p95_ms` integer,
+	`last_health_check_at` integer,
+	`last_health_error` text,
+	`notes` text,
 	`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,
 	`updated_at` integer DEFAULT (unixepoch() * 1000) NOT NULL
 );

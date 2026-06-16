@@ -402,6 +402,7 @@
       <a class="nav-item" data-route="lab" data-tooltip="Model Lab"><span class="icon-wrap"><i data-lucide="flask-conical"></i></span><span>Model Lab</span></a>
       <a class="nav-item" data-route="analysis" data-tooltip="Analysis"><span class="icon-wrap"><i data-lucide="sparkles"></i></span><span>Analysis</span><span class="badge">4 LLM</span></a>
       <a class="nav-item" data-route="llm-perf" data-tooltip="LLM Performance"><span class="icon-wrap"><i data-lucide="trophy"></i></span><span>LLM Perf</span></a>
+      <a class="nav-item" data-route="llm-mgmt" data-tooltip="LLM Management"><span class="icon-wrap"><i data-lucide="shield-check"></i></span><span>LLM Mgmt</span></a>
       <a class="nav-item" data-route="brief" data-tooltip="Daily Brief"><span class="icon-wrap"><i data-lucide="calendar-check"></i></span><span>Brief</span><span class="badge">5</span></a>
 
       <div class="nav-label">Categories</div>
@@ -560,6 +561,7 @@
     lab: { label: 'Model Lab', render: renderLab },
     analysis: { label: 'Analysis', render: renderAnalysis },
     'llm-perf': { label: 'LLM Performance', render: renderLlmPerf },
+    'llm-mgmt': { label: 'LLM Management', render: renderLlmMgmt },
     brief: { label: 'Daily Brief', render: renderBrief },
     wallets: { label: 'Wallets', render: renderWallets },
     settings: { label: 'Settings', render: renderSettings },
@@ -1626,6 +1628,209 @@
     else if (tab === 'timeseries') c.innerHTML = renderLlmTabTimeseries();
     else if (tab === 'decisions') c.innerHTML = renderLlmTabDecisions();
     if (window.lucide) window.lucide.createIcons();
+  }
+
+  function renderLlmMgmt() {
+    const providers = [
+      { id: 'openai',    name: 'GPT-4o',          status: 'ok',       latency: '1.2s',  cost30d: '$2.80',  calls30d: 28, failRate: '0%',  keys: 2, enabled: true,  format: 'chat_completions',  base: 'https://api.openai.com/v1' },
+      { id: 'anthropic', name: 'Claude Sonnet 4', status: 'ok',       latency: '1.8s',  cost30d: '$1.20',  calls30d: 23, failRate: '0%',  keys: 1, enabled: true,  format: 'messages',            base: 'https://api.anthropic.com/v1' },
+      { id: 'google',    name: 'Gemini 2.5 Pro',   status: 'slow',     latency: '0.9s',  cost30d: '$0.80',  calls30d: 19, failRate: '5%',  keys: 1, enabled: true,  format: 'generate_content',   base: 'https://generativelanguage.googleapis.com/v1beta' },
+      { id: 'deepseek',  name: 'DeepSeek V3',     status: 'ok',       latency: '2.1s',  cost30d: '$0.10',  calls30d: 17, failRate: '0%',  keys: 1, enabled: true,  format: 'chat_completions',  base: 'https://api.deepseek.com/v1' },
+      { id: 'custom',    name: 'Azure Proxy',     status: 'failing',  latency: '—',     cost30d: '$0.00',  calls30d: 0,  failRate: '—',   keys: 0, enabled: false, format: 'openai_compat',      base: 'https://my-proxy.openai.azure.com' },
+    ];
+    return `
+      <div class="page-header">
+        <div>
+          <h1>LLM Management</h1>
+          <p class="subtitle">5 providers · 5 keys · $4.90 spent 30D · 87 calls 30D</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn"><i data-lucide="refresh-cw"></i> Test all</button>
+          <button class="btn btn-primary"><i data-lucide="plus"></i> Add provider</button>
+        </div>
+      </div>
+
+      <!-- Provider list -->
+      <div class="card" style="margin-bottom:16px;overflow:hidden;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:14px;"></th>
+              <th>Provider</th>
+              <th>Format</th>
+              <th>Status</th>
+              <th>Latency</th>
+              <th class="right">Calls 30D</th>
+              <th class="right">Fail rate</th>
+              <th class="right">Keys</th>
+              <th class="right">Cost 30D</th>
+              <th class="right">Enabled</th>
+              <th style="width:80px;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${providers.map(p => {
+              const dot = p.status === 'ok' ? 'var(--bull)' : p.status === 'slow' ? 'var(--warning)' : p.status === 'failing' ? 'var(--bear)' : 'var(--muted)';
+              return `
+                <tr style="cursor:pointer;" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                  <td><span class="dot" style="background:${dot};"></span></td>
+                  <td>
+                    <div style="font-weight:500;">${p.name}</div>
+                    <div class="num" style="font-size:10.5px;color:var(--muted);">${p.id}</div>
+                  </td>
+                  <td><span class="pill">${p.format}</span></td>
+                  <td>
+                    <span style="color:${dot};">${p.status}</span>
+                    ${p.status === 'slow' ? '<span class="pill pill-danger" style="margin-left:6px;font-size:10px;">p95 > 3s</span>' : ''}
+                    ${p.status === 'failing' ? '<span class="pill pill-danger" style="margin-left:6px;font-size:10px;">3 fails in row</span>' : ''}
+                  </td>
+                  <td class="num secondary">${p.latency}</td>
+                  <td class="num right">${p.calls30d}</td>
+                  <td class="num right">${p.failRate}</td>
+                  <td class="num right">${p.keys}</td>
+                  <td class="num right">${p.cost30d}</td>
+                  <td class="right">
+                    <span style="display:inline-block;width:28px;height:16px;border-radius:8px;background:${p.enabled?'var(--accent)':'var(--surface-2)'};position:relative;cursor:pointer;">
+                      <span style="position:absolute;top:2px;${p.enabled?'right:2px;':'left:2px;'}width:12px;height:12px;background:white;border-radius:50%;"></span>
+                    </span>
+                  </td>
+                  <td>
+                    <button class="btn" style="padding:3px 6px;font-size:11px;" onclick="event.stopPropagation();"><i data-lucide="zap"></i> Test</button>
+                  </td>
+                </tr>
+                <tr class="hidden">
+                  <td colspan="11" style="background:var(--surface-2);padding:16px;">
+                    <div class="grid-3" style="gap:12px;">
+                      <div>
+                        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Identity</div>
+                        <div class="num" style="font-size:12px;">${p.id}</div>
+                        <div class="num" style="font-size:12px;">${p.base}</div>
+                        <div class="num" style="font-size:12px;">format: ${p.format}</div>
+                      </div>
+                      <div>
+                        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Quota (30D)</div>
+                        <div style="display:flex;flex-direction:column;gap:4px;">
+                          <div class="progress-bar">
+                            <div class="num" style="font-size:11px;width:60px;">Daily:</div>
+                            <div class="progress" style="flex:1;"><div class="progress-fill" style="width:42%;background:var(--accent);"></div></div>
+                            <div class="num" style="font-size:11px;width:80px;text-align:right;">$0.42 / $1.00</div>
+                          </div>
+                          <div class="progress-bar">
+                            <div class="num" style="font-size:11px;width:60px;">Monthly:</div>
+                            <div class="progress" style="flex:1;"><div class="progress-fill" style="width:9.8%;background:var(--accent);"></div></div>
+                            <div class="num" style="font-size:11px;width:80px;text-align:right;">$4.90 / $50.00</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Health (24h)</div>
+                        <div class="num secondary" style="font-size:11px;">1440 probes · 0 fail · p50 ${p.latency}</div>
+                        <div class="num secondary" style="font-size:11px;">last: just now</div>
+                        <div style="margin-top:4px;">
+                          <button class="btn" style="padding:3px 8px;font-size:11px;"><i data-lucide="zap"></i> Test now</button>
+                          <button class="btn" style="padding:3px 8px;font-size:11px;"><i data-lucide="activity"></i> Logs</button>
+                        </div>
+                      </div>
+                    </div>
+                    <div style="margin-top:12px;">
+                      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Keys (${p.keys})</div>
+                      ${p.keys > 0 ? `
+                        <div style="display:flex;flex-direction:column;gap:6px;">
+                          <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--surface);border-radius:5px;font-size:12px;">
+                            <span class="dot" style="background:var(--bull);"></span>
+                            <span class="num">${p.id}-prod-1</span>
+                            <span style="color:var(--muted);">keyring: ${p.id}.prod</span>
+                            <span style="color:var(--muted);">priority 0</span>
+                            <span style="margin-left:auto;color:var(--muted);">120 calls · 0 err</span>
+                            <button class="btn" style="padding:2px 6px;font-size:10px;">Disable</button>
+                            <button class="btn" style="padding:2px 6px;font-size:10px;">Remove</button>
+                          </div>
+                          ${p.keys > 1 ? `
+                          <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--surface);border-radius:5px;font-size:12px;">
+                            <span class="dot" style="background:var(--bull);"></span>
+                            <span class="num">${p.id}-backup</span>
+                            <span style="color:var(--muted);">keyring: ${p.id}.backup</span>
+                            <span style="color:var(--muted);">priority 10</span>
+                            <span style="margin-left:auto;color:var(--muted);">3 calls · 0 err</span>
+                            <button class="btn" style="padding:2px 6px;font-size:10px;">Disable</button>
+                            <button class="btn" style="padding:2px 6px;font-size:10px;">Remove</button>
+                          </div>
+                          ` : ''}
+                          <button class="btn" style="padding:4px 8px;font-size:11px;align-self:flex-start;"><i data-lucide="plus"></i> Add key</button>
+                        </div>
+                      ` : '<button class="btn btn-primary" style="padding:4px 8px;font-size:11px;"><i data-lucide="plus"></i> Add first key</button>'}
+                    </div>
+                  </td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Traffic summary -->
+      <div class="grid-2" style="margin-bottom:16px;">
+        <div class="card padded">
+          <div style="font-size:13px;font-weight:500;margin-bottom:12px;">Traffic (24h)</div>
+          <div class="num" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+            <div style="text-align:center;">
+              <div class="num" style="font-size:24px;font-weight:600;">87</div>
+              <div style="font-size:11px;color:var(--muted);">calls</div>
+            </div>
+            <div style="text-align:center;">
+              <div class="num pos" style="font-size:24px;font-weight:600;">100%</div>
+              <div style="font-size:11px;color:var(--muted);">success</div>
+            </div>
+            <div style="text-align:center;">
+              <div class="num" style="font-size:24px;font-weight:600;">$0.42</div>
+              <div style="font-size:11px;color:var(--muted);">cost</div>
+            </div>
+            <div style="text-align:center;">
+              <div class="num" style="font-size:24px;font-weight:600;">1.4s</div>
+              <div style="font-size:11px;color:var(--muted);">p50</div>
+            </div>
+          </div>
+        </div>
+        <div class="card padded">
+          <div style="font-size:13px;font-weight:500;margin-bottom:12px;">Anomalies (24h)</div>
+          <div style="font-size:12px;color:var(--fg-secondary);">No anomalies detected ✓</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px;">规则: rate limit spike, sudden cost, repeated fail, endpoint drift, auth failure</div>
+        </div>
+      </div>
+
+      <!-- Win-rate stats by confidence -->
+      <div class="card" style="overflow:hidden;">
+        <div class="card-header">
+          <div>
+            <h3>Win rate by confidence band (30D, n ≥ 3)</h3>
+            <div class="hint">LLM 准不准分桶看</div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn"><i data-lucide="download"></i> Export CSV</button>
+            <button class="btn"><i data-lucide="download"></i> Export JSON</button>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Provider</th>
+              <th>Band</th>
+              <th class="right">N</th>
+              <th class="right">Win rate</th>
+              <th class="right">Avg P&L</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Claude 4</td><td>70-80%</td><td class="num right">8</td><td class="num right pos" style="font-weight:600;">87.5%</td><td class="num right pos">+$5.20</td></tr>
+            <tr><td>Claude 4</td><td>50-70%</td><td class="num right">6</td><td class="num right pos" style="font-weight:600;">66.7%</td><td class="num right pos">+$2.10</td></tr>
+            <tr><td>GPT-4o</td><td>70-80%</td><td class="num right">12</td><td class="num right pos" style="font-weight:600;">75.0%</td><td class="num right pos">+$3.40</td></tr>
+            <tr><td>GPT-4o</td><td>50-70%</td><td class="num right">5</td><td class="num right" style="font-weight:600;">60.0%</td><td class="num right neg">−$1.20</td></tr>
+            <tr><td>Gemini</td><td>50-70%</td><td class="num right">9</td><td class="num right" style="font-weight:600;">55.6%</td><td class="num right neg">−$0.80</td></tr>
+            <tr><td>DeepSeek</td><td>70-80%</td><td class="num right">7</td><td class="num right" style="font-weight:600;">71.4%</td><td class="num right pos">+$1.40</td></tr>
+          </tbody>
+        </table>
+      </div>
+    `;
   }
 
   function renderBrief() {

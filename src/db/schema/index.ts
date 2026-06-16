@@ -215,16 +215,110 @@ export const llmProviders = sqliteTable(
   {
     id: text('id').primaryKey(), // 'openai' | 'anthropic' | 'google' | 'deepseek' | 'xai'
     displayName: text('display_name').notNull(), // 'GPT-4o' | 'Claude Sonnet 4' | ...
+    providerKind: text('provider_kind').notNull().default('openai'), // 'openai' | 'anthropic' | 'google' | 'deepseek' | 'openai_compat' | 'anthropic_compat'
+    requestFormat: text('request_format').notNull().default('chat_completions'), // 'chat_completions' | 'messages' | 'generate_content'
+    supportsStreaming: integer('supports_streaming', { mode: 'boolean' }).notNull().default(false),
     enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
     apiBase: text('api_base'), // 自建代理/第三方转发
-    keyAlias: text('key_alias').notNull(), // alias in OS keyring, e.g. 'llm.openai'
+    keyAlias: text('key_alias').notNull(), // primary key alias in OS keyring (legacy)
     defaultModel: text('default_model').notNull(), // 'gpt-4o-2024-08-06' / etc
     timeoutMs: integer('timeout_ms').notNull().default(30000),
+    requestTimeoutMs: integer('request_timeout_ms').notNull().default(30000),
+    maxRetries: integer('max_retries').notNull().default(2),
     costPer1kIn: real('cost_per_1k_in'), // cents
     costPer1kOut: real('cost_per_1k_out'),
+    rateLimitRpm: integer('rate_limit_rpm'), // requests per minute (provider doc)
+    rateLimitTpm: integer('rate_limit_tpm'), // tokens per minute
+    quotaDailyCents: real('quota_daily_cents'), // hard daily cap
+    quotaMonthlyCents: real('quota_monthly_cents'), // hard monthly cap
+    keyRotationStrategy: text('key_rotation_strategy').notNull().default('failover'), // 'failover' | 'round_robin' | 'manual'
+    healthStatus: text('health_status').notNull().default('unknown'), // 'ok' | 'slow' | 'failing' | 'unreachable' | 'unknown'
+    healthLatencyP50Ms: integer('health_latency_p50_ms'),
+    healthLatencyP95Ms: integer('health_latency_p95_ms'),
+    lastHealthCheckAt: integer('last_health_check_at'),
+    lastHealthError: text('last_health_error'),
+    notes: text('notes'),
     createdAt: integer('created_at').notNull().default(sql`(unixepoch() * 1000)`),
     updatedAt: integer('updated_at').notNull().default(sql`(unixepoch() * 1000)`),
   },
+);
+
+// 11b. llm_provider_keys — multiple API keys per provider (M11 v0.2)
+export const llmProviderKeys = sqliteTable(
+  'llm_provider_keys',
+  {
+    id: text('id').primaryKey(), // uuid
+    providerId: text('provider_id').notNull().references(() => llmProviders.id),
+    alias: text('alias').notNull(), // 'prod-1' | 'backup-azure' | 'dev'
+    keyringAlias: text('keyring_alias').notNull(), // OS keyring alias
+    enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+    priority: integer('priority').notNull().default(0), // smaller = higher priority
+    weight: integer('weight').notNull().default(1), // round_robin weight
+    lastUsedAt: integer('last_used_at'),
+    lastError: text('last_error'),
+    lastErrorAt: integer('last_error_at'),
+    totalCalls: integer('total_calls').notNull().default(0),
+    totalErrors: integer('total_errors').notNull().default(0),
+    notes: text('notes'),
+    createdAt: integer('created_at').notNull().default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer('updated_at').notNull().default(sql`(unixepoch() * 1000)`),
+  },
+  (t) => ({
+    providerIdx: index('llm_keys_provider_idx').on(t.providerId, t.priority),
+  }),
+);
+
+// 11c. llm_call_logs — per-request log for traffic monitoring (M11 v0.2)
+export const llmCallLogs = sqliteTable(
+  'llm_call_logs',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    analysisId: text('analysis_id'), // optional, when from llm_analyze
+    providerId: text('provider_id').notNull().references(() => llmProviders.id),
+    keyId: text('key_id').references(() => llmProviderKeys.id),
+    calledAt: integer('called_at').notNull(),
+    latencyMs: integer('latency_ms').notNull(),
+    tokensIn: integer('tokens_in').notNull().default(0),
+    tokensOut: integer('tokens_out').notNull().default(0),
+    costCents: real('cost_cents').notNull().default(0),
+    httpStatus: integer('http_status').notNull(),
+    success: integer('success', { mode: 'boolean' }).notNull(),
+    errorCode: text('error_code'),
+    errorMessage: text('error_message'),
+    promptVersion: text('prompt_version'),
+    predictedProb: real('predicted_prob'),
+    recommendedSide: text('recommended_side'),
+    caller: text('caller').notNull(), // 'm10.llm_analyze' | 'm12.brief' | 'm7.model' | 'user.test' | 'health.probe'
+    retryCount: integer('retry_count').notNull().default(0),
+  },
+  (t) => ({
+    providerTimeIdx: index('call_logs_provider_time_idx').on(t.providerId, t.calledAt),
+    analysisIdx: index('call_logs_analysis_idx').on(t.analysisId),
+    successTimeIdx: index('call_logs_success_time_idx').on(t.success, t.calledAt),
+  }),
+);
+
+// 11d. llm_health_checks — connectivity probe history (M11 v0.2)
+export const llmHealthChecks = sqliteTable(
+  'llm_health_checks',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    providerId: text('provider_id').notNull().references(() => llmProviders.id),
+    keyId: text('key_id').references(() => llmProviderKeys.id),
+    checkedAt: integer('checked_at').notNull(),
+    trigger: text('trigger').notNull(), // 'user' | 'probe' | 'auto_after_fail'
+    success: integer('success', { mode: 'boolean' }).notNull(),
+    latencyMs: integer('latency_ms'),
+    httpStatus: integer('http_status'),
+    errorCode: text('error_code'), // 'auth' | 'rate_limit' | 'timeout' | 'network' | 'parse'
+    errorMessage: text('error_message'),
+    modelUsed: text('model_used'),
+    testRequestId: text('test_request_id'),
+  },
+  (t) => ({
+    providerTimeIdx: index('health_provider_time_idx').on(t.providerId, t.checkedAt),
+    successTimeIdx: index('health_success_time_idx').on(t.success, t.checkedAt),
+  }),
 );
 
 // 12. llm_analyses — one multi-LLM analysis request
@@ -340,3 +434,6 @@ export type LlmProvider = typeof llmProviders.$inferSelect;
 export type LlmAnalysis = typeof llmAnalyses.$inferSelect;
 export type LlmRecommendation = typeof llmRecommendations.$inferSelect;
 export type LlmDecision = typeof llmDecisions.$inferSelect;
+export type LlmProviderKey = typeof llmProviderKeys.$inferSelect;
+export type LlmCallLog = typeof llmCallLogs.$inferSelect;
+export type LlmHealthCheck = typeof llmHealthChecks.$inferSelect;
