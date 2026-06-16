@@ -137,7 +137,10 @@ export const bets = sqliteTable(
     walletId: text('wallet_id').notNull().references(() => wallets.id),
     marketId: text('market_id').notNull().references(() => markets.id),
     signalId: integer('signal_id').references(() => signals.id), // null = manual
-    decisionId: integer('decision_id').references(() => llmDecisions.id), // v0.2: link to LLM decision
+    // NOTE: decisionId intentionally does NOT reference llmDecisions.id —
+    // that would create a circular type inference. The FK is enforced
+    // at the application layer (see src-tauri/src/commands/llm.rs).
+    decisionId: integer('decision_id'), // v0.2: link to LLM decision
     wasLlmAssisted: integer('was_llm_assisted', { mode: 'boolean' }).notNull().default(false), // v0.2
     mode: text('mode').notNull(), // 'A_jump' | 'B_signed' | 'manual'
     side: text('side').notNull(), // 'YES' | 'NO'
@@ -377,7 +380,9 @@ export const llmDecisions = sqliteTable(
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
     analysisId: text('analysis_id').notNull().references(() => llmAnalyses.id),
-    betId: text('bet_id').references(() => bets.id), // null when skip
+    // NOTE: betId intentionally does NOT reference bets.id to avoid
+    // circular type inference. FK enforced at application layer.
+    betId: text('bet_id'), // null when skip
     userDecision: text('user_decision').notNull(), // 'follow_top' | 'manual_yes' | 'manual_no' | 'skip' | 're_analyze'
     userDecidedSide: text('user_decided_side'), // YES / NO / NULL
     followedLlmId: integer('followed_llm_id').references(() => llmRecommendations.id),

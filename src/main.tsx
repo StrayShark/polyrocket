@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider, createBrowserRouter, Navigate } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Dashboard } from '@/routes/Dashboard';
 import { Markets } from '@/routes/Markets';
 import { Signals } from '@/routes/Signals';
@@ -9,11 +10,22 @@ import { PnL } from '@/routes/PnL';
 import { ModelLab } from '@/routes/ModelLab';
 import { AppShell } from '@/components/layout/AppShell';
 import { useThemeStore } from '@/stores/theme-store';
+import { ToastHost } from '@/components/feedback/Toast';
 import './styles/globals.css';
 
 // Initialize theme on app boot (before paint)
 const initialTheme = useThemeStore.getState().theme;
 document.documentElement.setAttribute('data-theme', initialTheme);
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 const router = createBrowserRouter([
   {
@@ -33,6 +45,9 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+      <ToastHost />
+    </QueryClientProvider>
   </StrictMode>,
 );
