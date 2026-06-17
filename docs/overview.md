@@ -593,6 +593,8 @@ sequenceDiagram
 | **promote_all_trials IPC** | 8th sidecar method + 7 tests (Rust+Python) | ✅ v0.25a 完成（loops over all_trials, returns per-trial results） |
 | **L1 promoteAllTrials wrapper** | L1 wrapper + 3 round-trip tests + Tauri command | ✅ v0.25b 完成（5th time back-filling Tauri command; CI check is now a real v0.26 candidate） |
 | **v0.25 final docs** | Ship log + tally + 1-click A/B compare | ✅ v0.25c 完成（602 tests total, "Promote all 4" button for A/B comparison） |
+| **L1↔Tauri CI guard** | scripts/check-l1-tauri.mjs + 3 tests + check-doc-sync integration | ✅ v0.26a 完成（meta-feature: catches the 5-times-recurring "wire format but no Tauri command" issue at commit time） |
+| **v0.26 final docs** | Ship log + tally + meta-feature done | ✅ v0.26b 完成（605 tests total, governance infra upgraded with 3rd CI guard） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |
