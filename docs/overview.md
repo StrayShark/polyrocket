@@ -581,6 +581,9 @@ sequenceDiagram
 | **L1 promoteModel trial_index** | L1 wrapper accepts trial_index + 2 round-trip tests | ✅ v0.21b 完成（backward compat: undefined = best） |
 | **TrainProgress per-trial Promote** | Per-row Promote button + "Promote best" label + 2 tests | ✅ v0.21c 完成（12-component-test promote-history-panel pattern reused, only one trial promote at a time） |
 | **v0.21 final docs** | Ship log + tally + A/B compare via Rollback | ✅ v0.21d 完成（566 tests total, user can bulk-promote any of 4 trials） |
+| **PromoteHistoryChart SVG** | Inline SVG sparkline (Brier over time) + trend indicator | ✅ v0.22a 完成（7 component tests, no library, ~150 LOC） |
+| **Wire chart into ModelLab** | New "Brier over time" card above Promotion history | ✅ v0.22b 完成（shares react-query key, no duplicate fetch） |
+| **v0.22 final docs** | Ship log + tally + auto-promote-on-better deferred to v0.23 | ✅ v0.22c 完成（573 tests total, full train→promote→history→rollback→chart visual loop） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |
