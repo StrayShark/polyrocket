@@ -92,6 +92,10 @@ pub enum SidecarMethod {
     Predict,
     TrainJob,
     PromoteModel,
+    /// v0.19a — read-only audit of past promotions. Returns
+    /// the `promotion_history` array from active.json (capped
+    /// at 20 most-recent entries).
+    ListPromoteHistory,
 }
 
 impl SidecarMethod {
@@ -101,6 +105,7 @@ impl SidecarMethod {
             SidecarMethod::Predict => "predict",
             SidecarMethod::TrainJob => "train_job",
             SidecarMethod::PromoteModel => "promote_model",
+            SidecarMethod::ListPromoteHistory => "list_promote_history",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -109,6 +114,7 @@ impl SidecarMethod {
             "predict" => Some(SidecarMethod::Predict),
             "train_job" => Some(SidecarMethod::TrainJob),
             "promote_model" => Some(SidecarMethod::PromoteModel),
+            "list_promote_history" => Some(SidecarMethod::ListPromoteHistory),
             _ => None,
         }
     }
@@ -392,6 +398,91 @@ pub fn parse_promote_response(resp: &SidecarResponse) -> Result<PromoteResult, S
     })
 }
 
+// =================================================================
+// ============ v0.19a — list_promote_history wire format ===========
+// =================================================================
+
+/// Build a `list_promote_history` request. Pure function.
+/// v0.19a — read-only audit, no params. The request just
+/// carries the id for correlation.
+pub fn build_list_promote_history_request(id: impl Into<String>) -> String {
+    let req = SidecarRequest {
+        id: id.into(),
+        method: SidecarMethod::ListPromoteHistory.as_str().to_string(),
+        params: serde_json::json!({}),
+    };
+    serde_json::to_string(&req).unwrap_or_default()
+}
+
+/// Wire-format mirror of a single entry in
+/// `active.json.promotion_history[]`. v0.19a — one entry per
+/// successful promote. Oldest first, newest last (the last
+/// entry is the one that was just superseded when a new
+/// promote happened; if you want the currently active model
+/// use `model_version` from `PredictResult` instead).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PromoteHistoryEntry {
+    /// Train job_id, e.g. "train-441c352b".
+    pub job_id: String,
+    /// Derived model version, e.g. "logistic-train-441c352b".
+    pub model_version: String,
+    /// Wall-clock time of the promote in milliseconds.
+    pub promoted_at_ms: i64,
+    /// Best Brier score from the train sweep (lower is better).
+    pub best_brier: Option<f64>,
+    /// Hyperparameters of the best trial.
+    #[serde(default)]
+    pub best_params: Option<Value>,
+}
+
+/// Wire-format mirror of the `list_promote_history` response.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PromoteHistoryResult {
+    /// `true` on success, `false` if active.json is missing
+    /// or malformed. (The Python sidecar returns ok=false
+    /// only in pathological cases; missing file is `ok=true
+    /// with count=0` because it's the natural "no history
+    /// yet" state.)
+    pub ok: bool,
+    /// History entries, oldest first.
+    pub entries: Vec<PromoteHistoryEntry>,
+    /// `len(entries)` for convenience.
+    pub count: usize,
+    /// Human-readable error message on failure; `None` on success.
+    pub message: Option<String>,
+}
+
+/// Parse a `list_promote_history` response into a
+/// `PromoteHistoryResult`. Returns Err only if the sidecar
+/// returned `ok=false` at the envelope level (transport
+/// error). An ok=true envelope with ok=false at the result
+/// level (file is malformed) returns Ok with the message.
+pub fn parse_list_promote_history_response(
+    resp: &SidecarResponse,
+) -> Result<PromoteHistoryResult, String> {
+    if !resp.ok {
+        return Err(resp.error.clone().unwrap_or_else(|| "unknown error".into()));
+    }
+    let v = resp.result.clone().unwrap_or(Value::Null);
+    let entries: Vec<PromoteHistoryEntry> = v
+        .get("entries")
+        .and_then(|x| x.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|item| serde_json::from_value::<PromoteHistoryEntry>(item.clone()).ok())
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(PromoteHistoryResult {
+        ok: v.get("ok").and_then(|x| x.as_bool()).unwrap_or(false),
+        count: v.get("count").and_then(|x| x.as_u64()).unwrap_or(entries.len() as u64) as usize,
+        entries,
+        message: v.get("message")
+            .and_then(|x| x.as_str())
+            .map(String::from),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -399,7 +490,8 @@ mod tests {
     #[test]
     fn method_round_trip() {
         for m in [SidecarMethod::Ping, SidecarMethod::Predict,
-                  SidecarMethod::TrainJob, SidecarMethod::PromoteModel] {
+                  SidecarMethod::TrainJob, SidecarMethod::PromoteModel,
+                  SidecarMethod::ListPromoteHistory] {
             assert_eq!(SidecarMethod::parse(m.as_str()), Some(m));
         }
         assert_eq!(SidecarMethod::parse("nope"), None);
@@ -503,6 +595,90 @@ mod tests {
         let line = build_promote_request("promote-456", Some("train-abc"));
         let v: serde_json::Value = serde_json::from_str(&line).unwrap();
         assert_eq!(v["params"]["job_id"], "train-abc");
+    }
+
+    #[test]
+    fn build_list_promote_history_request_basic() {
+        // v0.19a — read-only audit, no params (empty object)
+        let line = build_list_promote_history_request("list-1");
+        let v: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(v["method"], "list_promote_history");
+        assert_eq!(v["id"], "list-1");
+        assert_eq!(v["params"], serde_json::json!({}));
+    }
+
+    #[test]
+    fn parse_list_promote_history_response_populated() {
+        // v0.19a — 2 entries, ok=true
+        let r = SidecarResponse {
+            id: "list-2".into(),
+            ok: true,
+            result: Some(serde_json::json!({
+                "ok": true,
+                "count": 2,
+                "entries": [
+                    {
+                        "job_id": "train-aaa",
+                        "model_version": "logistic-train-aaa",
+                        "promoted_at_ms": 1_700_000_000_000_i64,
+                        "best_brier": 0.184,
+                        "best_params": {"lr": 0.01, "reg": 0.1}
+                    },
+                    {
+                        "job_id": "train-bbb",
+                        "model_version": "logistic-train-bbb",
+                        "promoted_at_ms": 1_700_001_000_000_i64,
+                        "best_brier": 0.179,
+                        "best_params": null
+                    }
+                ]
+            })),
+            error: None,
+        };
+        let h = parse_list_promote_history_response(&r).expect("ok");
+        assert!(h.ok);
+        assert_eq!(h.count, 2);
+        assert_eq!(h.entries.len(), 2);
+        assert_eq!(h.entries[0].job_id, "train-aaa");
+        assert_eq!(h.entries[0].model_version, "logistic-train-aaa");
+        assert_eq!(h.entries[0].best_brier, Some(0.184));
+        assert!(h.entries[0].best_params.is_some());
+        assert_eq!(h.entries[1].job_id, "train-bbb");
+        assert!(h.entries[1].best_params.is_none());
+        assert!(h.message.is_none());
+    }
+
+    #[test]
+    fn parse_list_promote_history_response_empty() {
+        // v0.19a — no active model yet; ok=true with empty entries
+        let r = SidecarResponse {
+            id: "list-3".into(),
+            ok: true,
+            result: Some(serde_json::json!({
+                "ok": true,
+                "count": 0,
+                "entries": [],
+                "message": "no active model yet; train + promote to start history"
+            })),
+            error: None,
+        };
+        let h = parse_list_promote_history_response(&r).expect("ok");
+        assert!(h.ok);
+        assert_eq!(h.count, 0);
+        assert!(h.entries.is_empty());
+        assert!(h.message.is_some());
+    }
+
+    #[test]
+    fn parse_list_promote_history_response_not_ok_returns_err() {
+        // v0.19a — envelope-level error
+        let r = SidecarResponse {
+            id: "list-4".into(),
+            ok: false,
+            result: None,
+            error: Some("internal: oops".into()),
+        };
+        assert!(parse_list_promote_history_response(&r).is_err());
     }
 
     #[test]

@@ -141,6 +141,49 @@ class PromoteModelTests(unittest.TestCase):
         self.assertEqual(active["job_id"], candidate["job_id"])
         self.assertEqual(active["best"], candidate["best"])
 
+    def test_promote_appends_to_history(self) -> None:
+        """v0.19a: each successful promote appends one entry to
+        active.json.promotion_history. Two promotes → 2 entries.
+        """
+        # First train + promote
+        t1 = run_train_job(n_trials=1, epochs=5)
+        p1 = run_promote_model()
+        self.assertTrue(p1["promoted"])
+        active = json.loads(train.ACTIVE_FILE.read_text())
+        self.assertIn("promotion_history", active)
+        self.assertEqual(len(active["promotion_history"]), 1)
+        self.assertEqual(active["promotion_history"][0]["job_id"], t1["job_id"])
+        self.assertEqual(
+            active["promotion_history"][0]["model_version"],
+            f"logistic-{t1['job_id']}",
+        )
+
+        # Second train + promote → history grows to 2
+        t2 = run_train_job(n_trials=1, epochs=5)
+        p2 = run_promote_model()
+        self.assertTrue(p2["promoted"])
+        active2 = json.loads(train.ACTIVE_FILE.read_text())
+        self.assertEqual(len(active2["promotion_history"]), 2)
+        # Newest entry is last
+        self.assertEqual(active2["promotion_history"][1]["job_id"], t2["job_id"])
+        # Oldest is still there
+        self.assertEqual(active2["promotion_history"][0]["job_id"], t1["job_id"])
+
+    def test_run_list_promote_history_round_trip(self) -> None:
+        """v0.19a: list_promote_history returns what was written."""
+        from polyrocket_sidecar.train import run_list_promote_history
+        # Train + promote once
+        t = run_train_job(n_trials=1, epochs=5)
+        run_promote_model()
+        h = run_list_promote_history()
+        self.assertTrue(h["ok"])
+        self.assertEqual(h["count"], 1)
+        self.assertEqual(h["entries"][0]["job_id"], t["job_id"])
+        self.assertEqual(
+            h["entries"][0]["model_version"],
+            f"logistic-{t['job_id']}",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

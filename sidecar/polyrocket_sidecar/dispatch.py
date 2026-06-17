@@ -1,10 +1,11 @@
 """Method dispatch table for the sidecar.
 
 Method names are LOWERCASE to match the Rust `SidecarMethod::as_str`:
-  - "ping"            (Rust: SidecarMethod::Ping)
-  - "predict"         (Rust: SidecarMethod::Predict)
-  - "train_job"       (Rust: SidecarMethod::TrainJob)
-  - "promote_model"   (Rust: SidecarMethod::PromoteModel)
+  - "ping"                    (Rust: SidecarMethod::Ping)
+  - "predict"                 (Rust: SidecarMethod::Predict)
+  - "train_job"               (Rust: SidecarMethod::TrainJob)
+  - "promote_model"           (Rust: SidecarMethod::PromoteModel)
+  - "list_promote_history"    (Rust: SidecarMethod::ListPromoteHistory)  [v0.19a]
 
 If you add a method here, you MUST also:
   1. Add it to `SidecarMethod` enum in domain::lab::sidecar
@@ -18,7 +19,7 @@ import time
 from typing import Any, Callable
 
 from .predict import predict_from_markets
-from .train import run_promote_model, run_train_job
+from .train import run_promote_model, run_train_job, run_list_promote_history
 
 
 def ping(_params: dict[str, Any]) -> dict[str, Any]:
@@ -57,9 +58,19 @@ def promote_model(params: dict[str, Any]) -> dict[str, Any]:
     return run_promote_model(job_id=job_id)
 
 
+def list_promote_history(_params: dict[str, Any]) -> dict[str, Any]:
+    """Return the promotion history from active.json.
+
+    v0.19a — read-only audit. No params. Returns:
+      { ok, entries, count, message }
+    """
+    return run_list_promote_history()
+
+
 DISPATCH: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "ping": ping,
     "predict": predict,
     "train_job": train_job,
     "promote_model": promote_model,
+    "list_promote_history": list_promote_history,
 }

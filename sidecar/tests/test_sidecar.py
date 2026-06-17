@@ -189,7 +189,7 @@ class DispatchTests(unittest.TestCase):
     def test_all_methods_registered(self) -> None:
         # If a method is added on the Rust side without registering here, this
         # catches it. Mirror the set in `SidecarMethod` enum on Rust.
-        expected = {"ping", "predict", "train_job", "promote_model"}
+        expected = {"ping", "predict", "train_job", "promote_model", "list_promote_history"}
         self.assertEqual(set(DISPATCH.keys()), expected)
 
     def test_ping_returns_pong(self) -> None:
@@ -233,6 +233,25 @@ class DispatchTests(unittest.TestCase):
         else:
             # Either no candidate (from a clean test env) — both are valid
             self.assertEqual(out["status"], "failed")
+
+    def test_list_promote_history_empty_or_populated(self) -> None:
+        """v0.19a: list_promote_history returns ok=true with whatever
+        is in active.json. If a previous test promoted, we may have
+        entries; otherwise the response is empty + a helpful message.
+        """
+        out = DISPATCH["list_promote_history"]({})
+        self.assertTrue(out["ok"])
+        self.assertIn("entries", out)
+        self.assertIn("count", out)
+        self.assertIsInstance(out["entries"], list)
+        self.assertEqual(out["count"], len(out["entries"]))
+        # Each entry, if present, has the audit-relevant fields
+        for e in out["entries"]:
+            self.assertIn("job_id", e)
+            self.assertIn("model_version", e)
+            self.assertIn("promoted_at_ms", e)
+            # best_brier and best_params are optional
+            # (best_params may be null in some entries)
 
     def test_predict_rejects_non_list_markets(self) -> None:
         with self.assertRaises(ValueError):
@@ -329,6 +348,24 @@ class E2ESubprocessTests(unittest.TestCase):
         self.assertEqual(out["id"], -1)
         self.assertFalse(out["ok"])
         self.assertIn("-32700", out["error"])
+
+    def test_e2e_list_promote_history(self) -> None:
+        """v0.19a: list_promote_history is a read-only audit.
+        The shape is fixed (ok, entries, count, message) regardless
+        of whether any promotes have happened.
+        """
+        out = self._round_trip(
+            '{"id": 5, "method": "list_promote_history", "params": {}}'
+        )
+        self.assertEqual(out["id"], 5)
+        self.assertTrue(out["ok"])
+        self.assertIn("result", out)
+        result = out["result"]
+        self.assertIn("ok", result)
+        self.assertIn("entries", result)
+        self.assertIn("count", result)
+        self.assertIsInstance(result["entries"], list)
+        self.assertEqual(result["count"], len(result["entries"]))
 
 
 if __name__ == "__main__":

@@ -207,6 +207,12 @@ def run_promote_model(*, job_id: str | None = None) -> dict[str, Any]:
       - previous_path  — where the old active file was (or null)
       - active_path    — where the new active file is
       - promoted_at_ms — timestamp
+
+    v0.19a — also maintains a `promotion_history` array inside
+    active.json. On each successful promote, the NEW entry is
+    appended so the user can audit "which model was active
+    when" via the `list_promote_history` method. The history
+    is bounded to the last 20 entries to keep the file small.
     """
     if not CANDIDATE_FILE.exists():
         return {
@@ -217,8 +223,19 @@ def run_promote_model(*, job_id: str | None = None) -> dict[str, Any]:
     try:
         MODEL_DIR.mkdir(parents=True, exist_ok=True)
         previous = None
+        history: list[dict[str, Any]] = []
         if ACTIVE_FILE.exists():
             previous = str(ACTIVE_FILE)
+            # v0.19a — preserve the old payload's history when
+            # we overwrite active.json. The "best" dict,
+            # job_id, promoted_at_ms, and model_version are
+            # the audit-relevant fields.
+            try:
+                old_active = json.loads(ACTIVE_FILE.read_text())
+                if isinstance(old_active, dict):
+                    history = list(old_active.get("promotion_history", []))
+            except json.JSONDecodeError:
+                pass  # corrupt old active; start fresh
 
         candidate = json.loads(CANDIDATE_FILE.read_text())
         if job_id is not None and candidate.get("job_id") != job_id:
@@ -228,9 +245,23 @@ def run_promote_model(*, job_id: str | None = None) -> dict[str, Any]:
                 "message": f"candidate job_id mismatch: expected {job_id}, got {candidate.get('job_id')}",
             }
 
+        promoted_at_ms = int(time.time() * 1000)
+        new_entry: dict[str, Any] = {
+            "job_id": candidate.get("job_id"),
+            "model_version": f"logistic-{candidate.get('job_id', 'unknown')}",
+            "promoted_at_ms": promoted_at_ms,
+            "best_brier": (candidate.get("best") or {}).get("brier"),
+            "best_params": candidate.get("best_params"),
+        }
+        # v0.19a — append the NEW entry; cap at 20 most-recent
+        history.append(new_entry)
+        if len(history) > 20:
+            history = history[-20:]
+
         promoted_payload = {
             **candidate,
-            "promoted_at_ms": int(time.time() * 1000),
+            "promoted_at_ms": promoted_at_ms,
+            "promotion_history": history,
         }
         tmp = ACTIVE_FILE.with_suffix(".json.tmp")
         tmp.write_text(json.dumps(promoted_payload, ensure_ascii=False, indent=2))
@@ -241,7 +272,7 @@ def run_promote_model(*, job_id: str | None = None) -> dict[str, Any]:
             "status": "ok",
             "previous_path": previous,
             "active_path": str(ACTIVE_FILE),
-            "promoted_at_ms": promoted_payload["promoted_at_ms"],
+            "promoted_at_ms": promoted_at_ms,
             "model_version": f"logistic-{candidate.get('job_id', 'unknown')}",
         }
     except (OSError, json.JSONDecodeError) as e:
@@ -249,4 +280,58 @@ def run_promote_model(*, job_id: str | None = None) -> dict[str, Any]:
             "promoted": False,
             "status": "failed",
             "message": f"promote failed: {e}",
+        }
+
+
+def run_list_promote_history() -> dict[str, Any]:
+    """Return the promotion history from active.json.
+
+    v0.19a — `list_promote_history` is the read side of the
+    audit trail. Returns:
+      - ok          — bool (true if active.json exists and parses)
+      - entries     — list of {job_id, model_version,
+                      promoted_at_ms, best_brier, best_params}
+      - count       — len(entries)
+      - message     — error message on failure
+
+    The history is stored INSIDE active.json's
+    `promotion_history` array (capped at 20 most-recent
+    entries, written by `run_promote_model` on each promote).
+
+    No params. Read-only operation. If active.json is
+    missing or malformed, returns ok=false with an empty
+    entries list (never raises — the L1 expects a clean
+    response shape).
+    """
+    try:
+        if not ACTIVE_FILE.exists():
+            return {
+                "ok": True,
+                "entries": [],
+                "count": 0,
+                "message": "no active model yet; train + promote to start history",
+            }
+        data = json.loads(ACTIVE_FILE.read_text())
+        if not isinstance(data, dict):
+            return {
+                "ok": False,
+                "entries": [],
+                "count": 0,
+                "message": f"active.json at {ACTIVE_FILE} is not a JSON object",
+            }
+        entries = data.get("promotion_history", [])
+        if not isinstance(entries, list):
+            entries = []
+        return {
+            "ok": True,
+            "entries": entries,
+            "count": len(entries),
+            "message": None,
+        }
+    except (OSError, json.JSONDecodeError) as e:
+        return {
+            "ok": False,
+            "entries": [],
+            "count": 0,
+            "message": f"failed to read promotion history: {e}",
         }
