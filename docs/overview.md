@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v1.3 · 2026-06-17 (v0.27 — generalize L1↔Tauri guard to all modules + 1 bug fix)
+> 版本：v1.4 · 2026-06-17 (v0.28 — background auto-promote after train)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
 
@@ -597,6 +597,11 @@ sequenceDiagram
 | **v0.26 final docs** | Ship log + tally + meta-feature done | ✅ v0.26b 完成（605 tests total, governance infra upgraded with 3rd CI guard） |
 | **L1↔Tauri guard generalized** | scripts/check-l1-tauri.mjs extended to all modules + 1 bug fix | ✅ v0.27a 完成（catches v0.4 `fetchActiveMarkets` 12-version-old bug retroactively; 110 lines, broader scope） |
 | **v0.27 final docs** | Ship log + tally + guard generalization done | ✅ v0.27b 完成（606 tests total, governance infra upgraded: 3rd CI guard now covers all modules） |
+| **Background auto-promote (Rust)** | `AutoPromoteConfig` in `AppState` + `train_job` spawns worker | ✅ v0.28a 完成（spawns after train; worker calls `auto_promote_if_better`; emits `auto_promote:finished`） |
+| **L1 auto-promote wrappers** | `setAutoPromoteConfig` + `getAutoPromoteConfig` + `onAutoPromoteFinished` | ✅ v0.28b 完成（9 wire-format tests; 2 new IPCs + 1 new event） |
+| **Settings toggle + auto-refresh** | AutoPromoteCard Toggle + ModelLab useEffect listener | ✅ v0.28c 完成（4 new i18n keys × 2 locales; bridge between L1 store and Rust AppState） |
+| **Settings component tests** | 5 tests for the new toggle + save + mount behavior | ✅ v0.28d 完成（first Settings.test.tsx; mocks prefs store + IPC + i18n） |
+| **v0.28 final docs** | Ship log + tally + auto-promote loop closed | ✅ v0.28e 完成（620 tests total, model lifecycle fully automated） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |
