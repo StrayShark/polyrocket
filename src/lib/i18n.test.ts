@@ -165,6 +165,66 @@ describe('Analysis / LlmPerf / LlmMgmt keys (v0.14a)', () => {
   });
 });
 
+describe('Wallets / Settings / Notifications keys (v0.14b)', () => {
+  it('every new key is in both locales', () => {
+    const keys = [
+      // Wallets
+      'wallets.title', 'wallets.subtitle', 'wallets.refresh',
+      'wallets.add', 'wallets.add_first', 'wallets.empty',
+      'wallets.empty_desc', 'wallets.card.created',
+      'wallets.card.no_label', 'wallets.card.copy',
+      'wallets.card.last_synced', 'wallets.card.address_copied',
+      'wallets.add.title', 'wallets.add.cancel', 'wallets.add.add',
+      'wallets.add.address', 'wallets.add.address_placeholder',
+      'wallets.add.label', 'wallets.add.label_placeholder',
+      'wallets.add.chain_id', 'wallets.add.chain_polygon',
+      'wallets.add.chain_amoy', 'wallets.add.type',
+      'wallets.add.type_eoa', 'wallets.add.type_smart',
+      'wallets.add.notice', 'wallets.add.toast.added',
+      'wallets.add.toast.failed',
+      // Notifications
+      'notifications.title', 'notifications.subtitle',
+      'notifications.refresh', 'notifications.col.kind',
+      'notifications.col.title', 'notifications.col.body',
+      'notifications.col.at', 'notifications.empty',
+      'notifications.empty.title',
+      'notifications.toast.subtitle', 'notifications.toast.clear',
+      'notifications.toast.dismiss_aria',
+      'notifications.toast.kind.info', 'notifications.toast.kind.success',
+      'notifications.toast.kind.warning', 'notifications.toast.kind.error',
+      'notifications.toast.just_now', 'notifications.toast.empty_desc',
+      'notifications.event_types.title', 'notifications.event_types.desc',
+      'notifications.event.signal', 'notifications.event.signal_hint',
+      'notifications.event.fill', 'notifications.event.fill_hint',
+      'notifications.event.keyring', 'notifications.event.keyring_hint',
+      'notifications.event.auto_disable', 'notifications.event.auto_disable_hint',
+      'notifications.event.brief', 'notifications.event.brief_hint',
+      'notifications.event.settings_link',
+      // Settings
+      'settings.title', 'settings.btn.reset', 'settings.btn.save',
+      'settings.btn.reset_toast', 'settings.btn.save_toast',
+      'settings.section.trading', 'settings.section.trading_desc',
+      'settings.field.min_edge', 'settings.field.min_edge_hint',
+      'settings.field.allocation_cap', 'settings.field.allocation_cap_hint',
+      'settings.section.notifications', 'settings.section.notifications_desc',
+      'settings.field.toasts', 'settings.field.toasts_hint',
+      'settings.section.copy', 'settings.section.copy_desc',
+      'settings.field.copy_enabled', 'settings.field.copy_enabled_hint',
+      'settings.section.advanced', 'settings.section.advanced_desc',
+      'settings.field.advanced_stats', 'settings.field.advanced_stats_hint',
+      'settings.section.storage', 'settings.section.storage_desc',
+      'settings.storage.db_path', 'settings.storage.keyring',
+      'settings.storage.env_note',
+    ];
+    for (const key of keys) {
+      const enVal = translate('en', key);
+      const zhVal = translate('zh', key);
+      expect(enVal, `en missing: ${key}`).not.toBe(`?${key}?`);
+      expect(zhVal, `zh missing: ${key}`).not.toBe(`?${key}?`);
+    }
+  });
+});
+
 describe('SUPPORTED_LOCALES', () => {
   it('contains en and zh', () => {
     expect(SUPPORTED_LOCALES).toContain('en');

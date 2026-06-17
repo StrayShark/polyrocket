@@ -15,8 +15,10 @@ import {
   type SetAuditRetentionArgs,
 } from '@/ipc';
 import { formatRetentionAge } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 
 export function Settings() {
+  const { t } = useT();
   const prefs = usePrefsStore();
   const [draft, setDraft] = useState({
     defaultMinEdgePct: prefs.defaultMinEdgePct,
@@ -38,7 +40,7 @@ export function Settings() {
     Object.entries(draft).forEach(([k, v]) => {
       prefs.setPref(k as keyof typeof draft, v as never);
     });
-    toast.success('Settings saved');
+    toast.success(t('settings.btn.save_toast'));
   };
 
   const reset = () => {
@@ -50,7 +52,7 @@ export function Settings() {
       notificationsEnabled: prefs.notificationsEnabled,
       advancedStats: prefs.advancedStats,
     });
-    toast.info('Settings reset to defaults');
+    toast.info(t('settings.btn.reset_toast'));
   };
 
   return (
@@ -59,33 +61,33 @@ export function Settings() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <SettingsIcon className="w-4 h-4 text-muted" />
-            <h2 className="text-[13px] font-semibold text-fg">Settings</h2>
+            <h2 className="text-[13px] font-semibold text-fg">{t('settings.title')}</h2>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" iconLeft={<RotateCcw className="w-3 h-3" />} onClick={reset}>
-              Reset
+              {t('settings.btn.reset')}
             </Button>
             <Button variant="primary" size="sm" iconLeft={<Save className="w-3 h-3" />} onClick={save} disabled={!dirty}>
-              Save
+              {t('settings.btn.save')}
             </Button>
           </div>
         </div>
       </Card>
 
       {/* Trading defaults */}
-      <Card title="Trading defaults" description="Applied to new signals and copy target configs">
+      <Card title={t('settings.section.trading')} description={t('settings.section.trading_desc')}>
         <div className="space-y-3">
           <NumberField
-            label="Default min |edge| %"
-            hint="Only signals with |edge| above this are surfaced as actionable"
+            label={t('settings.field.min_edge')}
+            hint={t('settings.field.min_edge_hint')}
             value={draft.defaultMinEdgePct}
             min={1}
             max={50}
             onChange={(v) => setDraft({ ...draft, defaultMinEdgePct: v })}
           />
           <NumberField
-            label="Default allocation cap (USDC)"
-            hint="Per-trade max size for copy trading mirrors"
+            label={t('settings.field.allocation_cap')}
+            hint={t('settings.field.allocation_cap_hint')}
             value={draft.defaultAllocationCapUsdc}
             min={0}
             step={10}
@@ -95,52 +97,56 @@ export function Settings() {
       </Card>
 
       {/* Notifications */}
-      <Card title="Notifications" description="Toast and system notifications for important events">
+      <Card title={t('settings.section.notifications')} description={t('settings.section.notifications_desc')}>
         <ToggleRow
           icon={Bell}
-          label="In-app toasts"
-          hint="Show notifications for new signals, order fills, keyring errors"
+          label={t('settings.field.toasts')}
+          hint={t('settings.field.toasts_hint')}
           checked={draft.notificationsEnabled}
           onChange={(v) => setDraft({ ...draft, notificationsEnabled: v })}
         />
       </Card>
 
       {/* Copy trading */}
-      <Card title="Copy trading" description="Watch whale addresses and optionally mirror their trades">
+      <Card title={t('settings.section.copy')} description={t('settings.section.copy_desc')}>
         <ToggleRow
           icon={Database}
-          label="Enable copy trading"
-          hint="When off, copy targets are paused and no new events are recorded"
+          label={t('settings.field.copy_enabled')}
+          hint={t('settings.field.copy_enabled_hint')}
           checked={draft.copyTradingEnabled}
           onChange={(v) => setDraft({ ...draft, copyTradingEnabled: v })}
         />
       </Card>
 
       {/* Advanced */}
-      <Card title="Advanced" description="Show extra stats and diagnostics">
+      <Card title={t('settings.section.advanced')} description={t('settings.section.advanced_desc')}>
         <ToggleRow
           icon={Eye}
-          label="Show advanced stats"
-          hint="Extra columns and breakdowns on PnL, Lab, and Analysis pages"
+          label={t('settings.field.advanced_stats')}
+          hint={t('settings.field.advanced_stats_hint')}
           checked={draft.advancedStats}
           onChange={(v) => setDraft({ ...draft, advancedStats: v })}
         />
       </Card>
 
-      <Card title="Storage" description="Local data is stored in app data dir; secrets in OS keyring">
+      <Card title={t('settings.section.storage')} description={t('settings.section.storage_desc')}>
         <div className="text-[11px] text-muted space-y-1.5">
           <div className="flex items-center gap-2">
             <Database className="w-3 h-3" />
-            <code className="font-mono text-fg">~/Library/Application Support/com.polyrocket.app/polyrocket.db</code>
+            <code className="font-mono text-fg">{t('settings.storage.db_path')}</code>
           </div>
           <div className="flex items-center gap-2">
             <FlaskConical className="w-3 h-3" />
-            <code className="font-mono text-fg">macOS Keychain / Windows Credential Manager / Linux Secret Service</code>
+            <code className="font-mono text-fg">{t('settings.storage.keyring')}</code>
           </div>
-          <div className="pt-2 text-[10px]">
-            Note: .env is dev-only and gated by <code className="font-mono">POLYROCKET_ENV=dev</code> +{' '}
-            <code className="font-mono">POLYROCKET_KEYRING_ONLY=0</code>.
-          </div>
+          <div
+            className="pt-2 text-[10px]"
+            // v0.14b — the env_note string embeds two `<code>` tags
+            // (POLYROCKET_ENV=dev, POLYROCKET_KEYRING_ONLY=0). The
+            // markup is identical in en and zh so dangerouslySetInnerHTML
+            // keeps the locales in sync.
+            dangerouslySetInnerHTML={{ __html: t('settings.storage.env_note') }}
+          />
         </div>
       </Card>
 

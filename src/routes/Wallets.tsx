@@ -12,10 +12,12 @@ import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { toast } from '@/stores/toast-store';
 import { fmtAddress, fmtRelativeTime, fmtDate } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 import type { Wallet, WalletType } from '@/types/wallet';
 import { POLYGON_MAINNET } from '@/types/wallet';
 
 export function Wallets() {
+  const { t } = useT();
   const [addOpen, setAddOpen] = useState(false);
   const queryClient = useQueryClient();
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
@@ -29,9 +31,9 @@ export function Wallets() {
       <Card padding="sm">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-[13px] font-semibold text-fg">Wallets</h2>
+            <h2 className="text-[13px] font-semibold text-fg">{t('wallets.title')}</h2>
             <p className="text-[11px] text-muted mt-0.5">
-              Register wallet addresses for trading. Private keys are stored in the OS keyring — never in SQLite.
+              {t('wallets.subtitle')}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -42,10 +44,10 @@ export function Wallets() {
               onClick={() => refetch()}
               disabled={isRefetching}
             >
-              Refresh
+              {t('wallets.refresh')}
             </Button>
             <Button variant="primary" size="sm" iconLeft={<Plus className="w-3 h-3" />} onClick={() => setAddOpen(true)}>
-              Add wallet
+              {t('wallets.add')}
             </Button>
           </div>
         </div>
@@ -62,11 +64,11 @@ export function Wallets() {
       ) : data && data.length === 0 ? (
         <EmptyState
           icon={<WalletIcon className="w-5 h-5" />}
-          title="No wallets yet"
-          description="Add a wallet to start trading. We support Polygon mainnet (chain 137) and Amoy testnet (80002)."
+          title={t('wallets.empty')}
+          description={t('wallets.empty_desc')}
           action={
             <Button variant="primary" size="sm" iconLeft={<Plus className="w-3 h-3" />} onClick={() => setAddOpen(true)}>
-              Add your first wallet
+              {t('wallets.add_first')}
             </Button>
           }
         />
@@ -87,6 +89,7 @@ export function Wallets() {
 }
 
 function WalletCard({ wallet: w }: { wallet: Wallet }) {
+  const { t } = useT();
   return (
     <Card>
       <div className="space-y-2">
@@ -96,20 +99,20 @@ function WalletCard({ wallet: w }: { wallet: Wallet }) {
             <Pill kind="accent">chain {w.chain_id}</Pill>
           </div>
           <span className="text-[10px] text-muted" title={fmtDate(w.created_at)}>
-            created {fmtRelativeTime(w.created_at)}
+            {t('wallets.card.created', { rel: fmtRelativeTime(w.created_at) })}
           </span>
         </div>
         <div>
-          <div className="text-[13px] font-medium text-fg">{w.label || '(no label)'}</div>
+          <div className="text-[13px] font-medium text-fg">{w.label || t('wallets.card.no_label')}</div>
           <div className="flex items-center gap-1.5 mt-1">
             <code className="text-[11px] font-mono text-muted">{fmtAddress(w.address)}</code>
             <button
               onClick={() => {
                 navigator.clipboard.writeText(w.address);
-                toast.success('Address copied');
+                toast.success(t('wallets.card.address_copied'));
               }}
               className="text-muted hover:text-fg"
-              title="Copy full address"
+              title={t('wallets.card.copy')}
             >
               <CopyIcon className="w-3 h-3" />
             </button>
@@ -117,7 +120,7 @@ function WalletCard({ wallet: w }: { wallet: Wallet }) {
         </div>
         {w.last_synced_at && (
           <div className="text-[10px] text-muted pt-1 border-t border-border">
-            last synced {fmtRelativeTime(w.last_synced_at)}
+            {t('wallets.card.last_synced', { rel: fmtRelativeTime(w.last_synced_at) })}
           </div>
         )}
       </div>
@@ -126,6 +129,7 @@ function WalletCard({ wallet: w }: { wallet: Wallet }) {
 }
 
 function AddWalletModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+  const { t } = useT();
   const [address, setAddress] = useState('');
   const [label, setLabel] = useState('');
   const [chainId, setChainId] = useState<number>(POLYGON_MAINNET);
@@ -139,10 +143,10 @@ function AddWalletModal({ onClose, onAdded }: { onClose: () => void; onAdded: ()
       wallet_type: walletType,
     }),
     onSuccess: (w) => {
-      toast.success(`Added wallet ${fmtAddress(w.address)}`);
+      toast.success(t('wallets.add.toast.added', { addr: fmtAddress(w.address) }));
       onAdded();
     },
-    onError: (e: Error) => toast.error('Failed to add wallet', e.message),
+    onError: (e: Error) => toast.error(t('wallets.add.toast.failed'), e.message),
   });
 
   const canSubmit = address.trim().startsWith('0x') && address.trim().length === 42;
@@ -151,11 +155,11 @@ function AddWalletModal({ onClose, onAdded }: { onClose: () => void; onAdded: ()
     <Modal
       open
       onClose={onClose}
-      title="Add wallet"
+      title={t('wallets.add.title')}
       size="md"
       footer={
         <>
-          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" size="sm" onClick={onClose}>{t('wallets.add.cancel')}</Button>
           <Button
             variant="primary"
             size="sm"
@@ -163,40 +167,40 @@ function AddWalletModal({ onClose, onAdded }: { onClose: () => void; onAdded: ()
             disabled={!canSubmit}
             onClick={() => mut.mutate()}
           >
-            Add
+            {t('wallets.add.add')}
           </Button>
         </>
       }
     >
       <div className="space-y-3">
-        <Field label="Address (0x…40 hex chars)">
+        <Field label={t('wallets.add.address')}>
           <Input
-            placeholder="0x…"
+            placeholder={t('wallets.add.address_placeholder')}
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             invalid={address.length > 0 && !canSubmit}
             className="font-mono"
           />
         </Field>
-        <Field label="Label (optional)">
+        <Field label={t('wallets.add.label')}>
           <Input
-            placeholder="primary, trade-1, cold, …"
+            placeholder={t('wallets.add.label_placeholder')}
             value={label}
             onChange={(e) => setLabel(e.target.value)}
           />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Chain ID">
+          <Field label={t('wallets.add.chain_id')}>
             <select
               value={chainId}
               onChange={(e) => setChainId(Number(e.target.value))}
               className="w-full h-8 px-2 rounded-md text-[13px] bg-surface text-fg border border-border"
             >
-              <option value={137}>137 — Polygon mainnet</option>
-              <option value={80002}>80002 — Polygon Amoy testnet</option>
+              <option value={137}>{t('wallets.add.chain_polygon')}</option>
+              <option value={80002}>{t('wallets.add.chain_amoy')}</option>
             </select>
           </Field>
-          <Field label="Type">
+          <Field label={t('wallets.add.type')}>
             <div className="flex items-center gap-2 h-8">
               <button
                 onClick={() => setWalletType('eoa')}
@@ -207,7 +211,7 @@ function AddWalletModal({ onClose, onAdded }: { onClose: () => void; onAdded: ()
                     : 'bg-surface-2 text-muted border-border hover:text-fg')
                 }
               >
-                EOA
+                {t('wallets.add.type_eoa')}
               </button>
               <button
                 onClick={() => setWalletType('smart')}
@@ -218,16 +222,19 @@ function AddWalletModal({ onClose, onAdded }: { onClose: () => void; onAdded: ()
                     : 'bg-surface-2 text-muted border-border hover:text-fg')
                 }
               >
-                Smart
+                {t('wallets.add.type_smart')}
               </button>
             </div>
           </Field>
         </div>
-        <div className="text-[11px] text-muted pt-2 border-t border-border">
-          Note: private keys are stored in the OS keyring under alias{' '}
-          <code className="font-mono text-fg">polyrocket/wallet/&lt;label&gt;</code> —
-          never in SQLite or any plain file.
-        </div>
+        <div
+          className="text-[11px] text-muted pt-2 border-t border-border"
+          dangerouslySetInnerHTML={{
+            __html: t('wallets.add.notice', {
+              path: 'polyrocket/wallet/&lt;label&gt;',
+            }),
+          }}
+        />
       </div>
     </Modal>
   );

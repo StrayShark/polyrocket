@@ -5,12 +5,13 @@ import { Button } from '@/components/base/Button';
 import { Pill } from '@/components/base/Pill';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { useToastStore } from '@/stores/toast-store';
+import { useT } from '@/lib/i18n';
 
-const KIND_LABEL = {
-  info: 'Info',
-  success: 'Success',
-  warning: 'Warning',
-  error: 'Error',
+const KIND_LABEL_KEY = {
+  info: 'notifications.toast.kind.info',
+  success: 'notifications.toast.kind.success',
+  warning: 'notifications.toast.kind.warning',
+  error: 'notifications.toast.kind.error',
 } as const;
 
 const KIND_CLS = {
@@ -21,6 +22,7 @@ const KIND_CLS = {
 } as const;
 
 export function Notifications() {
+  const { t } = useT();
   const toasts = useToastStore((s) => s.toasts);
   const dismiss = useToastStore((s) => s.dismiss);
   const clear = useToastStore((s) => s.clear);
@@ -32,15 +34,15 @@ export function Notifications() {
           <div className="flex items-center gap-2">
             <Bell className="w-4 h-4 text-muted" />
             <div>
-              <h2 className="text-[13px] font-semibold text-fg">Notifications</h2>
+              <h2 className="text-[13px] font-semibold text-fg">{t('notifications.title')}</h2>
               <p className="text-[11px] text-muted mt-0.5">
-                Live toast queue. {toasts.length} active.
+                {t('notifications.toast.subtitle', { n: toasts.length })}
               </p>
             </div>
           </div>
           {toasts.length > 0 && (
             <Button variant="ghost" size="sm" iconLeft={<Trash2 className="w-3 h-3" />} onClick={clear}>
-              Clear all
+              {t('notifications.toast.clear')}
             </Button>
           )}
         </div>
@@ -49,32 +51,32 @@ export function Notifications() {
       {toasts.length === 0 ? (
         <EmptyState
           icon={<Bell className="w-5 h-5" />}
-          title="No notifications"
-          description="Important events will appear here (new signals, order fills, errors)."
+          title={t('notifications.empty.title')}
+          description={t('notifications.toast.empty_desc')}
         />
       ) : (
         <div className="space-y-2">
-          {toasts.map((t) => (
+          {toasts.map((t2) => (
             <div
-              key={t.id}
-              className={'rounded-md border px-3 py-2.5 flex items-start gap-2 ' + KIND_CLS[t.kind]}
+              key={t2.id}
+              className={'rounded-md border px-3 py-2.5 flex items-start gap-2 ' + KIND_CLS[t2.kind]}
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <Pill kind={t.kind === 'success' ? 'bull' : t.kind === 'error' ? 'bear' : t.kind === 'warning' ? 'warning' : 'accent'}>
-                    {KIND_LABEL[t.kind]}
+                  <Pill kind={t2.kind === 'success' ? 'bull' : t2.kind === 'error' ? 'bear' : t2.kind === 'warning' ? 'warning' : 'accent'}>
+                    {t(KIND_LABEL_KEY[t2.kind])}
                   </Pill>
-                  <span className="text-[10px] text-muted">just now</span>
+                  <span className="text-[10px] text-muted">{t('notifications.toast.just_now')}</span>
                 </div>
-                <div className="text-[12px] font-medium text-fg mt-1">{t.title}</div>
-                {t.body && (
-                  <div className="text-[11px] text-fg-secondary mt-0.5 break-words">{t.body}</div>
+                <div className="text-[12px] font-medium text-fg mt-1">{t2.title}</div>
+                {t2.body && (
+                  <div className="text-[11px] text-fg-secondary mt-0.5 break-words">{t2.body}</div>
                 )}
               </div>
               <button
-                onClick={() => dismiss(t.id)}
+                onClick={() => dismiss(t2.id)}
                 className="text-muted hover:text-fg shrink-0"
-                aria-label="dismiss"
+                aria-label={t('notifications.toast.dismiss_aria')}
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -83,17 +85,17 @@ export function Notifications() {
         </div>
       )}
 
-      <Card title="Event types" description="What generates a notification">
+      <Card title={t('notifications.event_types.title')} description={t('notifications.event_types.desc')}>
         <div className="space-y-2 text-[12px]">
-          <Row label="New active signal" hint="When |edge| crosses your threshold (default 5%)" />
-          <Row label="Order fill" hint="When a Mode B signed order settles" />
-          <Row label="Keyring access" hint="When a secret is read or denied" />
-          <Row label="Auto-disable" hint="When 3 consecutive probe failures disable a provider" />
-          <Row label="Daily brief" hint="When 00:00 UTC refresh runs (silent on success)" />
+          <Row label={t('notifications.event.signal')} hint={t('notifications.event.signal_hint')} />
+          <Row label={t('notifications.event.fill')} hint={t('notifications.event.fill_hint')} />
+          <Row label={t('notifications.event.keyring')} hint={t('notifications.event.keyring_hint')} />
+          <Row label={t('notifications.event.auto_disable')} hint={t('notifications.event.auto_disable_hint')} />
+          <Row label={t('notifications.event.brief')} hint={t('notifications.event.brief_hint')} />
         </div>
         <div className="pt-3 border-t border-border">
           <Link to="/settings">
-            <Button variant="secondary" size="sm">Notification settings</Button>
+            <Button variant="secondary" size="sm">{t('notifications.event.settings_link')}</Button>
           </Link>
         </div>
       </Card>
