@@ -27,7 +27,10 @@ export function Analysis() {
   const { t } = useT();
   const [marketId, setMarketId] = useState('');
   const [analyzeResult, setAnalyzeResult] = useState<{
-    analysisId: number;
+    // v0.16a — analysisId is now a string (UUID) per the
+    // LlmAnalysis DTO. v0.15c had to cast with `as unknown as
+    // number`; that workaround is gone.
+    analysisId: string;
     consensusSide: string | null;
     consensusProb: number | null;
     consensusConfidence: number | null;
@@ -76,14 +79,12 @@ export function Analysis() {
     },
     onSuccess: (r) => {
       setAnalyzeResult({
-        // v0.15c — the IPC returns a uuid string despite the
-        // LlmAnalysis TS type saying `id: number` (the type is
-        // wrong — see schema/src/db/schema/index.ts which uses
-        // text('id').primaryKey()). Cast to string for the events.
-        analysisId: r.analysis.id as unknown as number,
+        // v0.16a — analysisId is the UUID string from the Rust
+        // DTO. No cast needed (the type now matches).
+        analysisId: r.analysis.id,
         consensusSide: r.analysis.consensus_side,
-        consensusProb: r.analysis.consensus_prob,
-        consensusConfidence: r.analysis.consensus_confidence,
+        consensusProb: r.analysis.consensus_predicted,
+        consensusConfidence: r.analysis.consensus_conf,
       });
       // The mutation has already returned; the finished event
       // fired before the IPC returned. Clear the in-flight ID
@@ -297,16 +298,18 @@ export function Analysis() {
         >
           <div className="space-y-2">
             <Field label={t('analysis.recommendation.provider')} value={chosen.provider_id} mono />
-            <Field label={t('analysis.recommendation.side')} value={chosen.side} />
-            <Field label={t('analysis.recommendation.predicted')} value={fmtPct(chosen.predicted_prob)} />
-            <Field label={t('analysis.recommendation.confidence')} value={fmtConfidence(chosen.confidence)} />
-            <Field label={t('analysis.recommendation.cost')} value={fmtCents(chosen.cost_cents)} />
-            <Field label={t('analysis.recommendation.latency')} value={fmtLatency(chosen.latency_ms)} />
-            {chosen.rationale && (
+            {/* v0.16a — fields are nullable per the LlmRecommendation DTO */}
+            <Field label={t('analysis.recommendation.side')} value={chosen.side ?? '—'} />
+            <Field label={t('analysis.recommendation.predicted')} value={chosen.predicted_prob != null ? fmtPct(chosen.predicted_prob) : '—'} />
+            <Field label={t('analysis.recommendation.confidence')} value={chosen.confidence != null ? fmtConfidence(chosen.confidence) : '—'} />
+            <Field label={t('analysis.recommendation.cost')} value={chosen.cost_cents != null ? fmtCents(chosen.cost_cents) : '—'} />
+            <Field label={t('analysis.recommendation.latency')} value={chosen.latency_ms != null ? fmtLatency(chosen.latency_ms) : '—'} />
+            {/* v0.16a — `reasoning` not `rationale` (matches Rust DTO) */}
+            {chosen.reasoning && (
               <div>
                 <div className="text-[11px] text-muted mb-1">{t('analysis.recommendation.rationale')}</div>
                 <div className="text-[12px] text-fg bg-surface-2 rounded p-2 max-h-40 overflow-y-auto">
-                  {chosen.rationale}
+                  {chosen.reasoning}
                 </div>
               </div>
             )}
