@@ -6,8 +6,8 @@
 |---|---|
 | Bundle id | `com.polyrocket.app` |
 | Stack | Tauri 2 · React 18 · TypeScript · Rust · SQLite · Python (sidecar) |
-| Test totals | **167 cargo + 88 vitest + 26 Python = 281/281** |
-| Status | v0.7 (post-MVP, pre-`tauri build` ship) |
+| Test totals | **196 cargo + 117 vitest + 26 Python = 339/339** |
+| Status | v0.8 — first-run seeder, L1 error boundary, audit retention, keyboard nav |
 
 ## What it does
 
@@ -90,17 +90,17 @@ polyrocket/
 ├── src/                              # L1 — React frontend
 │   ├── components/{base,feedback,data,business,shell}/
 │   ├── db/schema/                    # Drizzle schema (20 tables)
-│   ├── ipc.ts                        # 53 typed wrappers (single source of truth for L1↔L2)
-│   ├── lib/domain/                   # L1 ↔ L3 mirror (8 modules, 88 vitest tests)
+│   ├── ipc.ts                        # 55 typed wrappers (single source of truth for L1↔L2)
+│   ├── lib/{domain,invoke-safe,keyboard-nav}.ts   # L1 helpers (tested: 117 vitest)
 │   ├── routes/                       # 18 L1 routes
 │   ├── stores/{theme,toast,prefs}/
 │   └── types/
 ├── src-tauri/                        # L2-L5 — Rust backend
 │   ├── src/
 │   │   ├── lib.rs                    # plugin + invoke_handler
-│   │   ├── commands/                 # L2 — 17 files, 53 IPCs
-│   │   ├── domain/                   # L3 — 11 subdirs (llm, polymarket, consensus, signal, bet, copy, pnl, lab, wallet, notify, mirror)
-│   │   ├── infra/                    # L4 — error, state, http, db, scheduler, lab_state
+│   │   ├── commands/                 # L2 — 18 files, 55 IPCs
+│   │   ├── domain/                   # L3 — 13 subdirs (llm, polymarket, consensus, signal, bet, copy, pnl, lab, wallet, notify, mirror, seed, audit)
+│   │   ├── infra/                    # L4 — error, state, http, db (pool/seed/audit/settings), scheduler, lab_state
 │   │   └── platform/                 # L5 — keyring, env, paths
 │   ├── tests/                        # 9 integration test files
 │   ├── capabilities/default.json     # v0.7c — capability contract
@@ -129,7 +129,7 @@ L1 (React/TS)  →  L2 (Tauri commands)  →  L3 (domain logic)  →  L4 (infra)
 - L3 never depends on L1/L2
 - L5 is leaf (no outbound)
 
-## IPC surface (53 commands)
+## IPC surface (55 commands)
 
 Grouped by module — see `docs/overview.md` §3 for the full table.
 
@@ -145,7 +145,8 @@ Grouped by module — see `docs/overview.md` §3 for the full table.
 | M8 Dashboard | (consumes M1-M7) | — |
 | M9 Settings | (frontend) | — |
 | M10-M12 LLM | 12 | `llm_analyze`, `llm_performance`, `llm_provider_*`, `llm_key_*` |
-| M13+ System | 11 | `send_notification`, `request_notification_permission`, audit, scheduler, brief |
+| M13+ System | 12 | `send_notification`, `request_notification_permission`, audit + purge, scheduler, brief |
+| Seed (v0.8a) | 2 | `seed_demo_data`, `is_seeded` |
 | Secrets | 4 | `polyrocket_wallet_set_pk`, `llm_pm_set_credentials`, … |
 
 ## v0.7 status
@@ -155,8 +156,13 @@ Grouped by module — see `docs/overview.md` §3 for the full table.
 | v0.7a | ✅ `2ea04a5` (已删除) | 3 GitHub Actions workflows (rust, ui, governance) — reverted in v0.7f |
 | v0.7b | ✅ `3d00d85` | Real Python sidecar — 4 Rust e2e + 26 Python unit |
 | v0.7c | ✅ `4d73eb8` | Tauri capabilities hardening + 7 self-check tests |
-| v0.7d | ✅ (this commit) | README refresh |
-| v0.7e | ⏳ | Final docs + doc-sync refresh |
+| v0.7d | ✅ `6bb1a09` | README refresh + release binary verification |
+| v0.7e | ✅ `e4c71c2` | v0.7 final docs |
+| v0.7f | ✅ `d246402` | removed .github/ (CI reverted) |
+| v0.8a | ✅ `f34a818` | First-run seeder — populated UI out of the box (50+ demo rows) |
+| v0.8b | ✅ `b5118d2` | L1 error boundary + invoke classifier (10 kinds) |
+| v0.8c | ✅ `3e09741` | Audit log retention (90d / 50k / 1k floor) + 5th scheduler |
+| v0.8d | ✅ `da146ef` | Keyboard navigation (g+key + ? help) |
 
 ## Documentation
 
