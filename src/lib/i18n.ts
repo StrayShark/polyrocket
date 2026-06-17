@@ -474,6 +474,11 @@ const en: Dictionary = {
   'promote.history.desc': 'Past promoted models, newest first.',
   'promote.history.empty': 'No promotions yet',
   'promote.history.empty_desc': 'Train a model and click Promote to start the history.',
+  // v0.30a — trial-type filter chips
+  'promote.history.filter.all': 'All',
+  'promote.history.filter.best': 'Best trial',
+  'promote.history.filter.bulk': 'Bulk',
+  'promote.history.filter_empty': 'No entries match the "{{filter}}" filter.',
   'promote.history.brier': 'Brier',
   'promote.history.active': 'active',
   // v0.24a — per-trial badge labels
@@ -1054,6 +1059,11 @@ const zh: Dictionary = {
   'promote.history.desc': '历史晋升过的模型，最新的在前。',
   'promote.history.empty': '暂无晋升记录',
   'promote.history.empty_desc': '训练一个模型并点击 "晋升" 即可开始记录历史。',
+  // v0.30a — trial-type filter chips
+  'promote.history.filter.all': '全部',
+  'promote.history.filter.best': '最优试验',
+  'promote.history.filter.bulk': '批量',
+  'promote.history.filter_empty': '没有匹配 "{{filter}}" 过滤器的记录。',
   'promote.history.brier': 'Brier',
   'promote.history.active': '当前',
   // v0.24a — per-trial badge labels

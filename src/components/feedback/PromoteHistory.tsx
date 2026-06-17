@@ -13,6 +13,16 @@
  *     as the active model. Disabled while the rollback
  *     is in flight or this row IS the active model.
  *
+ * v0.30a — added a trial-type filter at the top of
+ * the panel. Three modes:
+ *   - "all"   (default) — show every entry
+ *   - "best"  — only entries promoted via the best-
+ *               trial path (Promote / Promote if better)
+ *   - "bulk"  — only entries promoted via the bulk
+ *               path (Promote all / Promote trial N)
+ * The filter is local component state (not persisted);
+ * resets to "all" on remount.
+ *
  * The currently active model is NOT in this list — to
  * see the active model, use the ModelVersionPill at
  * the top of the page. The list is for audit
@@ -56,9 +66,21 @@ function brierColor(brier: number | null): 'bull' | 'warn' | 'bear' | 'muted' {
   return 'bear';
 }
 
+/** v0.30a — classify a history entry as best or bulk
+ *  based on its `trial_index`. */
+function entryTrialType(entry: PromoteHistoryEntry): 'best' | 'bulk' {
+  return entry.trial_index === null || entry.trial_index === undefined
+    ? 'best'
+    : 'bulk';
+}
+
+type HistoryFilter = 'all' | 'best' | 'bulk';
+
 export function PromoteHistory({ className = '', activeModelVersion = null }: PromoteHistoryProps) {
   const { t } = useT();
   const queryClient = useQueryClient();
+  // v0.30a — trial-type filter (local state, resets on remount)
+  const [filter, setFilter] = useState<HistoryFilter>('all');
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['promote-history'],
     queryFn: () => listPromoteHistory(),
@@ -111,10 +133,19 @@ export function PromoteHistory({ className = '', activeModelVersion = null }: Pr
 
   const entries = data?.entries ?? [];
   const empty = entries.length === 0;
+  // v0.30a — apply the trial-type filter before reversing.
+  //   - "all"  → no filter
+  //   - "best" → only entries promoted via the best path
+  //   - "bulk" → only entries promoted via the bulk path
+  const filtered =
+    filter === 'all'
+      ? entries
+      : entries.filter((e) => entryTrialType(e) === filter);
   // Reverse to show newest first (the array is oldest-first
   // from the Python side, which is the natural order for
   // an append-only log; the UI reverses for "recent first").
-  const reversed = [...entries].reverse();
+  const reversed = [...filtered].reverse();
+  const filteredEmpty = filtered.length === 0;
 
   if (empty) {
     return (
@@ -132,18 +163,51 @@ export function PromoteHistory({ className = '', activeModelVersion = null }: Pr
     <div
       className={`space-y-2 ${className}`}
       data-testid="promote-history"
-      data-count={entries.length}
+      data-count={filtered.length}
     >
-      {reversed.map((e) => (
-        <HistoryRow
-          key={`${e.job_id}-${e.promoted_at_ms}`}
-          entry={e}
-          isActive={e.model_version === activeModelVersion}
-          isPending={rollbackMut.isPending}
-          pendingVersion={rollbackMut.variables}
-          onRollback={(mv) => rollbackMut.mutate(mv)}
-        />
-      ))}
+      {/* v0.30a — trial-type filter chips. Three buttons
+          (All / Best / Bulk); the active one is highlighted.
+          Local state, no IPC. Resets on remount. */}
+      <div
+        className="flex items-center gap-1 text-[10px]"
+        data-testid="promote-history-filter"
+        data-active={filter}
+      >
+        {(['all', 'best', 'bulk'] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            data-testid={`promote-history-filter-${f}`}
+            onClick={() => setFilter(f)}
+            className={`px-2 py-0.5 rounded border transition-colors ${
+              filter === f
+                ? 'border-accent text-accent bg-accent/10'
+                : 'border-border text-muted hover:text-fg'
+            }`}
+          >
+            {t(`promote.history.filter.${f}`)}
+          </button>
+        ))}
+      </div>
+      {filteredEmpty ? (
+        <div
+          className="text-[11px] text-muted italic"
+          data-testid="promote-history-filtered-empty"
+        >
+          {t('promote.history.filter_empty', { filter: t(`promote.history.filter.${filter}`) })}
+        </div>
+      ) : (
+        reversed.map((e) => (
+          <HistoryRow
+            key={`${e.job_id}-${e.promoted_at_ms}`}
+            entry={e}
+            isActive={e.model_version === activeModelVersion}
+            isPending={rollbackMut.isPending}
+            pendingVersion={rollbackMut.variables}
+            onRollback={(mv) => rollbackMut.mutate(mv)}
+          />
+        ))
+      )}
     </div>
   );
 }

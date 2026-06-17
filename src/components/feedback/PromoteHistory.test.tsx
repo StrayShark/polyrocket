@@ -276,3 +276,107 @@ describe('PromoteHistory (v0.19c)', () => {
     expect(badge.textContent).toContain('promote.history.trial_n');
   });
 });
+
+// =================================================================
+// ================== v0.30a — trial-type filter =====================
+// =================================================================
+
+describe('PromoteHistory trial-type filter (v0.30a)', () => {
+  beforeEach(() => {
+    vi.mocked(listPromoteHistory).mockReset();
+  });
+
+  // Helper: 3 entries, mix of best + bulk.
+  //  - train-a: best trial (trial_index null)     — Brier 0.20
+  //  - train-b: bulk trial 0 (trial_index 0)      — Brier 0.18
+  //  - train-c: bulk trial 1 (trial_index 1)      — Brier 0.16
+  function mockMixed() {
+    vi.mocked(listPromoteHistory).mockResolvedValue({
+      ok: true,
+      count: 3,
+      entries: [
+        { job_id: 'train-a', model_version: 'logistic-train-a', promoted_at_ms: 1_700_000_000_000, best_brier: 0.20, best_params: null, trial_index: null },
+        { job_id: 'train-b', model_version: 'logistic-train-b-t0', promoted_at_ms: 1_700_001_000_000, best_brier: 0.18, best_params: null, trial_index: 0 },
+        { job_id: 'train-c', model_version: 'logistic-train-c-t1', promoted_at_ms: 1_700_002_000_000, best_brier: 0.16, best_params: null, trial_index: 1 },
+      ],
+      message: null,
+    });
+  }
+
+  it('renders the filter chips with "all" as default', async () => {
+    mockMixed();
+    render(wrap(<PromoteHistory />));
+    await waitFor(() => {
+      expect(screen.getByTestId('promote-history-filter')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('promote-history-filter-all')).toBeInTheDocument();
+    expect(screen.getByTestId('promote-history-filter-best')).toBeInTheDocument();
+    expect(screen.getByTestId('promote-history-filter-bulk')).toBeInTheDocument();
+    expect(screen.getByTestId('promote-history-filter')).toHaveAttribute('data-active', 'all');
+  });
+
+  it('shows all 3 entries by default (filter=all)', async () => {
+    mockMixed();
+    render(wrap(<PromoteHistory />));
+    await waitFor(() => {
+      expect(screen.getByTestId('promote-history')).toBeInTheDocument();
+    });
+    const rows = screen.getAllByTestId('promote-history-row');
+    expect(rows).toHaveLength(3);
+  });
+
+  it('filter=best shows only best-trial entries (v0.30a)', async () => {
+    mockMixed();
+    render(wrap(<PromoteHistory />));
+    await waitFor(() => {
+      expect(screen.getByTestId('promote-history-filter-best')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('promote-history-filter-best'));
+    await waitFor(() => {
+      const rows = screen.getAllByTestId('promote-history-row');
+      expect(rows).toHaveLength(1);
+    });
+    // The remaining row is the best-trial one
+    const row = screen.getByTestId('promote-history-row');
+    expect(row).toHaveAttribute('data-job-id', 'train-a');
+    expect(screen.getByTestId('promote-history-filter')).toHaveAttribute('data-active', 'best');
+  });
+
+  it('filter=bulk shows only bulk-trial entries (v0.30a)', async () => {
+    mockMixed();
+    render(wrap(<PromoteHistory />));
+    await waitFor(() => {
+      expect(screen.getByTestId('promote-history-filter-bulk')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('promote-history-filter-bulk'));
+    await waitFor(() => {
+      const rows = screen.getAllByTestId('promote-history-row');
+      expect(rows).toHaveLength(2);
+    });
+    const rows = screen.getAllByTestId('promote-history-row');
+    expect(rows[0]).toHaveAttribute('data-job-id', 'train-c'); // newest first
+    expect(rows[1]).toHaveAttribute('data-job-id', 'train-b');
+  });
+
+  it('shows "no entries match" message when filter has 0 results (v0.30a)', async () => {
+    // Only bulk entries, then filter to "best" → 0 results
+    vi.mocked(listPromoteHistory).mockResolvedValue({
+      ok: true,
+      count: 2,
+      entries: [
+        { job_id: 'a', model_version: 'a-t0', promoted_at_ms: 1, best_brier: 0.2, best_params: null, trial_index: 0 },
+        { job_id: 'b', model_version: 'b-t1', promoted_at_ms: 2, best_brier: 0.18, best_params: null, trial_index: 1 },
+      ],
+      message: null,
+    });
+    render(wrap(<PromoteHistory />));
+    await waitFor(() => {
+      expect(screen.getByTestId('promote-history-filter-best')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('promote-history-filter-best'));
+    await waitFor(() => {
+      expect(screen.getByTestId('promote-history-filtered-empty')).toBeInTheDocument();
+    });
+    expect(screen.queryAllByTestId('promote-history-row')).toHaveLength(0);
+  });
+});
