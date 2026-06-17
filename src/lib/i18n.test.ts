@@ -148,6 +148,9 @@ describe('Analysis / LlmPerf / LlmMgmt keys (v0.14a)', () => {
       'rollback.confirm.title', 'rollback.confirm.body',
       'rollback.confirm.warning',
       'rollback.confirm.confirm', 'rollback.confirm.cancel',
+      'promote.chart.title', 'promote.chart.empty', 'promote.chart.range',
+      'promote.chart.trend.up', 'promote.chart.trend.down',
+      'promote.chart.trend.flat',
       // LlmPerf
       'llmperf.kpi.models', 'llmperf.kpi.cost', 'llmperf.kpi.wins',
       'llmperf.kpi.roi', 'llmperf.delta.profitable', 'llmperf.delta.unprofitable',
