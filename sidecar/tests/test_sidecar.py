@@ -141,6 +141,28 @@ class PredictTests(unittest.TestCase):
         self.assertEqual(out[0]["confidence"], 0.0)
 
 
+class BenchTests(unittest.TestCase):
+    """v0.11d — the hot path is hot enough.
+
+    We don't assert on an exact timing (CI hosts vary), just that
+    10k markets finish in <500ms on a dev machine. A regression
+    to the slow path (e.g. unhoisted import, accidental global
+    re-read) would push this well over 1s.
+    """
+    def test_10k_markets_under_500ms(self) -> None:
+        from polyrocket_sidecar.predict import predict_from_markets
+        import time
+        markets = [
+            {"market_id": f"m{i}", "price": (i * 0.0001) % 1.0, "market_age_hours": i * 0.1}
+            for i in range(10_000)
+        ]
+        started = time.perf_counter()
+        out = predict_from_markets(markets)
+        elapsed = time.perf_counter() - started
+        self.assertEqual(len(out), 10_000)
+        self.assertLess(elapsed, 0.5, f"predict took {elapsed:.3f}s; expected <0.5s")
+
+
 class DispatchTests(unittest.TestCase):
     def test_all_methods_registered(self) -> None:
         # If a method is added on the Rust side without registering here, this
