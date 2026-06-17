@@ -33,7 +33,6 @@
 | Secrets | OS keyring (Keychain / Credential Manager / Secret Service) | `.env` only in dev (gated) |
 | Charts | Custom pure-SVG (Sparkline, BarChart) | No chart lib, theme-agnostic |
 | Sidecar | Python 3.9+ via `std::process::Command` + JSON-RPC over stdio | Hot-swap models without rebuilding Rust |
-| CI | GitHub Actions (`.github/workflows/{rust,ui,governance}.yml`) | Run on every push to `main` |
 
 ## Themes
 
@@ -110,7 +109,6 @@ polyrocket/
 │   ├── polyrocket_sidecar/           # package: protocol, predict (logistic), dispatch
 │   ├── tests/test_sidecar.py         # 26 unit + e2e subprocess tests
 │   └── scripts/smoke.py              # manual round-trip smoke
-├── .github/workflows/                # v0.7a — rust.yml, ui.yml, governance.yml
 ├── docs/                             # overview.md, polyrocket-modules.md, prototype.html
 ├── scripts/                          # check-doc-sync.mjs, check-layers.mjs, snapshot_pages.py
 └── package.json
@@ -154,7 +152,7 @@ Grouped by module — see `docs/overview.md` §3 for the full table.
 
 | sub-version | status | what landed |
 |---|---|---|
-| v0.7a | ✅ `2ea04a5` | 3 GitHub Actions workflows (rust, ui, governance) |
+| v0.7a | ✅ `2ea04a5` (已删除) | 3 GitHub Actions workflows (rust, ui, governance) — reverted in v0.7f |
 | v0.7b | ✅ `3d00d85` | Real Python sidecar — 4 Rust e2e + 26 Python unit |
 | v0.7c | ✅ `4d73eb8` | Tauri capabilities hardening + 7 self-check tests |
 | v0.7d | ✅ (this commit) | README refresh |
@@ -168,7 +166,6 @@ Grouped by module — see `docs/overview.md` §3 for the full table.
 | `docs/polyrocket-modules.md` | 13 modules + test growth + layer purity report |
 | `docs/prototype.html` | Single-file UI mock (3091 lines, 23 render fns, 18 routes) |
 | `docs/previews/{dark,light,matrix}/` | 54 PNG screenshots (refreshed v0.6d) |
-| `.github/workflows/*.yml` | The actual CI |
 | `sidecar/polyrocket_sidecar/README.md` | Wire protocol + methods + model design |
 
 ## Out of scope

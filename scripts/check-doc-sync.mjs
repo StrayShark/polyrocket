@@ -2,14 +2,11 @@
 /**
  * Pre-commit governance checks.
  *
- *   1. DocSync: refuses to commit if code under src/ or src-tauri/
- *      changed without a corresponding update to docs/polyrocket-*.md
- *      or docs/overview.md.
+ *   1. DocSync: refuses to commit if code under src/, src-tauri/
+ *      or sidecar/ changed without a corresponding update to
+ *      docs/polyrocket-*.md or docs/overview.md.
  *   2. LayerGuard: refuses to commit if any Rust file imports across
  *      a disallowed layer edge (see docs/overview.md §1.2).
- *   3. WorkflowSync: refuses to commit if .github/workflows/ changed
- *      without a corresponding update to docs/overview.md §6 (the
- *      "CI guard" section).
  *
  * Both checks are run from this entry point so a single pre-commit
  * hook invocation catches both classes of violation.
@@ -32,15 +29,14 @@ if (staged.length === 0) {
 const codeChanged = staged.some(
   (f) => f.startsWith('src/') || f.startsWith('src-tauri/') || f.startsWith('sidecar/'),
 );
-const ciChanged = staged.some((f) => f.startsWith('.github/'));
 const docChanged = staged.some((f) =>
   /^docs\/(polyradar-(blueprint|ui-spec|dev-governance)|polyrocket-.*|overview)\.md$/.test(f) ||
   /^(polyradar-(blueprint|ui-spec|dev-governance)|polyrocket-.*|overview)\.md$/.test(f),
 );
 
-if ((codeChanged || ciChanged) && !docChanged) {
+if (codeChanged && !docChanged) {
   console.error('❌ DocSync violation');
-  console.error('   code, .github/ or sidecar/ changed but no polyrocket-*.md or overview.md doc updated');
+  console.error('   code or sidecar/ changed but no polyrocket-*.md or overview.md doc updated');
   console.error('   see docs/overview.md §5 for the doc-sync table');
   process.exit(1);
 }
