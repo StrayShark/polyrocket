@@ -139,6 +139,9 @@ describe('Analysis / LlmPerf / LlmMgmt keys (v0.14a)', () => {
       'promote.btn.promote', 'promote.btn.promoting',
       'promote.toast.promoted', 'promote.toast.version', 'promote.toast.failed',
       'promote.last_candidate.hint',
+      'promote.history.title', 'promote.history.desc',
+      'promote.history.empty', 'promote.history.empty_desc',
+      'promote.history.brier',
       // LlmPerf
       'llmperf.kpi.models', 'llmperf.kpi.cost', 'llmperf.kpi.wins',
       'llmperf.kpi.roi', 'llmperf.delta.profitable', 'llmperf.delta.unprofitable',

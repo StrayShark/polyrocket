@@ -19,6 +19,7 @@ import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { ModelVersionPill } from '@/components/feedback/ModelVersionPill';
 import { TrainProgress } from '@/components/feedback/TrainProgress';
+import { PromoteHistory } from '@/components/feedback/PromoteHistory';
 import { fmtPct } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import { toast } from '@/stores/toast-store';
@@ -151,6 +152,9 @@ export function ModelLab() {
       // ModelVersionPill updates to the new version.
       queryClient.invalidateQueries({ queryKey: ['sidecar-active-model'] });
       queryClient.invalidateQueries({ queryKey: ['llm-performance'] });
+      // v0.19c — refresh the promote-history panel so the
+      // new entry appears at the top.
+      queryClient.invalidateQueries({ queryKey: ['promote-history'] });
     },
     onError: (e: Error) => {
       toast.error(t('promote.toast.failed'), e.message);
@@ -306,6 +310,18 @@ export function ModelLab() {
             description={t('modellab.runs.empty_desc')}
           />
         )}
+      </Card>
+
+      {/* v0.19c — Promotion history. Shows the last 20
+          promoted models, newest first. The currently
+          active model is NOT in this list (use the
+          ModelVersionPill at the top of the page for
+          that). */}
+      <Card
+        title={t('promote.history.title')}
+        description={t('promote.history.desc')}
+      >
+        <PromoteHistory />
       </Card>
 
       <Card title={t('modellab.sm.title')} description={t('modellab.sm.desc')}>
