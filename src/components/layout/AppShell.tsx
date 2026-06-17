@@ -9,15 +9,16 @@ import { useKeyboardNav, useNavBindings } from '@/lib/keyboard-nav';
 import { buildPaletteCommands, isPaletteTrigger } from '@/lib/command-palette';
 import { isSeeded, syncMarkets, recomputeSignals, seedDemoData, purgeAuditLogNow } from '@/ipc';
 import { useQueryClient } from '@tanstack/react-query';
+import { useT } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
 
 const PRIMARY_NAV = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/markets', icon: LineChart, label: 'Markets', count: '128' },
-  { to: '/signals', icon: Zap, label: 'Signals', badge: '7' },
-  { to: '/copy', icon: Copy, label: 'Copy Trading' },
-  { to: '/pnl', icon: BarChart3, label: 'P&L' },
-  { to: '/lab', icon: FlaskConical, label: 'Model Lab' },
+  { to: '/dashboard', icon: LayoutDashboard, i18nKey: 'nav.dashboard' },
+  { to: '/markets', icon: LineChart, i18nKey: 'nav.markets', count: '128' },
+  { to: '/signals', icon: Zap, i18nKey: 'nav.signals', badge: '7' },
+  { to: '/copy', icon: Copy, i18nKey: 'nav.copy' },
+  { to: '/pnl', icon: BarChart3, i18nKey: 'nav.pnl' },
+  { to: '/lab', icon: FlaskConical, i18nKey: 'nav.lab' },
 ];
 
 const CATEGORY_NAV = [
@@ -30,6 +31,7 @@ export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { t } = useT();
   const breadcrumb = location.pathname.split('/').filter(Boolean)[0] ?? 'dashboard';
   const pretty = breadcrumb.charAt(0).toUpperCase() + breadcrumb.slice(1);
 
@@ -116,10 +118,10 @@ export function AppShell() {
         <div className="flex-1 overflow-auto py-2">
           <SectionLabel>Workspace</SectionLabel>
           {PRIMARY_NAV.map((n) => (
-            <NavItem key={n.to} {...n} />
+            <NavItem key={n.to} {...n} t={t} />
           ))}
 
-          <SectionLabel className="mt-4">Categories</SectionLabel>
+          <SectionLabel className="mt-4">{t('nav.categories')}</SectionLabel>
           {CATEGORY_NAV.map((c) => (
             <div key={c.label} className="nav-item">
               <c.icon className="w-3.5 h-3.5" style={{ color: 'var(--muted)' }} />
@@ -130,10 +132,10 @@ export function AppShell() {
             </div>
           ))}
 
-          <SectionLabel className="mt-4">Settings</SectionLabel>
+          <SectionLabel className="mt-4">{t('nav.settings_section')}</SectionLabel>
           <div className="nav-item">
             <Settings className="w-3.5 h-3.5" />
-            <span>Preferences</span>
+            <span>{t('nav.preferences')}</span>
           </div>
           <div className="nav-item">
             <Circle className="w-3.5 h-3.5" />
@@ -244,13 +246,17 @@ function SectionLabel({ children, className }: { children: React.ReactNode; clas
   );
 }
 
-function NavItem({ to, icon: Icon, label, count, badge }: {
+function NavItem({ to, icon: Icon, i18nKey, label, count, badge, t }: {
   to: string;
   icon: React.ComponentType<{ className?: string }>;
-  label: string;
+  i18nKey?: string;
+  /** Fallback if no i18nKey. */
+  label?: string;
   count?: string;
   badge?: string;
+  t: (key: string, vars?: Record<string, string | number>) => string;
 }) {
+  const text = i18nKey ? t(i18nKey) : label ?? '';
   return (
     <NavLink
       to={to}
@@ -259,7 +265,7 @@ function NavItem({ to, icon: Icon, label, count, badge }: {
       }
     >
       <Icon className="w-3.5 h-3.5" />
-      <span>{label}</span>
+      <span>{text}</span>
       {count && (
         <span className="ml-auto font-mono text-[10px]" style={{ color: 'var(--muted)' }}>
           {count}

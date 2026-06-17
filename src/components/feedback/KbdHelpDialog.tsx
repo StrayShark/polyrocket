@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { Modal } from './Modal';
 import { formatKeys, type KbdBinding } from '@/lib/keyboard-nav';
+import { useT } from '@/lib/i18n';
 
 interface KbdHelpDialogProps {
   bindings: KbdBinding[];
@@ -14,25 +15,26 @@ interface KbdHelpDialogProps {
 }
 
 export function KbdHelpDialog({ bindings, open, onClose }: KbdHelpDialogProps) {
+  const { t } = useT();
   // Group bindings by length (1-key vs 2-key)
   const singles = bindings.filter((b) => b.keys.length === 1);
   const chords = bindings.filter((b) => b.keys.length === 2);
 
   return (
-    <Modal open={open} onClose={onClose} title="Keyboard shortcuts">
+    <Modal open={open} onClose={onClose} title={t('kbd.title')}>
       <div className="space-y-4">
-        <Section title="Navigation">
+        <Section title={t('palette.category.navigate')}>
           {chords.map((b, i) => (
             <Row key={i} label={b.label} keys={formatKeys(b.keys)} />
           ))}
         </Section>
-        <Section title="Actions">
+        <Section title={t('palette.category.actions')}>
           {singles.map((b, i) => (
             <Row key={i} label={b.label} keys={formatKeys(b.keys)} />
           ))}
         </Section>
         <p className="text-[11px] text-muted pt-2 border-t border-border">
-          Tip: press <Kbd>g</Kbd> then a route key. Press <Kbd>Esc</Kbd> to cancel.
+          {t('kbd.tip')}
         </p>
       </div>
     </Modal>

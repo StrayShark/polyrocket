@@ -17,6 +17,7 @@ describe('KbdHelpDialog', () => {
     render(<KbdHelpDialog bindings={bindings} open onClose={() => {}} />);
     const dialog = screen.getByRole('dialog');
     const inDialog = within(dialog);
+    // The dialog title is now translated ("Keyboard shortcuts" in en)
     expect(inDialog.getByText('Keyboard shortcuts')).toBeInTheDocument();
     expect(inDialog.getByText('Go to Dashboard')).toBeInTheDocument();
     expect(inDialog.getByText('Go to Markets')).toBeInTheDocument();
@@ -27,7 +28,7 @@ describe('KbdHelpDialog', () => {
     render(<KbdHelpDialog bindings={bindings} open onClose={() => {}} />);
     const dialog = screen.getByRole('dialog');
     const inDialog = within(dialog);
-    expect(inDialog.getByText('Navigation')).toBeInTheDocument();
+    expect(inDialog.getByText('Navigate')).toBeInTheDocument();
     expect(inDialog.getByText('Actions')).toBeInTheDocument();
   });
 

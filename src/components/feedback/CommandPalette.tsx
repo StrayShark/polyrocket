@@ -14,6 +14,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal } from './Modal';
 import { Search } from 'lucide-react';
 import { filterCommands, type PaletteCommand } from '@/lib/command-palette';
+import { useT } from '@/lib/i18n';
 
 interface CommandPaletteProps {
   open: boolean;
@@ -22,6 +23,7 @@ interface CommandPaletteProps {
 }
 
 export function CommandPalette({ open, onClose, commands }: CommandPaletteProps) {
+  const { t } = useT();
   const [query, setQuery] = useState('');
   const [highlight, setHighlight] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -79,7 +81,7 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Type a command…"
+            placeholder={t('palette.placeholder')}
             className="flex-1 bg-transparent outline-none text-[13px] text-fg placeholder:text-muted"
             autoComplete="off"
             spellCheck={false}
@@ -94,7 +96,7 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
         >
           {filtered.length === 0 ? (
             <div className="px-4 py-8 text-center text-[12px] text-muted">
-              No matches
+              {t('palette.empty')}
             </div>
           ) : (
             filtered.map((cmd, i) => (

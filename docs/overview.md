@@ -533,6 +533,7 @@ sequenceDiagram
 | **Component tests** | testing-library + happy-dom + 12 新 test | ✅ v0.9b 完成（ErrorBoundary/QueryError/KbdHelpDialog 端到端） |
 | **Command palette** | `lib/command-palette.ts` + `CommandPalette` modal | ✅ v0.9c 完成（Cmd+K + 14 命令 + fuzzy filter） |
 | **i18n foundation** | `lib/i18n.ts` (zh/en) + `LocaleSwitcher` | ✅ v0.9d 完成（39 字符串 × 2 locale + persist + 9 tests） |
+| **i18n 落地** | sidebar nav + KbdHelpDialog + CommandPalette 用 t() | ✅ v0.10a 完成（+3 keys, 用户切 locale 立即生效） |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |
 
 ### 5.2 v0.4 — 功能模块全实现 (13 模块)
