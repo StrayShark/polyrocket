@@ -39,16 +39,34 @@ _cached_mtime_ns: int | None = None
 _cached_at: float = 0.0
 
 
+_cached_model_version: str | None = None
+
+
 def get_active_weights() -> dict[str, float]:
     """Return the active model's weights, or the fallback if not
     available. Caches by mtime so the cost is one stat() per
     process after the first call.
     """
-    global _cached_weights, _cached_mtime_ns, _cached_at
+    # Re-read if cache is stale (also refreshes the model_version cache)
+    get_active_model_info()
+    return _cached_weights if _cached_weights is not None else dict(_FALLBACK_WEIGHTS)
+
+
+def get_active_model_info() -> tuple[dict[str, float], str | None]:
+    """Return (weights, model_version) for the active model.
+
+    v0.12a — `model_version` is the train job_id (e.g. "train-441c352b")
+    prefixed with "logistic-". For the inline fallback, the version
+    is "logistic-0.1.0" (the original predict.py version string).
+
+    Returns (weights, model_version). model_version is None only
+    if active.json exists but is malformed (rare).
+    """
+    global _cached_weights, _cached_mtime_ns, _cached_at, _cached_model_version
 
     # Coarse 1-second cache to avoid a stat() on every predict call
     if _cached_weights is not None and (time.time() - _cached_at) < 1.0:
-        return _cached_weights
+        return _cached_weights, _cached_model_version
 
     try:
         if not ACTIVE_FILE.exists():
@@ -56,11 +74,12 @@ def get_active_weights() -> dict[str, float]:
                 _log.info("no active model at %s; using inline fallback", ACTIVE_FILE)
             _cached_weights = dict(_FALLBACK_WEIGHTS)
             _cached_mtime_ns = None
+            _cached_model_version = "logistic-0.1.0"
             _cached_at = time.time()
-            return _cached_weights
+            return _cached_weights, _cached_model_version
         st = ACTIVE_FILE.stat()
         if _cached_weights is not None and st.st_mtime_ns == _cached_mtime_ns:
-            return _cached_weights
+            return _cached_weights, _cached_model_version
         # New mtime (or first read): re-parse
         data = json.loads(ACTIVE_FILE.read_text())
         best = data.get("best", {})
@@ -71,6 +90,9 @@ def get_active_weights() -> dict[str, float]:
         }
         _cached_weights = weights
         _cached_mtime_ns = st.st_mtime_ns
+        # v0.12a — model version derived from the train job_id
+        job_id = data.get("job_id", "unknown")
+        _cached_model_version = f"logistic-{job_id}"
         _cached_at = time.time()
         _log.info(
             "loaded active model: job_id=%s brier=%s mtime_ns=%s",
@@ -78,21 +100,23 @@ def get_active_weights() -> dict[str, float]:
             best.get("brier"),
             st.st_mtime_ns,
         )
-        return weights
+        return _cached_weights, _cached_model_version
     except (OSError, json.JSONDecodeError, ValueError) as e:
         _log.warning("failed to load active model: %s; using fallback", e)
         _cached_weights = dict(_FALLBACK_WEIGHTS)
         _cached_mtime_ns = None
+        _cached_model_version = "logistic-0.1.0"
         _cached_at = time.time()
-        return _cached_weights
+        return _cached_weights, _cached_model_version
 
 
 def reset_cache() -> None:
     """Force the next call to re-read the file (used by tests)."""
-    global _cached_weights, _cached_mtime_ns, _cached_at
+    global _cached_weights, _cached_mtime_ns, _cached_at, _cached_model_version
     _cached_weights = None
     _cached_mtime_ns = None
     _cached_at = 0.0
+    _cached_model_version = None
 
 
 def predict_with_active_model(price: float, market_age_hours: float) -> float:

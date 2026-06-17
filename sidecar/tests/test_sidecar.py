@@ -111,9 +111,14 @@ class PredictTests(unittest.TestCase):
 
     def test_predict_from_markets_rust_shape(self) -> None:
         """The output MUST match what `domain::lab::sidecar::parse_predict_response`
-        expects on the Rust side: { predictions: [{ market_id, prob, confidence, rationale }] }.
+        expects on the Rust side: { predictions: [{ market_id, prob, confidence, rationale }],
+                                     model_version: "logistic-..." }.
+        v0.12a — model_version is hoisted to the top level.
         """
-        out = predict_from_markets([{"market_id": "m1", "price": 0.5, "market_age_hours": 24}])
+        result = predict_from_markets([{"market_id": "m1", "price": 0.5, "market_age_hours": 24}])
+        self.assertIn("predictions", result)
+        self.assertIn("model_version", result)
+        out = result["predictions"]
         self.assertEqual(len(out), 1)
         p = out[0]
         self.assertEqual(p["market_id"], "m1")
@@ -124,21 +129,37 @@ class PredictTests(unittest.TestCase):
         self.assertLessEqual(p["prob"], 1.0)
         self.assertGreaterEqual(p["confidence"], 0.0)
         self.assertLessEqual(p["confidence"], 1.0)
+        # v0.12a — model_version should be a non-empty string
+        self.assertIsInstance(result["model_version"], str)
+        self.assertGreater(len(result["model_version"]), 0)
 
     def test_empty_markets(self) -> None:
-        out = predict_from_markets([])
-        self.assertEqual(out, [])
+        result = predict_from_markets([])
+        self.assertEqual(result["predictions"], [])
+        self.assertIn("model_version", result)
 
     def test_skips_market_with_no_id(self) -> None:
-        out = predict_from_markets([{"price": 0.5}, {"market_id": "m1", "price": 0.5}])
+        result = predict_from_markets([{"price": 0.5}, {"market_id": "m1", "price": 0.5}])
+        out = result["predictions"]
         self.assertEqual(len(out), 1)
         self.assertEqual(out[0]["market_id"], "m1")
 
     def test_garbage_price_uses_default(self) -> None:
-        out = predict_from_markets([{"market_id": "m1", "price": "lol"}])
+        result = predict_from_markets([{"market_id": "m1", "price": "lol"}])
+        out = result["predictions"]
         self.assertEqual(len(out), 1)
         # default price = 0.5 → confidence = 0
         self.assertEqual(out[0]["confidence"], 0.0)
+
+    def test_returns_model_version_field(self) -> None:
+        """v0.12a — predict_from_markets returns a `model_version` field
+        at the top level. The default (no active model) is
+        'logistic-0.1.0'.
+        """
+        from polyrocket_sidecar.active import reset_cache
+        reset_cache()
+        result = predict_from_markets([{"market_id": "m1", "price": 0.5}])
+        self.assertEqual(result["model_version"], "logistic-0.1.0")
 
 
 class BenchTests(unittest.TestCase):
@@ -157,9 +178,10 @@ class BenchTests(unittest.TestCase):
             for i in range(10_000)
         ]
         started = time.perf_counter()
-        out = predict_from_markets(markets)
+        result = predict_from_markets(markets)
         elapsed = time.perf_counter() - started
-        self.assertEqual(len(out), 10_000)
+        # v0.12a — result is now a dict with `predictions` array
+        self.assertEqual(len(result["predictions"]), 10_000)
         self.assertLess(elapsed, 0.5, f"predict took {elapsed:.3f}s; expected <0.5s")
 
 

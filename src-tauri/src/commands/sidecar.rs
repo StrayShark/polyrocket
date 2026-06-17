@@ -287,7 +287,7 @@ pub async fn sidecar_predict(
     let preds = parse_predict_response(&response).map_err(|e| {
         AppError::Internal(format!("sidecar decode: {e}"))
     })?;
-    Ok(preds)
+    Ok(preds.predictions)
 }
 
 /// Send an arbitrary `SidecarRequest` and return the raw response.

@@ -59,7 +59,7 @@ def predict_from_markets(markets: list[dict[str, Any]]) -> list[dict[str, Any]]:
     # Local import: keeps the import graph small when only the
     # fallback path is needed (e.g. during a unit test that never
     # touches active.py).
-    from .active import get_active_weights
+    from .active import get_active_model_info
 
     # Bind the hot-path functions to locals. CPython's LOAD_FAST
     # is ~30% faster than LOAD_GLOBAL, and a 50-market batch
@@ -68,7 +68,7 @@ def predict_from_markets(markets: list[dict[str, Any]]) -> list[dict[str, Any]]:
     exp = math.exp
     inv_horizon = _INV_HORIZON
 
-    weights = get_active_weights()
+    weights, model_version = get_active_model_info()
     w0 = weights["w0"]
     w1 = weights["w1"]
     w2 = weights["w2"]
@@ -104,9 +104,9 @@ def predict_from_markets(markets: list[dict[str, Any]]) -> list[dict[str, Any]]:
         z = w0 + w1 * (1.0 - price) + w2 * (age * inv_horizon)
         prob = sigmoid(z)
         # Confidence: 0 at price=0.5, 1 at price=0 or 1
-        # v0.11d — `abs(price - 0.5) * 2.0` is correct and faster
-        # than the if/else version I tried first.
-        confidence = (price - 0.5)
+        # v0.11d — manual abs is faster than the abs() builtin on
+        # this hot path.
+        confidence = price - 0.5
         if confidence < 0.0:
             confidence = -confidence
         confidence *= 2.0
@@ -115,9 +115,9 @@ def predict_from_markets(markets: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "market_id": market_id,
             "prob": round(prob, 4),
             "confidence": round(confidence, 4),
-            "rationale": f"active: w={w_str} price={price:.3f} age_h={age:.1f} → p={prob:.3f}",
+            "rationale": f"{model_version or 'logistic'}: w={w_str} price={price:.3f} age_h={age:.1f} → p={prob:.3f}",
         })
-    return out
+    return {"predictions": out, "model_version": model_version}
 
 
 _WEIGHTS_VERSION = "0.1.0"

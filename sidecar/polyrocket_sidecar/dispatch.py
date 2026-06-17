@@ -29,8 +29,9 @@ def predict(params: dict[str, Any]) -> dict[str, Any]:
     markets = params.get("markets", [])
     if not isinstance(markets, list):
         raise ValueError("'markets' must be a list")
-    predictions = predict_from_markets(markets)
-    return {"predictions": predictions}
+    # v0.12a — predict_from_markets now returns the full response
+    # shape (predictions + model_version) directly. Don't wrap.
+    return predict_from_markets(markets)
 
 
 def train_job(params: dict[str, Any]) -> dict[str, Any]:

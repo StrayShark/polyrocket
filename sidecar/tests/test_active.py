@@ -137,12 +137,19 @@ class ActiveModelLoaderTests(unittest.TestCase):
         # might converge to similar weights), but the rationale in
         # predict_from_markets should now show the active weights.
         from polyrocket_sidecar.predict import predict_from_markets
-        out = predict_from_markets([{"market_id": "m1", "price": 0.2, "market_age_hours": 24.0}])
+        result = predict_from_markets([{"market_id": "m1", "price": 0.2, "market_age_hours": 24.0}])
+        out = result["predictions"]
         self.assertEqual(len(out), 1)
-        self.assertIn("active:", out[0]["rationale"])
+        # v0.12a — rationale now starts with the model_version
+        # (e.g. "logistic-train-xxx:" not "active:")
+        self.assertIn("logistic-", out[0]["rationale"])
+        self.assertNotIn("active:", out[0]["rationale"])
         # And the prob is still in range
         self.assertGreaterEqual(out[0]["prob"], 0.0)
         self.assertLessEqual(out[0]["prob"], 1.0)
+        # v0.12a — model_version is exposed at the top level
+        self.assertIsNotNone(result["model_version"])
+        self.assertIn("logistic-", result["model_version"])
         # Either it's the same as fallback (small model) or different.
         # We just verify both are valid probabilities.
         self.assertGreaterEqual(prob_fallback_low, 0.0)

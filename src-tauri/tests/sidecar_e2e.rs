@@ -139,7 +139,8 @@ fn sidecar_predict_round_trip() {
     };
     assert_eq!(resp.id, "rt-2");
     assert!(resp.ok, "ok should be true: {resp:?}");
-    let preds = parse_predict_response(&resp).expect("decode predictions");
+    let result = parse_predict_response(&resp).expect("decode predictions");
+    let preds = &result.predictions;
     assert_eq!(preds.len(), 3);
     // m1 (cheap) should score higher than m2 (expensive)
     let m1 = preds.iter().find(|p| p.market_id == "m1").expect("m1");
@@ -149,10 +150,14 @@ fn sidecar_predict_round_trip() {
         "m1 should have higher prob than m2 (cheap YES > expensive YES): m1={} m2={}",
         m1.prob, m2.prob
     );
-    for p in &preds {
+    for p in preds {
         assert!(p.prob >= 0.0 && p.prob <= 1.0);
         assert!(p.confidence >= 0.0 && p.confidence <= 1.0);
     }
+    // v0.12a — model_version is present (either fallback or active)
+    assert!(result.model_version.is_some(), "model_version should be set");
+    let version = result.model_version.as_deref().unwrap();
+    assert!(version.starts_with("logistic-"), "model_version should start with logistic-: {version}");
     let _ = child.kill();
 }
 

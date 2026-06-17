@@ -65,6 +65,19 @@ pub struct Prediction {
     pub rationale: Option<String>,
 }
 
+/// v0.12a — full predict response (the result block + each row).
+/// The `predictions` field mirrors the per-row data; `model_version`
+/// is hoisted to the top level so the L1 ModelLab page can show
+/// "scoring with logistic-train-..." without iterating rows.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PredictResult {
+    pub predictions: Vec<Prediction>,
+    /// `logistic-0.1.0` (inline fallback) or
+    /// `logistic-train-441c352b` (active promoted model).
+    /// `None` if the sidecar didn't include it (back-compat).
+    pub model_version: Option<String>,
+}
+
 /// Methods enum for type-safe dispatch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SidecarMethod {
@@ -146,11 +159,17 @@ pub fn build_predict_request(
     serde_json::to_string(&req).unwrap_or_default()
 }
 
-/// Parse a `predict` response into Vec<Prediction>.
+/// Parse a `predict` response into a `PredictResult`.
 /// Returns Err if the response is `ok=false`.
+///
+/// v0.12a — now returns the full `PredictResult` (predictions +
+/// model_version) instead of just `Vec<Prediction>`. The model
+/// version is hoisted from the response's top-level `model_version`
+/// field, falling back to `None` if the sidecar didn't send it
+/// (back-compat with v0.11c and earlier).
 pub fn parse_predict_response(
     resp: &SidecarResponse,
-) -> Result<Vec<Prediction>, String> {
+) -> Result<PredictResult, String> {
     if !resp.ok {
         return Err(resp.error.clone().unwrap_or_else(|| "unknown error".into()));
     }
@@ -164,7 +183,10 @@ pub fn parse_predict_response(
             .map_err(|e| format!("prediction row: {e}"))?;
         out.push(p);
     }
-    Ok(out)
+    let model_version = v.get("model_version")
+        .and_then(|x| x.as_str())
+        .map(String::from);
+    Ok(PredictResult { predictions: out, model_version })
 }
 
 #[cfg(test)]
@@ -244,14 +266,31 @@ mod tests {
             "predictions": [
                 { "market_id": "m1", "prob": 0.65, "confidence": 0.7, "rationale": "why" },
                 { "market_id": "m2", "prob": 0.3, "confidence": 0.6, "rationale": null },
+            ],
+            "model_version": "logistic-train-abc123"
+        }));
+        let result = parse_predict_response(&resp).unwrap();
+        assert_eq!(result.predictions.len(), 2);
+        assert_eq!(result.predictions[0].market_id, "m1");
+        assert!((result.predictions[0].prob - 0.65).abs() < 1e-9);
+        assert_eq!(result.predictions[0].rationale.as_deref(), Some("why"));
+        assert!(result.predictions[1].rationale.is_none());
+        // v0.12a — model_version is hoisted to the top level
+        assert_eq!(result.model_version.as_deref(), Some("logistic-train-abc123"));
+    }
+
+    #[test]
+    fn parse_predict_response_model_version_optional() {
+        // Back-compat: if the sidecar doesn't send model_version,
+        // we still parse OK with model_version = None.
+        let resp = SidecarResponse::ok("r1", serde_json::json!({
+            "predictions": [
+                { "market_id": "m1", "prob": 0.5, "confidence": 0.5 },
             ]
         }));
-        let preds = parse_predict_response(&resp).unwrap();
-        assert_eq!(preds.len(), 2);
-        assert_eq!(preds[0].market_id, "m1");
-        assert!((preds[0].prob - 0.65).abs() < 1e-9);
-        assert_eq!(preds[0].rationale.as_deref(), Some("why"));
-        assert!(preds[1].rationale.is_none());
+        let result = parse_predict_response(&resp).unwrap();
+        assert_eq!(result.predictions.len(), 1);
+        assert!(result.model_version.is_none());
     }
 
     #[test]
