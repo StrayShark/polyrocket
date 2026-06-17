@@ -195,6 +195,108 @@ impl SidecarState {
             Err(_) => Err(format!("async timeout after {timeout_ms}ms")),
         }
     }
+
+    /// v0.13d — blocking version of `sidecar_predict`.
+    ///
+    /// Same lock discipline as `ping_blocking`: hold stdin only while
+    /// writing, hold stdout only while reading. Falls back to empty
+    /// Vec if stdin/stdout is unavailable (sidecar not running).
+    pub fn predict_blocking(
+        &self,
+        markets: &[(String, f64)],
+        timeout_ms: u64,
+    ) -> Result<crate::domain::lab::sidecar::PredictResult, String> {
+        use std::io::{BufRead, BufReader, Write};
+        use std::time::{Duration, Instant};
+
+        if !self.is_running() {
+            return Err("sidecar not running".to_string());
+        }
+
+        let id = format!("pred_{}", chrono::Utc::now().timestamp_millis());
+        let line = build_predict_request(&id, markets);
+        let started = Instant::now();
+        let deadline = Duration::from_millis(timeout_ms);
+
+        {
+            let mut stdin_guard = self.stdin.lock().map_err(|e| format!("stdin lock: {e}"))?;
+            let stdin = stdin_guard.as_mut().ok_or_else(|| "stdin not available".to_string())?;
+            if let Err(e) = writeln!(stdin, "{line}") {
+                return Err(format!("write: {e}"));
+            }
+            if let Err(e) = stdin.flush() {
+                return Err(format!("flush: {e}"));
+            }
+        }
+
+        let response_line = {
+            let mut stdout_guard = self.stdout.lock().map_err(|e| format!("stdout lock: {e}"))?;
+            let stdout = stdout_guard.as_mut().ok_or_else(|| "stdout not available".to_string())?;
+            let mut reader = BufReader::new(stdout);
+            let mut buf = String::new();
+            if let Err(e) = reader.read_line(&mut buf) {
+                return Err(format!("read: {e}"));
+            }
+            buf
+        };
+
+        if started.elapsed() > deadline {
+            return Err(format!("timeout after {}ms", started.elapsed().as_millis()));
+        }
+        if response_line.trim().is_empty() {
+            return Err("empty response".into());
+        }
+
+        let parsed = parse_line(&response_line).map_err(|e| format!("parse: {e}"))?;
+        let response = match parsed {
+            crate::domain::lab::sidecar::ParseResult::Response(r) => r,
+            crate::domain::lab::sidecar::ParseResult::Request(_) => {
+                return Err("got a request when expecting a response".into());
+            }
+        };
+        if response.id != id {
+            return Err(format!(
+                "sidecar id mismatch: sent={id}, got={}",
+                response.id
+            ));
+        }
+        parse_predict_response(&response).map_err(|e| format!("decode: {e}"))
+    }
+
+    /// v0.13d — async wrapper around `predict_blocking`.
+    ///
+    /// Same pattern as `ping_async`: `spawn_blocking` for the I/O,
+    /// `tokio::time::timeout` for the wall-clock deadline. The
+    /// returned `PredictResult` includes the model_version and
+    /// brier_score that v0.12a / v0.13b added.
+    pub async fn predict_async(
+        &self,
+        markets: Vec<(String, f64)>,
+        timeout_ms: u64,
+    ) -> Result<crate::domain::lab::sidecar::PredictResult, String> {
+        let this = Self {
+            child: Mutex::new(None),
+            stdin: Mutex::new(None),
+            stdout: Mutex::new(None),
+            status: Mutex::new(self.status.lock().map_err(|e| format!("status lock: {e}"))?.clone()),
+        };
+        *this.stdin.lock().map_err(|e| format!("stdin lock: {e}"))? =
+            self.stdin.lock().map_err(|e| format!("stdin lock: {e}"))?.take();
+        *this.stdout.lock().map_err(|e| format!("stdout lock: {e}"))? =
+            self.stdout.lock().map_err(|e| format!("stdout lock: {e}"))?.take();
+
+        match tokio::time::timeout(
+            std::time::Duration::from_millis(timeout_ms),
+            tokio::task::spawn_blocking(move || this.predict_blocking(&markets, timeout_ms)),
+        )
+        .await
+        {
+            Ok(Ok(Ok(p))) => Ok(p),
+            Ok(Ok(Err(e))) => Err(e),
+            Ok(Err(e)) => Err(format!("spawn_blocking: {e}")),
+            Err(_) => Err(format!("async timeout after {timeout_ms}ms")),
+        }
+    }
 }
 
 /// Start the sidecar. If already running, no-op.
@@ -328,6 +430,32 @@ pub async fn sidecar_predict(
         AppError::Internal(format!("sidecar decode: {e}"))
     })?;
     Ok(preds.predictions)
+}
+
+/// v0.13d — async-friendly version of `sidecar_predict` that
+/// returns the full `PredictResult` (with model_version +
+/// brier_score). Uses `spawn_blocking` + `tokio::time::timeout`
+/// like `ping_async`. Falls back to an empty `PredictResult` when
+/// the sidecar is not running (matches the v0.6b semantics).
+#[tauri::command]
+pub async fn sidecar_predict_async(
+    state: State<'_, SidecarState>,
+    markets: Vec<(String, f64)>,
+    timeout_ms: Option<u64>,
+) -> AppResult<crate::domain::lab::sidecar::PredictResult> {
+    use crate::domain::lab::sidecar::PredictResult as PR;
+    if !state.is_running() {
+        return Ok(PR {
+            predictions: Vec::new(),
+            model_version: None,
+            brier_score: None,
+        });
+    }
+    let timeout = timeout_ms.unwrap_or(5_000);
+    match state.predict_async(markets, timeout).await {
+        Ok(p) => Ok(p),
+        Err(e) => Err(AppError::Internal(format!("sidecar predict_async: {e}"))),
+    }
 }
 
 /// Send an arbitrary `SidecarRequest` and return the raw response.

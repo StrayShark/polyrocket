@@ -549,6 +549,7 @@ sequenceDiagram
 | **i18n 4 routes** | Markets / Signals / Copy / PnL 用 t() | ✅ v0.13a 完成（40 新 key × 2 locale） |
 | **Brier in pill** | `PredictResult.brier_score` + Pill 副 badge | ✅ v0.13b 完成（"B 0.220" 副标 + tooltip） |
 | **User retention override** | Settings → Audit retention 卡 | ✅ v0.13c 完成（90d/50k/1k 默认值可逐项覆盖） |
+| **predict_async** | `SidecarState::predict_async` + `sidecar_predict_async` IPC | ✅ v0.13d 完成（spawn_blocking + timeout，3 e2e） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |

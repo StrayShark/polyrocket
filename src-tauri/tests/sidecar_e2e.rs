@@ -361,3 +361,104 @@ async fn sidecar_ping_async_timeout() {
     assert!(result.is_err(), "ping should fail without a sidecar");
     assert!(elapsed_ms < 2000, "should fail fast, took {}ms", elapsed_ms);
 }
+
+// =================================================================
+// ============== v0.13d — predict_blocking / predict_async =========
+// =================================================================
+
+fn spawn_sidecar_state(test_name: &str) -> Option<polyrocket_lib::SidecarState> {
+    use polyrocket_lib::SidecarState;
+    use polyrocket_lib::SidecarStatus;
+    use std::process::{Command, Stdio};
+    let Some((_child_ignored, repo, py)) = spawn_sidecar_in(test_name) else {
+        eprintln!("[skip] python3 or sidecar/ not available");
+        return None;
+    };
+    let mut child = Command::new(&py)
+        .arg("-m").arg("polyrocket_sidecar")
+        .current_dir(&repo)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn sidecar");
+    let stdin = child.stdin.take().unwrap();
+    let stdout = child.stdout.take().unwrap();
+    let state = SidecarState::new();
+    *state.stdin.lock().unwrap() = Some(stdin);
+    *state.stdout.lock().unwrap() = Some(stdout);
+    state.set_status(SidecarStatus {
+        running: true, pid: Some(child.id()), command: "polyrocket-sidecar".into(), last_error: None,
+    });
+    *state.child.lock().unwrap() = Some(child);
+    Some(state)
+}
+
+#[test]
+fn sidecar_predict_blocking_returns_predictions() {
+    // v0.13d — exercise SidecarState::predict_blocking end-to-end.
+    // Same lock discipline as ping_blocking, but returns the full
+    // PredictResult (predictions + model_version + brier_score).
+    use polyrocket_lib::SidecarState;
+    let Some(state) = spawn_sidecar_state("predict_blocking") else {
+        return;
+    };
+    let markets = vec![
+        ("m1".to_string(), 0.42),
+        ("m2".to_string(), 0.65),
+        ("m3".to_string(), 0.30),
+    ];
+    let started = std::time::Instant::now();
+    let result = state.predict_blocking(&markets, 5000);
+    let elapsed = started.elapsed();
+    let preds = result.expect("predict_blocking should succeed against running sidecar");
+    assert_eq!(preds.predictions.len(), 3, "expected one prediction per market");
+    for (i, p) in preds.predictions.iter().enumerate() {
+        assert_eq!(p.market_id, markets[i].0);
+        assert!(p.prob >= 0.0 && p.prob <= 1.0, "prob out of [0,1]: {}", p.prob);
+        assert!(p.confidence >= 0.0 && p.confidence <= 1.0);
+    }
+    // model_version may be None (no model promoted yet, fallback) or Some
+    assert!(
+        elapsed.as_millis() < 6000,
+        "predict_blocking took too long: {:?}", elapsed
+    );
+    eprintln!(
+        "predict_blocking returned {} predictions in {:?}, model_version={:?}, brier_score={:?}",
+        preds.predictions.len(), elapsed, preds.model_version, preds.brier_score
+    );
+}
+
+#[tokio::test]
+async fn sidecar_predict_async_returns_predictions() {
+    // v0.13d — exercise SidecarState::predict_async end-to-end.
+    // Mirrors the ping_async test: spawn_blocking + tokio::time::timeout.
+    use polyrocket_lib::SidecarState;
+    let Some(state) = spawn_sidecar_state("predict_async") else {
+        return;
+    };
+    let markets = vec![
+        ("m1".to_string(), 0.5),
+        ("m2".to_string(), 0.5),
+    ];
+    let started = std::time::Instant::now();
+    let result = state.predict_async(markets, 5000).await;
+    let elapsed = started.elapsed();
+    let preds = result.expect("predict_async should succeed against running sidecar");
+    assert_eq!(preds.predictions.len(), 2);
+    assert!(elapsed.as_millis() < 6000, "predict_async took too long: {:?}", elapsed);
+    eprintln!("predict_async returned in {:?}", elapsed);
+}
+
+#[tokio::test]
+async fn sidecar_predict_async_fails_fast_when_not_running() {
+    // v0.13d — when stdin/stdout are unavailable, predict_async
+    // should return an error quickly, not hang.
+    use polyrocket_lib::SidecarState;
+    let state = SidecarState::new();
+    let started = std::time::Instant::now();
+    let result = state.predict_async(vec![("m1".to_string(), 0.5)], 2000).await;
+    let elapsed_ms = started.elapsed().as_millis();
+    assert!(result.is_err(), "predict should fail without a sidecar");
+    assert!(elapsed_ms < 2000, "should fail fast, took {}ms", elapsed_ms);
+}

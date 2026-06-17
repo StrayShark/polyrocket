@@ -257,3 +257,14 @@ export interface PredictResult {
 }
 export const sidecarPredict = (markets: Array<[string, number]>) =>
   invoke<PredictResult>('sidecar_predict', { args: { markets } });
+
+// v0.13d — async-friendly version. Returns the full PredictResult
+// (predictions + model_version + brier_score). Falls back to an
+// empty PredictResult when the sidecar is not running.
+export const sidecarPredictAsync = (
+  markets: Array<[string, number]>,
+  timeoutMs?: number,
+) =>
+  invoke<PredictResult>('sidecar_predict_async', {
+    args: { markets, timeout_ms: timeoutMs ?? null },
+  });
