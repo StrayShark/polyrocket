@@ -11,9 +11,11 @@ import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { useDebounce } from '@/hooks/useDebounce';
 import { fmtDateTime } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 import type { AuditEntry } from '@/types/shared';
 
 export function Audit() {
+  const { t } = useT();
   const [search, setSearch] = useState('');
   const [actionFilter, setActionFilter] = useState<string | null>(null);
   const debouncedSearch = useDebounce(search, 200);
@@ -51,7 +53,7 @@ export function Audit() {
   const columns: Column<AuditEntry>[] = [
     {
       key: 'at',
-      header: 'When',
+      header: t('audit.col.when'),
       width: '160px',
       cell: (e) => <span className="font-mono text-[11px]">{fmtDateTime(e.at)}</span>,
       sortable: true,
@@ -59,7 +61,7 @@ export function Audit() {
     },
     {
       key: 'actor',
-      header: 'Actor',
+      header: t('audit.col.actor'),
       width: '100px',
       cell: (e) => <Pill kind="muted">{e.actor}</Pill>,
       sortable: true,
@@ -67,7 +69,7 @@ export function Audit() {
     },
     {
       key: 'action',
-      header: 'Action',
+      header: t('audit.col.action'),
       width: '180px',
       cell: (e) => <span className="font-mono text-[11px] text-fg">{e.action}</span>,
       sortable: true,
@@ -75,13 +77,13 @@ export function Audit() {
     },
     {
       key: 'target',
-      header: 'Target',
+      header: t('audit.col.target'),
       width: '180px',
       cell: (e) => e.target ? <code className="font-mono text-[11px] text-muted">{e.target}</code> : <span className="text-muted">—</span>,
     },
     {
       key: 'result',
-      header: 'Result',
+      header: t('audit.col.result'),
       width: '90px',
       cell: (e) => (
         <Pill kind={e.result === 'ok' ? 'bull' : 'bear'}>
@@ -93,7 +95,7 @@ export function Audit() {
     },
     {
       key: 'payload',
-      header: 'Payload',
+      header: t('audit.col.payload'),
       cell: (e) => e.payload ? (
         <pre className="font-mono text-[10px] text-muted whitespace-pre-wrap max-w-md truncate">
           {e.payload}
@@ -109,7 +111,7 @@ export function Audit() {
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted" />
             <Input
-              placeholder="Search action / target / actor…"
+              placeholder={t('audit.search.placeholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8"
@@ -125,7 +127,7 @@ export function Audit() {
                   : 'bg-surface-2 text-muted border-border hover:text-fg')
               }
             >
-              all
+              {t('audit.filter.all')}
             </button>
             {actions.slice(0, 6).map((a) => (
               <button
@@ -148,7 +150,7 @@ export function Audit() {
             disabled={isRefetching}
             className="h-7 px-2.5 rounded text-[11px] font-medium border bg-surface-2 text-muted border-border hover:text-fg inline-flex items-center gap-1"
           >
-            <RefreshCw className={'w-3 h-3 ' + (isRefetching ? 'animate-spin' : '')} /> Refresh
+            <RefreshCw className={'w-3 h-3 ' + (isRefetching ? 'animate-spin' : '')} /> {t('audit.btn.refresh')}
           </button>
         </div>
       </Card>
@@ -166,11 +168,11 @@ export function Audit() {
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={<Activity className="w-5 h-5" />}
-          title="No audit entries"
+          title={t('audit.empty')}
           description={
             data && data.length === 0
-              ? 'No write operations have been recorded yet.'
-              : 'No entries match your filters.'
+              ? t('audit.empty.no_writes')
+              : t('audit.empty.no_match')
           }
         />
       ) : (
@@ -179,7 +181,7 @@ export function Audit() {
 
       <div className="text-[10px] text-muted flex items-center gap-1.5 px-1">
         <Filter className="w-3 h-3" />
-        Showing {filtered.length} of {data?.length ?? 0} entries · every L2 write op hits the audit log (X1 governance)
+        {t('audit.footer', { shown: filtered.length, total: data?.length ?? 0 })}
       </div>
     </div>
   );

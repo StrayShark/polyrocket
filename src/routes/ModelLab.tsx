@@ -9,8 +9,10 @@ import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { ModelVersionPill } from '@/components/feedback/ModelVersionPill';
 import { fmtPct } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 
 export function ModelLab() {
+  const { t } = useT();
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['llm-performance'],
     queryFn: () => llmPerformance(),
@@ -46,7 +48,7 @@ export function ModelLab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-[14px] font-medium text-fg">Model performance</h2>
+        <h2 className="text-[14px] font-medium text-fg">{t('modellab.title')}</h2>
         <ModelVersionPill
           modelVersion={activeModel.data?.model_version}
           brierScore={activeModel.data?.brier_score}
@@ -54,23 +56,23 @@ export function ModelLab() {
         />
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        <KpiCard label="Model versions" value={total.toString()} icon={GitBranch} />
+        <KpiCard label={t('modellab.kpi.versions')} value={total.toString()} icon={GitBranch} />
         <KpiCard
-          label="Best Brier"
+          label={t('modellab.kpi.best_brier')}
           value={best ? best.brier_score.toFixed(3) : '—'}
           icon={FlaskConical}
           hint={best ? best.model_version : ''}
         />
         <KpiCard
-          label="Best win rate"
+          label={t('modellab.kpi.best_winrate')}
           value={best ? fmtPct(best.win_rate) : '—'}
           hint={best ? best.model_version : ''}
         />
       </div>
 
       <Card
-        title="Model performance"
-        description="Per-version stats. Lower Brier is better; higher win rate is better."
+        title={t('modellab.perf.title')}
+        description={t('modellab.perf.desc')}
       >
         {isLoading ? (
           <div className="space-y-2">
@@ -81,8 +83,8 @@ export function ModelLab() {
         ) : !data || data.length === 0 ? (
           <EmptyState
             icon={<FlaskConical className="w-5 h-5" />}
-            title="No model versions"
-            description="Train your first model — v0.4.0 will run the Python sidecar in M7 phase 2."
+            title={t('modellab.perf.empty')}
+            description={t('modellab.perf.empty_desc')}
           />
         ) : (
           <div className="space-y-2">
@@ -94,49 +96,49 @@ export function ModelLab() {
                 <div className="flex-1 min-w-0">
                   <div className="font-mono text-[13px] text-fg">{p.model_version}</div>
                   <div className="text-[10px] text-muted mt-0.5">
-                    {p.n_predictions} predictions
+                    {t('modellab.perf.predictions', { n: p.n_predictions })}
                   </div>
                 </div>
-                <Metric label="Win rate" value={fmtPct(p.win_rate)} positive={p.win_rate >= 0.5} />
-                <Metric label="Brier" value={p.brier_score.toFixed(3)} positive={p.brier_score < 0.2} />
-                <Metric label="Log loss" value={p.log_loss.toFixed(3)} positive={p.log_loss < 0.5} />
-                <Metric label="Avg edge" value={fmtPct(p.avg_edge)} positive={p.avg_edge > 0} />
+                <Metric label={t('modellab.perf.metric.winrate')} value={fmtPct(p.win_rate)} positive={p.win_rate >= 0.5} />
+                <Metric label={t('modellab.perf.metric.brier')} value={p.brier_score.toFixed(3)} positive={p.brier_score < 0.2} />
+                <Metric label={t('modellab.perf.metric.logloss')} value={p.log_loss.toFixed(3)} positive={p.log_loss < 0.5} />
+                <Metric label={t('modellab.perf.metric.avgedge')} value={fmtPct(p.avg_edge)} positive={p.avg_edge > 0} />
               </div>
             ))}
           </div>
         )}
       </Card>
 
-      <Card title="Training runs" description="Past and queued model training jobs">
+      <Card title={t('modellab.runs.title')} description={t('modellab.runs.desc')}>
         <EmptyState
           icon={<Play className="w-5 h-5" />}
-          title="No training runs yet"
-          description="Trigger a training job from Settings → Model Lab in v0.4.1."
+          title={t('modellab.runs.empty')}
+          description={t('modellab.runs.empty_desc')}
         />
       </Card>
 
-      <Card title="Run state machine" description="Reference: legal transitions for training jobs">
+      <Card title={t('modellab.sm.title')} description={t('modellab.sm.desc')}>
         <div className="flex items-center gap-2 text-[12px] flex-wrap">
           <Pill kind="muted">
-            <Clock className="w-2.5 h-2.5" /> queued
+            <Clock className="w-2.5 h-2.5" /> {t('modellab.sm.queued')}
           </Pill>
           <span className="text-muted">→</span>
           <Pill kind="accent">
-            <Play className="w-2.5 h-2.5" /> running
+            <Play className="w-2.5 h-2.5" /> {t('modellab.sm.running')}
           </Pill>
           <span className="text-muted">→</span>
           <Pill kind="bull">
-            <CheckCircle2 className="w-2.5 h-2.5" /> done
+            <CheckCircle2 className="w-2.5 h-2.5" /> {t('modellab.sm.done')}
           </Pill>
           <span className="text-muted">|</span>
           <Pill kind="bear">
-            <XCircle className="w-2.5 h-2.5" /> error
+            <XCircle className="w-2.5 h-2.5" /> {t('modellab.sm.error')}
           </Pill>
         </div>
-        <div className="text-[11px] text-muted mt-3">
-          <code className="font-mono text-fg">queued → running → (done | error)</code> — both done and error are terminal.
-          Version promotion uses <code className="font-mono">is_better()</code>: lower Brier wins, tiebreak by win rate, then by n_predictions.
-        </div>
+        <div
+          className="text-[11px] text-muted mt-3"
+          dangerouslySetInnerHTML={{ __html: t('modellab.sm.note') }}
+        />
       </Card>
     </div>
   );

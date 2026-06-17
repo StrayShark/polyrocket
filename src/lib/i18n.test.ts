@@ -225,6 +225,61 @@ describe('Wallets / Settings / Notifications keys (v0.14b)', () => {
   });
 });
 
+describe('Audit / Help / ModelLab / MarketDetail keys (v0.14c)', () => {
+  it('every new key is in both locales', () => {
+    const keys = [
+      // Audit
+      'audit.search.placeholder', 'audit.col.when', 'audit.col.actor',
+      'audit.col.action', 'audit.col.target', 'audit.col.result',
+      'audit.col.payload', 'audit.btn.refresh', 'audit.filter.all',
+      'audit.empty', 'audit.empty.no_writes', 'audit.empty.no_match',
+      'audit.footer',
+      // Help
+      'help.title', 'help.subtitle', 'help.quick.title', 'help.quick.desc',
+      'help.quick.step1', 'help.quick.step2', 'help.quick.step3',
+      'help.quick.step4', 'help.quick.step5',
+      'help.concept.storage', 'help.concept.storage_body',
+      'help.concept.layers', 'help.concept.layers_body',
+      'help.concept.fanout', 'help.concept.fanout_body',
+      'help.concept.brier', 'help.concept.brier_body',
+      'help.shortcuts.title', 'help.shortcuts.desc',
+      'help.shortcuts.cmdk', 'help.shortcuts.gd', 'help.shortcuts.gm',
+      'help.shortcuts.gs', 'help.shortcuts.gb', 'help.shortcuts.gl',
+      'help.external.title', 'help.external.docs',
+      'help.external.polymarket', 'help.external.github',
+      // ModelLab
+      'modellab.title', 'modellab.kpi.versions', 'modellab.kpi.best_brier',
+      'modellab.kpi.best_winrate', 'modellab.perf.title', 'modellab.perf.desc',
+      'modellab.perf.empty', 'modellab.perf.empty_desc',
+      'modellab.perf.predictions', 'modellab.perf.metric.winrate',
+      'modellab.perf.metric.brier', 'modellab.perf.metric.logloss',
+      'modellab.perf.metric.avgedge', 'modellab.runs.title',
+      'modellab.runs.desc', 'modellab.runs.empty', 'modellab.runs.empty_desc',
+      'modellab.sm.title', 'modellab.sm.desc', 'modellab.sm.queued',
+      'modellab.sm.running', 'modellab.sm.done', 'modellab.sm.error',
+      'modellab.sm.note',
+      // MarketDetail
+      'marketdetail.back_markets', 'marketdetail.not_found',
+      'marketdetail.not_found_desc', 'marketdetail.btn.open_polymarket',
+      'marketdetail.resolved', 'marketdetail.active', 'marketdetail.inactive',
+      'marketdetail.stat.liquidity', 'marketdetail.stat.volume_24h',
+      'marketdetail.stat.closes', 'marketdetail.stat.slug',
+      'marketdetail.signals.title', 'marketdetail.signals.desc',
+      'marketdetail.signals.empty', 'marketdetail.signals.empty_desc',
+      'marketdetail.signals.model', 'marketdetail.signals.predicted',
+      'marketdetail.signals.conf', 'marketdetail.signals.horizon',
+      'marketdetail.activity.title', 'marketdetail.activity.desc',
+      'marketdetail.activity.body',
+    ];
+    for (const key of keys) {
+      const enVal = translate('en', key);
+      const zhVal = translate('zh', key);
+      expect(enVal, `en missing: ${key}`).not.toBe(`?${key}?`);
+      expect(zhVal, `zh missing: ${key}`).not.toBe(`?${key}?`);
+    }
+  });
+});
+
 describe('SUPPORTED_LOCALES', () => {
   it('contains en and zh', () => {
     expect(SUPPORTED_LOCALES).toContain('en');

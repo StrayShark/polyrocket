@@ -9,8 +9,10 @@ import { Skeleton } from '@/components/feedback/Skeleton';
 import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { fmtDate, fmtUsdc, fmtEdge, fmtConfidence } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 
 export function MarketDetail() {
+  const { t } = useT();
   const { id } = useParams<{ id: string }>();
 
   const { data: markets, isLoading, error } = useQuery({
@@ -43,9 +45,9 @@ export function MarketDetail() {
     return (
       <div className="space-y-3">
         <Link to="/markets" className="text-accent text-[12px] inline-flex items-center gap-1">
-          <ArrowLeft className="w-3 h-3" /> Back to Markets
+          <ArrowLeft className="w-3 h-3" /> {t('marketdetail.back_markets')}
         </Link>
-        <EmptyState title="Market not found" description={`No market with id ${id}`} />
+        <EmptyState title={t('marketdetail.not_found')} description={t('marketdetail.not_found_desc', { id: id ?? '?' })} />
       </div>
     );
   }
@@ -56,7 +58,7 @@ export function MarketDetail() {
         to="/markets"
         className="text-muted hover:text-fg text-[12px] inline-flex items-center gap-1"
       >
-        <ArrowLeft className="w-3 h-3" /> Markets
+        <ArrowLeft className="w-3 h-3" /> {t('marketdetail.back_markets')}
       </Link>
 
       <Card>
@@ -66,11 +68,11 @@ export function MarketDetail() {
               <div className="flex items-center gap-2">
                 <Pill kind="muted">{market.category}</Pill>
                 {market.resolved ? (
-                  <Pill kind="muted">{market.outcome ?? 'resolved'}</Pill>
+                  <Pill kind="muted">{market.outcome ?? t('marketdetail.resolved')}</Pill>
                 ) : market.active ? (
-                  <Pill kind="bull">active</Pill>
+                  <Pill kind="bull">{t('marketdetail.active')}</Pill>
                 ) : (
-                  <Pill kind="muted">inactive</Pill>
+                  <Pill kind="muted">{t('marketdetail.inactive')}</Pill>
                 )}
               </div>
               <h1 className="text-[18px] font-semibold text-fg leading-snug">
@@ -83,29 +85,29 @@ export function MarketDetail() {
               rel="noopener noreferrer"
             >
               <Button variant="secondary" size="sm" iconRight={<ExternalLink className="w-3 h-3" />}>
-                Open on Polymarket
+                {t('marketdetail.btn.open_polymarket')}
               </Button>
             </a>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
-            <Stat label="Liquidity" value={`$${fmtUsdc(market.liquidity)}`} />
-            <Stat label="24h Volume" value={`$${fmtUsdc(market.volume_24h)}`} />
-            <Stat label="Closes" value={fmtDate(market.end_date)} />
-            <Stat label="Slug" value={market.slug} mono />
+            <Stat label={t('marketdetail.stat.liquidity')} value={`$${fmtUsdc(market.liquidity)}`} />
+            <Stat label={t('marketdetail.stat.volume_24h')} value={`$${fmtUsdc(market.volume_24h)}`} />
+            <Stat label={t('marketdetail.stat.closes')} value={fmtDate(market.end_date)} />
+            <Stat label={t('marketdetail.stat.slug')} value={market.slug} mono />
           </div>
         </div>
       </Card>
 
       <Card
-        title="Active signals"
-        description={`${marketSignals.length} signal(s) for this market`}
+        title={t('marketdetail.signals.title')}
+        description={t('marketdetail.signals.desc', { n: marketSignals.length })}
       >
         {marketSignals.length === 0 ? (
           <EmptyState
             icon={<Zap className="w-5 h-5" />}
-            title="No active signals"
-            description="Run recompute_signals to generate a prediction for this market."
+            title={t('marketdetail.signals.empty')}
+            description={t('marketdetail.signals.empty_desc')}
           />
         ) : (
           <div className="space-y-2">
@@ -115,10 +117,12 @@ export function MarketDetail() {
                 className="rounded-md border border-border bg-surface-2 p-3 flex items-center gap-4"
               >
                 <div className="flex-1 min-w-0">
-                  <div className="text-[11px] text-muted">model {s.model_version}</div>
+                  <div className="text-[11px] text-muted">{t('marketdetail.signals.model', { version: s.model_version })}</div>
                   <div className="font-mono text-[13px] mt-0.5">
-                    predicted {(s.predicted_prob * 100).toFixed(1)}% · market{' '}
-                    {(s.market_prob * 100).toFixed(1)}%
+                    {t('marketdetail.signals.predicted', {
+                      prob: (s.predicted_prob * 100).toFixed(1),
+                      market: (s.market_prob * 100).toFixed(1),
+                    })}
                   </div>
                 </div>
                 <div className="text-right">
@@ -130,10 +134,10 @@ export function MarketDetail() {
                   >
                     {fmtEdge(s.edge)}
                   </div>
-                  <div className="text-[10px] text-muted">conf {fmtConfidence(s.confidence)}</div>
+                  <div className="text-[10px] text-muted">{t('marketdetail.signals.conf', { value: fmtConfidence(s.confidence) })}</div>
                 </div>
                 <div className="text-right text-[10px] text-muted shrink-0">
-                  <div>{s.horizon_hours}h horizon</div>
+                  <div>{t('marketdetail.signals.horizon', { hours: s.horizon_hours })}</div>
                   <div>{fmtDate(s.computed_at)}</div>
                 </div>
               </div>
@@ -142,10 +146,10 @@ export function MarketDetail() {
         )}
       </Card>
 
-      <Card title="Activity" description="Coming soon — M5 copy events + M3 bet history">
+      <Card title={t('marketdetail.activity.title')} description={t('marketdetail.activity.desc')}>
         <div className="flex items-center gap-2 text-[12px] text-muted py-2">
           <Activity className="w-3.5 h-3.5" />
-          <span>Activity timeline will be wired in M3 + M5.</span>
+          <span>{t('marketdetail.activity.body')}</span>
         </div>
       </Card>
     </div>
