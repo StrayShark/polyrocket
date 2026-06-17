@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.1 · 2026-06-18 (v0.39 — system notification on auto-promote)
+> 版本：v2.2 · 2026-06-18 (v0.40 — multi-model comparison view)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
 
@@ -626,6 +626,8 @@ sequenceDiagram
 | **v0.36-0.38 batch ship log** | Cumulative docs for 3 versions, closes all 3 v0.35 deferred | ✅ v0.38b 完成（682 tests total; 5 governance tools + 1 CI workflow） |
 | **NotificationKind::AutoPromote** | Rust enum + `send_notification` accepts `auto_promote` kind | ✅ v0.39a 完成（9 kinds total; "auto_promote" + default_title "Auto-promote"） |
 | **L1 auto-promote OS notification** | `sendNotification` wrapper + Settings toggle + ModelLab listener integration | ✅ v0.39b 完成（2 new component tests; 3 new i18n keys × 2 locales; toggle in AutoPromoteCard） |
+| **ModelComparison component** | Modal showing 2-3 entries side-by-side, "lowest Brier" highlighted | ✅ v0.40a 完成（5 component tests; shows Brier + best_params; max 3 selected） |
+| **ModelLab compare integration** | checkboxes in PromoteHistory rows + "Compare (N)" button + historyQuery for modal data | ✅ v0.40b 完成（4 new i18n keys × 2 locales; checkboxes in rows; modal at page level） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |
