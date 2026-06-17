@@ -584,6 +584,10 @@ sequenceDiagram
 | **PromoteHistoryChart SVG** | Inline SVG sparkline (Brier over time) + trend indicator | ✅ v0.22a 完成（7 component tests, no library, ~150 LOC） |
 | **Wire chart into ModelLab** | New "Brier over time" card above Promotion history | ✅ v0.22b 完成（shares react-query key, no duplicate fetch） |
 | **v0.22 final docs** | Ship log + tally + auto-promote-on-better deferred to v0.23 | ✅ v0.22c 完成（573 tests total, full train→promote→history→rollback→chart visual loop） |
+| **auto_promote_if_better IPC** | 7th sidecar method + 11 tests (Rust+Python) | ✅ v0.23a 完成（one-click action, default margin 0.005, race-protected） |
+| **L1 autoPromoteIfBetter wrapper** | L1 wrapper + 3 round-trip tests + Tauri command | ✅ v0.23b 完成（back-fills the Tauri command, adds "Promote if better" button） |
+| **Settings UI for margin** | New AutoPromoteCard on Settings + persisted to localStorage | ✅ v0.23c 完成（no IPC, no DB, just zustand+localStorage like other UI prefs） |
+| **v0.23 final docs** | Ship log + tally + complete model lifecycle | ✅ v0.23d 完成（587 tests total, user has full control over train→promote→rollback→auto-promote→chart） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |
