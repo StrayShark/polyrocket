@@ -8,6 +8,7 @@ import { Card } from '@/components/base/Card';
 import { Pill } from '@/components/base/Pill';
 import { Button } from '@/components/base/Button';
 import { Input } from '@/components/base/Input';
+import { useT } from '@/lib/i18n';
 import { KpiCard } from '@/components/data/KpiCard';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { ErrorState } from '@/components/feedback/ErrorState';
@@ -17,6 +18,7 @@ import { fmtEdge, fmtConfidence, fmtDate, fmtRelativeTime } from '@/lib/format';
 import type { Signal } from '@/types/signal';
 
 export function Signals() {
+  const { t } = useT();
   const [minEdgePct, setMinEdgePct] = useState(5);
   const [side, setSide] = useState<'all' | 'yes' | 'no'>('all');
 
@@ -147,7 +149,7 @@ export function Signals() {
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiCard
-          label="Active Signals"
+          label={t('signals.title')}
           value={summary.total.toString()}
           icon={Zap}
           hint={`min edge ${minEdgePct}%`}
@@ -216,7 +218,7 @@ export function Signals() {
             loading={recomputeMut.isPending}
             onClick={() => recomputeMut.mutate()}
           >
-            Recompute
+            Recompute  // v0.13a — keep default; future use `t('signals.recompute')`
           </Button>
         </div>
       </Card>
@@ -235,10 +237,10 @@ export function Signals() {
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={<Zap className="w-5 h-5" />}
-          title="No active signals"
+          title={t('status.empty')}
           description={
             summary.total === 0
-              ? 'No signals in DB yet. Run Recompute to generate predictions.'
+              ? t('signals.empty')
               : `No signals match |edge| ≥ ${minEdgePct}%. Try lowering the threshold.`
           }
         />

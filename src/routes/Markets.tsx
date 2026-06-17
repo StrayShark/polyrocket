@@ -8,6 +8,7 @@ import { Input } from '@/components/base/Input';
 import { Pill } from '@/components/base/Pill';
 import { Button } from '@/components/base/Button';
 import { Card } from '@/components/base/Card';
+import { useT } from '@/lib/i18n';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { ErrorState } from '@/components/feedback/ErrorState';
 import { Skeleton } from '@/components/feedback/Skeleton';
@@ -20,6 +21,7 @@ const CATEGORIES = ['all', 'football', 'cs2', 'politics', 'crypto', 'tech', 'oth
 type Category = (typeof CATEGORIES)[number];
 
 export function Markets() {
+  const { t } = useT();
   const [category, setCategory] = useState<Category>('all');
   const [activeOnly, setActiveOnly] = useState(true);
   const [search, setSearch] = useState('');
@@ -150,7 +152,7 @@ export function Markets() {
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted" />
             <Input
-              placeholder="Search question or slug…"
+              placeholder="Search question or slug…"  // v0.13a — keep default; future use `t('common.search')`
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8"
@@ -197,7 +199,7 @@ export function Markets() {
             loading={syncMut.isPending}
             onClick={() => syncMut.mutate()}
           >
-            Sync from Polymarket
+            {t('markets.sync')}
           </Button>
         </div>
       </Card>
@@ -215,11 +217,11 @@ export function Markets() {
         </Card>
       ) : filtered.length === 0 ? (
         <EmptyState
-          title="No markets"
+          title={t('status.empty')}
           description={
             search
               ? `No markets matching "${search}". Try a different query.`
-              : 'Run a sync from Polymarket to populate this list.'
+              : t('markets.empty')
           }
         />
       ) : (

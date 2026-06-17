@@ -8,6 +8,7 @@ import { Button } from '@/components/base/Button';
 import { Input } from '@/components/base/Input';
 import { Modal } from '@/components/feedback/Modal';
 import { Skeleton } from '@/components/feedback/Skeleton';
+import { useT } from '@/lib/i18n';
 import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { MirrorPanel } from '@/components/business/MirrorPanel';
@@ -16,6 +17,7 @@ import { fmtAddress, fmtRelativeTime, fmtUsdc, fmtDateTime } from '@/lib/format'
 import type { CopyTarget, CopyEvent } from '@/types/shared';
 
 export function Copy() {
+  const { t } = useT();
   const [addOpen, setAddOpen] = useState(false);
   const queryClient = useQueryClient();
 
@@ -36,7 +38,7 @@ export function Copy() {
       <Card padding="sm">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-[13px] font-semibold text-fg">Copy Trading</h2>
+            <h2 className="text-[13px] font-semibold text-fg">{t('copy.title')}</h2>
             <p className="text-[11px] text-muted mt-0.5">
               Watch whale addresses for on-chain trades. Mirror policy: only fires when our model edge &gt; min_edge.
             </p>
@@ -77,11 +79,11 @@ export function Copy() {
       ) : targets && targets.length === 0 ? (
         <EmptyState
           icon={<CopyIcon className="w-5 h-5" />}
-          title="No copy targets"
-          description="Add a whale wallet to start mirroring their trades."
+          title={t('status.empty')}
+          description={t('copy.empty_targets')}
           action={
             <Button variant="primary" size="sm" iconLeft={<Plus className="w-3 h-3" />} onClick={() => setAddOpen(true)}>
-              Add your first target
+              {t('copy.add')}
             </Button>
           }
         />
@@ -174,6 +176,7 @@ function TargetRow({ target: t, events }: { target: CopyTarget; events: CopyEven
 }
 
 function AddTargetModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+  const { t } = useT();
   const [address, setAddress] = useState('');
   const [label, setLabel] = useState('');
   const [minEdgePct, setMinEdgePct] = useState(5);
@@ -199,7 +202,7 @@ function AddTargetModal({ onClose, onAdded }: { onClose: () => void; onAdded: ()
     <Modal
       open
       onClose={onClose}
-      title="Add copy target"
+      title={t('copy.add')}
       size="md"
       footer={
         <>

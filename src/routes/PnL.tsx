@@ -8,9 +8,11 @@ import { Pill } from '@/components/base/Pill';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
+import { useT } from '@/lib/i18n';
 import { fmtUsdc, fmtPctInt } from '@/lib/format';
 
 export function PnL() {
+  const { t } = useT();
   const kpis = useQuery({
     queryKey: ['kpis'],
     queryFn: () => dashboardKpis(),
@@ -110,7 +112,7 @@ export function PnL() {
         ) : !bets.data || bets.data.length === 0 ? (
           <EmptyState
             icon={<BarChart3 className="w-5 h-5" />}
-            title="No bets yet"
+            title={t('status.empty')}
             description="Place bets to see PnL breakdown."
           />
         ) : (

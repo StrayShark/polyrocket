@@ -92,6 +92,24 @@ describe('History + Onboarding keys (v0.12b)', () => {
   });
 });
 
+describe('Markets / Signals / Copy / PnL keys (v0.13a)', () => {
+  it('every new key is in both locales', () => {
+    const keys = [
+      'markets.sync', 'markets.empty', 'markets.filter.all', 'markets.filter.active',
+      'signals.title', 'signals.recompute', 'signals.empty',
+      'copy.title', 'copy.targets', 'copy.events', 'copy.add',
+      'copy.empty_targets', 'copy.empty_events',
+      'pnl.title', 'pnl.empty',
+    ];
+    for (const key of keys) {
+      const enVal = translate('en', key);
+      const zhVal = translate('zh', key);
+      expect(enVal, `en missing: ${key}`).not.toBe(`?${key}?`);
+      expect(zhVal, `zh missing: ${key}`).not.toBe(`?${key}?`);
+    }
+  });
+});
+
 describe('SUPPORTED_LOCALES', () => {
   it('contains en and zh', () => {
     expect(SUPPORTED_LOCALES).toContain('en');
