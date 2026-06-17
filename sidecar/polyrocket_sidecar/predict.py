@@ -104,7 +104,12 @@ def predict_from_markets(markets: list[dict[str, Any]]) -> list[dict[str, Any]]:
         z = w0 + w1 * (1.0 - price) + w2 * (age * inv_horizon)
         prob = sigmoid(z)
         # Confidence: 0 at price=0.5, 1 at price=0 or 1
-        confidence = (0.5 - price) * -2.0 if price < 0.5 else (price - 0.5) * 2.0
+        # v0.11d — `abs(price - 0.5) * 2.0` is correct and faster
+        # than the if/else version I tried first.
+        confidence = (price - 0.5)
+        if confidence < 0.0:
+            confidence = -confidence
+        confidence *= 2.0
 
         out.append({
             "market_id": market_id,
