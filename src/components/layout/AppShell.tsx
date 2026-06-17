@@ -33,8 +33,16 @@ export function AppShell() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { t } = useT();
-  const breadcrumb = location.pathname.split('/').filter(Boolean)[0] ?? 'dashboard';
-  const pretty = breadcrumb.charAt(0).toUpperCase() + breadcrumb.slice(1);
+  const segments = location.pathname.split('/').filter(Boolean);
+  const route = segments[0] ?? 'dashboard';
+  // Special case: /markets/:id → "Market Detail" instead of "Markets"
+  let pageKey = `page.${route.replace(/-/g, '_')}`;
+  if (route === 'markets' && segments.length > 1) {
+    pageKey = 'page.market_detail';
+  }
+  const pretty = t(pageKey) !== `?${pageKey}?`
+    ? t(pageKey)
+    : route.charAt(0).toUpperCase() + route.slice(1);
 
   // v0.8d — keyboard navigation (g d / g m / ? / Esc)
   const kbdHelp = useKbdHelpDialog();

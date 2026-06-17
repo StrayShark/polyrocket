@@ -44,6 +44,26 @@ describe('translate', () => {
   });
 });
 
+describe('page title keys (v0.11a)', () => {
+  it('translates every page.* key in both locales', () => {
+    const pageKeys = [
+      'page.dashboard', 'page.markets', 'page.market_detail', 'page.signals',
+      'page.copy', 'page.pnl', 'page.lab', 'page.history', 'page.wallets',
+      'page.settings', 'page.analysis', 'page.llm_perf', 'page.llm_mgmt',
+      'page.brief', 'page.onboarding', 'page.audit', 'page.notifications',
+      'page.help',
+    ];
+    for (const key of pageKeys) {
+      const enVal = translate('en', key);
+      const zhVal = translate('zh', key);
+      expect(enVal).not.toBe(`?${key}?`);
+      expect(zhVal).not.toBe(`?${key}?`);
+      // zh should differ from en (we did real translations)
+      expect(zhVal).not.toBe(enVal);
+    }
+  });
+});
+
 describe('SUPPORTED_LOCALES', () => {
   it('contains en and zh', () => {
     expect(SUPPORTED_LOCALES).toContain('en');
