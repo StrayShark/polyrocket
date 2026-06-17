@@ -668,3 +668,54 @@ export interface AutoPromoteIfBetterResult {
  */
 export const autoPromoteIfBetter = (args: AutoPromoteIfBetterArgs = {}) =>
   invoke<AutoPromoteIfBetterResult>('auto_promote_if_better', { args });
+
+// =================================================================
+// =================== v0.25b — promote_all_trials ==================
+// =================================================================
+
+/** Wire-format mirror of one per-trial result inside the
+ * `results` list. v0.25b. */
+export interface PromoteAllTrialResult {
+  /** 0-indexed trial number. */
+  trial_index: number;
+  /** `true` if this trial was successfully promoted. */
+  promoted: boolean;
+  /** "ok" | "failed" — mirrors the Python's per-call status. */
+  status: 'ok' | 'failed' | string;
+  /** New model version (e.g. "logistic-train-XYZ-t2"). */
+  model_version: string;
+  /** Wall-clock time of the promote in ms. `null` on failure. */
+  promoted_at_ms: number | null;
+  /** Human-readable error message. `null` on success. */
+  message: string | null;
+}
+
+/** Wire-format mirror of the Rust `PromoteAllTrialsResult`
+ * (returned by the `promote_all_trials` IPC). v0.25b. */
+export interface PromoteAllTrialsResult {
+  /** `true` if all trial promotes succeeded. */
+  ok: boolean;
+  /** Per-trial results, in trial_index order. */
+  results: PromoteAllTrialResult[];
+  /** `len(results)`. */
+  count: number;
+  /** Overall error message (e.g. "no candidate"). `null`
+   * if all promotes succeeded. */
+  message: string | null;
+}
+
+/** Bulk-promote every trial from the current candidate. v0.25b.
+ *
+ * For A/B comparison: the user can see how all 4 trials
+ * perform on real markets, then rollback to the winner
+ * via the v0.20c Rollback button. Without this, the user
+ * would need to click "Promote" 4 times.
+ *
+ * All 4 trials appear in the history panel after this
+ * call, each with its own `-tN` model version suffix
+ * and `trial_index` field. The currently active model
+ * is the LAST one promoted (trial 3), but the user can
+ * rollback to any of them.
+ */
+export const promoteAllTrials = () =>
+  invoke<PromoteAllTrialsResult>('promote_all_trials', { args: {} });

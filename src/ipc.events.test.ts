@@ -618,3 +618,77 @@ describe('Auto-promote-if-better wire format (v0.23b)', () => {
     expect(r.reason).toContain('no active model');
   });
 });
+
+// =================================================================
+// =================== v0.25b — promote_all_trials ==================
+// =================================================================
+
+interface PromoteAllTrialResult {
+  trial_index: number;
+  promoted: boolean;
+  status: 'ok' | 'failed' | string;
+  model_version: string;
+  promoted_at_ms: number | null;
+  message: string | null;
+}
+
+interface PromoteAllTrialsResult {
+  ok: boolean;
+  results: PromoteAllTrialResult[];
+  count: number;
+  message: string | null;
+}
+
+describe('Promote-all-trials wire format (v0.25b)', () => {
+  it('PromoteAllTrialsResult all 4 promoted', () => {
+    const r: PromoteAllTrialsResult = JSON.parse(JSON.stringify({
+      ok: true,
+      count: 4,
+      results: [
+        { trial_index: 0, promoted: true, status: 'ok', model_version: 'logistic-train-XYZ-t0', promoted_at_ms: 1_700_030_000_000, message: null },
+        { trial_index: 1, promoted: true, status: 'ok', model_version: 'logistic-train-XYZ-t1', promoted_at_ms: 1_700_030_001_000, message: null },
+        { trial_index: 2, promoted: true, status: 'ok', model_version: 'logistic-train-XYZ-t2', promoted_at_ms: 1_700_030_002_000, message: null },
+        { trial_index: 3, promoted: true, status: 'ok', model_version: 'logistic-train-XYZ-t3', promoted_at_ms: 1_700_030_003_000, message: null },
+      ],
+      message: null,
+    }));
+    expect(r.ok).toBe(true);
+    expect(r.count).toBe(4);
+    expect(r.results).toHaveLength(4);
+    for (let i = 0; i < 4; i++) {
+      expect(r.results[i].trial_index).toBe(i);
+      expect(r.results[i].promoted).toBe(true);
+      expect(r.results[i].model_version).toBe(`logistic-train-XYZ-t${i}`);
+    }
+  });
+
+  it('PromoteAllTrialsResult no candidate', () => {
+    const r: PromoteAllTrialsResult = JSON.parse(JSON.stringify({
+      ok: false,
+      count: 0,
+      results: [],
+      message: 'no candidate found at /home/x/.polyrocket/sidecar/models/candidate.json; run train_job first',
+    }));
+    expect(r.ok).toBe(false);
+    expect(r.count).toBe(0);
+    expect(r.results).toEqual([]);
+    expect(r.message).toContain('train_job');
+  });
+
+  it('PromoteAllTrialsResult partial success', () => {
+    // Trial 0 promoted, trial 1 failed (rare but possible)
+    const r: PromoteAllTrialsResult = JSON.parse(JSON.stringify({
+      ok: false,
+      count: 2,
+      results: [
+        { trial_index: 0, promoted: true, status: 'ok', model_version: 'logistic-train-XYZ-t0', promoted_at_ms: 1_700_030_000_000, message: null },
+        { trial_index: 1, promoted: false, status: 'failed', model_version: '', promoted_at_ms: null, message: 'unexpected error' },
+      ],
+      message: 'one or more trial promotes failed',
+    }));
+    expect(r.ok).toBe(false);
+    expect(r.results).toHaveLength(2);
+    expect(r.results[0].promoted).toBe(true);
+    expect(r.results[1].promoted).toBe(false);
+  });
+});

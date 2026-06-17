@@ -8,6 +8,7 @@ import {
   trainJob,
   promoteModel,
   autoPromoteIfBetter,
+  promoteAllTrials,
   onTrainStarted,
   type TrainStartedEvent,
 } from '@/ipc';
@@ -222,6 +223,42 @@ export function ModelLab() {
     },
   });
 
+  // v0.25b — bulk promote all 4 trials. One click
+  // promotes every trial in the candidate as a
+  // separate version in the history panel. Useful
+  // for A/B comparison: the user can see how all 4
+  // trials perform on real markets, then rollback
+  // to the winner via the v0.20c Rollback button.
+  const promoteAllMut = useMutation({
+    mutationFn: () => promoteAllTrials(),
+    onSuccess: (r) => {
+      if (r.ok) {
+        // All 4 promoted
+        toast.success(t('promote.toast.all_promoted', { count: r.count }));
+        setLastCandidate(null);
+      } else {
+        // Partial success: some promoted, some failed
+        const ok = r.results.filter((x) => x.promoted).length;
+        if (ok > 0) {
+          toast.info(
+            t('promote.toast.all_partial', { ok, count: r.count }),
+            r.message ?? undefined,
+          );
+        } else {
+          toast.error(t('promote.toast.all_failed'), r.message ?? undefined);
+        }
+        setLastCandidate(null);
+      }
+      // Refresh everything that depends on the active model
+      queryClient.invalidateQueries({ queryKey: ['sidecar-active-model'] });
+      queryClient.invalidateQueries({ queryKey: ['llm-performance'] });
+      queryClient.invalidateQueries({ queryKey: ['promote-history'] });
+    },
+    onError: (e: Error) => {
+      toast.error(t('promote.toast.all_failed'), e.message);
+    },
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -381,6 +418,13 @@ export function ModelLab() {
                 ? promoteMut.variables
                 : null
             }
+            // v0.25b — bulk promote all 4. One click
+            // promotes all 4 trials as separate versions
+            // in the history panel. The "Promote all 4"
+            // button appears at the bottom of the train
+            // progress panel (TrainProgress component).
+            onPromoteAll={() => promoteAllMut.mutate()}
+            promotingAll={promoteAllMut.isPending}
           />
         )}
         {/* v0.18c — Last-candidate hint. Shown when the user

@@ -473,6 +473,11 @@ const en: Dictionary = {
   // v0.24a — per-trial badge labels
   'promote.history.trial_best': 'best trial',
   'promote.history.trial_n': 'trial #{{n}}',
+  // v0.25b — Bulk promote (all 4 trials)
+  'train.progress.promote_all': 'Promote all 4',
+  'promote.toast.all_promoted': 'Promoted all {{count}} trials',
+  'promote.toast.all_partial': 'Promoted {{ok}}/{{count}} trials (some failed)',
+  'promote.toast.all_failed': 'Bulk promote failed',
   // v0.20c — Rollback button + confirmation
   'rollback.btn.rollback': 'Rollback',
   'rollback.toast.rolled_back': 'Model rolled back',
@@ -1042,6 +1047,11 @@ const zh: Dictionary = {
   // v0.24a — per-trial badge labels
   'promote.history.trial_best': '最佳',
   'promote.history.trial_n': '第 {{n}} 个试验',
+  // v0.25b — Bulk promote (all 4 trials)
+  'train.progress.promote_all': '全部晋升 4 个',
+  'promote.toast.all_promoted': '已晋升全部 {{count}} 个试验',
+  'promote.toast.all_partial': '已晋升 {{ok}}/{{count}} 个试验（部分失败）',
+  'promote.toast.all_failed': '批量晋升失败',
   // v0.20c — Rollback button + confirmation
   'rollback.btn.rollback': '回滚',
   'rollback.toast.rolled_back': '模型已回滚',

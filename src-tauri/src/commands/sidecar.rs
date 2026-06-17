@@ -7,12 +7,13 @@
 use crate::AppError;
 use crate::AppResult;
 use crate::domain::lab::sidecar::{
-    build_auto_promote_if_better_request, build_predict_request, build_promote_request,
-    build_rollback_request, build_train_request, parse_auto_promote_if_better_response, parse_line,
-    parse_list_promote_history_response, parse_predict_response, parse_promote_response,
+    build_auto_promote_if_better_request, build_predict_request, build_promote_all_trials_request,
+    build_promote_request, build_rollback_request, build_train_request,
+    parse_auto_promote_if_better_response, parse_line, parse_list_promote_history_response,
+    parse_promote_all_trials_response, parse_predict_response, parse_promote_response,
     parse_rollback_response, parse_train_response, AutoPromoteIfBetterResult, Prediction,
-    PromoteHistoryResult, PromoteResult, RollbackResult, SidecarMethod, SidecarRequest,
-    SidecarResponse, TrainResult, TrainTrial,
+    PromoteAllTrialsResult, PromoteHistoryResult, PromoteResult, RollbackResult, SidecarMethod,
+    SidecarRequest, SidecarResponse, TrainResult, TrainTrial,
 };
 use crate::domain::lab::train_progress::{
     TrainFinishedEvent, TrainStartedEvent, TrainTrialDto,
@@ -999,6 +1000,80 @@ pub async fn auto_promote_if_better(
 pub struct AutoPromoteIfBetterArgs {
     pub brier_margin: Option<f64>,
     pub trial_index: Option<usize>,
+}
+
+/// Bulk-promote every trial from the current candidate. v0.25b.
+/// No args — the sidecar reads the candidate and promotes
+/// every trial in `all_trials[]` in order. Returns a list
+/// of per-trial results.
+#[tauri::command]
+pub async fn promote_all_trials(
+    state: State<'_, SidecarState>,
+) -> AppResult<PromoteAllTrialsResult> {
+    let job_id = format!(
+        "promote-all-{}",
+        uuid::Uuid::new_v4()
+            .to_string()
+            .split('-')
+            .next()
+            .unwrap_or("00000000")
+    );
+    let line = build_promote_all_trials_request(&job_id);
+
+    if !state.is_running() {
+        return Ok(PromoteAllTrialsResult {
+            ok: false,
+            results: Vec::new(),
+            count: 0,
+            message: Some("sidecar not running".into()),
+        });
+    }
+
+    let response_line = {
+        {
+            let mut stdin_guard = state.stdin.lock()
+                .map_err(|e| format!("stdin lock: {e}"))
+                .map_err(AppError::Internal)?;
+            let stdin = stdin_guard.as_mut()
+                .ok_or_else(|| AppError::Internal("stdin not available".into()))?;
+            use std::io::Write;
+            if let Err(e) = writeln!(stdin, "{line}") {
+                return Err(AppError::Internal(format!("promote_all write: {e}")));
+            }
+            if let Err(e) = stdin.flush() {
+                return Err(AppError::Internal(format!("promote_all flush: {e}")));
+            }
+        }
+        let mut stdout_guard = state.stdout.lock()
+            .map_err(|e| format!("stdout lock: {e}"))
+            .map_err(AppError::Internal)?;
+        let stdout = stdout_guard.as_mut()
+            .ok_or_else(|| AppError::Internal("stdout not available".into()))?;
+        use std::io::{BufRead, BufReader};
+        let mut reader = BufReader::new(stdout);
+        let mut buf = String::new();
+        if let Err(e) = reader.read_line(&mut buf) {
+            return Err(AppError::Internal(format!("promote_all read: {e}")));
+        }
+        buf
+    };
+
+    let parsed = parse_line(&response_line).map_err(|e| {
+        AppError::Internal(format!("promote_all parse: {e}"))
+    })?;
+    let response = match parsed {
+        crate::domain::lab::sidecar::ParseResult::Response(r) => r,
+        _ => return Err(AppError::Internal("promote_all: not a response".into())),
+    };
+    if response.id != job_id {
+        return Err(AppError::Internal(format!(
+            "promote_all id mismatch: sent={job_id}, got={}",
+            response.id
+        )));
+    }
+    parse_promote_all_trials_response(&response).map_err(|e| {
+        AppError::Internal(format!("promote_all decode: {e}"))
+    })
 }
 
 /// Send an arbitrary `SidecarRequest` and return the raw response.

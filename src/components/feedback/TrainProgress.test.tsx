@@ -233,4 +233,77 @@ describe('TrainProgress (v0.17e)', () => {
     expect(screen.getByTestId('train-promote-btn-0')).toBeInTheDocument();
     expect(screen.getByTestId('train-promote-btn-1')).toBeInTheDocument();
   });
+
+  it('hides "Promote all 4" button when onPromoteAll is undefined (v0.25b)', async () => {
+    const JID = 'train-abc';
+    fireStarted({ job_id: JID, n_trials: 4, epochs: 80, started_at: 1000 });
+    fireFinished({
+      job_id: JID,
+      status: 'completed',
+      best_brier: 0.150,
+      best_params: { w0: 0.05, w1: 0.10, w2: 0.15 },
+      trials: [
+        { lr: 0.05, reg: 0.01, brier: 0.300, weights: { w0: 0.1, w1: 0.2, w2: 0.3 } },
+        { lr: 0.10, reg: 0.01, brier: 0.150, weights: { w0: 0.05, w1: 0.10, w2: 0.15 } },
+        { lr: 0.05, reg: 0.10, brier: 0.400, weights: { w0: 0.1, w1: 0.2, w2: 0.3 } },
+        { lr: 0.10, reg: 0.10, brier: 0.250, weights: { w0: 0.1, w1: 0.2, w2: 0.3 } },
+      ],
+      duration_ms: 3000,
+      candidate_path: '/tmp/c.json',
+      message: null,
+      finished_at: 4000,
+    });
+    // No onPromoteAll passed → no "Promote all 4" button
+    expect(screen.queryByTestId('train-promote-all-btn')).toBeNull();
+  });
+
+  it('shows "Promote all 4" button when onPromoteAll is set and > 1 trial (v0.25b)', async () => {
+    const JID = 'train-abc';
+    fireStarted({ job_id: JID, n_trials: 4, epochs: 80, started_at: 1000 });
+    fireFinished({
+      job_id: JID,
+      status: 'completed',
+      best_brier: 0.150,
+      best_params: { w0: 0.05, w1: 0.10, w2: 0.15 },
+      trials: [
+        { lr: 0.05, reg: 0.01, brier: 0.300, weights: { w0: 0.1, w1: 0.2, w2: 0.3 } },
+        { lr: 0.10, reg: 0.01, brier: 0.150, weights: { w0: 0.05, w1: 0.10, w2: 0.15 } },
+        { lr: 0.05, reg: 0.10, brier: 0.400, weights: { w0: 0.1, w1: 0.2, w2: 0.3 } },
+        { lr: 0.10, reg: 0.10, brier: 0.250, weights: { w0: 0.1, w1: 0.2, w2: 0.3 } },
+      ],
+      duration_ms: 3000,
+      candidate_path: '/tmp/c.json',
+      message: null,
+      finished_at: 4000,
+    });
+    render(
+      <TrainProgress
+        jobId={JID}
+        onPromote={vi.fn()}
+        onPromoteAll={vi.fn()}
+        promotingTrialIndex={null}
+        promotingAll={false}
+      />
+    );
+    await flushListeners();
+    fireStarted({ job_id: JID, n_trials: 4, epochs: 80, started_at: 1000 });
+    fireFinished({
+      job_id: JID,
+      status: 'completed',
+      best_brier: 0.150,
+      best_params: { w0: 0.05, w1: 0.10, w2: 0.15 },
+      trials: [
+        { lr: 0.05, reg: 0.01, brier: 0.300, weights: { w0: 0.1, w1: 0.2, w2: 0.3 } },
+        { lr: 0.10, reg: 0.01, brier: 0.150, weights: { w0: 0.05, w1: 0.10, w2: 0.15 } },
+        { lr: 0.05, reg: 0.10, brier: 0.400, weights: { w0: 0.1, w1: 0.2, w2: 0.3 } },
+        { lr: 0.10, reg: 0.10, brier: 0.250, weights: { w0: 0.1, w1: 0.2, w2: 0.3 } },
+      ],
+      duration_ms: 3000,
+      candidate_path: '/tmp/c.json',
+      message: null,
+      finished_at: 4000,
+    });
+    // 4 trials + onPromoteAll → button is shown
+    expect(screen.getByTestId('train-promote-all-btn')).toBeInTheDocument();
+  });
 });

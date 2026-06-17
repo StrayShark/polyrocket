@@ -69,6 +69,12 @@ export interface TrainProgressProps {
   /** v0.21c — which trial is currently being promoted
    * (loading state on that row's button). */
   promotingTrialIndex?: number | null;
+  /** v0.25b — bulk promote all 4. Optional callback fired
+   * when the user clicks "Promote all 4". If undefined,
+   * the button is hidden. */
+  onPromoteAll?: () => void;
+  /** v0.25b — loading state for the "Promote all 4" button. */
+  promotingAll?: boolean;
 }
 
 export function TrainProgress({
@@ -77,6 +83,8 @@ export function TrainProgress({
   className = '',
   onPromote,
   promotingTrialIndex = null,
+  onPromoteAll,
+  promotingAll = false,
 }: TrainProgressProps) {
   const { t } = useT();
   const [started, setStarted] = useState<TrainStartedEvent | null>(null);
@@ -269,6 +277,25 @@ export function TrainProgress({
               <Cpu className="w-3 h-3" />
               <code className="font-mono">{finished.candidate_path}</code>
             </div>
+          )}
+          {/* v0.25b — "Promote all 4" button. Sits at the
+              bottom of the train progress panel, below the
+              "best" footer. One click promotes all 4 trials
+              as separate versions in the history panel,
+              so the user can A/B compare them. */}
+          {onPromoteAll && finished.trials.length > 1 && (
+            <Button
+              data-testid="train-promote-all-btn"
+              variant="primary"
+              size="sm"
+              iconLeft={<ArrowUpCircle className="w-3 h-3" />}
+              loading={promotingAll}
+              disabled={promotingAll || promotingTrialIndex !== null}
+              onClick={() => onPromoteAll()}
+              className="mt-1"
+            >
+              {t('train.progress.promote_all')}
+            </Button>
           )}
         </div>
       )}
