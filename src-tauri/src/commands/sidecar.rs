@@ -7,9 +7,11 @@
 use crate::AppError;
 use crate::AppResult;
 use crate::domain::lab::sidecar::{
-    build_predict_request, build_promote_request, build_train_request, parse_line,
-    parse_predict_response, parse_promote_response, parse_train_response, Prediction,
-    PromoteResult, SidecarMethod, SidecarRequest, SidecarResponse, TrainResult, TrainTrial,
+    build_predict_request, build_promote_request, build_rollback_request, build_train_request,
+    parse_line, parse_list_promote_history_response, parse_predict_response,
+    parse_promote_response, parse_rollback_response, parse_train_response, Prediction,
+    PromoteHistoryResult, PromoteResult, RollbackResult, SidecarMethod, SidecarRequest,
+    SidecarResponse, TrainResult, TrainTrial,
 };
 use crate::domain::lab::train_progress::{
     TrainFinishedEvent, TrainStartedEvent, TrainTrialDto,
@@ -740,6 +742,163 @@ pub struct PromoteModelArgs {
     /// different job. Defaults to `None` (accept any
     /// current candidate).
     pub job_id: Option<String>,
+}
+
+/// List the promote history. v0.19b — read-only audit.
+/// No args; returns the last 20 promotions from active.json's
+/// `promotion_history` array.
+#[tauri::command]
+pub async fn list_promote_history(
+    state: State<'_, SidecarState>,
+) -> AppResult<PromoteHistoryResult> {
+    let job_id = format!(
+        "list-history-{}",
+        uuid::Uuid::new_v4()
+            .to_string()
+            .split('-')
+            .next()
+            .unwrap_or("00000000")
+    );
+    let line = crate::domain::lab::sidecar::build_list_promote_history_request(&job_id);
+
+    if !state.is_running() {
+        return Ok(PromoteHistoryResult {
+            ok: false,
+            entries: Vec::new(),
+            count: 0,
+            message: Some("sidecar not running".into()),
+        });
+    }
+
+    // Same lock discipline as train_job/promote_model.
+    let response_line = {
+        {
+            let mut stdin_guard = state.stdin.lock()
+                .map_err(|e| format!("stdin lock: {e}"))
+                .map_err(AppError::Internal)?;
+            let stdin = stdin_guard.as_mut()
+                .ok_or_else(|| AppError::Internal("stdin not available".into()))?;
+            use std::io::Write;
+            if let Err(e) = writeln!(stdin, "{line}") {
+                return Err(AppError::Internal(format!("list_promote_history write: {e}")));
+            }
+            if let Err(e) = stdin.flush() {
+                return Err(AppError::Internal(format!("list_promote_history flush: {e}")));
+            }
+        }
+        let mut stdout_guard = state.stdout.lock()
+            .map_err(|e| format!("stdout lock: {e}"))
+            .map_err(AppError::Internal)?;
+        let stdout = stdout_guard.as_mut()
+            .ok_or_else(|| AppError::Internal("stdout not available".into()))?;
+        use std::io::{BufRead, BufReader};
+        let mut reader = BufReader::new(stdout);
+        let mut buf = String::new();
+        if let Err(e) = reader.read_line(&mut buf) {
+            return Err(AppError::Internal(format!("list_promote_history read: {e}")));
+        }
+        buf
+    };
+
+    let parsed = parse_line(&response_line).map_err(|e| {
+        AppError::Internal(format!("list_promote_history parse: {e}"))
+    })?;
+    let response = match parsed {
+        crate::domain::lab::sidecar::ParseResult::Response(r) => r,
+        _ => return Err(AppError::Internal("list_promote_history: not a response".into())),
+    };
+    if response.id != job_id {
+        return Err(AppError::Internal(format!(
+            "list_promote_history id mismatch: sent={job_id}, got={}",
+            response.id
+        )));
+    }
+    parse_list_promote_history_response(&response).map_err(|e| {
+        AppError::Internal(format!("list_promote_history decode: {e}"))
+    })
+}
+
+/// Roll the active model back to a previous version. v0.20b.
+#[tauri::command]
+pub async fn rollback_model(
+    state: State<'_, SidecarState>,
+    args: RollbackModelArgs,
+) -> AppResult<RollbackResult> {
+    let job_id = format!(
+        "rollback-{}",
+        uuid::Uuid::new_v4()
+            .to_string()
+            .split('-')
+            .next()
+            .unwrap_or("00000000")
+    );
+    let line = build_rollback_request(&job_id, &args.model_version);
+
+    if !state.is_running() {
+        return Ok(RollbackResult {
+            rolled_back: false,
+            status: "failed".into(),
+            previous_path: None,
+            active_path: None,
+            rolled_back_at_ms: None,
+            model_version: String::new(),
+            message: Some("sidecar not running".into()),
+        });
+    }
+
+    let response_line = {
+        {
+            let mut stdin_guard = state.stdin.lock()
+                .map_err(|e| format!("stdin lock: {e}"))
+                .map_err(AppError::Internal)?;
+            let stdin = stdin_guard.as_mut()
+                .ok_or_else(|| AppError::Internal("stdin not available".into()))?;
+            use std::io::Write;
+            if let Err(e) = writeln!(stdin, "{line}") {
+                return Err(AppError::Internal(format!("rollback write: {e}")));
+            }
+            if let Err(e) = stdin.flush() {
+                return Err(AppError::Internal(format!("rollback flush: {e}")));
+            }
+        }
+        let mut stdout_guard = state.stdout.lock()
+            .map_err(|e| format!("stdout lock: {e}"))
+            .map_err(AppError::Internal)?;
+        let stdout = stdout_guard.as_mut()
+            .ok_or_else(|| AppError::Internal("stdout not available".into()))?;
+        use std::io::{BufRead, BufReader};
+        let mut reader = BufReader::new(stdout);
+        let mut buf = String::new();
+        if let Err(e) = reader.read_line(&mut buf) {
+            return Err(AppError::Internal(format!("rollback read: {e}")));
+        }
+        buf
+    };
+
+    let parsed = parse_line(&response_line).map_err(|e| {
+        AppError::Internal(format!("rollback parse: {e}"))
+    })?;
+    let response = match parsed {
+        crate::domain::lab::sidecar::ParseResult::Response(r) => r,
+        _ => return Err(AppError::Internal("rollback: not a response".into())),
+    };
+    if response.id != job_id {
+        return Err(AppError::Internal(format!(
+            "rollback id mismatch: sent={job_id}, got={}",
+            response.id
+        )));
+    }
+    parse_rollback_response(&response).map_err(|e| {
+        AppError::Internal(format!("rollback decode: {e}"))
+    })
+}
+
+/// Args for the `rollback_model` IPC. v0.20b — `model_version`
+/// is the version to roll back to (looked up in the
+/// `promotion_history` array).
+#[derive(Debug, Clone, Deserialize)]
+pub struct RollbackModelArgs {
+    pub model_version: String,
 }
 
 /// Send an arbitrary `SidecarRequest` and return the raw response.

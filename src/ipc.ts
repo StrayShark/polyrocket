@@ -538,3 +538,59 @@ export interface PromoteHistoryResult {
  */
 export const listPromoteHistory = () =>
   invoke<PromoteHistoryResult>('list_promote_history', { args: {} });
+
+// =================================================================
+// ==================== v0.20b — rollback_model =====================
+// =================================================================
+
+/** Args for the `rollback_model` IPC. v0.20b.
+ *
+ * `model_version` is the version to roll back to,
+ * e.g. "logistic-train-441c352b". The L1 should pass
+ * back a value it got from the history panel verbatim
+ * (exact match). The version must be a history entry
+ * with `weights` stored (v0.20a+); v0.19 entries
+ * without weights are refused with a clear error.
+ */
+export interface RollbackModelArgs {
+  model_version: string;
+}
+
+/** Wire-format mirror of the Rust `RollbackResult`
+ * (returned by the `rollback_model` IPC). v0.20b —
+ * `rolled_back: bool` is the primary success indicator.
+ *
+ * On success, the active.json has been rewritten with
+ * the target version's weights. On failure, the active
+ * model is unchanged and the `message` field has a
+ * human-readable diagnostic.
+ */
+export interface RollbackResult {
+  rolled_back: boolean;
+  /** "ok" | "failed" */
+  status: 'ok' | 'failed' | string;
+  /** Path of the previous active.json (always the same
+   * path; rollback is a write to the same file). */
+  previous_path: string | null;
+  /** Path of the new active.json (same as previous_path). */
+  active_path: string | null;
+  /** Wall-clock time of the rollback in ms. `null` on failure. */
+  rolled_back_at_ms: number | null;
+  /** The version that was rolled back to. Empty on failure. */
+  model_version: string;
+  /** Human-readable error message. `null` on success. */
+  message: string | null;
+}
+
+/** Roll the active model back to a previous version.
+ * v0.20b. Looks up the entry in `promotion_history` by
+ * `model_version` and restores its weights as the new
+ * active model.
+ *
+ * Failure modes (all return `rolled_back: false`):
+ * - active.json is missing → "no active model"
+ * - model_version not in history → "not found"
+ * - entry is from v0.19 (no weights) → "no weights"
+ */
+export const rollbackModel = (args: RollbackModelArgs) =>
+  invoke<RollbackResult>('rollback_model', { args });

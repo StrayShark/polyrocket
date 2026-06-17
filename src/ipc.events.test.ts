@@ -441,3 +441,66 @@ describe('Promote history wire format (v0.19b)', () => {
     expect(r.entries).toEqual([]);
   });
 });
+
+// =================================================================
+// ==================== v0.20b — rollback_model =====================
+// =================================================================
+
+interface RollbackResult {
+  rolled_back: boolean;
+  status: 'ok' | 'failed' | string;
+  previous_path: string | null;
+  active_path: string | null;
+  rolled_back_at_ms: number | null;
+  model_version: string;
+  message: string | null;
+}
+
+describe('Rollback model wire format (v0.20b)', () => {
+  it('RollbackResult success', () => {
+    const r: RollbackResult = JSON.parse(JSON.stringify({
+      rolled_back: true,
+      status: 'ok',
+      previous_path: '/home/x/.polyrocket/sidecar/models/active.json',
+      active_path: '/home/x/.polyrocket/sidecar/models/active.json',
+      rolled_back_at_ms: 1_700_005_000_000,
+      model_version: 'logistic-train-441c352b',
+      message: null,
+    }));
+    expect(r.rolled_back).toBe(true);
+    expect(r.status).toBe('ok');
+    expect(r.model_version).toBe('logistic-train-441c352b');
+    expect(r.rolled_back_at_ms).toBe(1_700_005_000_000);
+    expect(r.message).toBeNull();
+  });
+
+  it('RollbackResult failure (not found)', () => {
+    const r: RollbackResult = JSON.parse(JSON.stringify({
+      rolled_back: false,
+      status: 'failed',
+      previous_path: null,
+      active_path: null,
+      rolled_back_at_ms: null,
+      model_version: '',
+      message: "model_version 'logistic-train-XYZ' not found in promotion history",
+    }));
+    expect(r.rolled_back).toBe(false);
+    expect(r.message).toContain('not found');
+    expect(r.model_version).toBe('');
+  });
+
+  it('RollbackResult failure (no weights, v0.19 entry)', () => {
+    const r: RollbackResult = JSON.parse(JSON.stringify({
+      rolled_back: false,
+      status: 'failed',
+      previous_path: null,
+      active_path: null,
+      rolled_back_at_ms: null,
+      model_version: '',
+      message: "model_version 'logistic-train-OLD' has no weights stored (promoted before v0.20); cannot rollback",
+    }));
+    expect(r.rolled_back).toBe(false);
+    expect(r.message).toContain('no weights');
+    expect(r.message).toContain('cannot rollback');
+  });
+});
