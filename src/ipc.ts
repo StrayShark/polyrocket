@@ -554,6 +554,76 @@ export const listPromoteHistory = () =>
   invoke<PromoteHistoryResult>('list_promote_history', { args: {} });
 
 // =================================================================
+// =============== v0.33b — list_promote_history_archive =============
+// =================================================================
+
+/** v0.33b — args for `listPromoteHistoryArchive`. All
+ * fields optional. The archive is the durable long-term
+ * trail of promotions that fell off the 20-entry in-memory
+ * `promotion_history[]` cap. Append-only JSONL, never
+ * auto-pruned. */
+export interface ListPromoteHistoryArchiveArgs {
+  /** Lower bound on `promoted_at_ms`. Default 0. */
+  from_ms?: number;
+  /** Upper bound on `promoted_at_ms`. Default MAX. */
+  to_ms?: number;
+  /** Pagination offset. Default 0. */
+  offset?: number;
+  /** Pagination limit. Default 100, capped at 1000. */
+  limit?: number;
+}
+
+/** v0.33b — wire-format mirror of the Python sidecar's
+ * archive.jsonl. Each entry is one archived promotion
+ * (one that fell off the 20-cap). The fields mirror
+ * `PromoteHistoryEntry` plus `archived_at_ms`. */
+export interface PromoteHistoryArchiveEntry {
+  job_id: string;
+  model_version: string;
+  promoted_at_ms: number;
+  best_brier: number | null;
+  best_params: Record<string, number> | null;
+  weights: { w0: number; w1: number; w2: number } | null;
+  trial_index: number | null;
+  /** v0.33b — when this entry was written to the
+   * archive file. May differ from `promoted_at_ms` if
+   * the sidecar was offline and the entry was written
+   * later. */
+  archived_at_ms: number;
+}
+
+/** v0.33b — response of `listPromoteHistoryArchive`. */
+export interface PromoteHistoryArchiveResult {
+  /** `true` if the archive was read successfully. */
+  ok: boolean;
+  /** Entries matching the filter (after pagination). */
+  entries: PromoteHistoryArchiveEntry[];
+  /** Total entries in the file (before pagination). */
+  total: number;
+  /** Optional message (error or "no archive yet"). */
+  message: string | null;
+}
+
+/** v0.33b — query the archived promote history.
+ *
+ * The Python sidecar's `archive.jsonl` file contains
+ * every promotion that fell off the 20-entry in-memory
+ * `promotion_history[]` cap. The L1 can use this IPC
+ * to show a "View archive" panel on the ModelLab page
+ * so the user can audit promotions beyond the last 20.
+ *
+ * The file is at `~/.polyrocket/sidecar/models/archive.jsonl`
+ * (overridable via `POLYROCKET_SIDECAR_MODEL_DIR`).
+ */
+export const listPromoteHistoryArchive = (
+  args: ListPromoteHistoryArchiveArgs = {},
+) =>
+  invoke<PromoteHistoryArchiveResult>(
+    'list_promote_history_archive',
+    { args },
+  );
+
+// =================================================================
 // ==================== v0.20b — rollback_model =====================
 // =================================================================
 

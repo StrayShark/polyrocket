@@ -1183,6 +1183,154 @@ pub fn known_methods() -> Vec<SidecarMethod> {
 }
 
 // =================================================================
+// v0.33b — list_promote_history_archive (read dropped entries)
+// =================================================================
+
+/// v0.33b — args for the `list_promote_history_archive` IPC.
+/// Mirrors the Python sidecar's archive.jsonl format. All
+/// fields are optional; the L1 can paginate with `offset`
+/// + `limit`, or filter by `from_ms` / `to_ms`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListPromoteHistoryArchiveArgs {
+    /// Optional lower bound on `promoted_at_ms`. Default
+    /// 0 (no lower bound).
+    pub from_ms: Option<i64>,
+    /// Optional upper bound on `promoted_at_ms`. Default
+    /// i64::MAX (no upper bound).
+    pub to_ms: Option<i64>,
+    /// Pagination offset. Default 0.
+    pub offset: Option<usize>,
+    /// Pagination limit. Default 100 (capped at 1000).
+    pub limit: Option<usize>,
+}
+
+/// v0.33b — wire-format mirror of the Python sidecar's
+/// archive.jsonl. Each entry is one line in the JSONL file
+/// (one archived promotion). Fields mirror
+/// `PromoteHistoryEntry` plus `archived_at_ms` (when the
+/// entry was written to the archive).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PromoteHistoryArchiveEntry {
+    pub job_id: String,
+    pub model_version: String,
+    pub promoted_at_ms: i64,
+    pub best_brier: Option<f64>,
+    pub best_params: Option<serde_json::Value>,
+    pub weights: Option<serde_json::Value>,
+    pub trial_index: Option<usize>,
+    /// v0.33b — when this entry was written to the archive
+    /// file. May differ from `promoted_at_ms` if the sidecar
+    /// was offline and the entry was written later.
+    pub archived_at_ms: i64,
+}
+
+/// v0.33b — response of `list_promote_history_archive`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PromoteHistoryArchiveResult {
+    /// `true` if the archive file exists and was readable.
+    pub ok: bool,
+    /// All entries matching the filter (after pagination).
+    pub entries: Vec<PromoteHistoryArchiveEntry>,
+    /// Total entries in the file (before pagination).
+    pub total: usize,
+    /// Optional message (error or "no archive yet").
+    pub message: Option<String>,
+}
+
+/// v0.33b — read the Python sidecar's `archive.jsonl` file
+/// and return paginated entries. The file lives at
+/// `~/.polyrocket/sidecar/models/archive.jsonl` (overridable
+/// via `POLYROCKET_SIDECAR_MODEL_DIR`).
+///
+/// The file is JSONL: one JSON object per line. We parse
+/// each line, filter by `from_ms`/`to_ms`, and return up to
+/// `limit` entries starting at `offset`. Results are
+/// sorted by `promoted_at_ms` descending (newest first).
+///
+/// The 20-entry cap on `promotion_history[]` is the primary
+/// in-memory audit trail. The archive file is the durable
+/// long-term trail. The L1 can show "View archive" on the
+/// ModelLab page to see entries that fell off the cap.
+#[tauri::command]
+pub async fn list_promote_history_archive(
+    args: ListPromoteHistoryArchiveArgs,
+) -> AppResult<PromoteHistoryArchiveResult> {
+    use std::io::{BufRead, BufReader};
+    // v0.33b — derive the archive path from the same env
+    // var the Python sidecar uses. If unset, default to
+    // ~/.polyrocket/sidecar/models/archive.jsonl.
+    let model_dir = std::env::var("POLYROCKET_SIDECAR_MODEL_DIR").unwrap_or_else(|_| {
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+        format!("{home}/.polyrocket/sidecar/models")
+    });
+    let archive_path = std::path::PathBuf::from(model_dir).join("archive.jsonl");
+
+    if !archive_path.exists() {
+        return Ok(PromoteHistoryArchiveResult {
+            ok: true,
+            entries: Vec::new(),
+            total: 0,
+            message: Some("no archive yet; archive is created on first overflow".into()),
+        });
+    }
+
+    let from_ms = args.from_ms.unwrap_or(0);
+    let to_ms = args.to_ms.unwrap_or(i64::MAX);
+    let offset = args.offset.unwrap_or(0);
+    let limit = args.limit.unwrap_or(100).min(1000);
+
+    let file = match std::fs::File::open(&archive_path) {
+        Ok(f) => f,
+        Err(e) => {
+            return Ok(PromoteHistoryArchiveResult {
+                ok: false,
+                entries: Vec::new(),
+                total: 0,
+                message: Some(format!("failed to open archive: {e}")),
+            });
+        }
+    };
+
+    // Parse all lines, filter, sort newest-first, paginate.
+    // For a long-term archive (thousands of entries) this
+    // could be slow; for the expected use case (a few
+    // hundred entries per year) it's fine.
+    let mut all: Vec<PromoteHistoryArchiveEntry> = Vec::new();
+    let reader = BufReader::new(file);
+    for line in reader.lines() {
+        let line = match line {
+            Ok(l) => l,
+            Err(_) => continue, // skip malformed lines silently
+        };
+        if line.trim().is_empty() {
+            continue;
+        }
+        let entry: PromoteHistoryArchiveEntry = match serde_json::from_str(&line) {
+            Ok(e) => e,
+            Err(_) => continue, // skip malformed lines silently
+        };
+        if entry.promoted_at_ms >= from_ms && entry.promoted_at_ms <= to_ms {
+            all.push(entry);
+        }
+    }
+    // Newest first
+    all.sort_by(|a, b| b.promoted_at_ms.cmp(&a.promoted_at_ms));
+    let total = all.len();
+    let entries: Vec<PromoteHistoryArchiveEntry> = all
+        .into_iter()
+        .skip(offset)
+        .take(limit)
+        .collect();
+
+    Ok(PromoteHistoryArchiveResult {
+        ok: true,
+        entries,
+        total,
+        message: None,
+    })
+}
+
+// =================================================================
 // v0.28a — auto-promote config (in-memory, set via L1 IPC)
 // =================================================================
 
@@ -1466,5 +1614,158 @@ mod tests {
         v.sort();
         v.dedup();
         assert_eq!(v.len(), m.len());
+    }
+
+    // ============================================================
+    // v0.33b — list_promote_history_archive
+    // ============================================================
+
+    use std::io::Write;
+
+    /// Helper: write a JSONL archive file with N entries.
+    fn write_test_archive(path: &std::path::Path, n: usize) {
+        let mut f = std::fs::File::create(path).unwrap();
+        for i in 0..n {
+            let entry = serde_json::json!({
+                "job_id": format!("train-{:08x}", i),
+                "model_version": format!("logistic-train-{:08x}", i),
+                "promoted_at_ms": 1_700_000_000_000_i64 + (i as i64) * 1000,
+                "best_brier": 0.20 - (i as f64) * 0.001,
+                "best_params": {"lr": 0.01, "reg": 0.001},
+                "weights": {"w0": -0.5, "w1": 2.0, "w2": 0.4},
+                "trial_index": if i % 2 == 0 { serde_json::Value::Null } else { serde_json::json!(i / 2) },
+                "archived_at_ms": 1_700_000_000_000_i64 + (i as i64) * 1000,
+            });
+            writeln!(f, "{}", entry.to_string()).unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn archive_returns_empty_when_no_file() {
+        // v0.33b — if archive.jsonl doesn't exist, return
+        // ok=true with 0 entries and a friendly message
+        let tmp = std::env::temp_dir().join(format!(
+            "polyrocket_test_archive_none_{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        std::env::set_var("POLYROCKET_SIDECAR_MODEL_DIR", &tmp);
+
+        let r = list_promote_history_archive(ListPromoteHistoryArchiveArgs {
+            from_ms: None,
+            to_ms: None,
+            offset: None,
+            limit: None,
+        })
+        .await
+        .unwrap();
+        assert!(r.ok);
+        assert_eq!(r.entries.len(), 0);
+        assert_eq!(r.total, 0);
+        assert!(r.message.is_some());
+        assert!(r.message.as_ref().unwrap().contains("no archive"));
+
+        std::env::remove_var("POLYROCKET_SIDECAR_MODEL_DIR");
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[tokio::test]
+    async fn archive_reads_and_paginates_entries() {
+        // v0.33b — write 25 entries, read with default
+        // limit=100, verify all 25 returned, sorted newest-first
+        let tmp = std::env::temp_dir().join(format!(
+            "polyrocket_test_archive_25_{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        write_test_archive(&tmp.join("archive.jsonl"), 25);
+        std::env::set_var("POLYROCKET_SIDECAR_MODEL_DIR", &tmp);
+
+        let r = list_promote_history_archive(ListPromoteHistoryArchiveArgs {
+            from_ms: None,
+            to_ms: None,
+            offset: None,
+            limit: None,
+        })
+        .await
+        .unwrap();
+        assert!(r.ok);
+        assert_eq!(r.total, 25);
+        assert_eq!(r.entries.len(), 25);
+        // Newest first: entry[0] is the 25th written (i=24)
+        // The job_id is `train-00000018` (24 in hex, 0-padded to 8)
+        assert_eq!(r.entries[0].job_id, "train-00000018");
+        // The last entry is the oldest (i=0)
+        assert_eq!(r.entries[24].job_id, "train-00000000");
+        // Each entry has all the required fields
+        assert!(r.entries[0].archived_at_ms > 0);
+        assert!(r.entries[0].weights.is_some());
+
+        std::env::remove_var("POLYROCKET_SIDECAR_MODEL_DIR");
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[tokio::test]
+    async fn archive_pagination_offset_and_limit() {
+        // v0.33b — write 30 entries, read with offset=10
+        // limit=5, verify 5 entries returned (indices 10..15
+        // of the newest-first list, which is the 20th-16th
+        // oldest entries)
+        let tmp = std::env::temp_dir().join(format!(
+            "polyrocket_test_archive_pag_{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        write_test_archive(&tmp.join("archive.jsonl"), 30);
+        std::env::set_var("POLYROCKET_SIDECAR_MODEL_DIR", &tmp);
+
+        let r = list_promote_history_archive(ListPromoteHistoryArchiveArgs {
+            from_ms: None,
+            to_ms: None,
+            offset: Some(10),
+            limit: Some(5),
+        })
+        .await
+        .unwrap();
+        assert!(r.ok);
+        assert_eq!(r.total, 30);
+        assert_eq!(r.entries.len(), 5);
+
+        std::env::remove_var("POLYROCKET_SIDECAR_MODEL_DIR");
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[tokio::test]
+    async fn archive_filters_by_time_range() {
+        // v0.33b — write 10 entries at 1000ms intervals,
+        // filter to 5 entries (i=3..7) by from_ms/to_ms
+        let tmp = std::env::temp_dir().join(format!(
+            "polyrocket_test_archive_time_{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        write_test_archive(&tmp.join("archive.jsonl"), 10);
+        std::env::set_var("POLYROCKET_SIDECAR_MODEL_DIR", &tmp);
+
+        // Entry i=3 is at 1_700_000_003_000, i=7 is at 1_700_000_007_000
+        let r = list_promote_history_archive(ListPromoteHistoryArchiveArgs {
+            from_ms: Some(1_700_000_003_000),
+            to_ms: Some(1_700_000_007_000),
+            offset: None,
+            limit: None,
+        })
+        .await
+        .unwrap();
+        assert!(r.ok);
+        // 5 entries match: i=3,4,5,6,7
+        assert_eq!(r.total, 5);
+        assert_eq!(r.entries.len(), 5);
+
+        std::env::remove_var("POLYROCKET_SIDECAR_MODEL_DIR");
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }

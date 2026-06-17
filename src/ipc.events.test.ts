@@ -816,3 +816,116 @@ describe('Auto-promote-finished event payload (v0.28a)', () => {
     expect(e.message).toMatch(/parse/);
   });
 });
+
+// =================================================================
+// ========== v0.33b — list_promote_history_archive wire format ======
+// =================================================================
+
+interface ListPromoteHistoryArchiveArgs {
+  from_ms?: number;
+  to_ms?: number;
+  offset?: number;
+  limit?: number;
+}
+
+interface PromoteHistoryArchiveEntry {
+  job_id: string;
+  model_version: string;
+  promoted_at_ms: number;
+  best_brier: number | null;
+  best_params: Record<string, number> | null;
+  weights: { w0: number; w1: number; w2: number } | null;
+  trial_index: number | null;
+  archived_at_ms: number;
+}
+
+interface PromoteHistoryArchiveResult {
+  ok: boolean;
+  entries: PromoteHistoryArchiveEntry[];
+  total: number;
+  message: string | null;
+}
+
+describe('Promote-history-archive wire format (v0.33b)', () => {
+  it('PromoteHistoryArchiveEntry shape — best trial', () => {
+    const e: PromoteHistoryArchiveEntry = JSON.parse(JSON.stringify({
+      job_id: 'train-00000001',
+      model_version: 'logistic-train-00000001',
+      promoted_at_ms: 1_700_000_000_000,
+      best_brier: 0.18,
+      best_params: { lr: 0.01, reg: 0.001 },
+      weights: { w0: -0.5, w1: 2.0, w2: 0.4 },
+      trial_index: null,
+      archived_at_ms: 1_700_000_000_000,
+    }));
+    expect(e.job_id).toBe('train-00000001');
+    expect(e.best_brier).toBeCloseTo(0.18);
+    expect(e.weights?.w0).toBeCloseTo(-0.5);
+    expect(e.trial_index).toBeNull();
+    expect(typeof e.archived_at_ms).toBe('number');
+  });
+
+  it('PromoteHistoryArchiveEntry shape — bulk trial', () => {
+    const e: PromoteHistoryArchiveEntry = JSON.parse(JSON.stringify({
+      job_id: 'train-00000002',
+      model_version: 'logistic-train-00000002-t2',
+      promoted_at_ms: 1_700_000_001_000,
+      best_brier: 0.19,
+      best_params: { lr: 0.01, reg: 0.001 },
+      weights: { w0: -0.4, w1: 1.9, w2: 0.3 },
+      trial_index: 2,
+      archived_at_ms: 1_700_000_001_000,
+    }));
+    expect(e.model_version).toContain('-t2');
+    expect(e.trial_index).toBe(2);
+  });
+
+  it('PromoteHistoryArchiveResult shape — empty', () => {
+    const r: PromoteHistoryArchiveResult = JSON.parse(JSON.stringify({
+      ok: true,
+      entries: [],
+      total: 0,
+      message: 'no archive yet; archive is created on first overflow',
+    }));
+    expect(r.ok).toBe(true);
+    expect(r.entries).toHaveLength(0);
+    expect(r.total).toBe(0);
+    expect(r.message).toContain('no archive');
+  });
+
+  it('PromoteHistoryArchiveResult shape — populated', () => {
+    const r: PromoteHistoryArchiveResult = JSON.parse(JSON.stringify({
+      ok: true,
+      entries: [
+        { job_id: 'a', model_version: 'la', promoted_at_ms: 2, best_brier: 0.2, best_params: null, weights: { w0: 0, w1: 0, w2: 0 }, trial_index: null, archived_at_ms: 2 },
+        { job_id: 'b', model_version: 'lb', promoted_at_ms: 1, best_brier: 0.18, best_params: null, weights: { w0: 0, w1: 0, w2: 0 }, trial_index: null, archived_at_ms: 1 },
+      ],
+      total: 2,
+      message: null,
+    }));
+    expect(r.ok).toBe(true);
+    expect(r.total).toBe(2);
+    expect(r.entries).toHaveLength(2);
+  });
+
+  it('ListPromoteHistoryArchiveArgs — empty', () => {
+    const a: ListPromoteHistoryArchiveArgs = JSON.parse(JSON.stringify({}));
+    expect(a.from_ms).toBeUndefined();
+    expect(a.to_ms).toBeUndefined();
+    expect(a.offset).toBeUndefined();
+    expect(a.limit).toBeUndefined();
+  });
+
+  it('ListPromoteHistoryArchiveArgs — full pagination', () => {
+    const a: ListPromoteHistoryArchiveArgs = JSON.parse(JSON.stringify({
+      from_ms: 1_700_000_000_000,
+      to_ms: 1_700_000_999_000,
+      offset: 50,
+      limit: 25,
+    }));
+    expect(a.from_ms).toBe(1_700_000_000_000);
+    expect(a.to_ms).toBe(1_700_000_999_000);
+    expect(a.offset).toBe(50);
+    expect(a.limit).toBe(25);
+  });
+});

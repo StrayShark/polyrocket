@@ -128,6 +128,7 @@ pub fn run() {
             commands::sidecar::sidecar_request,
             commands::sidecar::set_auto_promote_config,
             commands::sidecar::get_auto_promote_config,
+            commands::sidecar::list_promote_history_archive,
             commands::sidecar_health::sidecar_health_now,
             commands::sidecar_health::sidecar_health_snapshot,
             commands::scheduler::scheduler_status,

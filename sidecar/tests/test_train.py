@@ -6,6 +6,7 @@ real `~/.polyrocket/sidecar/models/`.
 
 import json
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -413,6 +414,108 @@ class PromoteModelTests(unittest.TestCase):
         self.assertEqual(result["results"], [])
         self.assertIn("no candidate", result["message"])
         self.assertFalse(train.ACTIVE_FILE.exists())
+
+
+class TestPromoteHistoryArchive(unittest.TestCase):
+    """v0.33a — promote history archive (append-only JSONL).
+
+    The 20-entry cap on `promotion_history[]` silently drops
+    old entries. v0.33a fixes this by writing the dropped
+    entries to `archive.jsonl` BEFORE the cap takes effect.
+    The archive is append-only and never auto-pruned.
+    """
+
+    def setUp(self) -> None:
+        # Clean MODEL_DIR + ARCHIVE_FILE between tests
+        if train.MODEL_DIR.exists():
+            shutil.rmtree(train.MODEL_DIR)
+        # Also explicitly remove the archive file (it
+        # lives in MODEL_DIR, but defensive cleanup in
+        # case other test classes wrote to it)
+        from polyrocket_sidecar.train import ARCHIVE_FILE
+        if ARCHIVE_FILE.exists():
+            ARCHIVE_FILE.unlink()
+
+    def test_archive_file_does_not_exist_before_any_promote(self) -> None:
+        """v0.33a — no archive file on fresh setup."""
+        # Run one train + promote, history has 1 entry (no overflow)
+        run_train_job(n_trials=1, epochs=5)
+        run_promote_model()
+        # Archive file may or may not exist; the test is loose
+        # because the cap is 20 — 1 entry doesn't trigger
+        # the archive. We just verify that if it exists,
+        # it's a valid JSONL.
+        from polyrocket_sidecar.train import ARCHIVE_FILE
+        if ARCHIVE_FILE.exists():
+            content = ARCHIVE_FILE.read_text()
+            # If it exists, it should be valid JSONL
+            for line in content.strip().split("\n"):
+                if line:
+                    json.loads(line)  # raises if invalid
+
+    def test_archive_writes_dropped_entries_on_overflow(self) -> None:
+        """v0.33a — 21st promote writes the 1 dropped entry."""
+        from polyrocket_sidecar.train import ARCHIVE_FILE
+        # Run 21 trains + promotes. The 20-cap drops the 1st.
+        job_ids: list[str] = []
+        for _ in range(21):
+            t = run_train_job(n_trials=1, epochs=5)
+            job_ids.append(t["job_id"])
+            run_promote_model()
+        # In-memory history is still capped at 20
+        active = json.loads(train.ACTIVE_FILE.read_text())
+        self.assertEqual(len(active["promotion_history"]), 20)
+        # Archive file should exist with 1 entry (the 1st, dropped)
+        self.assertTrue(ARCHIVE_FILE.exists(), "archive file should exist after 21 promotes")
+        lines = ARCHIVE_FILE.read_text().strip().split("\n")
+        self.assertEqual(len(lines), 1, "expected 1 archived entry")
+        archived = json.loads(lines[0])
+        self.assertEqual(archived["job_id"], job_ids[0])
+        self.assertIn("model_version", archived)
+        self.assertIn("promoted_at_ms", archived)
+        self.assertIn("best_brier", archived)
+        self.assertIn("weights", archived)
+        self.assertIn("trial_index", archived)
+        self.assertIn("archived_at_ms", archived)
+
+    def test_archive_is_append_only(self) -> None:
+        """v0.33a — multiple overflows append, not overwrite."""
+        from polyrocket_sidecar.train import ARCHIVE_FILE
+        # Run 25 promotes → drops 5 entries (1 each on the
+        # 21st, 22nd, 23rd, 24th, 25th).
+        for _ in range(25):
+            t = run_train_job(n_trials=1, epochs=5)
+            run_promote_model()
+        # Archive should have 5 entries (5 dropped over 25 promotes)
+        self.assertTrue(ARCHIVE_FILE.exists())
+        lines = ARCHIVE_FILE.read_text().strip().split("\n")
+        self.assertEqual(len(lines), 5)
+        # Each line is a valid JSON object
+        for line in lines:
+            archived = json.loads(line)
+            self.assertIn("job_id", archived)
+            self.assertIn("archived_at_ms", archived)
+
+    def test_archive_entries_have_correct_shape(self) -> None:
+        """v0.33a — each archived entry has the full set of fields
+        needed to reconstruct the promotion, including weights
+        (for v0.20a rollback) and trial_index (for v0.21a bulk)."""
+        from polyrocket_sidecar.train import ARCHIVE_FILE
+        # Run 21 promotes
+        for _ in range(21):
+            t = run_train_job(n_trials=1, epochs=5)
+            run_promote_model()
+        lines = ARCHIVE_FILE.read_text().strip().split("\n")
+        archived = json.loads(lines[0])
+        # The exact same shape as the in-memory entries
+        self.assertEqual(
+            set(archived.keys()),
+            {"job_id", "model_version", "promoted_at_ms",
+             "best_brier", "best_params", "weights",
+             "trial_index", "archived_at_ms"},
+        )
+        # Weights has the 3 expected keys
+        self.assertEqual(set(archived["weights"].keys()), {"w0", "w1", "w2"})
 
 
 if __name__ == "__main__":

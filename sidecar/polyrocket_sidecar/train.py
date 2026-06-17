@@ -31,6 +31,7 @@ A v0.10b+ commit will swap predict() to read from the active file.
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import random
@@ -38,6 +39,8 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any
+
+_log = logging.getLogger("polyrocket_sidecar.train")
 
 # Where the candidate and active model files live. Override with
 # `POLYROCKET_SIDECAR_MODEL_DIR=/some/path` in tests or production.
@@ -239,6 +242,16 @@ def run_promote_model(
     production" — the synthetic data is a stand-in. v0.21
     lets the user see all 4 in the history panel and pick
     the actual winner.
+
+    v0.33a — also appends dropped entries to a separate
+    `archive.jsonl` file BEFORE the 20-cap takes effect.
+    The archive is append-only JSONL: one JSON object per
+    line, each with the full entry (job_id, model_version,
+    promoted_at_ms, best_brier, best_params, weights,
+    trial_index, archived_at_ms). The user can read the
+    archive via the new `list_promote_history_archive`
+    IPC. The archive is NEVER auto-pruned — the user can
+    decide when to clean it up.
     """
     if not CANDIDATE_FILE.exists():
         return {
@@ -333,6 +346,13 @@ def run_promote_model(
             # was trial 2 of 4" in the history panel.
             "trial_index": trial_index,
         }
+        # v0.33a — BEFORE the 20-cap takes effect, write
+        # the entries that are about to be dropped to the
+        # archive file. The archive is append-only JSONL
+        # so concurrent writers (rare, but possible during
+        # bulk promote) append to the same file.
+        if len(history) >= 20:
+            _archive_dropped_entries(history[: len(history) - 19])
         # v0.19a — append the NEW entry; cap at 20 most-recent
         history.append(new_entry)
         if len(history) > 20:
@@ -362,6 +382,50 @@ def run_promote_model(
             "status": "failed",
             "message": f"promote failed: {e}",
         }
+
+
+# v0.33a — archive file path. Override with
+# `POLYROCKET_SIDECAR_MODEL_DIR` (inherited from the
+# parent module's MODEL_DIR). The archive lives next to
+# active.json so the user's mental model is "everything
+# model-related is in ~/.polyrocket/sidecar/models/".
+ARCHIVE_FILE = MODEL_DIR / "archive.jsonl"
+
+
+def _archive_dropped_entries(entries: list[dict[str, Any]]) -> None:
+    """Append dropped entries to the JSONL archive file.
+
+    v0.33a — called from `run_promote_model` BEFORE the
+    20-cap takes effect. Each entry is written as one
+    JSON object per line. The file is append-only and
+    never auto-pruned.
+
+    Failures are logged but don't fail the promote
+    (the archive is a "nice to have", not a critical
+    piece of the audit trail — the primary audit
+    trail is the 20-entry in-memory `promotion_history`
+    which always reflects the latest 20 promotes).
+    """
+    if not entries:
+        return
+    try:
+        MODEL_DIR.mkdir(parents=True, exist_ok=True)
+        archived_at_ms = int(time.time() * 1000)
+        # Append in append-mode ('a'), one JSON per line.
+        # We do this synchronously to ensure the archive
+        # is durable before the in-memory history is
+        # overwritten.
+        with ARCHIVE_FILE.open("a", encoding="utf-8") as f:
+            for entry in entries:
+                # Defensive copy + add archived_at_ms
+                archived = dict(entry)
+                archived["archived_at_ms"] = archived_at_ms
+                f.write(json.dumps(archived, ensure_ascii=False) + "\n")
+    except OSError as e:
+        # Don't fail the promote if the archive write
+        # fails — the primary audit trail (the 20-entry
+        # in-memory history) is the source of truth.
+        _log.warning("failed to write archive: %s", e)
 
 
 def run_list_promote_history() -> dict[str, Any]:
