@@ -604,3 +604,62 @@ export interface RollbackResult {
  */
 export const rollbackModel = (args: RollbackModelArgs) =>
   invoke<RollbackResult>('rollback_model', { args });
+
+// =================================================================
+// ================== v0.23b — auto_promote_if_better ===============
+// =================================================================
+
+/** Args for the `auto_promote_if_better` IPC. v0.23b.
+ *
+ * `brier_margin` is how much better the candidate must
+ * be (lower Brier = better) for the auto-promote to
+ * happen. Default 0.005.
+ *
+ * `trial_index` is which trial to use (None = best).
+ */
+export interface AutoPromoteIfBetterArgs {
+  /** How much better the candidate must be. Default 0.005. */
+  brier_margin?: number;
+  /** Which trial to use (None = best, 0..n-1 for a specific trial). */
+  trial_index?: number;
+}
+
+/** Wire-format mirror of the Rust `AutoPromoteIfBetterResult`
+ * (returned by the `auto_promote_if_better` IPC). v0.23b.
+ *
+ * `promoted` and `skipped` are mutually exclusive:
+ *   - promoted=true, skipped=false: the candidate was
+ *     meaningfully better, it WAS promoted
+ *   - promoted=false, skipped=true: the candidate was
+ *     NOT meaningfully better, no action taken
+ *   - promoted=false, skipped=false: error case
+ *     (e.g. no candidate, invalid margin)
+ */
+export interface AutoPromoteIfBetterResult {
+  promoted: boolean;
+  skipped: boolean;
+  /** Human-readable reason. */
+  reason: string;
+  candidate_brier: number | null;
+  active_brier: number | null;
+  /** The brier_margin used for the comparison. */
+  margin: number;
+  model_version: string | null;
+  promoted_at_ms: number | null;
+  message: string | null;
+}
+
+/** Promote the candidate only if it's meaningfully better
+ * than the active model. v0.23b.
+ *
+ * One-click action: click after each train, the sidecar
+ * compares the Brier scores and either promotes the
+ * candidate (if it's at least `brier_margin` better) or
+ * no-ops (with a clear "skipped" reason).
+ *
+ * If there's no active model yet, the candidate is
+ * auto-promoted (no comparison possible, it's best by
+ * definition).
+ */
+export const autoPromoteIfBetter = (args: AutoPromoteIfBetterArgs = {}) =>
+  invoke<AutoPromoteIfBetterResult>('auto_promote_if_better', { args });

@@ -7,6 +7,7 @@ import {
   sidecarHealthSnapshot,
   trainJob,
   promoteModel,
+  autoPromoteIfBetter,
   onTrainStarted,
   type TrainStartedEvent,
 } from '@/ipc';
@@ -168,6 +169,53 @@ export function ModelLab() {
     },
   });
 
+  // v0.23b — auto-promote if better. One-click action:
+  // the Python sidecar compares Brier scores and either
+  // promotes (if candidate is at least the default 0.005
+  // better) or no-ops with a clear "skipped" reason.
+  const autoPromoteMut = useMutation({
+    mutationFn: () =>
+      autoPromoteIfBetter({
+        brier_margin: 0.005,  // v0.23c will make this configurable
+      }),
+    onSuccess: (r) => {
+      if (r.promoted) {
+        const delta = r.active_brier != null && r.candidate_brier != null
+          ? (r.active_brier - r.candidate_brier).toFixed(3)
+          : '?';
+        toast.success(
+          t('promote.toast.auto_promoted', { delta: `+${delta}` }),
+        );
+        setLastCandidate(null);
+        // Refresh the active-model probe so the
+        // ModelVersionPill updates to the new version.
+        queryClient.invalidateQueries({ queryKey: ['sidecar-active-model'] });
+        queryClient.invalidateQueries({ queryKey: ['llm-performance'] });
+        queryClient.invalidateQueries({ queryKey: ['promote-history'] });
+      } else if (r.skipped) {
+        // v0.23b — skipped: candidate wasn't meaningfully
+        // better. The reason field has the comparison
+        // numbers; we show a short toast with the delta
+        // and margin.
+        const delta = r.active_brier != null && r.candidate_brier != null
+          ? (r.active_brier - r.candidate_brier).toFixed(3)
+          : '?';
+        toast.info(
+          t('promote.toast.auto_skipped', {
+            delta: `+${delta}`,
+            margin: r.margin.toFixed(3),
+          }),
+          r.reason,
+        );
+      } else {
+        toast.error(t('promote.toast.auto_failed'), r.message ?? undefined);
+      }
+    },
+    onError: (e: Error) => {
+      toast.error(t('promote.toast.auto_failed'), e.message);
+    },
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -273,6 +321,31 @@ export function ModelLab() {
                 onClick={() => promoteMut.mutate(undefined)}
               >
                 {promoteMut.isPending ? t('promote.btn.promoting') : t('promote.btn.promote')}
+              </Button>
+            )}
+            {/* v0.23b — Auto-promote if better. One-click
+                action: the Python sidecar compares the
+                candidate's brier to the active's brier
+                and either promotes (if candidate is at
+                least the default 0.005 better) or no-ops
+                with a clear "skipped" reason. */}
+            {lastCandidate && (
+              <Button
+                data-testid="model-auto-promote-btn"
+                variant="ghost"
+                size="sm"
+                iconLeft={<Sparkles className="w-3 h-3" />}
+                loading={autoPromoteMut.isPending}
+                disabled={
+                  autoPromoteMut.isPending ||
+                  promoteMut.isPending ||
+                  !!activeTrainJobId
+                }
+                onClick={() => autoPromoteMut.mutate()}
+              >
+                {autoPromoteMut.isPending
+                  ? t('promote.btn.auto_promoting')
+                  : t('promote.btn.auto_promote')}
               </Button>
             )}
           </div>

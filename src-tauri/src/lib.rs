@@ -123,6 +123,7 @@ pub fn run() {
             commands::sidecar::promote_model,
             commands::sidecar::list_promote_history,
             commands::sidecar::rollback_model,
+            commands::sidecar::auto_promote_if_better,
             commands::sidecar::sidecar_request,
             commands::sidecar_health::sidecar_health_now,
             commands::sidecar_health::sidecar_health_snapshot,

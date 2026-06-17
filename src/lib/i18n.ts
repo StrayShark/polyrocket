@@ -450,6 +450,12 @@ const en: Dictionary = {
   'promote.toast.promoted': 'Model promoted',
   'promote.toast.version': 'Now active: {{version}}',
   'promote.toast.failed': 'Promote failed',
+  // v0.23b — Auto-promote if better
+  'promote.btn.auto_promote': 'Promote if better',
+  'promote.btn.auto_promoting': 'Checking…',
+  'promote.toast.auto_promoted': 'Auto-promoted (improved by {{delta}})',
+  'promote.toast.auto_skipped': 'Not promoted (improvement {{delta}} < margin {{margin}})',
+  'promote.toast.auto_failed': 'Auto-promote failed',
   'promote.last_candidate.hint': 'Click "Promote" to make this the active model.',
   // v0.19c — Promote history panel
   'promote.history.title': 'Promotion history',
@@ -1004,6 +1010,12 @@ const zh: Dictionary = {
   'promote.toast.promoted': '模型已晋升',
   'promote.toast.version': '现活动模型: {{version}}',
   'promote.toast.failed': '晋升失败',
+  // v0.23b — Auto-promote if better
+  'promote.btn.auto_promote': '自动晋升（若更优）',
+  'promote.btn.auto_promoting': '检查中…',
+  'promote.toast.auto_promoted': '已自动晋升（提升 {{delta}}）',
+  'promote.toast.auto_skipped': '未晋升（提升 {{delta}} < 阈值 {{margin}}）',
+  'promote.toast.auto_failed': '自动晋升失败',
   'promote.last_candidate.hint': '点击 "晋升" 将其设为活动模型。',
   // v0.19c — Promote history panel
   'promote.history.title': '晋升历史',

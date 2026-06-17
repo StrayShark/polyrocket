@@ -541,3 +541,78 @@ describe('Rollback model wire format (v0.20b)', () => {
     expect(r.message).toContain('cannot rollback');
   });
 });
+
+// =================================================================
+// ================ v0.23b — auto_promote_if_better =================
+// =================================================================
+
+interface AutoPromoteIfBetterResult {
+  promoted: boolean;
+  skipped: boolean;
+  reason: string;
+  candidate_brier: number | null;
+  active_brier: number | null;
+  margin: number;
+  model_version: string | null;
+  promoted_at_ms: number | null;
+  message: string | null;
+}
+
+describe('Auto-promote-if-better wire format (v0.23b)', () => {
+  it('AutoPromoteIfBetterResult promoted', () => {
+    const r: AutoPromoteIfBetterResult = JSON.parse(JSON.stringify({
+      promoted: true,
+      skipped: false,
+      reason: 'auto-promoted: improvement 0.0120 > margin 0.005',
+      candidate_brier: 0.180,
+      active_brier: 0.192,
+      margin: 0.005,
+      model_version: 'logistic-train-XYZ',
+      promoted_at_ms: 1_700_020_000_000,
+      message: null,
+    }));
+    expect(r.promoted).toBe(true);
+    expect(r.skipped).toBe(false);
+    expect(r.reason).toContain('auto-promoted');
+    expect(r.candidate_brier).toBeCloseTo(0.180);
+    expect(r.active_brier).toBeCloseTo(0.192);
+    expect(r.margin).toBeCloseTo(0.005);
+    expect(r.model_version).toBe('logistic-train-XYZ');
+  });
+
+  it('AutoPromoteIfBetterResult skipped', () => {
+    const r: AutoPromoteIfBetterResult = JSON.parse(JSON.stringify({
+      promoted: false,
+      skipped: true,
+      reason: 'candidate brier 0.1900 is not at least 0.005 better than active 0.1920 (improvement: +0.0020)',
+      candidate_brier: 0.190,
+      active_brier: 0.192,
+      margin: 0.005,
+      model_version: null,
+      promoted_at_ms: null,
+      message: null,
+    }));
+    expect(r.promoted).toBe(false);
+    expect(r.skipped).toBe(true);
+    expect(r.reason).toContain('not at least 0.005 better');
+    expect(r.model_version).toBeNull();
+  });
+
+  it('AutoPromoteIfBetterResult no active model', () => {
+    const r: AutoPromoteIfBetterResult = JSON.parse(JSON.stringify({
+      promoted: true,
+      skipped: false,
+      reason: 'no active model; auto-promoted the candidate',
+      candidate_brier: null,
+      active_brier: null,
+      margin: 0.005,
+      model_version: 'logistic-train-ABC',
+      promoted_at_ms: 1_700_021_000_000,
+      message: null,
+    }));
+    expect(r.promoted).toBe(true);
+    expect(r.candidate_brier).toBeNull();
+    expect(r.active_brier).toBeNull();
+    expect(r.reason).toContain('no active model');
+  });
+});

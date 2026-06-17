@@ -7,9 +7,10 @@
 use crate::AppError;
 use crate::AppResult;
 use crate::domain::lab::sidecar::{
-    build_predict_request, build_promote_request, build_rollback_request, build_train_request,
-    parse_line, parse_list_promote_history_response, parse_predict_response,
-    parse_promote_response, parse_rollback_response, parse_train_response, Prediction,
+    build_auto_promote_if_better_request, build_predict_request, build_promote_request,
+    build_rollback_request, build_train_request, parse_auto_promote_if_better_response, parse_line,
+    parse_list_promote_history_response, parse_predict_response, parse_promote_response,
+    parse_rollback_response, parse_train_response, AutoPromoteIfBetterResult, Prediction,
     PromoteHistoryResult, PromoteResult, RollbackResult, SidecarMethod, SidecarRequest,
     SidecarResponse, TrainResult, TrainTrial,
 };
@@ -905,6 +906,99 @@ pub async fn rollback_model(
 #[derive(Debug, Clone, Deserialize)]
 pub struct RollbackModelArgs {
     pub model_version: String,
+}
+
+/// Auto-promote the candidate only if it's meaningfully
+/// better than the active model. v0.23b.
+#[tauri::command]
+pub async fn auto_promote_if_better(
+    state: State<'_, SidecarState>,
+    args: AutoPromoteIfBetterArgs,
+) -> AppResult<AutoPromoteIfBetterResult> {
+    let job_id = format!(
+        "auto-promote-{}",
+        uuid::Uuid::new_v4()
+            .to_string()
+            .split('-')
+            .next()
+            .unwrap_or("00000000")
+    );
+    let line = build_auto_promote_if_better_request(
+        &job_id,
+        args.brier_margin,
+        args.trial_index,
+    );
+
+    if !state.is_running() {
+        return Ok(AutoPromoteIfBetterResult {
+            promoted: false,
+            skipped: true,
+            reason: "sidecar not running".into(),
+            candidate_brier: None,
+            active_brier: None,
+            margin: args.brier_margin.unwrap_or(0.005),
+            model_version: None,
+            promoted_at_ms: None,
+            message: Some("sidecar not running".into()),
+        });
+    }
+
+    let response_line = {
+        {
+            let mut stdin_guard = state.stdin.lock()
+                .map_err(|e| format!("stdin lock: {e}"))
+                .map_err(AppError::Internal)?;
+            let stdin = stdin_guard.as_mut()
+                .ok_or_else(|| AppError::Internal("stdin not available".into()))?;
+            use std::io::Write;
+            if let Err(e) = writeln!(stdin, "{line}") {
+                return Err(AppError::Internal(format!("auto_promote write: {e}")));
+            }
+            if let Err(e) = stdin.flush() {
+                return Err(AppError::Internal(format!("auto_promote flush: {e}")));
+            }
+        }
+        let mut stdout_guard = state.stdout.lock()
+            .map_err(|e| format!("stdout lock: {e}"))
+            .map_err(AppError::Internal)?;
+        let stdout = stdout_guard.as_mut()
+            .ok_or_else(|| AppError::Internal("stdout not available".into()))?;
+        use std::io::{BufRead, BufReader};
+        let mut reader = BufReader::new(stdout);
+        let mut buf = String::new();
+        if let Err(e) = reader.read_line(&mut buf) {
+            return Err(AppError::Internal(format!("auto_promote read: {e}")));
+        }
+        buf
+    };
+
+    let parsed = parse_line(&response_line).map_err(|e| {
+        AppError::Internal(format!("auto_promote parse: {e}"))
+    })?;
+    let response = match parsed {
+        crate::domain::lab::sidecar::ParseResult::Response(r) => r,
+        _ => return Err(AppError::Internal("auto_promote: not a response".into())),
+    };
+    if response.id != job_id {
+        return Err(AppError::Internal(format!(
+            "auto_promote id mismatch: sent={job_id}, got={}",
+            response.id
+        )));
+    }
+    parse_auto_promote_if_better_response(&response).map_err(|e| {
+        AppError::Internal(format!("auto_promote decode: {e}"))
+    })
+}
+
+/// Args for the `auto_promote_if_better` IPC. v0.23b —
+/// `brier_margin` is how much better the candidate must
+/// be (lower Brier = better) for the auto-promote to
+/// happen. Default 0.005. `trial_index` is which trial
+/// to use (None = best).
+#[derive(Debug, Clone, Deserialize)]
+pub struct AutoPromoteIfBetterArgs {
+    pub brier_margin: Option<f64>,
+    pub trial_index: Option<usize>,
 }
 
 /// Send an arbitrary `SidecarRequest` and return the raw response.
