@@ -692,3 +692,127 @@ describe('Promote-all-trials wire format (v0.25b)', () => {
     expect(r.results[1].promoted).toBe(false);
   });
 });
+
+// =================================================================
+// ==================== v0.28a — auto_promote_config =================
+// =================================================================
+
+/** Wire-format mirror of the Rust `SetAutoPromoteConfigArgs`. */
+interface SetAutoPromoteConfigArgs {
+  enabled?: boolean;
+  brier_margin?: number;
+}
+
+/** Wire-format mirror of the Rust `AutoPromoteConfigDto`. */
+interface AutoPromoteConfigDto {
+  enabled: boolean;
+  brier_margin: number;
+}
+
+describe('Auto-promote-config wire format (v0.28a)', () => {
+  it('AutoPromoteConfigDto shape — defaults', () => {
+    const c: AutoPromoteConfigDto = JSON.parse(JSON.stringify({
+      enabled: false,
+      brier_margin: 0.005,
+    }));
+    expect(c.enabled).toBe(false);
+    expect(c.brier_margin).toBeCloseTo(0.005);
+  });
+
+  it('AutoPromoteConfigDto shape — user-toggled', () => {
+    const c: AutoPromoteConfigDto = JSON.parse(JSON.stringify({
+      enabled: true,
+      brier_margin: 0.01,
+    }));
+    expect(c.enabled).toBe(true);
+    expect(c.brier_margin).toBeCloseTo(0.01);
+  });
+
+  it('SetAutoPromoteConfigArgs — only enabled', () => {
+    const a: SetAutoPromoteConfigArgs = JSON.parse(JSON.stringify({
+      enabled: true,
+    }));
+    expect(a.enabled).toBe(true);
+    expect(a.brier_margin).toBeUndefined();
+  });
+
+  it('SetAutoPromoteConfigArgs — only margin', () => {
+    const a: SetAutoPromoteConfigArgs = JSON.parse(JSON.stringify({
+      brier_margin: 0.02,
+    }));
+    expect(a.brier_margin).toBeCloseTo(0.02);
+    expect(a.enabled).toBeUndefined();
+  });
+
+  it('SetAutoPromoteConfigArgs — empty (no-op)', () => {
+    const a: SetAutoPromoteConfigArgs = JSON.parse(JSON.stringify({}));
+    expect(a.enabled).toBeUndefined();
+    expect(a.brier_margin).toBeUndefined();
+  });
+});
+
+// =================================================================
+// ================== v0.28a — auto_promote:finished =================
+// =================================================================
+
+/** Wire-format mirror of the Rust `AutoPromoteFinishedEvent`. */
+interface AutoPromoteFinishedEvent {
+  job_id: string;
+  promoted: boolean;
+  message: string;
+  model_version: string | null;
+  finished_at: number;
+}
+
+describe('Auto-promote-finished event payload (v0.28a)', () => {
+  it('promoted=true carries model_version', () => {
+    const e: AutoPromoteFinishedEvent = JSON.parse(JSON.stringify({
+      job_id: 'train-abc12345',
+      promoted: true,
+      message: 'auto-promoted: improvement 0.012 > margin 0.005',
+      model_version: 'logistic-train-abc12345',
+      finished_at: 1_700_000_000_000,
+    }));
+    expect(e.job_id).toBe('train-abc12345');
+    expect(e.promoted).toBe(true);
+    expect(e.model_version).toBe('logistic-train-abc12345');
+    expect(typeof e.finished_at).toBe('number');
+  });
+
+  it('promoted=false carries null model_version (skipped)', () => {
+    const e: AutoPromoteFinishedEvent = JSON.parse(JSON.stringify({
+      job_id: 'train-def67890',
+      promoted: false,
+      message: 'candidate brier 0.210 is not at least 0.005 better than active 0.180',
+      model_version: null,
+      finished_at: 1_700_000_000_000,
+    }));
+    expect(e.promoted).toBe(false);
+    expect(e.model_version).toBeNull();
+    expect(e.message).toMatch(/not at least/);
+  });
+
+  it('promoted=false with sidecar-down error', () => {
+    const e: AutoPromoteFinishedEvent = JSON.parse(JSON.stringify({
+      job_id: 'train-ghi11111',
+      promoted: false,
+      message: 'sidecar not running',
+      model_version: null,
+      finished_at: 1_700_000_000_000,
+    }));
+    expect(e.message).toBe('sidecar not running');
+    expect(e.model_version).toBeNull();
+  });
+
+  it('promoted=false with parse error (worker caught it)', () => {
+    const e: AutoPromoteFinishedEvent = JSON.parse(JSON.stringify({
+      job_id: 'train-jkl22222',
+      promoted: false,
+      message: 'auto_promote parse: unexpected token at position 0',
+      model_version: null,
+      finished_at: 1_700_000_000_000,
+    }));
+    expect(e.promoted).toBe(false);
+    expect(e.message).toMatch(/parse/);
+  });
+});

@@ -718,3 +718,85 @@ export interface PromoteAllTrialsResult {
  */
 export const promoteAllTrials = () =>
   invoke<PromoteAllTrialsResult>('promote_all_trials', { args: {} });
+
+// =================================================================
+// ==================== v0.28a — auto_promote_config =================
+// =================================================================
+
+/** v0.28a — args for `setAutoPromoteConfig`. Both fields
+ * are optional: `undefined` means "leave unchanged" so
+ * the L1 can update only the field the user changed in
+ * the UI (e.g. just the toggle, not the margin). */
+export interface SetAutoPromoteConfigArgs {
+  enabled?: boolean;
+  brier_margin?: number;
+}
+
+/** v0.28a — wire-format mirror of the Rust
+ * `AutoPromoteConfigDto` (returned by both `get` and `set`
+ * IPCs). The Rust `AppState` holds the current values;
+ * the L1 pushes them via `setAutoPromoteConfig` on
+ * mount of the Settings page. */
+export interface AutoPromoteConfigDto {
+  enabled: boolean;
+  brier_margin: number;
+}
+
+/** v0.28a — push the user's auto-promote settings to
+ * Rust. After this call, the `train_job` Rust handler
+ * will read these values and spawn the auto-promote
+ * worker if `enabled === true` and the train succeeded.
+ *
+ * Returns the new merged config (so the L1 can confirm
+ * what Rust now has).
+ *
+ * Call this on mount of `Settings.tsx` so the values
+ * persist across reloads. The L1 zustand store
+ * (prefs-store) is the source of truth for the UI; Rust
+ * is the consumer for `train_job`.
+ */
+export const setAutoPromoteConfig = (args: SetAutoPromoteConfigArgs = {}) =>
+  invoke<AutoPromoteConfigDto>('set_auto_promote_config', { args });
+
+/** v0.28a — read the current auto-promote config from
+ * Rust. Returns defaults if the L1 has never pushed
+ * any config. */
+export const getAutoPromoteConfig = () =>
+  invoke<AutoPromoteConfigDto>('get_auto_promote_config');
+
+// =================================================================
+// ================== v0.28a — auto_promote:finished =================
+// =================================================================
+
+/** v0.28a — payload of the `auto_promote:finished` event
+ * emitted by the background worker spawned from
+ * `train_job` (only if auto-promote is enabled).
+ *
+ * The L1 listens for this event on the ModelLab page to
+ * auto-refresh the page (and optionally show a toast).
+ */
+export interface AutoPromoteFinishedEvent {
+  /** The `job_id` from the train that triggered the
+   * auto-promote. Lets the L1 correlate the event with
+   * the train it just kicked off. */
+  job_id: string;
+  /** `true` if the candidate was actually promoted. */
+  promoted: boolean;
+  /** Human-readable status from the sidecar. e.g.
+   * "auto-promoted: improvement 0.012 > margin 0.005"
+   * or "sidecar not running" or "auto_promote parse: …". */
+  message: string;
+  /** New model version, if promoted. */
+  model_version: string | null;
+  /** When the auto-promote finished (unix millis). */
+  finished_at: number;
+}
+
+/** v0.28a — listen for `auto_promote:finished` events.
+ * The ModelLab page uses this to auto-refresh the
+ * PromoteHistory panel + Brier chart when a background
+ * auto-promote completes. */
+export const onAutoPromoteFinished = (
+  cb: (e: AutoPromoteFinishedEvent) => void,
+): Promise<UnlistenFn> =>
+  listen<AutoPromoteFinishedEvent>('auto_promote:finished', (msg) => cb(msg.payload));
