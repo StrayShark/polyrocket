@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FlaskConical, GitBranch, Play, CheckCircle2, XCircle, Clock, Sparkles, ArrowUpCircle, Archive } from 'lucide-react';
+import { FlaskConical, GitBranch, Play, CheckCircle2, XCircle, Clock, Sparkles, ArrowUpCircle, Archive, GitCompare } from 'lucide-react';
 import {
   llmPerformance,
   sidecarPredict,
@@ -13,9 +13,11 @@ import {
   onAutoPromoteFinished,
   sendNotification,
   requestNotificationPermission,
+  listPromoteHistory,
   type TrainStartedEvent,
 } from '@/ipc';
 import { PromoteHistoryArchive } from '@/components/feedback/PromoteHistoryArchive';
+import { ModelComparison } from '@/components/feedback/ModelComparison';
 import { Card } from '@/components/base/Card';
 import { Pill } from '@/components/base/Pill';
 import { KpiCard } from '@/components/data/KpiCard';
@@ -81,6 +83,12 @@ export function ModelLab() {
   // v0.34a — archive modal open state. Local state,
   // not persisted. Resets to false on remount.
   const [archiveOpen, setArchiveOpen] = useState(false);
+  // v0.40b — comparison modal open state.
+  const [compareOpen, setCompareOpen] = useState(false);
+  // v0.40b — selected entries for comparison. Set of
+  // job_ids. We limit to 3 selected; if the user
+  // selects a 4th, the oldest is dropped.
+  const [selectedForCompare, setSelectedForCompare] = useState<Set<string>>(new Set());
   const expectedTrainRef = useRef<boolean>(false);
   useEffect(() => {
     let cancelled = false;
@@ -117,6 +125,16 @@ export function ModelLab() {
   // toggling the flag mid-session takes effect on the
   // next mount).
   const autoPromoteNotify = usePrefsStore((s) => s.autoPromoteNotify);
+  // v0.40b — the comparison modal needs the full
+  // history data. We use a separate useQuery with
+  // the same key as the PromoteHistory panel, so
+  // react-query dedupes and shares the cache.
+  const historyQuery = useQuery({
+    queryKey: ['promote-history'],
+    queryFn: () => listPromoteHistory(),
+    staleTime: 30_000,
+    enabled: compareOpen,
+  });
   useEffect(() => {
     let cancelled = false;
     // v0.39b — request notification permission once on
@@ -564,13 +582,25 @@ export function ModelLab() {
       >
         <PromoteHistory
           activeModelVersion={activeModel.data?.model_version ?? null}
+          selectedForCompare={selectedForCompare}
+          onSelectionChange={setSelectedForCompare}
         />
-        {/* v0.34a — "View archive" button. Opens the
-            PromoteHistoryArchive modal which shows the
-            full history (beyond the in-memory 20-entry
-            cap). The button is below the panel so it
-            doesn't interfere with the per-row actions. */}
-        <div className="mt-2 flex justify-end">
+        {/* v0.34a — "View archive" + v0.40b "Compare (N)"
+            buttons. The Compare button is enabled when
+            2-3 entries are selected; clicking opens
+            the ModelComparison modal. */}
+        <div className="mt-2 flex items-center justify-end gap-2">
+          {selectedForCompare.size >= 2 && (
+            <Button
+              size="sm"
+              variant="secondary"
+              iconLeft={<GitCompare className="w-3 h-3" />}
+              onClick={() => setCompareOpen(true)}
+              data-testid="compare-models-btn"
+            >
+              {t('compare.button', { count: selectedForCompare.size })}
+            </Button>
+          )}
           <Button
             size="sm"
             variant="ghost"
@@ -591,6 +621,26 @@ export function ModelLab() {
       <PromoteHistoryArchive
         open={archiveOpen}
         onClose={() => setArchiveOpen(false)}
+      />
+
+      {/* v0.40b — multi-model comparison modal. We
+          use a separate useQuery (historyQuery) to
+          fetch the data when the modal opens. We
+          pass the selected entries (matched by
+          job_id) to the modal. */}
+      <ModelComparison
+        open={compareOpen}
+        onClose={() => setCompareOpen(false)}
+        entries={(() => {
+          const allEntries = historyQuery.data?.entries ?? [];
+          // Match the user's selection (job_ids) and
+          // preserve the in-memory order (oldest first
+          // from the Python side; reverse for the
+          // modal — newer at the top, matching the
+          // panel display).
+          const reversed = [...allEntries].reverse();
+          return reversed.filter((e) => selectedForCompare.has(e.job_id));
+        })()}
       />
 
       <Card title={t('modellab.sm.title')} description={t('modellab.sm.desc')}>

@@ -57,6 +57,13 @@ interface PromoteHistoryProps {
    * Rollback button disabled — you can't roll back
    * to the active model). */
   activeModelVersion?: string | null;
+  /** v0.40b — set of job_ids currently selected for
+   * comparison. If undefined, comparison is
+   * disabled (no checkboxes shown). */
+  selectedForCompare?: Set<string>;
+  /** v0.40b — called when the user toggles a
+   * checkbox. Receives the new set. */
+  onSelectionChange?: (next: Set<string>) => void;
 }
 
 function brierColor(brier: number | null): 'bull' | 'warn' | 'bear' | 'muted' {
@@ -76,7 +83,12 @@ function entryTrialType(entry: PromoteHistoryEntry): 'best' | 'bulk' {
 
 type HistoryFilter = 'all' | 'best' | 'bulk';
 
-export function PromoteHistory({ className = '', activeModelVersion = null }: PromoteHistoryProps) {
+export function PromoteHistory({
+  className = '',
+  activeModelVersion = null,
+  selectedForCompare,
+  onSelectionChange,
+}: PromoteHistoryProps) {
   const { t } = useT();
   const queryClient = useQueryClient();
   // v0.30a — trial-type filter (local state, resets on remount)
@@ -146,6 +158,13 @@ export function PromoteHistory({ className = '', activeModelVersion = null }: Pr
   // an append-only log; the UI reverses for "recent first").
   const reversed = [...filtered].reverse();
   const filteredEmpty = filtered.length === 0;
+  // v0.40a — compute the set of selected entries (for
+  // the multi-model comparison feature). We use job_id
+  // as the unique key (model_version can collide if
+  // a train was re-run with the same id, but that's
+  // rare; job_id is the canonical key).
+  // Limit to 3 selected; if the user selects more, we
+  // only show 3 in the modal (the most recent 3).
 
   if (empty) {
     return (
@@ -205,9 +224,40 @@ export function PromoteHistory({ className = '', activeModelVersion = null }: Pr
             isPending={rollbackMut.isPending}
             pendingVersion={rollbackMut.variables}
             onRollback={(mv) => rollbackMut.mutate(mv)}
+            isSelected={selectedForCompare?.has(e.job_id) ?? false}
+            onSelectToggle={
+              onSelectionChange
+                ? (jobId: string) => {
+                    // Limit to 3 selected. If the user
+                    // adds a 4th, drop the oldest.
+                    const next = new Set(selectedForCompare ?? new Set());
+                    if (next.has(jobId)) {
+                      next.delete(jobId);
+                    } else {
+                      if (next.size >= 3) {
+                        // Drop the oldest (the first
+                        // inserted — Set preserves
+                        // insertion order)
+                        const first = next.values().next().value;
+                        if (first !== undefined) next.delete(first);
+                      }
+                      next.add(jobId);
+                    }
+                    onSelectionChange(next as Set<string>);
+                  }
+                : undefined
+            }
           />
         ))
       )}
+      {/* v0.40b — the comparison selection is now
+          managed at the ModelLab level (so the
+          "Compare" button can sit next to the
+          "View archive" button in the Card footer).
+          The PromoteHistory component itself doesn't
+          render the checkbox — ModelLab injects it
+          via the existing entry-level props, or via
+          a separate row. See v0.40b for the integration. */}
     </div>
   );
 }
@@ -218,12 +268,16 @@ function HistoryRow({
   isPending,
   pendingVersion,
   onRollback,
+  isSelected = false,
+  onSelectToggle,
 }: {
   entry: PromoteHistoryEntry;
   isActive: boolean;
   isPending: boolean;
   pendingVersion: string | undefined;
   onRollback: (model_version: string) => void;
+  isSelected?: boolean;
+  onSelectToggle?: (job_id: string) => void;
 }) {
   const { t } = useT();
   const color = brierColor(entry.best_brier);
@@ -237,7 +291,22 @@ function HistoryRow({
       data-testid="promote-history-row"
       data-job-id={entry.job_id}
       data-active={isActive}
+      data-selected={isSelected}
     >
+      {/* v0.40b — checkbox for multi-model comparison.
+          Only shown if `onSelectToggle` is provided
+          (i.e. the parent enables the comparison
+          feature). */}
+      {onSelectToggle && (
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={() => onSelectToggle(entry.job_id)}
+          className="shrink-0"
+          data-testid="promote-history-compare-checkbox"
+          data-job-id={entry.job_id}
+        />
+      )}
       <Trophy className={`w-3.5 h-3.5 shrink-0 text-${color}`} />
       <div className="flex-1 min-w-0">
         <div className="font-mono text-[12px] text-fg truncate flex items-center gap-1.5">

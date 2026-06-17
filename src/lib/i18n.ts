@@ -491,6 +491,12 @@ const en: Dictionary = {
   'promote.history.active': 'active',
   // v0.34a — promote history archive modal
   'promote.archive.title': 'Promote history archive',
+  // v0.40a — multi-model comparison modal
+  'compare.title': 'Compare models',
+  'compare.best': 'best',
+  'compare.lowest_brier': 'Lowest Brier',
+  'compare.hint': 'Select 2-3 entries in the history panel to compare their Brier and params.',
+  'compare.button': 'Compare ({{count}})',
   // v0.39b — auto-promote OS notification
   'auto_promote.notify.label': 'Desktop notification on auto-promote',
   'auto_promote.notify.desc': 'When ON, a real OS notification (macOS Notification Center / Windows toast) fires when a background auto-promote completes. The in-app toast always fires regardless.',
@@ -1096,6 +1102,12 @@ const zh: Dictionary = {
   'promote.history.active': '当前',
   // v0.34a — promote history archive modal
   'promote.archive.title': '晋升历史归档',
+  // v0.40a — multi-model comparison modal
+  'compare.title': '对比模型',
+  'compare.best': '最优',
+  'compare.lowest_brier': '最低 Brier',
+  'compare.hint': '在历史面板中选择 2-3 条记录以对比它们的 Brier 和参数。',
+  'compare.button': '对比 ({{count}})',
   // v0.39b — auto-promote OS notification
   'auto_promote.notify.label': '自动晋升时发送桌面通知',
   'auto_promote.notify.desc': '开启后，后台自动晋升完成时会发送真实系统通知（macOS 通知中心 / Windows 通知）。应用内 Toast 始终会显示。',
