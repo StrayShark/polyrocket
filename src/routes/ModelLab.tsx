@@ -1,12 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { FlaskConical, GitBranch, Play, CheckCircle2, XCircle, Clock } from 'lucide-react';
-import { llmPerformance } from '@/ipc';
+import { llmPerformance, sidecarPredict, sidecarHealthSnapshot } from '@/ipc';
 import { Card } from '@/components/base/Card';
 import { Pill } from '@/components/base/Pill';
 import { KpiCard } from '@/components/data/KpiCard';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
+import { ModelVersionPill } from '@/components/feedback/ModelVersionPill';
 import { fmtPct } from '@/lib/format';
 
 export function ModelLab() {
@@ -23,8 +24,30 @@ export function ModelLab() {
     ? data.reduce((acc, p) => (p.brier_score < acc.brier_score ? p : acc))
     : null;
 
+  // v0.12d — the "currently active" model. We hit the sidecar
+  // with a cheap predict (m1/m2) to surface the model_version
+  // that future predict calls will use.
+  const activeModel = useQuery({
+    queryKey: ['sidecar-active-model'],
+    queryFn: async () => {
+      try {
+        const snap = await sidecarHealthSnapshot();
+        if (snap.success_count === 0) return null;
+        const r = await sidecarPredict([['__probe__', 0.5]]);
+        return r.model_version;
+      } catch {
+        return null;
+      }
+    },
+    staleTime: 60_000,
+  });
+
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-[14px] font-medium text-fg">Model performance</h2>
+        <ModelVersionPill modelVersion={activeModel.data} variant="verbose" />
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <KpiCard label="Model versions" value={total.toString()} icon={GitBranch} />
         <KpiCard

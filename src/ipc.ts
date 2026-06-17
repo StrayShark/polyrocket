@@ -212,3 +212,21 @@ export const sidecarHealthNow = () =>
   invoke<SidecarHealthSnapshot>('sidecar_health_now');
 export const sidecarHealthSnapshot = () =>
   invoke<SidecarHealthSnapshot>('sidecar_health_snapshot');
+
+// ---------------------------------------------------------------- Sidecar predict (v0.12d)
+// v0.12a — predict returns the model_version in addition to
+// the per-row predictions. The L1 ModelLab page shows a pill
+// like "scoring with logistic-train-441c352b" so the user
+// knows which model produced the current scores.
+export interface Prediction {
+  market_id: string;
+  prob: number;
+  confidence: number;
+  rationale: string | null;
+}
+export interface PredictResult {
+  predictions: Prediction[];
+  model_version: string | null;
+}
+export const sidecarPredict = (markets: Array<[string, number]>) =>
+  invoke<PredictResult>('sidecar_predict', { args: { markets } });
