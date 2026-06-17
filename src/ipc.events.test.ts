@@ -357,3 +357,87 @@ describe('Promote model wire format (v0.18b)', () => {
     expect(r.active_path).toBe('/home/x/.polyrocket/sidecar/models/active.json');
   });
 });
+
+// =================================================================
+// ================= v0.19b — list_promote_history =================
+// =================================================================
+
+interface PromoteHistoryEntry {
+  job_id: string;
+  model_version: string;
+  promoted_at_ms: number;
+  best_brier: number | null;
+  best_params: Record<string, unknown> | null;
+}
+
+interface PromoteHistoryResult {
+  ok: boolean;
+  entries: PromoteHistoryEntry[];
+  count: number;
+  message: string | null;
+}
+
+describe('Promote history wire format (v0.19b)', () => {
+  it('PromoteHistoryResult populated', () => {
+    const r: PromoteHistoryResult = JSON.parse(JSON.stringify({
+      ok: true,
+      count: 2,
+      entries: [
+        {
+          job_id: 'train-aaa',
+          model_version: 'logistic-train-aaa',
+          promoted_at_ms: 1_700_000_000_000,
+          best_brier: 0.184,
+          best_params: { lr: 0.01, reg: 0.1 },
+        },
+        {
+          job_id: 'train-bbb',
+          model_version: 'logistic-train-bbb',
+          promoted_at_ms: 1_700_001_000_000,
+          best_brier: 0.179,
+          best_params: null,
+        },
+      ],
+      message: null,
+    }));
+    expect(r.ok).toBe(true);
+    expect(r.count).toBe(2);
+    expect(r.entries).toHaveLength(2);
+    expect(r.entries[0].job_id).toBe('train-aaa');
+    expect(r.entries[0].best_brier).toBeCloseTo(0.184);
+    expect(r.entries[0].best_params).toEqual({ lr: 0.01, reg: 0.1 });
+    expect(r.entries[1].job_id).toBe('train-bbb');
+    expect(r.entries[1].best_params).toBeNull();
+  });
+
+  it('PromoteHistoryResult empty (no active model yet)', () => {
+    const r: PromoteHistoryResult = JSON.parse(JSON.stringify({
+      ok: true,
+      count: 0,
+      entries: [],
+      message: 'no active model yet; train + promote to start history',
+    }));
+    expect(r.ok).toBe(true);
+    expect(r.count).toBe(0);
+    expect(r.entries).toEqual([]);
+    expect(r.message).toContain('train + promote');
+  });
+
+  it('PromoteHistoryResult envelope ok=false means error', () => {
+    // The envelope `ok: false` is the case where the
+    // sidecar subprocess returned an error response
+    // (transport-level failure). The result block won't
+    // even be present in that case — the L1 wrapper
+    // would see the rejection from `invoke()` itself.
+    // We don't model that here; we just assert the
+    // success-side shape is preserved.
+    const r: PromoteHistoryResult = JSON.parse(JSON.stringify({
+      ok: false,
+      count: 0,
+      entries: [],
+      message: 'sidecar not running',
+    }));
+    expect(r.ok).toBe(false);
+    expect(r.entries).toEqual([]);
+  });
+});

@@ -485,3 +485,56 @@ export interface PromoteModelArgs {
  * Returns the full `PromoteResult`. */
 export const promoteModel = (args: PromoteModelArgs = {}) =>
   invoke<PromoteResult>('promote_model', { args });
+
+// =================================================================
+// ================= v0.19b — list_promote_history =================
+// =================================================================
+
+/** One entry in the promotion history. v0.19b — mirrors the
+ * Python sidecar's `promotion_history` array in active.json.
+ *
+ * Each successful promote appends one entry. The list is
+ * capped at 20 most-recent entries on the Python side.
+ */
+export interface PromoteHistoryEntry {
+  /** Train job_id, e.g. "train-441c352b". */
+  job_id: string;
+  /** Derived model version, e.g. "logistic-train-441c352b". */
+  model_version: string;
+  /** Wall-clock time of the promote in ms (Unix epoch). */
+  promoted_at_ms: number;
+  /** Best Brier score from the train sweep (lower is better).
+   * `null` if the train payload didn't include it. */
+  best_brier: number | null;
+  /** Hyperparameters of the best trial, or `null` if not
+   * stored (e.g. v0.18 active.json files). */
+  best_params: Record<string, unknown> | null;
+}
+
+/** Wire-format mirror of the Rust `PromoteHistoryResult`
+ * (returned by the `list_promote_history` IPC). v0.19b —
+ * read-only audit query. No params. */
+export interface PromoteHistoryResult {
+  /** `true` if the history was successfully read. (Even
+   * with no entries, the response is ok=true with a
+   * helpful message.) */
+  ok: boolean;
+  /** History entries, oldest first. */
+  entries: PromoteHistoryEntry[];
+  /** `len(entries)` for convenience. */
+  count: number;
+  /** Human-readable message. `null` on success with entries. */
+  message: string | null;
+}
+
+/** Query the promote history. v0.19b — no args.
+ *
+ * Returns the last 20 promotions as a list (capped on
+ * the Python side). The currently active model is NOT in
+ * the list — to get the active model, use `predict`'s
+ * `model_version` field instead. The list is for audit
+ * ("which model was active at which time") not for
+ * status display.
+ */
+export const listPromoteHistory = () =>
+  invoke<PromoteHistoryResult>('list_promote_history', { args: {} });
