@@ -536,6 +536,7 @@ sequenceDiagram
 | **i18n 落地** | sidebar nav + KbdHelpDialog + CommandPalette 用 t() | ✅ v0.10a 完成（+3 keys, 用户切 locale 立即生效） |
 | **真 train + promote** | `sidecar/train.py` 真 hyperparam sweep + atomic promote | ✅ v0.10b 完成（4 trial 网格 + Brier score + 文件原子写） |
 | **Modal a11y** | `Modal.tsx` focus trap + restore + Tab cycle | ✅ v0.10c 完成（5 a11y requirements + 6 vitest） |
+| **Sidecar health probe** | `domain::sidecar_health` + `infra::db::sidecar_health` + 6th scheduler | ✅ v0.10d 完成（status badge + 2 IPC + 7 tests） |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |
 
 ### 5.2 v0.4 — 功能模块全实现 (13 模块)

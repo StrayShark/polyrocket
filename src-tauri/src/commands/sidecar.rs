@@ -10,6 +10,7 @@ use crate::domain::lab::sidecar::{
     build_predict_request, parse_line, parse_predict_response, Prediction, SidecarMethod,
     SidecarRequest, SidecarResponse,
 };
+use crate::infra::db;
 use serde::{Deserialize, Serialize};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::Mutex;

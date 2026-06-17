@@ -18,6 +18,7 @@ pub mod notify;
 pub mod pnl;
 pub mod seed;
 pub mod sidecar;
+pub mod sidecar_health;
 pub mod scheduler;
 pub mod secrets;
 pub mod signal;

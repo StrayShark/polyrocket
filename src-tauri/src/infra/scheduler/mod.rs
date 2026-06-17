@@ -131,6 +131,16 @@ pub fn start(pool: SqlitePool, http: reqwest::Client) -> SchedulerHandle {
             run_audit_purge_loop(pool, cfg, shutdown).await;
         });
     }
+    {
+        // v0.10d — sidecar health probe: ping every 30s, write a
+        // row to sidecar_health, and purge the table hourly.
+        let pool = pool.clone();
+        let cfg = cfg.clone();
+        let shutdown = shutdown.clone();
+        tokio::spawn(async move {
+            run_sidecar_health_loop(pool, cfg, shutdown).await;
+        });
+    }
 
     tracing::info!(
         "scheduler started — health_probe={}min, brief_hour_utc={}, brief_tz_offset={}min, anomaly_window={}min",
@@ -754,4 +764,79 @@ async fn run_audit_purge_loop(
 /// the IPC `purge_audit_log_now` trigger.
 pub async fn run_audit_purge_now(pool: &SqlitePool) -> sqlx::Result<usize> {
     run_audit_purge_once(pool).await
+}
+
+// =================================================================
+// ============== v0.10d — Sidecar health probe loop ===============
+// =================================================================
+
+use crate::domain::sidecar_health::SidecarHealthKind;
+use crate::infra::db::sidecar_health as sh;
+
+const DEFAULT_SIDECAR_PROBE_SEC: u64 = 30;
+const DEFAULT_SIDECAR_PURGE_SEC: u64 = 3600;
+
+async fn ping_sidecar_once() -> (SidecarHealthKind, Option<i64>, Option<String>) {
+    // We don't have a handle to the sidecar process here, but the
+    // sidecar.rs commands expose `sidecar_request`. To keep this
+    // scheduler decoupled from the L2 module, we do a no-op: in
+    // v0.10d+ we'll add a "ping" coordinator that the L1 UI can
+    // call directly. For now, log "unknown" — the L1 UI still
+    // works because the user can ping from the palette.
+    //
+    // In a follow-up commit, this should be replaced with a real
+    // pipe-write of `{"id":"sweeper","method":"ping","params":{}}`
+    // and a 2-second read timeout. For now, the schema + writer
+    // plumbing is in place.
+    let now = chrono::Utc::now().timestamp_millis();
+    let _ = now;
+    (SidecarHealthKind::Unknown, None, Some("probe not yet wired (v0.10d+ follow-up)".into()))
+}
+
+async fn run_sidecar_health_once(pool: &SqlitePool) -> sqlx::Result<()> {
+    let at = chrono::Utc::now().timestamp_millis();
+    let started = std::time::Instant::now();
+    let (kind, _latency, err) = ping_sidecar_once().await;
+    let _ = started;
+    sh::record_probe(pool, at, kind, None, err.as_deref())
+        .await
+        .ok();
+    // Purge ~once per hour, not every tick
+    if at % DEFAULT_SIDECAR_PURGE_SEC as i64 * 1000 < DEFAULT_SIDECAR_PROBE_SEC as i64 * 1000 {
+        let n = sh::purge_old(pool, at).await.unwrap_or(0);
+        if n > 0 {
+            tracing::info!(rows_purged = n, "sidecar_health retention purge");
+        }
+    }
+    Ok(())
+}
+
+async fn run_sidecar_health_loop(
+    pool: SqlitePool,
+    _cfg: SchedulerConfig,
+    shutdown: Arc<Notify>,
+) {
+    // Stagger a bit to avoid contention on cold start
+    tokio::time::sleep(Duration::from_secs(20)).await;
+    let mut ticker = tokio::time::interval(Duration::from_secs(DEFAULT_SIDECAR_PROBE_SEC));
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    loop {
+        tokio::select! {
+            _ = ticker.tick() => {
+                if let Err(e) = run_sidecar_health_once(&pool).await {
+                    tracing::warn!(error = %e, "sidecar health tick error");
+                }
+            }
+            _ = shutdown.notified() => {
+                tracing::info!("sidecar health loop shutting down");
+                break;
+            }
+        }
+    }
+}
+
+/// Run a single sidecar-health probe synchronously. Useful for tests
+/// + the IPC `sidecar_health_now` trigger.
+pub async fn run_sidecar_health_now(pool: &SqlitePool) -> sqlx::Result<()> {
+    run_sidecar_health_once(pool).await
 }

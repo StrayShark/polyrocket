@@ -108,6 +108,8 @@ pub fn run() {
             commands::sidecar::sidecar_status,
             commands::sidecar::sidecar_predict,
             commands::sidecar::sidecar_request,
+            commands::sidecar_health::sidecar_health_now,
+            commands::sidecar_health::sidecar_health_snapshot,
             commands::scheduler::scheduler_status,
             commands::scheduler::scheduler_run_health_probe_now,
             commands::scheduler::scheduler_run_daily_brief_now,

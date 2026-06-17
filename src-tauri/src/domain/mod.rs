@@ -32,5 +32,6 @@ pub mod notify;
 pub mod pnl;
 pub mod polymarket;
 pub mod seed;
+pub mod sidecar_health;
 pub mod signal;
 pub mod wallet;

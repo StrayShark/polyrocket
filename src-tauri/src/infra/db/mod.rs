@@ -18,6 +18,7 @@ pub mod audit;
 pub mod pool;
 pub mod seed;
 pub mod settings;
+pub mod sidecar_health;
 
 pub use pool::init_pool;
 pub use seed::{apply_seed, is_seeded};

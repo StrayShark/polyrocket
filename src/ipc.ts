@@ -191,3 +191,24 @@ export const dailyBriefSetPrefs = (args: SetBriefPrefsArgs) =>
 export const seedDemoData = (force = false) =>
   invoke<number>('seed_demo_data', { args: { force } });
 export const isSeeded = () => invoke<boolean>('is_seeded');
+
+// ---------------------------------------------------------------- Sidecar health (v0.10d)
+// Rolling "last N probes" snapshot for the topbar status badge.
+export type SidecarHealthKind = 'ok' | 'failed' | 'unknown';
+export interface SidecarHealthRow {
+  at_ms: number;
+  kind: SidecarHealthKind;
+  latency_ms: number | null;
+  error: string | null;
+}
+export interface SidecarHealthSnapshot {
+  last_24h: SidecarHealthRow[];
+  success_count: number;
+  failure_count: number;
+  last_success_at_ms: number | null;
+  last_failure_at_ms: number | null;
+}
+export const sidecarHealthNow = () =>
+  invoke<SidecarHealthSnapshot>('sidecar_health_now');
+export const sidecarHealthSnapshot = () =>
+  invoke<SidecarHealthSnapshot>('sidecar_health_snapshot');

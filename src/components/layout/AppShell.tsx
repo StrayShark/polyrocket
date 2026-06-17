@@ -5,6 +5,7 @@ import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
 import { LocaleSwitcher } from '@/components/i18n/LocaleSwitcher';
 import { KbdHelpDialog, useKbdHelpDialog } from '@/components/feedback/KbdHelpDialog';
 import { CommandPalette, useCommandPalette } from '@/components/feedback/CommandPalette';
+import { SidecarHealthBadge } from '@/components/feedback/SidecarHealthBadge';
 import { useKeyboardNav, useNavBindings } from '@/lib/keyboard-nav';
 import { buildPaletteCommands, isPaletteTrigger } from '@/lib/command-palette';
 import { isSeeded, syncMarkets, recomputeSignals, seedDemoData, purgeAuditLogNow } from '@/ipc';
@@ -197,6 +198,8 @@ export function AppShell() {
                 {pendingPrefix}…
               </span>
             )}
+            {/* v0.10d — sidecar health badge */}
+            <SidecarHealthBadge />
             <IconBtn><RefreshCw className="w-3.5 h-3.5" /></IconBtn>
             <IconBtn
               aria-label="Keyboard shortcuts"
