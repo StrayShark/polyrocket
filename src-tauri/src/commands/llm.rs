@@ -14,13 +14,14 @@ use crate::domain::llm::{
     self, AnthropicClient, CustomClient, DeepSeekClient, GoogleClient, OpenAIClient, ProviderKind,
     MarketContext, OrderbookTop, PeerView, SignalSummary,
     PROMPT_VERSION_MARKET_ANALYSIS, build_market_analysis_request, parse_recommendation,
+    AnalyzeStartedEvent, AnalyzeFinishedEvent, ConsensusDoneEvent, ProviderDoneEvent,
 };
 use crate::infra::state::AppState;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use std::sync::Arc;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
 
 // ---------- DTOs ----------
@@ -683,6 +684,7 @@ fn kind_for_provider_id(id: &str) -> ProviderKind {
 #[tauri::command]
 pub async fn llm_analyze(
     state: State<'_, AppState>,
+    app: AppHandle,
     args: AnalyzeArgs,
 ) -> AppResult<LlmAnalysisDto> {
     let analysis_id = Uuid::new_v4().to_string();
@@ -731,6 +733,21 @@ pub async fn llm_analyze(
     .bind(&triggered_by)
     .execute(&state.db)
     .await?;
+
+    // v0.15a — emit `llm_analyze:started` so the L1 can show a
+    // per-provider status grid. Emit BEFORE the fan-out so the
+    // L1 can immediately render "running" badges for each
+    // provider.
+    let _ = app.emit(
+        "llm_analyze:started",
+        AnalyzeStartedEvent {
+            analysis_id: analysis_id.clone(),
+            market_id: market_id.clone(),
+            prompt_version: prompt_version.clone(),
+            providers: providers.iter().map(|p| p.id.clone()).collect(),
+            started_at: requested_at,
+        },
+    );
 
     // 3. Build context + pick keys (BEFORE the join — needs &state.db)
     let ctx = build_market_context(&state, &market_id).await?;
@@ -786,6 +803,37 @@ pub async fn llm_analyze(
         let _ = insert_call_log(&state, &call_log_with_ts, now_ms).await?;
         // Update health
         let _ = update_provider_health_from_log(&state, &call_log_with_ts).await?;
+
+        // v0.15a — emit per-provider progress. L1 can show
+        // "anthropic: ok 1.2s", "openai: failed (rate_limit)" etc.
+        // regardless of whether the recommendation row ends up
+        // being parse_ok or not.
+        let prov_ok = matches!(outcome.outcome, Ok(ref oc) if oc.parse_ok);
+        let prov_err_kind = match &outcome.outcome {
+            Ok(oc) if !oc.parse_ok => crate::domain::llm::err::PARSE.to_string(),
+            Ok(_) => "none".to_string(),
+            Err(e) => e.code.to_string(),
+        };
+        let prov_err_msg = match &outcome.outcome {
+            Ok(_) if prov_ok => None,
+            Ok(oc) => Some(oc.parse_error.clone().unwrap_or_else(|| "model output not in expected JSON shape".into())),
+            Err(e) => Some(e.message.clone()),
+        };
+        let _ = app.emit(
+            "llm_analyze:provider_done",
+            ProviderDoneEvent {
+                analysis_id: analysis_id.clone(),
+                provider_id: p.id.clone(),
+                ok: prov_ok,
+                latency_ms: call_log_with_ts.latency_ms,
+                tokens_in: Some(call_log_with_ts.tokens_in),
+                tokens_out: Some(call_log_with_ts.tokens_out),
+                cost_cents: call_log_with_ts.cost_cents,
+                error_kind: prov_err_kind,
+                error_message: prov_err_msg,
+                finished_at: now_ms,
+            },
+        );
 
         match outcome.outcome {
             Ok(oc) => {
@@ -883,6 +931,37 @@ pub async fn llm_analyze(
     .bind(&analysis_id)
     .execute(&state.db)
     .await?;
+
+    // v0.15a — emit the two terminal events: consensus (with
+    // per-provider counts) and the final "finished" totals. The
+    // L1 awaits `llm_analyze:finished` to know the analyze is
+    // done; the consensus event is informational.
+    let n_success = recommendations.iter().filter(|r| r.parse_ok).count();
+    let n_failed = recommendations.len() - n_success;
+    let _ = app.emit(
+        "llm_analyze:consensus_done",
+        ConsensusDoneEvent {
+            analysis_id: analysis_id.clone(),
+            status: status_label.clone(),
+            n_success,
+            n_failed,
+            consensus_pred: fc_pred,
+            consensus_side: fc_side.clone(),
+            consensus_conf: fc_conf,
+        },
+    );
+    let _ = app.emit(
+        "llm_analyze:finished",
+        AnalyzeFinishedEvent {
+            analysis_id: analysis_id.clone(),
+            status: status_label.clone(),
+            total_latency_ms: total_latency,
+            total_cost_cents: total_cost,
+            n_success,
+            n_failed,
+            finished_at: chrono::Utc::now().timestamp_millis(),
+        },
+    );
 
     // 6. audit
     sqlx::query(

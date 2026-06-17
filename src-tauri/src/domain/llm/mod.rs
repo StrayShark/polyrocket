@@ -23,6 +23,7 @@ pub mod dispatch;
 pub mod google;
 pub mod openai;
 pub mod custom;
+pub mod progress;
 pub mod prompts;
 
 pub use anthropic::AnthropicClient;
@@ -31,6 +32,9 @@ pub use google::GoogleClient;
 pub use openai::OpenAIClient;
 pub use custom::CustomClient;
 pub use dispatch::{CallLog, DispatchOutcome, KeyHandle, RetryPolicy, dispatch};
+pub use progress::{
+    AnalyzeFinishedEvent, AnalyzeStartedEvent, ConsensusDoneEvent, ProviderDoneEvent,
+};
 pub use prompts::{
     MarketContext, OrderbookTop, PeerView, SignalSummary,
     PROMPT_VERSION_MARKET_ANALYSIS, PROMPT_VERSION_QUICK_THESIS, PROMPT_VERSION_CONSENSUS_VOTE,
