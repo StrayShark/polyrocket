@@ -20,6 +20,7 @@ import { EmptyState } from '@/components/feedback/EmptyState';
 import { ModelVersionPill } from '@/components/feedback/ModelVersionPill';
 import { TrainProgress } from '@/components/feedback/TrainProgress';
 import { PromoteHistory } from '@/components/feedback/PromoteHistory';
+import { PromoteHistoryChart } from '@/components/feedback/PromoteHistoryChart';
 import { fmtPct } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import { toast } from '@/stores/toast-store';
@@ -344,6 +345,19 @@ export function ModelLab() {
           Rollback button can be hidden for the active
           row (you can't roll back to the active
           model). */}
+      {/* v0.22b — Brier over time sparkline. Sits above
+          the per-row PromoteHistory panel. The two share
+          the same react-query key so they load together
+          (no duplicate fetch). The chart gives the user
+          a glance-level view ("trending down = good");
+          the panel below provides per-row detail. */}
+      <Card
+        title={t('promote.chart.title')}
+        description=""
+      >
+        <PromoteHistoryChart />
+      </Card>
+
       <Card
         title={t('promote.history.title')}
         description={t('promote.history.desc')}
