@@ -184,6 +184,112 @@ class PromoteModelTests(unittest.TestCase):
             f"logistic-{t['job_id']}",
         )
 
+    def test_history_entry_includes_weights(self) -> None:
+        """v0.20a: each history entry now has a `weights` field
+        with {w0, w1, w2} so the entry is self-contained for
+        rollback (no need to read the candidate file later).
+        """
+        t = run_train_job(n_trials=1, epochs=5)
+        run_promote_model()
+        from polyrocket_sidecar.train import run_list_promote_history
+        h = run_list_promote_history()
+        self.assertEqual(h["count"], 1)
+        entry = h["entries"][0]
+        self.assertIn("weights", entry)
+        weights = entry["weights"]
+        self.assertIn("w0", weights)
+        self.assertIn("w1", weights)
+        self.assertIn("w2", weights)
+        # Brier is also in the entry for the Brier badge
+        self.assertIn("best_brier", entry)
+        self.assertAlmostEqual(entry["best_brier"], t["best_brier"], places=4)
+
+    def test_rollback_to_previous_version(self) -> None:
+        """v0.20a: train → promote → train → promote → rollback
+        to the FIRST version. The new active should be the
+        first version (not the current one), and the history
+        should grow by 1 (a rollback marker).
+        """
+        from polyrocket_sidecar.train import run_rollback_model
+        t1 = run_train_job(n_trials=1, epochs=5)
+        run_promote_model()
+        first_version = f"logistic-{t1['job_id']}"
+
+        t2 = run_train_job(n_trials=1, epochs=5)
+        run_promote_model()
+
+        # Confirm current is t2
+        active_before = json.loads(train.ACTIVE_FILE.read_text())
+        self.assertEqual(active_before["job_id"], t2["job_id"])
+
+        # Rollback to t1
+        rb = run_rollback_model(model_version=first_version)
+        self.assertTrue(rb["rolled_back"], msg=str(rb))
+        self.assertEqual(rb["model_version"], first_version)
+        self.assertEqual(rb["status"], "ok")
+        self.assertIsNotNone(rb["rolled_back_at_ms"])
+
+        # Active file should now reflect t1
+        active_after = json.loads(train.ACTIVE_FILE.read_text())
+        self.assertEqual(active_after["job_id"], t1["job_id"])
+        self.assertEqual(active_after["model_version"], first_version)
+        # The active weights are t1's
+        w = active_after["weights"]
+        self.assertIn("w0", w)
+        self.assertIn("w1", w)
+        self.assertIn("w2", w)
+
+        # History grew by 1 (a rollback marker)
+        history = active_after["promotion_history"]
+        # Last entry is the rollback marker
+        self.assertEqual(history[-1]["kind"], "rollback")
+        self.assertEqual(history[-1]["model_version"], first_version)
+        # Second-to-last is t1 (the original promote, not the rollback target)
+        # Find t1's promote entry
+        t1_entries = [e for e in history
+                      if isinstance(e, dict)
+                      and e.get("job_id") == t1["job_id"]
+                      and e.get("kind") != "rollback"]
+        self.assertEqual(len(t1_entries), 1)
+        self.assertEqual(t1_entries[0]["model_version"], first_version)
+
+    def test_rollback_to_unknown_version_fails(self) -> None:
+        """v0.20a: rolling back to a model_version that doesn't
+        exist in the history returns rolled_back=false with a
+        clear error message.
+        """
+        from polyrocket_sidecar.train import run_rollback_model
+        t = run_train_job(n_trials=1, epochs=5)
+        run_promote_model()
+        rb = run_rollback_model(model_version="logistic-train-DOESNOTEXIST")
+        self.assertFalse(rb["rolled_back"])
+        self.assertEqual(rb["status"], "failed")
+        self.assertIn("not found", rb["message"])
+        # Active file is unchanged
+        active = json.loads(train.ACTIVE_FILE.read_text())
+        self.assertEqual(active["job_id"], t["job_id"])
+
+    def test_rollback_to_v19_entry_without_weights_fails(self) -> None:
+        """v0.20a: v0.19 history entries don't have weights.
+        A rollback to such an entry returns rolled_back=false
+        with a clear error explaining the user needs to retrain.
+        """
+        from polyrocket_sidecar.train import run_rollback_model
+        t = run_train_job(n_trials=1, epochs=5)
+        run_promote_model()
+        # Manually strip weights from the history entry to
+        # simulate a v0.19 entry
+        active = json.loads(train.ACTIVE_FILE.read_text())
+        active["promotion_history"][-1].pop("weights", None)
+        train.ACTIVE_FILE.write_text(json.dumps(active))
+
+        rb = run_rollback_model(
+            model_version=f"logistic-{t['job_id']}"
+        )
+        self.assertFalse(rb["rolled_back"])
+        self.assertIn("no weights", rb["message"])
+        self.assertIn("cannot rollback", rb["message"].lower())
+
 
 if __name__ == "__main__":
     unittest.main()

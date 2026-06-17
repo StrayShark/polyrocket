@@ -6,6 +6,7 @@ Method names are LOWERCASE to match the Rust `SidecarMethod::as_str`:
   - "train_job"               (Rust: SidecarMethod::TrainJob)
   - "promote_model"           (Rust: SidecarMethod::PromoteModel)
   - "list_promote_history"    (Rust: SidecarMethod::ListPromoteHistory)  [v0.19a]
+  - "rollback_model"          (Rust: SidecarMethod::RollbackModel)        [v0.20a]
 
 If you add a method here, you MUST also:
   1. Add it to `SidecarMethod` enum in domain::lab::sidecar
@@ -19,7 +20,12 @@ import time
 from typing import Any, Callable
 
 from .predict import predict_from_markets
-from .train import run_promote_model, run_train_job, run_list_promote_history
+from .train import (
+    run_promote_model,
+    run_train_job,
+    run_list_promote_history,
+    run_rollback_model,
+)
 
 
 def ping(_params: dict[str, Any]) -> dict[str, Any]:
@@ -67,10 +73,32 @@ def list_promote_history(_params: dict[str, Any]) -> dict[str, Any]:
     return run_list_promote_history()
 
 
+def rollback_model(params: dict[str, Any]) -> dict[str, Any]:
+    """Roll back the active model to a previous version.
+
+    v0.20a — looks up the entry in active.json's
+    promotion_history by model_version and restores
+    its weights. The history entry must include
+    `weights` (set by promote_model in v0.20a+).
+
+    Required params:
+      - model_version: str (e.g. "logistic-train-441c352b")
+    """
+    model_version = params.get("model_version")
+    if not isinstance(model_version, str) or not model_version:
+        return {
+            "rolled_back": False,
+            "status": "failed",
+            "message": "missing required param: model_version (string)",
+        }
+    return run_rollback_model(model_version=model_version)
+
+
 DISPATCH: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "ping": ping,
     "predict": predict,
     "train_job": train_job,
     "promote_model": promote_model,
     "list_promote_history": list_promote_history,
+    "rollback_model": rollback_model,
 }

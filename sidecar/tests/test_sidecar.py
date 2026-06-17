@@ -189,7 +189,7 @@ class DispatchTests(unittest.TestCase):
     def test_all_methods_registered(self) -> None:
         # If a method is added on the Rust side without registering here, this
         # catches it. Mirror the set in `SidecarMethod` enum on Rust.
-        expected = {"ping", "predict", "train_job", "promote_model", "list_promote_history"}
+        expected = {"ping", "predict", "train_job", "promote_model", "list_promote_history", "rollback_model"}
         self.assertEqual(set(DISPATCH.keys()), expected)
 
     def test_ping_returns_pong(self) -> None:
@@ -366,6 +366,39 @@ class E2ESubprocessTests(unittest.TestCase):
         self.assertIn("count", result)
         self.assertIsInstance(result["entries"], list)
         self.assertEqual(result["count"], len(result["entries"]))
+
+    def test_e2e_rollback_model_requires_model_version(self) -> None:
+        """v0.20a: rollback_model without model_version returns
+        a clean error (rolled_back=false with a message).
+        """
+        out = self._round_trip(
+            '{"id": 6, "method": "rollback_model", "params": {}}'
+        )
+        self.assertEqual(out["id"], 6)
+        self.assertTrue(out["ok"])
+        result = out["result"]
+        self.assertFalse(result["rolled_back"])
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("model_version", result["message"])
+
+    def test_e2e_rollback_model_not_in_history(self) -> None:
+        """v0.20a: rollback to a model_version that doesn't
+        exist in promotion_history returns a clear error.
+        First promotes a real model so active.json exists,
+        then tries to roll back to a non-existent version.
+        """
+        # First, train + promote so we have an active model
+        self._round_trip('{"id": 71, "method": "train_job", "params": {"n_trials": 1, "epochs": 5}}')
+        self._round_trip('{"id": 72, "method": "promote_model", "params": {}}')
+        # Now rollback to a non-existent version
+        out = self._round_trip(
+            '{"id": 73, "method": "rollback_model", "params": {"model_version": "logistic-train-NOPE"}}'
+        )
+        self.assertEqual(out["id"], 73)
+        self.assertTrue(out["ok"])
+        result = out["result"]
+        self.assertFalse(result["rolled_back"])
+        self.assertIn("not found", result["message"])
 
 
 if __name__ == "__main__":

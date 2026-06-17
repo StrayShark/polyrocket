@@ -96,6 +96,13 @@ pub enum SidecarMethod {
     /// the `promotion_history` array from active.json (capped
     /// at 20 most-recent entries).
     ListPromoteHistory,
+    /// v0.20a — roll the active model back to a previous
+    /// version. Looks up the entry in promotion_history by
+    /// `model_version` and restores its `weights` as the
+    /// new active model. The entry must include weights
+    /// (v0.20a+); older v0.19 entries without weights are
+    /// refused with a clear error.
+    RollbackModel,
 }
 
 impl SidecarMethod {
@@ -106,6 +113,7 @@ impl SidecarMethod {
             SidecarMethod::TrainJob => "train_job",
             SidecarMethod::PromoteModel => "promote_model",
             SidecarMethod::ListPromoteHistory => "list_promote_history",
+            SidecarMethod::RollbackModel => "rollback_model",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -115,6 +123,7 @@ impl SidecarMethod {
             "train_job" => Some(SidecarMethod::TrainJob),
             "promote_model" => Some(SidecarMethod::PromoteModel),
             "list_promote_history" => Some(SidecarMethod::ListPromoteHistory),
+            "rollback_model" => Some(SidecarMethod::RollbackModel),
             _ => None,
         }
     }
@@ -483,6 +492,79 @@ pub fn parse_list_promote_history_response(
     })
 }
 
+// =================================================================
+// ============== v0.20a — rollback_model wire format ===============
+// =================================================================
+
+/// Build a `rollback_model` request. Pure function.
+/// v0.20a — rolls the active model back to a previous
+/// version (looked up by `model_version` in the
+/// promotion_history).
+pub fn build_rollback_request(
+    id: impl Into<String>,
+    model_version: &str,
+) -> String {
+    let req = SidecarRequest {
+        id: id.into(),
+        method: SidecarMethod::RollbackModel.as_str().to_string(),
+        params: serde_json::json!({ "model_version": model_version }),
+    };
+    serde_json::to_string(&req).unwrap_or_default()
+}
+
+/// Wire-format mirror of the Python `run_rollback_model`
+/// return value. v0.20a — `rolled_back: bool` is the
+/// primary success indicator.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RollbackResult {
+    /// `true` on success, `false` on failure.
+    pub rolled_back: bool,
+    /// "ok" | "failed" — mirrors the Python's return string.
+    pub status: String,
+    /// Path of the previous active.json (always the same
+    /// path; rollback is a write to the same file).
+    pub previous_path: Option<String>,
+    /// Path of the new active.json (same as previous_path).
+    pub active_path: Option<String>,
+    /// Wall-clock time of the rollback in milliseconds.
+    pub rolled_back_at_ms: Option<i64>,
+    /// The version that was rolled back to. Empty on failure.
+    pub model_version: String,
+    /// Human-readable error message on failure.
+    pub message: Option<String>,
+}
+
+/// Parse a `rollback_model` response into a `RollbackResult`.
+/// Returns Err if the response is `ok=false` at the
+/// envelope level.
+pub fn parse_rollback_response(resp: &SidecarResponse) -> Result<RollbackResult, String> {
+    if !resp.ok {
+        return Err(resp.error.clone().unwrap_or_else(|| "unknown error".into()));
+    }
+    let v = resp.result.clone().unwrap_or(Value::Null);
+    Ok(RollbackResult {
+        rolled_back: v.get("rolled_back").and_then(|x| x.as_bool()).unwrap_or(false),
+        status: v.get("status")
+            .and_then(|x| x.as_str())
+            .unwrap_or("unknown")
+            .to_string(),
+        previous_path: v.get("previous_path")
+            .and_then(|x| x.as_str())
+            .map(String::from),
+        active_path: v.get("active_path")
+            .and_then(|x| x.as_str())
+            .map(String::from),
+        rolled_back_at_ms: v.get("rolled_back_at_ms").and_then(|x| x.as_i64()),
+        model_version: v.get("model_version")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string(),
+        message: v.get("message")
+            .and_then(|x| x.as_str())
+            .map(String::from),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -491,7 +573,8 @@ mod tests {
     fn method_round_trip() {
         for m in [SidecarMethod::Ping, SidecarMethod::Predict,
                   SidecarMethod::TrainJob, SidecarMethod::PromoteModel,
-                  SidecarMethod::ListPromoteHistory] {
+                  SidecarMethod::ListPromoteHistory,
+                  SidecarMethod::RollbackModel] {
             assert_eq!(SidecarMethod::parse(m.as_str()), Some(m));
         }
         assert_eq!(SidecarMethod::parse("nope"), None);
@@ -679,6 +762,95 @@ mod tests {
             error: Some("internal: oops".into()),
         };
         assert!(parse_list_promote_history_response(&r).is_err());
+    }
+
+    #[test]
+    fn build_rollback_request_basic() {
+        // v0.20a — model_version in params
+        let line = build_rollback_request("rollback-1", "logistic-train-441c352b");
+        let v: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(v["method"], "rollback_model");
+        assert_eq!(v["id"], "rollback-1");
+        assert_eq!(v["params"]["model_version"], "logistic-train-441c352b");
+    }
+
+    #[test]
+    fn parse_rollback_response_success() {
+        // v0.20a — full success case
+        let r = SidecarResponse {
+            id: "rollback-2".into(),
+            ok: true,
+            result: Some(serde_json::json!({
+                "rolled_back": true,
+                "status": "ok",
+                "previous_path": "/home/x/.polyrocket/sidecar/models/active.json",
+                "active_path": "/home/x/.polyrocket/sidecar/models/active.json",
+                "rolled_back_at_ms": 1_700_005_000_000_i64,
+                "model_version": "logistic-train-441c352b",
+            })),
+            error: None,
+        };
+        let rb = parse_rollback_response(&r).expect("ok");
+        assert!(rb.rolled_back);
+        assert_eq!(rb.status, "ok");
+        assert_eq!(rb.model_version, "logistic-train-441c352b");
+        assert_eq!(rb.rolled_back_at_ms, Some(1_700_005_000_000));
+        assert!(rb.message.is_none());
+    }
+
+    #[test]
+    fn parse_rollback_response_not_found() {
+        // v0.20a — the requested model_version isn't in the
+        // history (e.g. user passed a typo). The Python
+        // sidecar returns rolled_back=false with a clear
+        // diagnostic. The Rust side returns the same shape.
+        let r = SidecarResponse {
+            id: "rollback-3".into(),
+            ok: true,
+            result: Some(serde_json::json!({
+                "rolled_back": false,
+                "status": "failed",
+                "message": "model_version 'logistic-train-XYZ' not found in promotion history",
+            })),
+            error: None,
+        };
+        let rb = parse_rollback_response(&r).expect("ok");
+        assert!(!rb.rolled_back);
+        assert_eq!(rb.status, "failed");
+        assert!(rb.message.unwrap().contains("not found"));
+        assert_eq!(rb.model_version, "");
+    }
+
+    #[test]
+    fn parse_rollback_response_no_weights() {
+        // v0.20a — entry exists but was promoted before
+        // v0.20a (no weights stored). The user needs to
+        // retrain to roll back to it.
+        let r = SidecarResponse {
+            id: "rollback-4".into(),
+            ok: true,
+            result: Some(serde_json::json!({
+                "rolled_back": false,
+                "status": "failed",
+                "message": "model_version 'logistic-train-OLD' has no weights stored (promoted before v0.20); cannot rollback",
+            })),
+            error: None,
+        };
+        let rb = parse_rollback_response(&r).expect("ok");
+        assert!(!rb.rolled_back);
+        assert!(rb.message.unwrap().contains("no weights"));
+    }
+
+    #[test]
+    fn parse_rollback_response_not_ok_returns_err() {
+        // v0.20a — envelope-level error
+        let r = SidecarResponse {
+            id: "rollback-5".into(),
+            ok: false,
+            result: None,
+            error: Some("internal: oops".into()),
+        };
+        assert!(parse_rollback_response(&r).is_err());
     }
 
     #[test]

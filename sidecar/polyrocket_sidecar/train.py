@@ -246,12 +246,24 @@ def run_promote_model(*, job_id: str | None = None) -> dict[str, Any]:
             }
 
         promoted_at_ms = int(time.time() * 1000)
+        # v0.20a — extract weights from the candidate's
+        # "best" dict so the history entry is self-contained
+        # for rollback (no need to re-train or read the
+        # candidate file later). The candidate["best"] has
+        # {w0, w1, w2, brier, ...}; we only need the weights.
+        best = candidate.get("best") or {}
+        weights = {
+            "w0": best.get("w0"),
+            "w1": best.get("w1"),
+            "w2": best.get("w2"),
+        }
         new_entry: dict[str, Any] = {
             "job_id": candidate.get("job_id"),
             "model_version": f"logistic-{candidate.get('job_id', 'unknown')}",
             "promoted_at_ms": promoted_at_ms,
-            "best_brier": (candidate.get("best") or {}).get("brier"),
+            "best_brier": best.get("brier"),
             "best_params": candidate.get("best_params"),
+            "weights": weights,
         }
         # v0.19a — append the NEW entry; cap at 20 most-recent
         history.append(new_entry)
@@ -334,4 +346,132 @@ def run_list_promote_history() -> dict[str, Any]:
             "entries": [],
             "count": 0,
             "message": f"failed to read promotion history: {e}",
+        }
+
+
+def run_rollback_model(*, model_version: str) -> dict[str, Any]:
+    """Roll back the active model to a previous version.
+
+    v0.20a — looks up the entry in active.json's
+    `promotion_history` by `model_version`, restores its
+    weights as the new active model, and records the
+    rollback as a new history entry (so the audit trail
+    shows "this version was rolled back to").
+
+    The history entry must include `weights` (v0.20a
+    onwards). Older entries from v0.19 that don't have
+    `weights` will be skipped with a clear error.
+
+    Args:
+      model_version: the version to roll back to, e.g.
+        "logistic-train-441c352b". Must match a history
+        entry's `model_version` exactly.
+
+    Returns:
+      - rolled_back   — bool
+      - previous_path — the old active.json path (always
+                        the standard one)
+      - active_path   — the new active.json path
+      - rolled_back_at_ms — timestamp
+      - model_version — the version that was rolled back to
+      - message       — human-readable error on failure
+    """
+    if not ACTIVE_FILE.exists():
+        return {
+            "rolled_back": False,
+            "status": "failed",
+            "message": f"no active model at {ACTIVE_FILE}; cannot rollback",
+        }
+    try:
+        data = json.loads(ACTIVE_FILE.read_text())
+        if not isinstance(data, dict):
+            return {
+                "rolled_back": False,
+                "status": "failed",
+                "message": f"active.json at {ACTIVE_FILE} is not a JSON object",
+            }
+        history = data.get("promotion_history", [])
+        if not isinstance(history, list):
+            return {
+                "rolled_back": False,
+                "status": "failed",
+                "message": "promotion_history is not a list",
+            }
+        # v0.20a — find the entry by model_version. We match
+        # the EXACT version string (the L1 should pass back
+        # the model_version from the history panel verbatim).
+        target = None
+        for entry in history:
+            if (
+                isinstance(entry, dict)
+                and entry.get("model_version") == model_version
+            ):
+                target = entry
+                break
+        if target is None:
+            return {
+                "rolled_back": False,
+                "status": "failed",
+                "message": f"model_version {model_version!r} not found in promotion history",
+            }
+        weights = target.get("weights")
+        if not isinstance(weights, dict) or not all(
+            k in weights for k in ("w0", "w1", "w2")
+        ):
+            # v0.20a — entries from v0.19 don't have weights.
+            # The user needs to retrain to roll back to those.
+            return {
+                "rolled_back": False,
+                "status": "failed",
+                "message": (
+                    f"model_version {model_version!r} has no weights stored "
+                    "(promoted before v0.20); cannot rollback"
+                ),
+            }
+
+        # v0.20a — write the rollback as a new active.json
+        # with the target's weights and a new "rolled_back"
+        # marker. We KEEP the same history (so the user can
+        # see all their past promotes), and prepend a
+        # rollback note to the message.
+        rolled_back_at_ms = int(time.time() * 1000)
+        new_active = {
+            **data,  # preserve all other fields (e.g. best_params)
+            "weights": weights,  # the new active weights
+            "best": {**weights, "brier": target.get("best_brier")},
+            "model_version": model_version,
+            "job_id": target.get("job_id"),
+            "rolled_back_at_ms": rolled_back_at_ms,
+            "rolled_back_from": target.get("model_version"),
+        }
+        # v0.20a — also append a marker to the history so the
+        # user can see "this rollback happened on date X" in
+        # the audit trail. We don't bump the cap because the
+        # history is already bounded.
+        rollback_marker: dict[str, Any] = {
+            "kind": "rollback",
+            "model_version": model_version,
+            "job_id": target.get("job_id"),
+            "rolled_back_at_ms": rolled_back_at_ms,
+            "previous_active": data.get("model_version"),
+        }
+        new_active["promotion_history"] = history + [rollback_marker]
+
+        tmp = ACTIVE_FILE.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(new_active, ensure_ascii=False, indent=2))
+        os.replace(tmp, ACTIVE_FILE)
+
+        return {
+            "rolled_back": True,
+            "status": "ok",
+            "previous_path": str(ACTIVE_FILE),
+            "active_path": str(ACTIVE_FILE),
+            "rolled_back_at_ms": rolled_back_at_ms,
+            "model_version": model_version,
+        }
+    except (OSError, json.JSONDecodeError) as e:
+        return {
+            "rolled_back": False,
+            "status": "failed",
+            "message": f"rollback failed: {e}",
         }
