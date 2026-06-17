@@ -95,6 +95,7 @@ pub fn run() {
             commands::secrets::secrets_status,
             commands::audit::list_audit_log,
             commands::audit::audit_count_for_actor,
+            commands::audit::purge_audit_log_now,
             commands::notify::send_notification,
             commands::notify::request_notification_permission,
             commands::notify::notification_permission_state,

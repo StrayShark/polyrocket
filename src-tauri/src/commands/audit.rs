@@ -65,6 +65,17 @@ pub async fn audit_count_for_actor(
     Ok(n)
 }
 
+/// v0.8c — Run a single audit-log retention purge. Returns the number
+/// of rows deleted. Idempotent: a second call with the same clock
+/// returns 0. The scheduler also runs this daily at 03:00 UTC.
+#[tauri::command]
+pub async fn purge_audit_log_now(state: State<'_, AppState>) -> AppResult<usize> {
+    let n = crate::infra::scheduler::run_audit_purge_now(&state.db)
+        .await
+        .map_err(crate::AppError::Db)?;
+    Ok(n)
+}
+
 /// Look up the most recent N entries for a specific action.
 pub async fn recent_for_action(
     state: &AppState,

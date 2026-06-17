@@ -15,11 +15,13 @@
 //! | `lab`        | stub v0.3c | M5.2 — backtest / model experiments           |
 //! | `wallet`     | stub v0.3c | M3 — wallet metadata (keys live in L5 keyring)|
 //! | `seed`       | full v0.8a | v0.8a — first-run demo data (deterministic)   |
+//! | `audit`      | full v0.8c | v0.8c — audit log retention policy (pure)     |
 //!
 //! Public API stability: `llm/` and `polymarket/` are used by L2 today;
 //! stubs are scaffolded for the M3-M9 milestones and not yet imported
 //! by L2 (their public types are still defined in L2 commands).
 
+pub mod audit;
 pub mod bet;
 pub mod consensus;
 pub mod copy;

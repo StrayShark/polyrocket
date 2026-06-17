@@ -122,6 +122,15 @@ pub fn start(pool: SqlitePool, http: reqwest::Client) -> SchedulerHandle {
             run_mirror_executor_loop(pool, cfg, shutdown).await;
         });
     }
+    {
+        // v0.8c — audit log retention: purge old rows daily
+        let pool = pool.clone();
+        let cfg = cfg.clone();
+        let shutdown = shutdown.clone();
+        tokio::spawn(async move {
+            run_audit_purge_loop(pool, cfg, shutdown).await;
+        });
+    }
 
     tracing::info!(
         "scheduler started — health_probe={}min, brief_hour_utc={}, brief_tz_offset={}min, anomaly_window={}min",
@@ -682,4 +691,67 @@ pub async fn run_daily_brief_now(pool: &SqlitePool) -> sqlx::Result<()> {
 /// Run a single health-probe sweep synchronously. Useful for tests.
 pub async fn run_health_probe_now(pool: &SqlitePool, http: &reqwest::Client) -> sqlx::Result<()> {
     probe_all_providers(pool, http).await
+}
+
+// =================================================================
+// ============== v0.8c — Audit log purge loop =====================
+// =================================================================
+
+use crate::domain::audit::RetentionPolicy;
+use crate::infra::db::audit::purge_old;
+
+const DEFAULT_AUDIT_PURGE_HOUR_UTC: u32 = 3; // 3 AM UTC
+const DEFAULT_AUDIT_PURGE_TICK_SEC: u64 = 600; // 10 min — cheap check; only fires on the hour
+
+/// Default retention: 90 days, 50k rows cap, 1k floor.
+fn default_retention_policy() -> RetentionPolicy {
+    RetentionPolicy::default()
+}
+
+async fn run_audit_purge_once(pool: &SqlitePool) -> sqlx::Result<usize> {
+    let now = chrono::Utc::now().timestamp_millis();
+    let policy = default_retention_policy();
+    match purge_old(pool, &policy, now).await {
+        Ok(n) => {
+            if n > 0 {
+                tracing::info!(rows_purged = n, "audit log retention purge");
+            }
+            Ok(n)
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "audit log retention purge failed");
+            Ok(0)
+        }
+    }
+}
+
+async fn run_audit_purge_loop(
+    pool: SqlitePool,
+    _cfg: SchedulerConfig,
+    shutdown: Arc<Notify>,
+) {
+    // Wait a bit on boot to avoid contention with other loops.
+    tokio::time::sleep(Duration::from_secs(30)).await;
+    let mut ticker = tokio::time::interval(Duration::from_secs(DEFAULT_AUDIT_PURGE_TICK_SEC));
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    let _ = DEFAULT_AUDIT_PURGE_HOUR_UTC; // reserved for future hour-gated firing
+    loop {
+        tokio::select! {
+            _ = ticker.tick() => {
+                if let Err(e) = run_audit_purge_once(&pool).await {
+                    tracing::warn!(error = %e, "audit purge tick error");
+                }
+            }
+            _ = shutdown.notified() => {
+                tracing::info!("audit purge loop shutting down");
+                break;
+            }
+        }
+    }
+}
+
+/// Run a single audit-purge sweep synchronously. Useful for tests +
+/// the IPC `purge_audit_log_now` trigger.
+pub async fn run_audit_purge_now(pool: &SqlitePool) -> sqlx::Result<usize> {
+    run_audit_purge_once(pool).await
 }

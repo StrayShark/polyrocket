@@ -14,6 +14,7 @@
 //! L3 / L2 callers should use the typed getters; raw `set()` is for
 //! internal use (boot, IPC commands that mutate prefs).
 
+pub mod audit;
 pub mod pool;
 pub mod seed;
 pub mod settings;

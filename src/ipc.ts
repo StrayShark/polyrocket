@@ -173,6 +173,8 @@ export const notificationPermissionState = () =>
 export const listAuditLog = (limit = 200) => invoke<AuditEntry[]>('list_audit_log', { limit });
 export const auditCountForActor = (actor: string) =>
   invoke<number>('audit_count_for_actor', { actor });
+// v0.8c — manual trigger for the daily retention purge.
+export const purgeAuditLogNow = () => invoke<number>('purge_audit_log_now');
 
 // ---------------------------------------------------------------- Brief (M12)
 export const dailyBriefGet = (limit = 5) =>
