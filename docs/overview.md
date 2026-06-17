@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v1.9 · 2026-06-17 (v0.35 — snapshot diffing tool + lint)
+> 版本：v2.0 · 2026-06-17 (v0.36-0.38 — export/import + snapshot history + CI integration)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
 
@@ -623,6 +623,7 @@ sequenceDiagram
 | **Weekly snapshot diff** | `diff-snapshots-weekly.mjs` diffs current vs ~7-days-ago | ✅ v0.37b 完成（5 tests; ±2-day fallback; reuses diffDirs from v0.35a） |
 | **v0.37 final docs** | Ship log + tally + slow-drift detection | ✅ v0.37c 完成（682 tests total; catches "looked the same yesterday, different a week ago"） |
 | **CI: snapshot-diff workflow** | `.github/workflows/snapshot-diff.yml` runs on every PR | ✅ v0.38a 完成（uses snapshot_pages.py + diff-snapshots.mjs; posts PR comment on visual changes） |
+| **v0.36-0.38 batch ship log** | Cumulative docs for 3 versions, closes all 3 v0.35 deferred | ✅ v0.38b 完成（682 tests total; 5 governance tools + 1 CI workflow） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |

@@ -4,6 +4,11 @@
 **Commits**: this batch covers v0.36 + v0.37 + v0.38
 **Released**: 2026-06-17 (local, awaiting user push)
 
+> **Note**: v0.36-0.38 was a 3-version batch
+> closed by the user with "执行 1~3" on
+> 2026-06-17 23:39. The 3 deferred items
+> from the v0.35 final doc were the targets.
+
 ## What changed since v0.35
 
 This batch covers **3 versions** addressing the 3
@@ -11,16 +16,16 @@ deferred items from the v0.35 final doc:
 
 | sub-version | hash       | one-liner                                            | tests at landing |
 |-------------|------------|------------------------------------------------------|------------------|
-| v0.36a      | (prev)     | prefs-io library (export/import logic) + 14 tests  | 691              |
-| v0.36b      | (prev)     | BackupRestoreCard in Settings + 2 tests + i18n     | 691              |
-| v0.36c      | (this)     | v0.36 ship log                                       | 691              |
-| v0.37a      | (next)     | Snapshot history rotation (7-day retention)          | 696              |
-| v0.37b      | (next)     | Diff against same-day-last-week + 5 tests            | 696              |
-| v0.37c      | (next)     | v0.37 ship log                                       | 696              |
-| v0.38a      | (next)     | GitHub Action: diff-snapshots on every PR            | 696              |
-| v0.38b      | (next)     | v0.38 ship log + cumulative tally                    | 696              |
+| v0.36a      | `b97e8a1`  | prefs-io library (export/import logic) + 14 tests  | 677              |
+| v0.36b      | (same)     | BackupRestoreCard in Settings + 2 tests + i18n     | 677              |
+| v0.36c      | `0d94f6c`  | v0.36 ship log                                       | 677              |
+| v0.37a      | `7a8d1f0`  | Snapshot history rotation (7-day retention)         | 682              |
+| v0.37b      | (same)     | Diff against same-day-last-week + 5 tests           | 682              |
+| v0.37c      | (same)     | v0.37 ship log (rolled into v0.38b)                  | 682              |
+| v0.38a      | `6503348`  | GitHub Action: snapshot-diff on every PR            | 682              |
+| v0.38b      | this file  | Cumulative v0.36-0.38 batch ship log                | 682              |
 
-**Test totals at v0.38 final**: cargo 257/257, vitest ~340, python 69/69, script ~21.
+**Test totals at v0.38 final**: cargo 257/257, vitest 335/335, python 69/69, script 21/21. **Total 661 (vitest+cargo+python) + 21 script = 682 total.**
 
 ## Highlights
 
