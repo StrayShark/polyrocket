@@ -462,6 +462,12 @@ const en: Dictionary = {
   'auto_promote.margin.label': 'Brier margin',
   'auto_promote.margin.hint': 'How much better the candidate must be (default 0.005). Lower = more aggressive auto-promote. Set to 1.0 to disable.',
   'auto_promote.margin.saved': 'Margin saved',
+  // v0.28c — auto-run after train toggle
+  'auto_promote.after_train.label': 'Auto-run after train',
+  'auto_promote.after_train.desc': 'When ON, every successful train triggers a background auto-promote (using the margin above). The ModelLab page auto-refreshes when the auto-promote finishes. When OFF, you must click "Promote if better" manually.',
+  // v0.28c — auto-promote:finished toasts
+  'auto_promote.toast.auto_promoted': 'Auto-promoted to',
+  'auto_promote.toast.auto_skipped': 'Auto-promote skipped',
   'promote.last_candidate.hint': 'Click "Promote" to make this the active model.',
   // v0.19c — Promote history panel
   'promote.history.title': 'Promotion history',
@@ -1036,6 +1042,12 @@ const zh: Dictionary = {
   'auto_promote.margin.label': 'Brier 阈值',
   'auto_promote.margin.hint': '候选模型需比当前活动模型好（低）的程度（默认 0.005）。越小越激进。设为 1.0 等同于禁用。',
   'auto_promote.margin.saved': '阈值已保存',
+  // v0.28c — auto-run after train toggle
+  'auto_promote.after_train.label': '训练后自动运行',
+  'auto_promote.after_train.desc': '开启后，每次成功训练都会触发后台自动晋升（使用上面的阈值）。ModelLab 页面在自动晋升完成时自动刷新。关闭后，需手动点击 "若更优则晋升"。',
+  // v0.28c — auto-promote:finished toasts
+  'auto_promote.toast.auto_promoted': '已自动晋升至',
+  'auto_promote.toast.auto_skipped': '已跳过自动晋升',
   'promote.last_candidate.hint': '点击 "晋升" 将其设为活动模型。',
   // v0.19c — Promote history panel
   'promote.history.title': '晋升历史',

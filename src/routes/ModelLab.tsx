@@ -10,6 +10,7 @@ import {
   autoPromoteIfBetter,
   promoteAllTrials,
   onTrainStarted,
+  onAutoPromoteFinished,
   type TrainStartedEvent,
 } from '@/ipc';
 import { Card } from '@/components/base/Card';
@@ -88,6 +89,46 @@ export function ModelLab() {
       cancelled = true;
       unsubStarted.then((u) => u()).catch(() => { /* ignore */ });
     };
+  }, []);
+
+  // v0.28c — listen for `auto_promote:finished` events.
+  // When a background auto-promote completes (because
+  // `autoPromoteAfterTrain` is enabled in Settings), the
+  // Rust side emits this event. We:
+  //   1. Invalidate the queries that show the active model
+  //      and the history panel (so they re-fetch).
+  //   2. Show a toast with the result so the user knows
+  //      whether their new model was auto-promoted.
+  //
+  // The listener is registered once on mount and stays
+  // alive for the lifetime of the ModelLab page. If the
+  // user navigates away and comes back, it re-registers.
+  useEffect(() => {
+    let cancelled = false;
+    const unsub = onAutoPromoteFinished((e) => {
+      if (cancelled) return;
+      // Refresh everything that depends on the active
+      // model: KPI cards, history panel, Brier chart.
+      queryClient.invalidateQueries({ queryKey: ['llm-performance'] });
+      queryClient.invalidateQueries({ queryKey: ['sidecar-active-model'] });
+      queryClient.invalidateQueries({ queryKey: ['promote-history'] });
+      if (e.promoted) {
+        toast.success(
+          t('auto_promote.toast.auto_promoted'),
+          e.model_version ?? undefined,
+        );
+      } else {
+        // Don't show an error toast for "skipped" — that's
+        // the normal case where the candidate wasn't
+        // better. Only show info-level toast for visibility.
+        toast.info(t('auto_promote.toast.auto_skipped'), e.message);
+      }
+    });
+    return () => {
+      cancelled = true;
+      unsub.then((u) => u()).catch(() => { /* ignore */ });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const trainMut = useMutation({

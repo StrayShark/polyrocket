@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, RotateCcw, Save, Database, Bell, Eye, FlaskConical, Trash2 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/base/Card';
@@ -11,6 +11,7 @@ import {
   getAuditRetention,
   setAuditRetention,
   purgeAuditLogNow,
+  setAutoPromoteConfig,
   type AuditRetentionView,
   type SetAuditRetentionArgs,
 } from '@/ipc';
@@ -35,6 +36,31 @@ export function Settings() {
     notificationsEnabled: prefs.notificationsEnabled,
     advancedStats: prefs.advancedStats,
   });
+
+  // v0.28c — push the auto-promote config to Rust on
+  // mount of the Settings page. This is the bridge
+  // between the L1 zustand store (source of truth for
+  // the UI) and the Rust `AppState.auto_promote` field
+  // (consumer for `train_job`).
+  //
+  // We also re-push whenever the user changes the
+  // config (handled in the AutoPromoteCard). On mount
+  // alone is enough to cover the common case: "user
+  // opens Settings for the first time, the L1 store
+  // has the persisted value, we push it to Rust".
+  useEffect(() => {
+    setAutoPromoteConfig({
+      enabled: prefs.autoPromoteAfterTrain,
+      brier_margin: prefs.autoPromoteBrierMargin,
+    }).catch(() => {
+      // Sidecar is not always available; the L1 store
+      // is the source of truth, Rust will re-read on
+      // the next Settings mount.
+    });
+    // Run once on mount. Re-runs would re-push the
+    // same values; harmless but wasteful.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const save = () => {
     Object.entries(draft).forEach(([k, v]) => {
@@ -406,6 +432,7 @@ function NumberHintField({
 function AutoPromoteCard() {
   const { t } = useT();
   const margin = usePrefsStore((s) => s.autoPromoteBrierMargin);
+  const afterTrain = usePrefsStore((s) => s.autoPromoteAfterTrain);
   const setPref = usePrefsStore((s) => s.setPref);
   const [value, setValue] = useState<number>(margin);
   const [saved, setSaved] = useState(false);
@@ -418,12 +445,31 @@ function AutoPromoteCard() {
     setValue(margin);
   });
 
+  // v0.28c — when the user toggles "Auto-run after train",
+  // push the new value to Rust immediately (no Save
+  // button needed for a binary toggle). The Rust side
+  // reads `auto_promote.enabled` inside `train_job` to
+  // decide whether to spawn the worker.
+  const onAfterTrainToggle = (next: boolean) => {
+    setPref('autoPromoteAfterTrain', next);
+    setAutoPromoteConfig({ enabled: next }).catch(() => {
+      // Sidecar is not always available; the L1 store
+      // is the source of truth, Rust will re-read on
+      // the next Settings mount.
+    });
+  };
+
   const onSave = () => {
     if (!Number.isFinite(value) || value < 0) {
       setValue(margin);
       return;
     }
     setPref('autoPromoteBrierMargin', value);
+    // v0.28c — also push the new margin to Rust so the
+    // next train's auto-promote worker uses it.
+    setAutoPromoteConfig({ brier_margin: value }).catch(() => {
+      // Same as above: best-effort push.
+    });
     setSaved(true);
     toast.success(t('auto_promote.margin.saved'));
     setTimeout(() => setSaved(false), 1500);
@@ -434,7 +480,18 @@ function AutoPromoteCard() {
       title={t('auto_promote.title')}
       description={t('auto_promote.desc')}
     >
-      <div className="space-y-2">
+      <div className="space-y-3">
+        <div>
+          <Toggle
+            data-testid="auto-promote-after-train-toggle"
+            label={t('auto_promote.after_train.label')}
+            checked={afterTrain}
+            onChange={onAfterTrainToggle}
+          />
+          <p className="text-[10px] text-muted mt-1 ml-1">
+            {t('auto_promote.after_train.desc')}
+          </p>
+        </div>
         <NumberField
           label={t('auto_promote.margin.label')}
           hint={t('auto_promote.margin.hint')}

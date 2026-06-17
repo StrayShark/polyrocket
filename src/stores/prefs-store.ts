@@ -17,6 +17,13 @@ export interface UiPrefs {
    * Default 0.005. Set to 1.0 to effectively disable
    * auto-promote (candidate is never 1.0 better). */
   autoPromoteBrierMargin: number;
+  /** v0.28c — auto-promote-after-train: when true, the
+   * Rust `train_job` handler spawns a background
+   * `auto_promote_if_better` worker after a successful
+   * train, and the L1 listens for the
+   * `auto_promote:finished` event to auto-refresh the
+   * history panel. Default false. */
+  autoPromoteAfterTrain: boolean;
 }
 
 interface PrefsState extends UiPrefs {
@@ -31,6 +38,7 @@ const DEFAULT: UiPrefs = {
   notificationsEnabled: true,
   advancedStats: false,
   autoPromoteBrierMargin: 0.005,
+  autoPromoteAfterTrain: false,
 };
 
 export const usePrefsStore = create<PrefsState>()(
