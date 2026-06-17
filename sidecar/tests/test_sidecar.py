@@ -202,7 +202,7 @@ class DispatchTests(unittest.TestCase):
     def test_all_methods_registered(self) -> None:
         # If a method is added on the Rust side without registering here, this
         # catches it. Mirror the set in `SidecarMethod` enum on Rust.
-        expected = {"ping", "predict", "train_job", "promote_model", "list_promote_history", "rollback_model"}
+        expected = {"ping", "predict", "train_job", "promote_model", "list_promote_history", "rollback_model", "auto_promote_if_better"}
         self.assertEqual(set(DISPATCH.keys()), expected)
 
     def test_ping_returns_pong(self) -> None:
@@ -412,6 +412,57 @@ class E2ESubprocessTests(unittest.TestCase):
         result = out["result"]
         self.assertFalse(result["rolled_back"])
         self.assertIn("not found", result["message"])
+
+    def test_e2e_auto_promote_if_better_no_active(self) -> None:
+        """v0.23a: with no active model, auto_promote_if_better
+        just promotes the candidate (it's automatically best).
+        """
+        # Train so we have a candidate
+        self._round_trip('{"id": 81, "method": "train_job", "params": {"n_trials": 1, "epochs": 5}}')
+        out = self._round_trip(
+            '{"id": 82, "method": "auto_promote_if_better", "params": {"brier_margin": 0.005}}'
+        )
+        self.assertEqual(out["id"], 82)
+        self.assertTrue(out["ok"])
+        result = out["result"]
+        self.assertTrue(result["promoted"])
+        self.assertFalse(result["skipped"])
+        self.assertIsNone(result["active_brier"])
+        self.assertIn("no active model", result["reason"])
+
+    def test_e2e_auto_promote_if_better_skipped(self) -> None:
+        """v0.23a: when the candidate isn't meaningfully
+        better than the active, the call no-ops and returns
+        a clear "skipped" reason.
+        """
+        # First train + promote → active
+        self._round_trip('{"id": 91, "method": "train_job", "params": {"n_trials": 1, "epochs": 5}}')
+        self._round_trip('{"id": 92, "method": "promote_model", "params": {}}')
+        # Second train → new candidate (likely similar brier)
+        self._round_trip('{"id": 93, "method": "train_job", "params": {"n_trials": 1, "epochs": 5}}')
+        # Auto-promote with a HUGE margin (so it's never met)
+        out = self._round_trip(
+            '{"id": 94, "method": "auto_promote_if_better", "params": {"brier_margin": 1.0}}'
+        )
+        self.assertEqual(out["id"], 94)
+        self.assertTrue(out["ok"])
+        result = out["result"]
+        self.assertFalse(result["promoted"])
+        self.assertTrue(result["skipped"])
+        self.assertIn("not at least 1.0 better", result["reason"])
+        self.assertEqual(result["margin"], 1.0)
+
+    def test_e2e_auto_promote_if_better_invalid_margin(self) -> None:
+        """v0.23a: negative brier_margin returns a clean error."""
+        out = self._round_trip(
+            '{"id": 95, "method": "auto_promote_if_better", "params": {"brier_margin": -0.01}}'
+        )
+        self.assertEqual(out["id"], 95)
+        self.assertTrue(out["ok"])
+        result = out["result"]
+        self.assertFalse(result["promoted"])
+        self.assertTrue(result["skipped"])
+        self.assertIn("non-negative", result["reason"])
 
 
 if __name__ == "__main__":

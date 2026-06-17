@@ -418,6 +418,168 @@ def run_list_promote_history() -> dict[str, Any]:
         }
 
 
+def run_auto_promote_if_better(
+    *,
+    brier_margin: float = 0.005,
+    trial_index: int | None = None,
+) -> dict[str, Any]:
+    """Promote the candidate only if it's meaningfully better than the active model.
+
+    v0.23a — auto-promote guard. Compares the candidate's
+    best Brier (or a specific trial's Brier) to the
+    active model's Brier. If the candidate is at least
+    `brier_margin` better, promote it; otherwise, do
+    nothing and return a clear "skipped" reason.
+
+    The "margin" prevents promoting models that are
+    within noise of the current active model. Default
+    0.005 — the user has to actually beat the current
+    model by 0.005 Brier to auto-promote.
+
+    Args:
+      brier_margin: how much better the candidate must
+        be (lower Brier = better). Default 0.005.
+      trial_index: which trial to use (None = best).
+        Same semantics as run_promote_model.
+
+    Returns:
+      - promoted        — bool (true if auto-promoted)
+      - skipped         — bool (true if candidate wasn't
+                          meaningfully better)
+      - reason          — human-readable string ("not
+                          better" / "no candidate" / etc.)
+      - candidate_brier — the candidate's brier (or null)
+      - active_brier    — the active model's brier (or null)
+      - margin          — the brier_margin used
+      - On success, also returns the same fields as
+        PromoteResult (model_version, promoted_at_ms, etc.)
+    """
+    # Read the active model's brier
+    active_brier: float | None = None
+    if ACTIVE_FILE.exists():
+        try:
+            active_data = json.loads(ACTIVE_FILE.read_text())
+            # The active.json's "best" dict (or top-level "best"
+            # from v0.18a back-compat) has the brier
+            best = active_data.get("best") or {}
+            active_brier = best.get("brier")
+        except (OSError, json.JSONDecodeError):
+            active_brier = None
+
+    # If there's no active model, just promote (it's
+    # automatically the best by definition)
+    if active_brier is None:
+        result = run_promote_model(trial_index=trial_index)
+        return {
+            "promoted": result.get("promoted", False),
+            "skipped": False,
+            "reason": "no active model; auto-promoted the candidate",
+            "candidate_brier": None,
+            "active_brier": None,
+            "margin": brier_margin,
+            "model_version": result.get("model_version"),
+            "promoted_at_ms": result.get("promoted_at_ms"),
+            "message": result.get("message"),
+        }
+
+    # Read the candidate's brier
+    if not CANDIDATE_FILE.exists():
+        return {
+            "promoted": False,
+            "skipped": True,
+            "reason": "no candidate; run train_job first",
+            "candidate_brier": None,
+            "active_brier": active_brier,
+            "margin": brier_margin,
+            "model_version": None,
+            "promoted_at_ms": None,
+            "message": f"no candidate at {CANDIDATE_FILE}",
+        }
+    try:
+        candidate = json.loads(CANDIDATE_FILE.read_text())
+    except (OSError, json.JSONDecodeError) as e:
+        return {
+            "promoted": False,
+            "skipped": True,
+            "reason": f"failed to read candidate: {e}",
+            "candidate_brier": None,
+            "active_brier": active_brier,
+            "margin": brier_margin,
+            "model_version": None,
+            "promoted_at_ms": None,
+            "message": str(e),
+        }
+
+    # Pick the candidate's brier: best (default) or a
+    # specific trial
+    all_trials = candidate.get("all_trials", [])
+    if trial_index is not None:
+        if not (0 <= trial_index < len(all_trials)):
+            return {
+                "promoted": False,
+                "skipped": True,
+                "reason": f"trial_index {trial_index} out of range",
+                "candidate_brier": None,
+                "active_brier": active_brier,
+                "margin": brier_margin,
+                "model_version": None,
+                "promoted_at_ms": None,
+                "message": f"trial_index {trial_index} out of range (0..{len(all_trials) - 1})",
+            }
+        trial = all_trials[trial_index]
+        candidate_brier = trial.get("brier")
+    else:
+        best = candidate.get("best") or {}
+        candidate_brier = best.get("brier")
+
+    if candidate_brier is None:
+        return {
+            "promoted": False,
+            "skipped": True,
+            "reason": "candidate has no brier; cannot compare",
+            "candidate_brier": None,
+            "active_brier": active_brier,
+            "margin": brier_margin,
+            "model_version": None,
+            "promoted_at_ms": None,
+            "message": "candidate.best.brier is null",
+        }
+
+    # Compare: lower brier = better. Auto-promote only if
+    # candidate is meaningfully better.
+    improvement = active_brier - candidate_brier
+    if improvement < brier_margin:
+        return {
+            "promoted": False,
+            "skipped": True,
+            "reason": (
+                f"candidate brier {candidate_brier:.4f} is not "
+                f"at least {brier_margin} better than active "
+                f"{active_brier:.4f} (improvement: {improvement:+.4f})"
+            ),
+            "candidate_brier": candidate_brier,
+            "active_brier": active_brier,
+            "margin": brier_margin,
+            "model_version": None,
+            "promoted_at_ms": None,
+            "message": None,
+        }
+
+    # Candidate is meaningfully better — promote it
+    result = run_promote_model(trial_index=trial_index)
+    return {
+        "promoted": result.get("promoted", False),
+        "skipped": False,
+        "reason": f"auto-promoted: improvement {improvement:+.4f} > margin {brier_margin}",
+        "candidate_brier": candidate_brier,
+        "active_brier": active_brier,
+        "margin": brier_margin,
+        "model_version": result.get("model_version"),
+        "promoted_at_ms": result.get("promoted_at_ms"),
+        "message": result.get("message"),
+    }
+
+
 def run_rollback_model(*, model_version: str) -> dict[str, Any]:
     """Roll back the active model to a previous version.
 

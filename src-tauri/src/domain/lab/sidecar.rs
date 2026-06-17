@@ -103,6 +103,11 @@ pub enum SidecarMethod {
     /// (v0.20a+); older v0.19 entries without weights are
     /// refused with a clear error.
     RollbackModel,
+    /// v0.23a — auto-promote guard. Promotes the candidate
+    /// only if it's meaningfully better than the active
+    /// model (Brier margin). If not, no-op + clear "skipped"
+    /// reason. One-click action triggered by the user.
+    AutoPromoteIfBetter,
 }
 
 impl SidecarMethod {
@@ -114,6 +119,7 @@ impl SidecarMethod {
             SidecarMethod::PromoteModel => "promote_model",
             SidecarMethod::ListPromoteHistory => "list_promote_history",
             SidecarMethod::RollbackModel => "rollback_model",
+            SidecarMethod::AutoPromoteIfBetter => "auto_promote_if_better",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -124,6 +130,7 @@ impl SidecarMethod {
             "promote_model" => Some(SidecarMethod::PromoteModel),
             "list_promote_history" => Some(SidecarMethod::ListPromoteHistory),
             "rollback_model" => Some(SidecarMethod::RollbackModel),
+            "auto_promote_if_better" => Some(SidecarMethod::AutoPromoteIfBetter),
             _ => None,
         }
     }
@@ -587,6 +594,96 @@ pub fn parse_rollback_response(resp: &SidecarResponse) -> Result<RollbackResult,
     })
 }
 
+// =================================================================
+// ========== v0.23a — auto_promote_if_better wire format ==========
+// =================================================================
+
+/// Build a `auto_promote_if_better` request. Pure function.
+/// v0.23a — one-click "promote the candidate only if it's
+/// meaningfully better than the active model" action.
+///
+/// `brier_margin` is how much better the candidate must be
+/// (lower Brier = better). Default 0.005.
+/// `trial_index` is which trial to use (None = best).
+pub fn build_auto_promote_if_better_request(
+    id: impl Into<String>,
+    brier_margin: Option<f64>,
+    trial_index: Option<usize>,
+) -> String {
+    let mut params = serde_json::Map::new();
+    if let Some(m) = brier_margin {
+        params.insert("brier_margin".into(), serde_json::json!(m));
+    }
+    if let Some(t) = trial_index {
+        params.insert("trial_index".into(), serde_json::Value::from(t));
+    }
+    let req = SidecarRequest {
+        id: id.into(),
+        method: SidecarMethod::AutoPromoteIfBetter.as_str().to_string(),
+        params: serde_json::Value::Object(params),
+    };
+    serde_json::to_string(&req).unwrap_or_default()
+}
+
+/// Wire-format mirror of the Python `run_auto_promote_if_better`
+/// return value. v0.23a — the user clicks "Promote if better"
+/// after each train; this DTO carries the result.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutoPromoteIfBetterResult {
+    /// `true` if the candidate was actually promoted.
+    pub promoted: bool,
+    /// `true` if the candidate was NOT promoted (because
+    /// it wasn't meaningfully better). Mutually exclusive
+    /// with `promoted=true`.
+    pub skipped: bool,
+    /// Human-readable reason: "auto-promoted: improvement
+    /// X > margin Y" / "candidate brier X is not at least
+    /// Y better than active Z" / "no candidate" / etc.
+    pub reason: String,
+    /// The candidate's brier (or None if no candidate).
+    pub candidate_brier: Option<f64>,
+    /// The active model's brier (or None if no active).
+    pub active_brier: Option<f64>,
+    /// The brier_margin used for the comparison.
+    pub margin: f64,
+    /// The new model version (on success). Empty on skip/fail.
+    pub model_version: Option<String>,
+    /// The promote timestamp (on success). None on skip/fail.
+    pub promoted_at_ms: Option<i64>,
+    /// Human-readable message (e.g. the Python's error).
+    pub message: Option<String>,
+}
+
+/// Parse a `auto_promote_if_better` response into an
+/// `AutoPromoteIfBetterResult`. Returns Err if the
+/// response is `ok=false` at the envelope level.
+pub fn parse_auto_promote_if_better_response(
+    resp: &SidecarResponse,
+) -> Result<AutoPromoteIfBetterResult, String> {
+    if !resp.ok {
+        return Err(resp.error.clone().unwrap_or_else(|| "unknown error".into()));
+    }
+    let v = resp.result.clone().unwrap_or(Value::Null);
+    Ok(AutoPromoteIfBetterResult {
+        promoted: v.get("promoted").and_then(|x| x.as_bool()).unwrap_or(false),
+        skipped: v.get("skipped").and_then(|x| x.as_bool()).unwrap_or(false),
+        reason: v.get("reason")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string(),
+        candidate_brier: v.get("candidate_brier").and_then(|x| x.as_f64()),
+        active_brier: v.get("active_brier").and_then(|x| x.as_f64()),
+        margin: v.get("margin").and_then(|x| x.as_f64()).unwrap_or(0.005),
+        model_version: v.get("model_version")
+            .and_then(|x| x.as_str())
+            .map(String::from),
+        promoted_at_ms: v.get("promoted_at_ms").and_then(|x| x.as_i64()),
+        message: v.get("message")
+            .and_then(|x| x.as_str())
+            .map(String::from),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -596,7 +693,8 @@ mod tests {
         for m in [SidecarMethod::Ping, SidecarMethod::Predict,
                   SidecarMethod::TrainJob, SidecarMethod::PromoteModel,
                   SidecarMethod::ListPromoteHistory,
-                  SidecarMethod::RollbackModel] {
+                  SidecarMethod::RollbackModel,
+                  SidecarMethod::AutoPromoteIfBetter] {
             assert_eq!(SidecarMethod::parse(m.as_str()), Some(m));
         }
         assert_eq!(SidecarMethod::parse("nope"), None);
@@ -929,6 +1027,117 @@ mod tests {
             error: Some("internal: oops".into()),
         };
         assert!(parse_rollback_response(&r).is_err());
+    }
+
+    #[test]
+    fn build_auto_promote_if_better_request_default_margin() {
+        // v0.23a — no params → empty params object (Python
+        // uses its default 0.005 margin)
+        let line = build_auto_promote_if_better_request("ap-1", None, None);
+        let v: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(v["method"], "auto_promote_if_better");
+        assert_eq!(v["id"], "ap-1");
+        assert_eq!(v["params"], serde_json::json!({}));
+    }
+
+    #[test]
+    fn build_auto_promote_if_better_request_with_margin_and_trial() {
+        // v0.23a — both params
+        let line = build_auto_promote_if_better_request("ap-2", Some(0.01), Some(2));
+        let v: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(v["params"]["brier_margin"], 0.01);
+        assert_eq!(v["params"]["trial_index"], 2);
+    }
+
+    #[test]
+    fn parse_auto_promote_if_better_response_promoted() {
+        // v0.23a — promoted case (candidate was meaningfully better)
+        let r = SidecarResponse {
+            id: "ap-3".into(),
+            ok: true,
+            result: Some(serde_json::json!({
+                "promoted": true,
+                "skipped": false,
+                "reason": "auto-promoted: improvement 0.0120 > margin 0.005",
+                "candidate_brier": 0.180,
+                "active_brier": 0.192,
+                "margin": 0.005,
+                "model_version": "logistic-train-XYZ",
+                "promoted_at_ms": 1_700_020_000_000_i64,
+            })),
+            error: None,
+        };
+        let a = parse_auto_promote_if_better_response(&r).expect("ok");
+        assert!(a.promoted);
+        assert!(!a.skipped);
+        assert!(a.reason.contains("auto-promoted"));
+        assert_eq!(a.candidate_brier, Some(0.180));
+        assert_eq!(a.active_brier, Some(0.192));
+        assert_eq!(a.margin, 0.005);
+        assert_eq!(a.model_version.as_deref(), Some("logistic-train-XYZ"));
+    }
+
+    #[test]
+    fn parse_auto_promote_if_better_response_skipped() {
+        // v0.23a — skipped case (candidate wasn't meaningfully better)
+        let r = SidecarResponse {
+            id: "ap-4".into(),
+            ok: true,
+            result: Some(serde_json::json!({
+                "promoted": false,
+                "skipped": true,
+                "reason": "candidate brier 0.1900 is not at least 0.005 better than active 0.1920 (improvement: +0.0020)",
+                "candidate_brier": 0.190,
+                "active_brier": 0.192,
+                "margin": 0.005,
+                "model_version": null,
+                "promoted_at_ms": null,
+            })),
+            error: None,
+        };
+        let a = parse_auto_promote_if_better_response(&r).expect("ok");
+        assert!(!a.promoted);
+        assert!(a.skipped);
+        assert!(a.reason.contains("not at least 0.005 better"));
+        assert_eq!(a.candidate_brier, Some(0.190));
+        assert_eq!(a.active_brier, Some(0.192));
+        assert!(a.model_version.is_none());
+    }
+
+    #[test]
+    fn parse_auto_promote_if_better_response_no_active() {
+        // v0.23a — no active model: auto-promotes the candidate
+        let r = SidecarResponse {
+            id: "ap-5".into(),
+            ok: true,
+            result: Some(serde_json::json!({
+                "promoted": true,
+                "skipped": false,
+                "reason": "no active model; auto-promoted the candidate",
+                "candidate_brier": null,
+                "active_brier": null,
+                "margin": 0.005,
+                "model_version": "logistic-train-ABC",
+                "promoted_at_ms": 1_700_021_000_000_i64,
+            })),
+            error: None,
+        };
+        let a = parse_auto_promote_if_better_response(&r).expect("ok");
+        assert!(a.promoted);
+        assert!(a.candidate_brier.is_none());
+        assert!(a.active_brier.is_none());
+    }
+
+    #[test]
+    fn parse_auto_promote_if_better_response_not_ok_returns_err() {
+        // v0.23a — envelope-level error
+        let r = SidecarResponse {
+            id: "ap-6".into(),
+            ok: false,
+            result: None,
+            error: Some("internal: oops".into()),
+        };
+        assert!(parse_auto_promote_if_better_response(&r).is_err());
     }
 
     #[test]

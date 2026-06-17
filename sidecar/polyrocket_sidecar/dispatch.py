@@ -7,6 +7,7 @@ Method names are LOWERCASE to match the Rust `SidecarMethod::as_str`:
   - "promote_model"           (Rust: SidecarMethod::PromoteModel)
   - "list_promote_history"    (Rust: SidecarMethod::ListPromoteHistory)  [v0.19a]
   - "rollback_model"          (Rust: SidecarMethod::RollbackModel)        [v0.20a]
+  - "auto_promote_if_better"  (Rust: SidecarMethod::AutoPromoteIfBetter)  [v0.23a]
 
 If you add a method here, you MUST also:
   1. Add it to `SidecarMethod` enum in domain::lab::sidecar
@@ -25,6 +26,7 @@ from .train import (
     run_train_job,
     run_list_promote_history,
     run_rollback_model,
+    run_auto_promote_if_better,
 )
 
 
@@ -107,6 +109,50 @@ def rollback_model(params: dict[str, Any]) -> dict[str, Any]:
     return run_rollback_model(model_version=model_version)
 
 
+def auto_promote_if_better(params: dict[str, Any]) -> dict[str, Any]:
+    """Promote the candidate only if it's meaningfully better.
+
+    v0.23a — auto-promote guard. Compares the candidate's
+    brier to the active model's brier. If the candidate
+    is at least `brier_margin` better, promote it;
+    otherwise, do nothing and return a clear "skipped"
+    reason.
+
+    Optional params:
+      - brier_margin: float (default 0.005 — the
+        candidate must beat the active by this much)
+      - trial_index: int (None = best, 0..n-1 for
+        a specific trial; same as promote_model)
+    """
+    brier_margin = params.get("brier_margin", 0.005)
+    if not isinstance(brier_margin, (int, float)) or brier_margin < 0:
+        return {
+            "promoted": False,
+            "skipped": True,
+            "reason": f"brier_margin must be a non-negative number, got {brier_margin!r}",
+            "candidate_brier": None,
+            "active_brier": None,
+            "margin": brier_margin,
+            "model_version": None,
+            "promoted_at_ms": None,
+            "message": None,
+        }
+    trial_index = params.get("trial_index")
+    if trial_index is not None and not isinstance(trial_index, int):
+        return {
+            "promoted": False,
+            "skipped": True,
+            "reason": f"trial_index must be an int, got {type(trial_index).__name__}",
+            "candidate_brier": None,
+            "active_brier": None,
+            "margin": brier_margin,
+            "model_version": None,
+            "promoted_at_ms": None,
+            "message": None,
+        }
+    return run_auto_promote_if_better(brier_margin=float(brier_margin), trial_index=trial_index)
+
+
 DISPATCH: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "ping": ping,
     "predict": predict,
@@ -114,4 +160,5 @@ DISPATCH: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "promote_model": promote_model,
     "list_promote_history": list_promote_history,
     "rollback_model": rollback_model,
+    "auto_promote_if_better": auto_promote_if_better,
 }

@@ -341,6 +341,41 @@ class PromoteModelTests(unittest.TestCase):
         # Active file should not exist (no successful promote)
         self.assertFalse(train.ACTIVE_FILE.exists())
 
+    def test_auto_promote_if_better_promotes_v23(self) -> None:
+        """v0.23a: with no active model, auto_promote
+        just promotes the candidate (auto-best).
+        """
+        from polyrocket_sidecar.train import run_auto_promote_if_better
+        t = run_train_job(n_trials=2, epochs=5)
+        result = run_auto_promote_if_better(brier_margin=0.005)
+        self.assertTrue(result["promoted"])
+        self.assertFalse(result["skipped"])
+        self.assertIn("no active model", result["reason"])
+        self.assertIsNone(result["active_brier"])
+        self.assertEqual(result["model_version"], f"logistic-{t['job_id']}")
+
+    def test_auto_promote_if_better_skips_when_close_v23(self) -> None:
+        """v0.23a: when the candidate is NOT meaningfully
+        better than the active, auto_promote is a no-op
+        and returns a clear "skipped" reason.
+        """
+        from polyrocket_sidecar.train import run_auto_promote_if_better
+        # Train + promote twice with the SAME seed → nearly
+        # identical briers. A small margin won't be met.
+        t1 = run_train_job(n_trials=1, epochs=5)
+        run_promote_model()
+        t2 = run_train_job(n_trials=1, epochs=5)
+        # Use a margin of 1.0 — guaranteed not to be met
+        result = run_auto_promote_if_better(brier_margin=1.0)
+        self.assertFalse(result["promoted"])
+        self.assertTrue(result["skipped"])
+        self.assertIn("not at least 1.0 better", result["reason"])
+        # Active file is unchanged (still t1)
+        active = json.loads(train.ACTIVE_FILE.read_text())
+        self.assertEqual(active["job_id"], t1["job_id"])
+        # The candidate still exists (not promoted, not deleted)
+        self.assertTrue(train.CANDIDATE_FILE.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
