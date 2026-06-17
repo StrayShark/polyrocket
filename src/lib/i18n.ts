@@ -510,6 +510,7 @@ const en: Dictionary = {
   // v0.24a — per-trial badge labels
   'promote.history.trial_best': 'best trial',
   'promote.history.trial_n': 'trial #{{n}}',
+  'promote.history.reason_fallback': 'Promoted',
   // v0.25b — Bulk promote (all 4 trials)
   'train.progress.promote_all': 'Promote all 4',
   'promote.toast.all_promoted': 'Promoted all {{count}} trials',
@@ -1121,6 +1122,7 @@ const zh: Dictionary = {
   // v0.24a — per-trial badge labels
   'promote.history.trial_best': '最佳',
   'promote.history.trial_n': '第 {{n}} 个试验',
+  'promote.history.reason_fallback': '已提升',
   // v0.25b — Bulk promote (all 4 trials)
   'train.progress.promote_all': '全部晋升 4 个',
   'promote.toast.all_promoted': '已晋升全部 {{count}} 个试验',

@@ -23,6 +23,18 @@
  * The filter is local component state (not persisted);
  * resets to "all" on remount.
  *
+ * v0.41a — each row has a small "i" icon next to the
+ * trial badge. Hovering (or focusing) shows the human-
+ * readable `reason` field, e.g. "Promoted as best
+ * trial" or "Promoted as trial 2 of 4". This is
+ * redundant with the trial badge but more explicit
+ * ("this was the explicit best, not just whatever
+ * happened to be the lowest brier"). Native `<title>`
+ * attribute is the baseline (always-on, a11y);
+ * a small "i" icon makes it discoverable.
+ * Older entries from before v0.41 don't have
+ * `reason`; we render a generic tooltip in that case.
+ *
  * The currently active model is NOT in this list — to
  * see the active model, use the ModelVersionPill at
  * the top of the page. The list is for audit
@@ -344,6 +356,21 @@ function HistoryRow({
               {t('promote.history.trial_best')}
             </span>
           )}
+          {/* v0.41a — small "i" icon with a tooltip showing
+              the per-promotion reason. The icon is the
+              discoverable affordance; the native `title`
+              attribute is the a11y baseline. Older
+              entries without `reason` get a generic
+              "Promoted" tooltip. */}
+          <span
+            className="text-[10px] text-muted cursor-help"
+            data-testid="promote-history-reason-icon"
+            data-reason={entry.reason ?? ''}
+            title={entry.reason ?? t('promote.history.reason_fallback')}
+            aria-label={entry.reason ?? t('promote.history.reason_fallback')}
+          >
+            ⓘ
+          </span>
         </div>
         <div className="text-[10px] text-muted mt-0.5">
           {fmtRelativeTime(entry.promoted_at_ms)}

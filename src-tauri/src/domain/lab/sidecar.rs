@@ -478,6 +478,21 @@ pub struct PromoteHistoryEntry {
     /// Hyperparameters of the best trial.
     #[serde(default)]
     pub best_params: Option<Value>,
+    /// v0.21a — which trial of the train sweep was promoted.
+    /// `None` = best (default); `Some(n)` = trial n (bulk).
+    /// Older history entries from before v0.21a won't have
+    /// this field; serde-defaults to None.
+    #[serde(default)]
+    pub trial_index: Option<usize>,
+    /// v0.41a — human-readable reason for the promote.
+    /// Surfaced as a hover tooltip on the history row in
+    /// the L1. Format: "Promoted as best trial" or
+    /// "Promoted as trial N of M".
+    ///
+    /// Older entries from before v0.41 won't have this
+    /// field; serde-defaults to None.
+    #[serde(default)]
+    pub reason: Option<String>,
 }
 
 /// Wire-format mirror of the `list_promote_history` response.

@@ -524,6 +524,13 @@ export interface PromoteHistoryEntry {
    * Older history entries from before v0.21a won't have
    * this field; treat missing as "best" for UI purposes. */
   trial_index?: number | null;
+  /** v0.41a — human-readable reason for the promote.
+   * Surfaced as a hover tooltip on the history row in
+   * the ModelLab page. Format: "Promoted as best trial"
+   * or "Promoted as trial N of M". Older entries from
+   * before v0.41 won't have this field; treat missing
+   * as "Promoted" (generic). */
+  reason?: string | null;
 }
 
 /** Wire-format mirror of the Rust `PromoteHistoryResult`
