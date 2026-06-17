@@ -7,9 +7,9 @@
 use crate::AppError;
 use crate::AppResult;
 use crate::domain::lab::sidecar::{
-    build_predict_request, build_train_request, parse_line, parse_predict_response,
-    parse_train_response, Prediction, SidecarMethod, SidecarRequest, SidecarResponse,
-    TrainResult, TrainTrial,
+    build_predict_request, build_promote_request, build_train_request, parse_line,
+    parse_predict_response, parse_promote_response, parse_train_response, Prediction,
+    PromoteResult, SidecarMethod, SidecarRequest, SidecarResponse, TrainResult, TrainTrial,
 };
 use crate::domain::lab::train_progress::{
     TrainFinishedEvent, TrainStartedEvent, TrainTrialDto,
@@ -647,6 +647,99 @@ pub async fn train_job(
     );
 
     Ok(result)
+}
+
+/// v0.18a — promote the current candidate to the active slot.
+///
+/// This is a fast, synchronous operation (~10ms file move).
+/// No progress events. The IPC returns the full `PromoteResult`.
+///
+/// `args.job_id` is optional. If set, the Python sidecar
+/// refuses to promote a candidate from a different job
+/// (race-condition protection — protects against the case
+/// where a second train finishes between the user's intent
+/// to promote and the actual promote call).
+///
+/// Falls back to `promoted: false` with a descriptive message
+/// when the sidecar is not running (matches the v0.17a train
+/// fallback pattern).
+#[tauri::command]
+pub async fn promote_model(
+    state: State<'_, SidecarState>,
+    args: PromoteModelArgs,
+) -> AppResult<PromoteResult> {
+    let job_id = format!("promote-{}", uuid::Uuid::new_v4().to_string().split('-').next().unwrap_or("00000000"));
+    let line = build_promote_request(&job_id, args.job_id.as_deref());
+
+    if !state.is_running() {
+        return Ok(PromoteResult {
+            promoted: false,
+            status: "failed".into(),
+            previous_path: None,
+            active_path: None,
+            promoted_at_ms: None,
+            model_version: String::new(),
+            message: Some("sidecar not running".into()),
+        });
+    }
+
+    // Same lock discipline as train_job: write under stdin
+    // lock, read under stdout lock.
+    let response_line = {
+        {
+            let mut stdin_guard = state.stdin.lock()
+                .map_err(|e| format!("stdin lock: {e}"))
+                .map_err(AppError::Internal)?;
+            let stdin = stdin_guard.as_mut()
+                .ok_or_else(|| AppError::Internal("stdin not available".into()))?;
+            use std::io::Write;
+            if let Err(e) = writeln!(stdin, "{line}") {
+                return Err(AppError::Internal(format!("promote write: {e}")));
+            }
+            if let Err(e) = stdin.flush() {
+                return Err(AppError::Internal(format!("promote flush: {e}")));
+            }
+        }
+        let mut stdout_guard = state.stdout.lock()
+            .map_err(|e| format!("stdout lock: {e}"))
+            .map_err(AppError::Internal)?;
+        let stdout = stdout_guard.as_mut()
+            .ok_or_else(|| AppError::Internal("stdout not available".into()))?;
+        use std::io::{BufRead, BufReader};
+        let mut reader = BufReader::new(stdout);
+        let mut buf = String::new();
+        if let Err(e) = reader.read_line(&mut buf) {
+            return Err(AppError::Internal(format!("promote read: {e}")));
+        }
+        buf
+    };
+
+    let parsed = parse_line(&response_line).map_err(|e| {
+        AppError::Internal(format!("promote parse: {e}"))
+    })?;
+    let response = match parsed {
+        crate::domain::lab::sidecar::ParseResult::Response(r) => r,
+        _ => return Err(AppError::Internal("promote: not a response".into())),
+    };
+    if response.id != job_id {
+        return Err(AppError::Internal(format!(
+            "promote id mismatch: sent={job_id}, got={}",
+            response.id
+        )));
+    }
+    parse_promote_response(&response).map_err(|e| {
+        AppError::Internal(format!("promote decode: {e}"))
+    })
+}
+
+/// Args for the `promote_model` IPC. v0.18a — mirrors the
+/// Python sidecar's optional `job_id` param.
+#[derive(Debug, Clone, Deserialize)]
+pub struct PromoteModelArgs {
+    /// If set, refuses to promote a candidate from a
+    /// different job. Defaults to `None` (accept any
+    /// current candidate).
+    pub job_id: Option<String>,
 }
 
 /// Send an arbitrary `SidecarRequest` and return the raw response.

@@ -565,6 +565,7 @@ sequenceDiagram
 | **L1 train types + listen wrappers** | `trainJob` IPC + `onTrainStarted` / `onTrainFinished` | ✅ v0.17b 完成（typed event payloads + 4 round-trip tests） |
 | **TrainProgress component** | Per-trial table + best-trial highlight | ✅ v0.17c 完成（10 i18n keys, 2 status states, 0 new tests） |
 | **ModelLab Train button** | Train button + live progress panel + toast | ✅ v0.17d 完成（replaces 13-version-old v0.4 placeholder） |
+| **promote_model IPC + DTO** | Rust `promote_model` IPC + PromoteResult + 6 tests | ✅ v0.18a 完成（close to v0.17a but no events since promote is fast） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |

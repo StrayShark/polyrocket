@@ -308,6 +308,90 @@ pub fn parse_train_response(resp: &SidecarResponse) -> Result<TrainResult, Strin
     })
 }
 
+// =================================================================
+// ============== v0.18a — promote_model wire format ================
+// =================================================================
+
+/// Build a `promote_model` request. Pure function: serializes
+/// to a JSON-line string. The Python sidecar accepts:
+///
+///   - job_id: str (optional; if set, refuses to promote a
+///     candidate from a different job — protects against
+///     race conditions where another train finishes between
+///     the user's intent to promote and the promote call)
+///
+/// v0.18a — promote is a fast synchronous file move (~10ms).
+/// No progress events. The IPC returns the full result.
+pub fn build_promote_request(id: impl Into<String>, job_id: Option<&str>) -> String {
+    let params = match job_id {
+        Some(j) => serde_json::json!({ "job_id": j }),
+        None => serde_json::json!({}),
+    };
+    let req = SidecarRequest {
+        id: id.into(),
+        method: SidecarMethod::PromoteModel.as_str().to_string(),
+        params,
+    };
+    serde_json::to_string(&req).unwrap_or_default()
+}
+
+/// Wire-format mirror of the Python `run_promote_model`
+/// return value. v0.18a — `promoted: bool` is the primary
+/// success indicator; `status: "ok" | "failed"` is the
+/// Python's own string for backward compat.
+///
+/// All fields are nullable because the Python sidecar
+/// returns a partially-populated dict on failure paths
+/// (e.g. when the candidate file is missing).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PromoteResult {
+    /// `true` on success, `false` on failure.
+    pub promoted: bool,
+    /// "ok" | "failed" — mirrors the Python's return string.
+    pub status: String,
+    /// Path of the previous active.json (or null on first promote).
+    pub previous_path: Option<String>,
+    /// Path of the new active.json (the candidate was renamed to this).
+    pub active_path: Option<String>,
+    /// Wall-clock time of the promote in milliseconds.
+    pub promoted_at_ms: Option<i64>,
+    /// New model version string (e.g. `logistic-train-441c352b`).
+    /// Empty string on failure.
+    pub model_version: String,
+    /// Human-readable error message on failure; `None` on success.
+    pub message: Option<String>,
+}
+
+/// Parse a `promote_model` response into a `PromoteResult`.
+/// Returns Err if the response is `ok=false`.
+pub fn parse_promote_response(resp: &SidecarResponse) -> Result<PromoteResult, String> {
+    if !resp.ok {
+        return Err(resp.error.clone().unwrap_or_else(|| "unknown error".into()));
+    }
+    let v = resp.result.clone().unwrap_or(Value::Null);
+    Ok(PromoteResult {
+        promoted: v.get("promoted").and_then(|x| x.as_bool()).unwrap_or(false),
+        status: v.get("status")
+            .and_then(|x| x.as_str())
+            .unwrap_or("unknown")
+            .to_string(),
+        previous_path: v.get("previous_path")
+            .and_then(|x| x.as_str())
+            .map(String::from),
+        active_path: v.get("active_path")
+            .and_then(|x| x.as_str())
+            .map(String::from),
+        promoted_at_ms: v.get("promoted_at_ms").and_then(|x| x.as_i64()),
+        model_version: v.get("model_version")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string(),
+        message: v.get("message")
+            .and_then(|x| x.as_str())
+            .map(String::from),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -319,6 +403,106 @@ mod tests {
             assert_eq!(SidecarMethod::parse(m.as_str()), Some(m));
         }
         assert_eq!(SidecarMethod::parse("nope"), None);
+    }
+
+    #[test]
+    fn parse_promote_response_success() {
+        // v0.18a — full success case
+        let r = SidecarResponse {
+            id: "promote-abc".into(),
+            ok: true,
+            result: Some(serde_json::json!({
+                "promoted": true,
+                "status": "ok",
+                "previous_path": "/home/x/.polyrocket/sidecar/models/active.json",
+                "active_path": "/home/x/.polyrocket/sidecar/models/active.json",
+                "promoted_at_ms": 1_700_000_000_000_i64,
+                "model_version": "logistic-train-441c352b",
+            })),
+            error: None,
+        };
+        let p = parse_promote_response(&r).expect("ok");
+        assert!(p.promoted);
+        assert_eq!(p.status, "ok");
+        assert_eq!(p.model_version, "logistic-train-441c352b");
+        assert_eq!(p.previous_path.as_deref(), Some("/home/x/.polyrocket/sidecar/models/active.json"));
+        assert_eq!(p.promoted_at_ms, Some(1_700_000_000_000));
+        assert!(p.message.is_none());
+    }
+
+    #[test]
+    fn parse_promote_response_no_candidate() {
+        // v0.18a — the user clicked Promote before Train.
+        // The Python sidecar returns promoted: false with a
+        // descriptive message. The Rust side returns the
+        // same shape so the L1 doesn't need a special path.
+        let r = SidecarResponse {
+            id: "promote-xyz".into(),
+            ok: true,
+            result: Some(serde_json::json!({
+                "promoted": false,
+                "status": "failed",
+                "message": "no candidate found at /home/x/.polyrocket/sidecar/models/candidate.json; run train_job first",
+            })),
+            error: None,
+        };
+        let p = parse_promote_response(&r).expect("ok");
+        assert!(!p.promoted);
+        assert_eq!(p.status, "failed");
+        assert!(p.message.unwrap().contains("run train_job first"));
+        assert_eq!(p.model_version, "");
+        assert!(p.previous_path.is_none());
+        assert!(p.active_path.is_none());
+    }
+
+    #[test]
+    fn parse_promote_response_job_id_mismatch() {
+        // v0.18a — the user passed job_id="X" but the
+        // current candidate is from job_id="Y". Refused.
+        let r = SidecarResponse {
+            id: "promote-mmm".into(),
+            ok: true,
+            result: Some(serde_json::json!({
+                "promoted": false,
+                "status": "failed",
+                "message": "candidate job_id mismatch: expected X, got Y",
+            })),
+            error: None,
+        };
+        let p = parse_promote_response(&r).expect("ok");
+        assert!(!p.promoted);
+        assert!(p.message.unwrap().contains("mismatch"));
+    }
+
+    #[test]
+    fn parse_promote_response_not_ok_returns_err() {
+        // v0.18a — the Python sidecar returned ok=false.
+        // We propagate the error message.
+        let r = SidecarResponse {
+            id: "promote-eee".into(),
+            ok: false,
+            result: None,
+            error: Some("internal: oops".into()),
+        };
+        assert!(parse_promote_response(&r).is_err());
+    }
+
+    #[test]
+    fn build_promote_request_no_job_id() {
+        // v0.18a — optional job_id is omitted
+        let line = build_promote_request("promote-123", None);
+        let v: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(v["method"], "promote_model");
+        assert_eq!(v["id"], "promote-123");
+        assert!(v["params"].as_object().unwrap().is_empty());
+    }
+
+    #[test]
+    fn build_promote_request_with_job_id() {
+        // v0.18a — job_id is included
+        let line = build_promote_request("promote-456", Some("train-abc"));
+        let v: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(v["params"]["job_id"], "train-abc");
     }
 
     #[test]
