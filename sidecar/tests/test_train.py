@@ -376,6 +376,44 @@ class PromoteModelTests(unittest.TestCase):
         # The candidate still exists (not promoted, not deleted)
         self.assertTrue(train.CANDIDATE_FILE.exists())
 
+    def test_promote_all_trials_v25(self) -> None:
+        """v0.25a: bulk-promote all 4 trials in one call.
+        After the call, all 4 trials should appear in
+        the promotion history, each with its own -tN
+        suffix and trial_index.
+        """
+        from polyrocket_sidecar.train import (
+            run_promote_all_trials,
+            run_list_promote_history,
+        )
+        t = run_train_job(n_trials=4, epochs=10)
+        self.assertEqual(len(t["trials"]), 4)
+        result = run_promote_all_trials()
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["count"], 4)
+        self.assertEqual(len(result["results"]), 4)
+        # All 4 should be promoted
+        for i, r in enumerate(result["results"]):
+            self.assertEqual(r["trial_index"], i)
+            self.assertTrue(r["promoted"], msg=f"trial {i} failed: {r}")
+            self.assertEqual(r["status"], "ok")
+            self.assertTrue(r["model_version"].endswith(f"-t{i}"))
+        # All 4 should appear in the history
+        history = run_list_promote_history()
+        self.assertEqual(history["count"], 4)
+        trial_indices = [e["trial_index"] for e in history["entries"]]
+        self.assertEqual(trial_indices, [0, 1, 2, 3])
+
+    def test_promote_all_trials_no_candidate_v25(self) -> None:
+        """v0.25a: no candidate on disk returns ok=false."""
+        from polyrocket_sidecar.train import run_promote_all_trials
+        result = run_promote_all_trials()
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["count"], 0)
+        self.assertEqual(result["results"], [])
+        self.assertIn("no candidate", result["message"])
+        self.assertFalse(train.ACTIVE_FILE.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

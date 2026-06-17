@@ -108,6 +108,11 @@ pub enum SidecarMethod {
     /// model (Brier margin). If not, no-op + clear "skipped"
     /// reason. One-click action triggered by the user.
     AutoPromoteIfBetter,
+    /// v0.25a — bulk-promote all 4 trials. Loops over
+    /// `candidate.all_trials[]` and promotes each one.
+    /// For A/B comparison: the user can see all 4 in
+    /// the history and pick the winner via Rollback.
+    PromoteAllTrials,
 }
 
 impl SidecarMethod {
@@ -120,6 +125,7 @@ impl SidecarMethod {
             SidecarMethod::ListPromoteHistory => "list_promote_history",
             SidecarMethod::RollbackModel => "rollback_model",
             SidecarMethod::AutoPromoteIfBetter => "auto_promote_if_better",
+            SidecarMethod::PromoteAllTrials => "promote_all_trials",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -131,6 +137,7 @@ impl SidecarMethod {
             "list_promote_history" => Some(SidecarMethod::ListPromoteHistory),
             "rollback_model" => Some(SidecarMethod::RollbackModel),
             "auto_promote_if_better" => Some(SidecarMethod::AutoPromoteIfBetter),
+            "promote_all_trials" => Some(SidecarMethod::PromoteAllTrials),
             _ => None,
         }
     }
@@ -684,6 +691,89 @@ pub fn parse_auto_promote_if_better_response(
     })
 }
 
+// =================================================================
+// ============== v0.25a — promote_all_trials wire format ==========
+// =================================================================
+
+/// Build a `promote_all_trials` request. Pure function.
+/// v0.25a — no params; the sidecar reads the current
+/// candidate and promotes every trial.
+pub fn build_promote_all_trials_request(id: impl Into<String>) -> String {
+    let req = SidecarRequest {
+        id: id.into(),
+        method: SidecarMethod::PromoteAllTrials.as_str().to_string(),
+        params: serde_json::json!({}),
+    };
+    serde_json::to_string(&req).unwrap_or_default()
+}
+
+/// Wire-format mirror of one per-trial promote result
+/// inside the `results` list. v0.25a.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PromoteAllTrialResult {
+    /// 0-indexed trial number.
+    pub trial_index: usize,
+    /// `true` if this trial was successfully promoted.
+    pub promoted: bool,
+    /// "ok" | "failed" — mirrors the Python's per-call status.
+    pub status: String,
+    /// New model version (e.g. "logistic-train-XYZ-t2").
+    /// Empty string on failure.
+    pub model_version: String,
+    /// Wall-clock time of the promote in ms.
+    pub promoted_at_ms: Option<i64>,
+    /// Human-readable error message on failure.
+    pub message: Option<String>,
+}
+
+/// Wire-format mirror of the Python `run_promote_all_trials`
+/// return value. v0.25a.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PromoteAllTrialsResult {
+    /// `true` if all trial promotes succeeded.
+    pub ok: bool,
+    /// Per-trial results, in trial_index order.
+    pub results: Vec<PromoteAllTrialResult>,
+    /// `len(results)`.
+    pub count: usize,
+    /// Overall error message (e.g. "no candidate"). None
+    /// if all promotes succeeded.
+    pub message: Option<String>,
+}
+
+/// Parse a `promote_all_trials` response into a
+/// `PromoteAllTrialsResult`. Returns Err if the response
+/// is `ok=false` at the envelope level.
+pub fn parse_promote_all_trials_response(
+    resp: &SidecarResponse,
+) -> Result<PromoteAllTrialsResult, String> {
+    if !resp.ok {
+        return Err(resp.error.clone().unwrap_or_else(|| "unknown error".into()));
+    }
+    let v = resp.result.clone().unwrap_or(Value::Null);
+    let results: Vec<PromoteAllTrialResult> = v
+        .get("results")
+        .and_then(|x| x.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|item| {
+                    serde_json::from_value::<PromoteAllTrialResult>(item.clone()).ok()
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(PromoteAllTrialsResult {
+        ok: v.get("ok").and_then(|x| x.as_bool()).unwrap_or(false),
+        count: v.get("count")
+            .and_then(|x| x.as_u64())
+            .unwrap_or(results.len() as u64) as usize,
+        results,
+        message: v.get("message")
+            .and_then(|x| x.as_str())
+            .map(String::from),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -694,7 +784,8 @@ mod tests {
                   SidecarMethod::TrainJob, SidecarMethod::PromoteModel,
                   SidecarMethod::ListPromoteHistory,
                   SidecarMethod::RollbackModel,
-                  SidecarMethod::AutoPromoteIfBetter] {
+                  SidecarMethod::AutoPromoteIfBetter,
+                  SidecarMethod::PromoteAllTrials] {
             assert_eq!(SidecarMethod::parse(m.as_str()), Some(m));
         }
         assert_eq!(SidecarMethod::parse("nope"), None);
@@ -1138,6 +1229,108 @@ mod tests {
             error: Some("internal: oops".into()),
         };
         assert!(parse_auto_promote_if_better_response(&r).is_err());
+    }
+
+    #[test]
+    fn build_promote_all_trials_request_basic() {
+        // v0.25a — no params, just the method + id
+        let line = build_promote_all_trials_request("all-1");
+        let v: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(v["method"], "promote_all_trials");
+        assert_eq!(v["id"], "all-1");
+        assert_eq!(v["params"], serde_json::json!({}));
+    }
+
+    #[test]
+    fn parse_promote_all_trials_response_all_ok() {
+        // v0.25a — 4 trials all promoted successfully
+        let r = SidecarResponse {
+            id: "all-2".into(),
+            ok: true,
+            result: Some(serde_json::json!({
+                "ok": true,
+                "count": 4,
+                "results": [
+                    {
+                        "trial_index": 0,
+                        "promoted": true,
+                        "status": "ok",
+                        "model_version": "logistic-train-XYZ-t0",
+                        "promoted_at_ms": 1_700_030_000_000_i64,
+                        "message": null,
+                    },
+                    {
+                        "trial_index": 1,
+                        "promoted": true,
+                        "status": "ok",
+                        "model_version": "logistic-train-XYZ-t1",
+                        "promoted_at_ms": 1_700_030_001_000_i64,
+                        "message": null,
+                    },
+                    {
+                        "trial_index": 2,
+                        "promoted": true,
+                        "status": "ok",
+                        "model_version": "logistic-train-XYZ-t2",
+                        "promoted_at_ms": 1_700_030_002_000_i64,
+                        "message": null,
+                    },
+                    {
+                        "trial_index": 3,
+                        "promoted": true,
+                        "status": "ok",
+                        "model_version": "logistic-train-XYZ-t3",
+                        "promoted_at_ms": 1_700_030_003_000_i64,
+                        "message": null,
+                    },
+                ],
+                "message": null,
+            })),
+            error: None,
+        };
+        let p = parse_promote_all_trials_response(&r).expect("ok");
+        assert!(p.ok);
+        assert_eq!(p.count, 4);
+        assert_eq!(p.results.len(), 4);
+        for (i, t) in p.results.iter().enumerate() {
+            assert_eq!(t.trial_index, i);
+            assert!(t.promoted);
+            assert!(t.model_version.ends_with(&format!("-t{i}")));
+        }
+    }
+
+    #[test]
+    fn parse_promote_all_trials_response_no_candidate() {
+        // v0.25a — no candidate on disk returns ok=false
+        // with empty results and a clear message
+        let r = SidecarResponse {
+            id: "all-3".into(),
+            ok: true,
+            result: Some(serde_json::json!({
+                "ok": false,
+                "count": 0,
+                "results": [],
+                "message": "no candidate found at /home/x/.polyrocket/sidecar/models/candidate.json; run train_job first",
+            })),
+            error: None,
+        };
+        let p = parse_promote_all_trials_response(&r).expect("ok");
+        assert!(!p.ok);
+        assert_eq!(p.count, 0);
+        assert!(p.results.is_empty());
+        assert!(p.message.unwrap().contains("train_job"));
+    }
+
+    #[test]
+    fn parse_promote_all_trials_response_not_ok_returns_err() {
+        // v0.25a — envelope-level error
+        let r = SidecarResponse {
+            id: "all-4".into(),
+            ok: false,
+            result: None,
+            error: Some("internal: oops".into()),
+        };
+        assert!(parse_promote_all_trials_response(&r).is_err());
     }
 
     #[test]

@@ -202,7 +202,7 @@ class DispatchTests(unittest.TestCase):
     def test_all_methods_registered(self) -> None:
         # If a method is added on the Rust side without registering here, this
         # catches it. Mirror the set in `SidecarMethod` enum on Rust.
-        expected = {"ping", "predict", "train_job", "promote_model", "list_promote_history", "rollback_model", "auto_promote_if_better"}
+        expected = {"ping", "predict", "train_job", "promote_model", "list_promote_history", "rollback_model", "auto_promote_if_better", "promote_all_trials"}
         self.assertEqual(set(DISPATCH.keys()), expected)
 
     def test_ping_returns_pong(self) -> None:
@@ -463,6 +463,38 @@ class E2ESubprocessTests(unittest.TestCase):
         self.assertFalse(result["promoted"])
         self.assertTrue(result["skipped"])
         self.assertIn("non-negative", result["reason"])
+
+    def test_e2e_promote_all_trials_no_candidate(self) -> None:
+        """v0.25a: when no candidate is on disk, returns
+        ok=false with empty results and a clear message.
+        We can't guarantee a clean state in the e2e tests
+        (they share `~/.polyrocket/sidecar/models/`), so
+        we just check the response shape — if a candidate
+        happens to exist, the response will have promoted=true
+        entries (also valid behavior).
+        """
+        out = self._round_trip(
+            '{"id": 101, "method": "promote_all_trials", "params": {}}'
+        )
+        self.assertEqual(out["id"], 101)
+        self.assertTrue(out["ok"])
+        result = out["result"]
+        # The shape is always {ok, count, results, message}
+        self.assertIn("ok", result)
+        self.assertIn("count", result)
+        self.assertIn("results", result)
+        self.assertIsInstance(result["results"], list)
+        self.assertEqual(result["count"], len(result["results"]))
+        # If a candidate was available, all results should
+        # have been promoted. If not, the message should
+        # mention "no candidate".
+        if not result["ok"]:
+            self.assertIn("no candidate", result["message"])
+        else:
+            for r in result["results"]:
+                self.assertIn("trial_index", r)
+                self.assertIn("model_version", r)
+                self.assertIn("promoted", r)
 
 
 if __name__ == "__main__":

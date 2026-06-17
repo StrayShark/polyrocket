@@ -706,3 +706,84 @@ def run_rollback_model(*, model_version: str) -> dict[str, Any]:
             "status": "failed",
             "message": f"rollback failed: {e}",
         }
+
+
+def run_promote_all_trials() -> dict[str, Any]:
+    """Promote every trial from the current candidate.
+
+    v0.25a — bulk-promote all 4 trials in one call.
+    For each trial in `candidate.all_trials[]`, calls
+    `run_promote_model(trial_index=i)` and collects
+    the results. Each call writes a new entry to
+    `promotion_history` (capped at 20 most-recent
+    entries on the write side, so all 4 fit).
+
+    This is for A/B comparison: the user can see how
+    all 4 trials perform on real markets, then roll
+    back to the winner via the v0.20c Rollback button.
+
+    Returns:
+      - ok           — bool (true if all promotes succeeded)
+      - results      — list of per-trial promote results,
+                       each with {trial_index, promoted,
+                       status, model_version, promoted_at_ms,
+                       message}
+      - count        — len(results)
+      - message      — overall error message on failure
+
+    On failure (e.g. no candidate), returns ok=false
+    with results=[] and a clear message. Individual
+    trial failures (rare; the file is read+written
+    atomically) are included in the per-trial results.
+    """
+    if not CANDIDATE_FILE.exists():
+        return {
+            "ok": False,
+            "results": [],
+            "count": 0,
+            "message": f"no candidate found at {CANDIDATE_FILE}; run train_job first",
+        }
+    try:
+        candidate = json.loads(CANDIDATE_FILE.read_text())
+    except (OSError, json.JSONDecodeError) as e:
+        return {
+            "ok": False,
+            "results": [],
+            "count": 0,
+            "message": f"failed to read candidate: {e}",
+        }
+
+    all_trials = candidate.get("all_trials", [])
+    if not isinstance(all_trials, list) or len(all_trials) == 0:
+        return {
+            "ok": False,
+            "results": [],
+            "count": 0,
+            "message": "candidate has no all_trials; cannot bulk-promote",
+        }
+
+    # Loop over each trial and promote. The promote
+    # function handles atomic file writes, so calling
+    # it 4 times in a row is safe (each gets the
+    # current active.json + appends to history).
+    results: list[dict[str, Any]] = []
+    for i in range(len(all_trials)):
+        r = run_promote_model(trial_index=i)
+        results.append({
+            "trial_index": i,
+            "promoted": r.get("promoted", False),
+            "status": r.get("status", "unknown"),
+            "model_version": r.get("model_version", ""),
+            "promoted_at_ms": r.get("promoted_at_ms"),
+            "message": r.get("message"),
+        })
+
+    # "ok" = all 4 promoted. Partial success is still
+    # "ok" (the user can see the per-trial results).
+    all_ok = all(r["promoted"] for r in results)
+    return {
+        "ok": all_ok,
+        "results": results,
+        "count": len(results),
+        "message": None if all_ok else "one or more trial promotes failed",
+    }

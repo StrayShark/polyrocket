@@ -8,6 +8,7 @@ Method names are LOWERCASE to match the Rust `SidecarMethod::as_str`:
   - "list_promote_history"    (Rust: SidecarMethod::ListPromoteHistory)  [v0.19a]
   - "rollback_model"          (Rust: SidecarMethod::RollbackModel)        [v0.20a]
   - "auto_promote_if_better"  (Rust: SidecarMethod::AutoPromoteIfBetter)  [v0.23a]
+  - "promote_all_trials"      (Rust: SidecarMethod::PromoteAllTrials)      [v0.25a]
 
 If you add a method here, you MUST also:
   1. Add it to `SidecarMethod` enum in domain::lab::sidecar
@@ -27,6 +28,7 @@ from .train import (
     run_list_promote_history,
     run_rollback_model,
     run_auto_promote_if_better,
+    run_promote_all_trials,
 )
 
 
@@ -153,6 +155,15 @@ def auto_promote_if_better(params: dict[str, Any]) -> dict[str, Any]:
     return run_auto_promote_if_better(brier_margin=float(brier_margin), trial_index=trial_index)
 
 
+def promote_all_trials(_params: dict[str, Any]) -> dict[str, Any]:
+    """Promote every trial from the current candidate.
+
+    v0.25a — bulk-promote all 4 trials in one call.
+    No params. Returns a list of per-trial results.
+    """
+    return run_promote_all_trials()
+
+
 DISPATCH: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "ping": ping,
     "predict": predict,
@@ -161,4 +172,5 @@ DISPATCH: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "list_promote_history": list_promote_history,
     "rollback_model": rollback_model,
     "auto_promote_if_better": auto_promote_if_better,
+    "promote_all_trials": promote_all_trials,
 }
