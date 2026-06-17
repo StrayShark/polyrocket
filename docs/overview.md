@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v1.5 · 2026-06-17 (v0.28-0.31 — background auto-promote + hover tooltips + history filter)
+> 版本：v1.6 · 2026-06-17 (v0.32 — L1↔Tauri guard v2 (dual-direction))
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
 
@@ -605,6 +605,8 @@ sequenceDiagram
 | **Hover tooltips on chart dots** | Two-layer tooltip (native `<title>` + custom `<g>`) | ✅ v0.29 完成（4 new chart tests; hit areas + dot growth + SVG mouseLeave） |
 | **Trial-type filter in history panel** | 3 filter chips (All / Best / Bulk) + filtering + "no matches" message | ✅ v0.30 完成（5 new history tests; 4 new i18n keys × 2 locales; local state） |
 | **Batch ship log for v0.28-0.30** | Combined docs covering 3 versions + tally | ✅ v0.31 完成（629 tests total; 7 commits; closes 3 of 4 deferred items from v0.27） |
+| **L1↔Tauri guard v2** | scripts/check-l1-tauri.mjs dual-direction (also checks Rust defs) | ✅ v0.32a 完成（catches "defined but not registered" inverse; +2 tests; OK line shows defs count） |
+| **v0.32 final docs** | Ship log + tally + closes the v0.27 #4 deferred item | ✅ v0.32b 完成（631 tests total; 3rd CI guard is now dual-direction） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |
