@@ -671,7 +671,7 @@ pub async fn promote_model(
     args: PromoteModelArgs,
 ) -> AppResult<PromoteResult> {
     let job_id = format!("promote-{}", uuid::Uuid::new_v4().to_string().split('-').next().unwrap_or("00000000"));
-    let line = build_promote_request(&job_id, args.job_id.as_deref());
+    let line = build_promote_request(&job_id, args.job_id.as_deref(), args.trial_index);
 
     if !state.is_running() {
         return Ok(PromoteResult {
@@ -682,6 +682,7 @@ pub async fn promote_model(
             promoted_at_ms: None,
             model_version: String::new(),
             message: Some("sidecar not running".into()),
+            trial_index: None,
         });
     }
 
@@ -736,12 +737,17 @@ pub async fn promote_model(
 
 /// Args for the `promote_model` IPC. v0.18a — mirrors the
 /// Python sidecar's optional `job_id` param.
+/// v0.21a — added `trial_index` for bulk promote.
 #[derive(Debug, Clone, Deserialize)]
 pub struct PromoteModelArgs {
     /// If set, refuses to promote a candidate from a
     /// different job. Defaults to `None` (accept any
     /// current candidate).
     pub job_id: Option<String>,
+    /// v0.21a — if set, promotes the n-th trial from
+    /// `all_trials[]` instead of the best. 0-indexed.
+    /// `None` (default) means "promote the best".
+    pub trial_index: Option<usize>,
 }
 
 /// List the promote history. v0.19b — read-only audit.

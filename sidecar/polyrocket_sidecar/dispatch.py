@@ -59,8 +59,21 @@ def promote_model(params: dict[str, Any]) -> dict[str, Any]:
     Optional params:
       - job_id: str (if set, refuses to promote a candidate from
                  a different job — protects against race conditions)
+      - trial_index: int (v0.21a — bulk promote. If set, promotes
+                 that specific trial from all_trials[] instead of
+                 the best. 0..n_trials-1.)
     """
     job_id = params.get("job_id")
+    trial_index = params.get("trial_index")
+    # v0.21a — only pass trial_index if it's an int
+    if trial_index is not None:
+        if not isinstance(trial_index, int):
+            return {
+                "promoted": False,
+                "status": "failed",
+                "message": f"trial_index must be an int, got {type(trial_index).__name__}",
+            }
+        return run_promote_model(job_id=job_id, trial_index=trial_index)
     return run_promote_model(job_id=job_id)
 
 

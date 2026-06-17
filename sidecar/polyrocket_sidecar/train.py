@@ -199,20 +199,46 @@ def run_train_job(
     }
 
 
-def run_promote_model(*, job_id: str | None = None) -> dict[str, Any]:
+def run_promote_model(
+    *,
+    job_id: str | None = None,
+    trial_index: int | None = None,
+) -> dict[str, Any]:
     """Promote the current candidate to the active slot.
+
+    Args:
+      job_id: optional safety check. If set, refuses to
+        promote a candidate from a different job.
+      trial_index: optional (v0.21a — bulk promote). If
+        None (default), promotes the candidate's `best`
+        trial (current behavior). If set to an integer
+        in [0, n_trials), promotes that specific trial
+        from `all_trials[]` instead. The promoted model
+        version is suffixed with `-t{trial_index}` so the
+        user can distinguish bulk-promoted trials in
+        the history panel.
 
     Returns:
       - promoted       — bool
       - previous_path  — where the old active file was (or null)
       - active_path    — where the new active file is
       - promoted_at_ms — timestamp
+      - model_version  — e.g. "logistic-train-441c352b" or
+                         "logistic-train-441c352b-t2" (bulk)
+      - trial_index    — int|null (which trial was promoted)
 
     v0.19a — also maintains a `promotion_history` array inside
     active.json. On each successful promote, the NEW entry is
     appended so the user can audit "which model was active
     when" via the `list_promote_history` method. The history
     is bounded to the last 20 entries to keep the file small.
+
+    v0.21a — bulk promote. The user can promote any of the
+    4 trials in a train sweep, not just the best. The
+    "best by synthetic Brier" isn't always the "best in
+    production" — the synthetic data is a stand-in. v0.21
+    lets the user see all 4 in the history panel and pick
+    the actual winner.
     """
     if not CANDIDATE_FILE.exists():
         return {
@@ -245,25 +271,67 @@ def run_promote_model(*, job_id: str | None = None) -> dict[str, Any]:
                 "message": f"candidate job_id mismatch: expected {job_id}, got {candidate.get('job_id')}",
             }
 
+        # v0.21a — pick the trial to promote. trial_index
+        # None → use the best (default). trial_index 0..n-1
+        # → use all_trials[trial_index].
+        all_trials = candidate.get("all_trials", [])
+        if trial_index is not None:
+            if not isinstance(trial_index, int) or trial_index < 0 or trial_index >= len(all_trials):
+                return {
+                    "promoted": False,
+                    "status": "failed",
+                    "message": (
+                        f"trial_index {trial_index!r} out of range "
+                        f"(0..{len(all_trials) - 1} valid)"
+                    ),
+                }
+            trial = all_trials[trial_index]
+            # v0.21a — the trial dict has `weights: {w0, w1, w2}`
+            # nested, not flat. We need to extract the inner
+            # dict (this differs from `best` which has w0/w1/w2
+            # directly — see run_train_job's `best` shape vs
+            # `trials` list shape).
+            trial_weights = trial.get("weights") or {}
+            weights = {
+                "w0": trial_weights.get("w0"),
+                "w1": trial_weights.get("w1"),
+                "w2": trial_weights.get("w2"),
+            }
+            # v0.21a — for non-best trials, the "best" dict
+            # is the candidate's best (for reference), but
+            # the weights are from the specific trial.
+            best = candidate.get("best") or {}
+            best_brier = trial.get("brier")
+            best_params = {"lr": trial.get("lr"), "reg": trial.get("reg")}
+            version_suffix = f"-t{trial_index}"
+        else:
+            best = candidate.get("best") or {}
+            weights = {
+                "w0": best.get("w0"),
+                "w1": best.get("w1"),
+                "w2": best.get("w2"),
+            }
+            best_brier = best.get("brier")
+            best_params = candidate.get("best_params")
+            version_suffix = ""
+
         promoted_at_ms = int(time.time() * 1000)
         # v0.20a — extract weights from the candidate's
         # "best" dict so the history entry is self-contained
         # for rollback (no need to re-train or read the
         # candidate file later). The candidate["best"] has
         # {w0, w1, w2, brier, ...}; we only need the weights.
-        best = candidate.get("best") or {}
-        weights = {
-            "w0": best.get("w0"),
-            "w1": best.get("w1"),
-            "w2": best.get("w2"),
-        }
         new_entry: dict[str, Any] = {
             "job_id": candidate.get("job_id"),
-            "model_version": f"logistic-{candidate.get('job_id', 'unknown')}",
+            "model_version": f"logistic-{candidate.get('job_id', 'unknown')}{version_suffix}",
             "promoted_at_ms": promoted_at_ms,
-            "best_brier": best.get("brier"),
-            "best_params": candidate.get("best_params"),
+            "best_brier": best_brier,
+            "best_params": best_params,
             "weights": weights,
+            # v0.21a — record the trial_index so the user
+            # can see "this was the best trial" vs "this
+            # was trial 2 of 4" in the history panel.
+            "trial_index": trial_index,
         }
         # v0.19a — append the NEW entry; cap at 20 most-recent
         history.append(new_entry)
@@ -285,7 +353,8 @@ def run_promote_model(*, job_id: str | None = None) -> dict[str, Any]:
             "previous_path": previous,
             "active_path": str(ACTIVE_FILE),
             "promoted_at_ms": promoted_at_ms,
-            "model_version": f"logistic-{candidate.get('job_id', 'unknown')}",
+            "model_version": f"logistic-{candidate.get('job_id', 'unknown')}{version_suffix}",
+            "trial_index": trial_index,
         }
     except (OSError, json.JSONDecodeError) as e:
         return {

@@ -290,6 +290,57 @@ class PromoteModelTests(unittest.TestCase):
         self.assertIn("no weights", rb["message"])
         self.assertIn("cannot rollback", rb["message"].lower())
 
+    def test_promote_specific_trial_v21(self) -> None:
+        """v0.21a: bulk promote. Train 4 trials, promote
+        trial index 2 (not the best). The active should be
+        trial 2's weights; the model_version should have
+        a -t2 suffix; the history should record trial_index=2.
+        """
+        t = run_train_job(n_trials=4, epochs=10)
+        self.assertEqual(len(t["trials"]), 4)
+        # Pick trial 2 (NOT the best — the best might be
+        # any of the 4 by synthetic Brier)
+        promote = run_promote_model(trial_index=2)
+        self.assertTrue(promote["promoted"], msg=str(promote))
+        self.assertEqual(promote["status"], "ok")
+        self.assertEqual(promote["trial_index"], 2)
+        self.assertTrue(promote["model_version"].endswith("-t2"))
+        # The history's last entry should have trial 2's weights
+        active = json.loads(train.ACTIVE_FILE.read_text())
+        trial2_weights = t["trials"][2]["weights"]
+        history_weights = active["promotion_history"][-1]["weights"]
+        self.assertEqual(history_weights["w0"], trial2_weights["w0"])
+        self.assertEqual(history_weights["w1"], trial2_weights["w1"])
+        self.assertEqual(history_weights["w2"], trial2_weights["w2"])
+        # History records trial_index
+        self.assertEqual(active["promotion_history"][-1]["trial_index"], 2)
+        # And the history entry uses the -t2 version
+        self.assertTrue(active["promotion_history"][-1]["model_version"].endswith("-t2"))
+
+    def test_promote_default_is_best_v21(self) -> None:
+        """v0.21a: when trial_index is None, the behavior is
+        unchanged from v0.18a (promote the best).
+        """
+        t = run_train_job(n_trials=4, epochs=10)
+        promote = run_promote_model()  # no trial_index
+        self.assertTrue(promote["promoted"], msg=str(promote))
+        self.assertIsNone(promote["trial_index"])
+        # Model version has no -t{N} suffix
+        self.assertFalse(promote["model_version"].endswith(("-t0", "-t1", "-t2", "-t3")))
+
+    def test_promote_trial_out_of_range_v21(self) -> None:
+        """v0.21a: trial_index out of range returns a
+        clear error and does NOT modify the active file.
+        """
+        run_train_job(n_trials=4, epochs=10)
+        # trial_index 99 is out of range (only 0..3 valid)
+        promote = run_promote_model(trial_index=99)
+        self.assertFalse(promote["promoted"])
+        self.assertEqual(promote["status"], "failed")
+        self.assertIn("out of range", promote["message"])
+        # Active file should not exist (no successful promote)
+        self.assertFalse(train.ACTIVE_FILE.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -337,15 +337,27 @@ pub fn parse_train_response(resp: &SidecarResponse) -> Result<TrainResult, Strin
 ///
 /// v0.18a — promote is a fast synchronous file move (~10ms).
 /// No progress events. The IPC returns the full result.
-pub fn build_promote_request(id: impl Into<String>, job_id: Option<&str>) -> String {
-    let params = match job_id {
-        Some(j) => serde_json::json!({ "job_id": j }),
-        None => serde_json::json!({}),
-    };
+/// v0.21a — `trial_index` is an optional bulk-promote param.
+/// If `Some(n)`, promotes the n-th trial from `all_trials[]`
+/// instead of the best. The model version gets a `-t{n}`
+/// suffix so the user can distinguish bulk-promoted trials
+/// in the history panel.
+pub fn build_promote_request(
+    id: impl Into<String>,
+    job_id: Option<&str>,
+    trial_index: Option<usize>,
+) -> String {
+    let mut params = serde_json::Map::new();
+    if let Some(j) = job_id {
+        params.insert("job_id".into(), serde_json::Value::String(j.to_string()));
+    }
+    if let Some(t) = trial_index {
+        params.insert("trial_index".into(), serde_json::Value::from(t));
+    }
     let req = SidecarRequest {
         id: id.into(),
         method: SidecarMethod::PromoteModel.as_str().to_string(),
-        params,
+        params: serde_json::Value::Object(params),
     };
     serde_json::to_string(&req).unwrap_or_default()
 }
@@ -358,6 +370,11 @@ pub fn build_promote_request(id: impl Into<String>, job_id: Option<&str>) -> Str
 /// All fields are nullable because the Python sidecar
 /// returns a partially-populated dict on failure paths
 /// (e.g. when the candidate file is missing).
+///
+/// v0.21a — `trial_index: Option<usize>` records which
+/// trial was promoted. `None` means the best (default);
+/// `Some(n)` means the n-th trial of the train sweep
+/// (bulk promote).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromoteResult {
     /// `true` on success, `false` on failure.
@@ -370,11 +387,15 @@ pub struct PromoteResult {
     pub active_path: Option<String>,
     /// Wall-clock time of the promote in milliseconds.
     pub promoted_at_ms: Option<i64>,
-    /// New model version string (e.g. `logistic-train-441c352b`).
+    /// New model version string (e.g. `logistic-train-441c352b`
+    /// for the best, or `logistic-train-441c352b-t2` for bulk).
     /// Empty string on failure.
     pub model_version: String,
     /// Human-readable error message on failure; `None` on success.
     pub message: Option<String>,
+    /// v0.21a — which trial was promoted. `None` = best;
+    /// `Some(n)` = trial n of the train sweep.
+    pub trial_index: Option<usize>,
 }
 
 /// Parse a `promote_model` response into a `PromoteResult`.
@@ -404,6 +425,7 @@ pub fn parse_promote_response(resp: &SidecarResponse) -> Result<PromoteResult, S
         message: v.get("message")
             .and_then(|x| x.as_str())
             .map(String::from),
+        trial_index: v.get("trial_index").and_then(|x| x.as_u64()).map(|n| n as usize),
     })
 }
 
@@ -665,7 +687,7 @@ mod tests {
     #[test]
     fn build_promote_request_no_job_id() {
         // v0.18a — optional job_id is omitted
-        let line = build_promote_request("promote-123", None);
+        let line = build_promote_request("promote-123", None, None);
         let v: serde_json::Value = serde_json::from_str(&line).unwrap();
         assert_eq!(v["method"], "promote_model");
         assert_eq!(v["id"], "promote-123");
@@ -675,9 +697,65 @@ mod tests {
     #[test]
     fn build_promote_request_with_job_id() {
         // v0.18a — job_id is included
-        let line = build_promote_request("promote-456", Some("train-abc"));
+        let line = build_promote_request("promote-456", Some("train-abc"), None);
         let v: serde_json::Value = serde_json::from_str(&line).unwrap();
         assert_eq!(v["params"]["job_id"], "train-abc");
+    }
+
+    #[test]
+    fn build_promote_request_with_trial_index() {
+        // v0.21a — bulk promote: trial_index in params
+        let line = build_promote_request("promote-789", Some("train-abc"), Some(2));
+        let v: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(v["params"]["job_id"], "train-abc");
+        assert_eq!(v["params"]["trial_index"], 2);
+    }
+
+    #[test]
+    fn parse_promote_response_with_trial_index() {
+        // v0.21a — bulk promote: response carries trial_index
+        let r = SidecarResponse {
+            id: "promote-bulk".into(),
+            ok: true,
+            result: Some(serde_json::json!({
+                "promoted": true,
+                "status": "ok",
+                "previous_path": "/home/x/.polyrocket/sidecar/models/active.json",
+                "active_path": "/home/x/.polyrocket/sidecar/models/active.json",
+                "promoted_at_ms": 1_700_010_000_000_i64,
+                "model_version": "logistic-train-441c352b-t2",
+                "trial_index": 2,
+            })),
+            error: None,
+        };
+        let p = parse_promote_response(&r).expect("ok");
+        assert!(p.promoted);
+        assert_eq!(p.model_version, "logistic-train-441c352b-t2");
+        assert_eq!(p.trial_index, Some(2));
+    }
+
+    #[test]
+    fn parse_promote_response_default_trial_index() {
+        // v0.21a — backward-compat: when trial_index is missing
+        // (Python sidecar didn't return it), the Rust side
+        // returns None (best, not bulk).
+        let r = SidecarResponse {
+            id: "promote-best".into(),
+            ok: true,
+            result: Some(serde_json::json!({
+                "promoted": true,
+                "status": "ok",
+                "previous_path": "/home/x/.polyrocket/sidecar/models/active.json",
+                "active_path": "/home/x/.polyrocket/sidecar/models/active.json",
+                "promoted_at_ms": 1_700_011_000_000_i64,
+                "model_version": "logistic-train-441c352b",
+            })),
+            error: None,
+        };
+        let p = parse_promote_response(&r).expect("ok");
+        assert!(p.promoted);
+        assert_eq!(p.model_version, "logistic-train-441c352b");
+        assert!(p.trial_index.is_none());
     }
 
     #[test]
