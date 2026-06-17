@@ -10,6 +10,12 @@ pub mod infra;
 pub mod lab_state;
 mod platform;
 
+// Re-exports for integration tests in `tests/`. The `commands`
+// module is private to keep its IPC surface internal, but the
+// SidecarState struct needs to be reachable from e2e tests so
+// they can drive a real Python sidecar.
+pub use commands::sidecar::{SidecarState, SidecarStatus};
+
 use tauri::Manager;
 use tracing_subscriber::EnvFilter;
 
@@ -33,6 +39,9 @@ pub fn run() {
         .plugin(tauri_plugin_sql::Builder::default().build())
         .setup(|app| {
             let app_handle = app.handle().clone();
+            // v0.11b — store the AppHandle so the scheduler can look
+            // up managed state (SidecarState) without going through L2.
+            let _ = infra::scheduler::TAURI_APP.set(app_handle.clone());
             tauri::async_runtime::block_on(async move {
                 let pool = infra::db::init_pool(&app_handle)
                     .await

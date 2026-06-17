@@ -772,25 +772,44 @@ pub async fn run_audit_purge_now(pool: &SqlitePool) -> sqlx::Result<usize> {
 
 use crate::domain::sidecar_health::SidecarHealthKind;
 use crate::infra::db::sidecar_health as sh;
+use std::sync::OnceLock;
+
+/// Global handle to the running Tauri AppHandle so the scheduler
+/// can look up managed state (e.g. SidecarState) without going
+/// through L2. Set in `lib.rs::run()` before the scheduler starts.
+pub static TAURI_APP: OnceLock<tauri::AppHandle> = OnceLock::new();
 
 const DEFAULT_SIDECAR_PROBE_SEC: u64 = 30;
 const DEFAULT_SIDECAR_PURGE_SEC: u64 = 3600;
 
 async fn ping_sidecar_once() -> (SidecarHealthKind, Option<i64>, Option<String>) {
-    // We don't have a handle to the sidecar process here, but the
-    // sidecar.rs commands expose `sidecar_request`. To keep this
-    // scheduler decoupled from the L2 module, we do a no-op: in
-    // v0.10d+ we'll add a "ping" coordinator that the L1 UI can
-    // call directly. For now, log "unknown" — the L1 UI still
-    // works because the user can ping from the palette.
+    // v0.11b — real probe via the L2 SidecarState. The scheduler
+    // doesn't have direct access to it (5-layer rule: L4 doesn't
+    // import L2), so we use the app handle to look it up.
     //
-    // In a follow-up commit, this should be replaced with a real
-    // pipe-write of `{"id":"sweeper","method":"ping","params":{}}`
-    // and a 2-second read timeout. For now, the schema + writer
-    // plumbing is in place.
-    let now = chrono::Utc::now().timestamp_millis();
-    let _ = now;
-    (SidecarHealthKind::Unknown, None, Some("probe not yet wired (v0.10d+ follow-up)".into()))
+    // If the sidecar isn't running, the AppHandle's `manage()`
+    // state isn't set; we record "failed" with a clear message.
+    let state = TAURI_APP.get();
+    let Some(handle) = state else {
+        return (SidecarHealthKind::Failed, None, Some("app handle not set".into()));
+    };
+    use tauri::Manager;
+    let Some(sidecar_state) = handle.try_state::<crate::commands::sidecar::SidecarState>() else {
+        return (SidecarHealthKind::Failed, None, Some("sidecar state not managed".into()));
+    };
+    if !sidecar_state.is_running() {
+        return (SidecarHealthKind::Failed, None, Some("sidecar not running".into()));
+    }
+    // Run the blocking I/O on a blocking thread (the helper holds
+    // sync mutexes; can't be on the async runtime directly).
+    let result = tokio::task::spawn_blocking(move || {
+        sidecar_state.ping_blocking(2000)
+    }).await;
+    match result {
+        Ok(Ok(latency_ms)) => (SidecarHealthKind::Ok, Some(latency_ms as i64), None),
+        Ok(Err(e)) => (SidecarHealthKind::Failed, None, Some(e)),
+        Err(e) => (SidecarHealthKind::Failed, None, Some(format!("join: {e}"))),
+    }
 }
 
 async fn run_sidecar_health_once(pool: &SqlitePool) -> sqlx::Result<()> {

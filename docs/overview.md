@@ -538,6 +538,7 @@ sequenceDiagram
 | **Modal a11y** | `Modal.tsx` focus trap + restore + Tab cycle | ✅ v0.10c 完成（5 a11y requirements + 6 vitest） |
 | **Sidecar health probe** | `domain::sidecar_health` + `infra::db::sidecar_health` + 6th scheduler | ✅ v0.10d 完成（status badge + 2 IPC + 7 tests） |
 | **i18n page titles** | AppShell breadcrumb + 18 page.* keys | ✅ v0.11a 完成（topbar 标题 locale 切换） |
+| **真 sidecar ping** | `SidecarState::ping_blocking` + scheduler 用 `try_state` 拿 | ✅ v0.11b 完成（latency 进 DB，6th loop 写 ok/failed） |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |
 

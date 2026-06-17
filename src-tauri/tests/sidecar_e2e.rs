@@ -39,13 +39,31 @@ fn sidecar_repo_dir() -> Option<std::path::PathBuf> {
     }
 }
 
+/// Per-test temporary model dir so parallel tests don't clobber each
+/// other's `~/.polyrocket/sidecar/models/`.
+fn make_tmp_model_dir(test_name: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!(
+        "polyrocket-sidecar-test-{}-{}",
+        test_name,
+        std::process::id()
+    ));
+    let _ = std::fs::create_dir_all(&dir);
+    dir
+}
+
 fn spawn_sidecar() -> Option<(std::process::Child, std::path::PathBuf, String)> {
+    spawn_sidecar_in("default")
+}
+
+fn spawn_sidecar_in(test_name: &str) -> Option<(std::process::Child, std::path::PathBuf, String)> {
     let py = python_bin()?;
     let repo = sidecar_repo_dir()?;
+    let model_dir = make_tmp_model_dir(test_name);
     let mut child = Command::new(&py)
         .arg("-m")
         .arg("polyrocket_sidecar")
         .current_dir(&repo)
+        .env("POLYROCKET_SIDECAR_MODEL_DIR", &model_dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -168,7 +186,7 @@ fn sidecar_unknown_method_returns_ok_false() {
 
 #[test]
 fn sidecar_train_job_runs_real_sweep() {
-    let Some((mut child, _repo, _py)) = spawn_sidecar() else {
+    let Some((mut child, _repo, _py)) = spawn_sidecar_in("train_sweep") else {
         eprintln!("[skip] python3 or sidecar/ not available");
         return;
     };
@@ -202,7 +220,7 @@ fn sidecar_train_job_runs_real_sweep() {
 
 #[test]
 fn sidecar_promote_model_round_trip() {
-    let Some((mut child, _repo, _py)) = spawn_sidecar() else {
+    let Some((mut child, _repo, _py)) = spawn_sidecar_in("promote") else {
         eprintln!("[skip] python3 or sidecar/ not available");
         return;
     };
@@ -243,4 +261,44 @@ fn sidecar_promote_model_round_trip() {
     assert_eq!(result.get("promoted").and_then(|v| v.as_bool()), Some(true));
     assert!(result.get("active_path").is_some());
     let _ = child.kill();
+}
+
+#[test]
+fn sidecar_ping_blocking_returns_pong() {
+    // v0.11b — exercise SidecarState::ping_blocking end-to-end
+    // against a real Python sidecar process. Verifies the lock
+    // discipline (write under stdin lock, read under stdout lock)
+    // and the JSON-RPC round-trip.
+    use polyrocket_lib::SidecarState;
+    use polyrocket_lib::SidecarStatus;
+    use std::process::{Command, Stdio};
+    let Some((_child_ignored, repo, py)) = spawn_sidecar() else {
+        eprintln!("[skip] python3 or sidecar/ not available");
+        return;
+    };
+    let mut child = Command::new(&py)
+        .arg("-m").arg("polyrocket_sidecar")
+        .current_dir(&repo)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn sidecar");
+    let stdin = child.stdin.take().unwrap();
+    let stdout = child.stdout.take().unwrap();
+    let state = SidecarState::new();
+    *state.stdin.lock().unwrap() = Some(stdin);
+    *state.stdout.lock().unwrap() = Some(stdout);
+    state.set_status(SidecarStatus {
+        running: true, pid: Some(child.id()), command: "polyrocket-sidecar".into(), last_error: None,
+    });
+    *state.child.lock().unwrap() = Some(child);
+
+    let started = std::time::Instant::now();
+    let result = state.ping_blocking(2000);
+    let elapsed = started.elapsed();
+    let latency = result.expect("ping should succeed against running sidecar");
+    assert!(latency < 2000, "ping took too long: {}ms", latency);
+    assert!(elapsed.as_millis() < 2500, "wall clock over 2.5s: {:?}", elapsed);
+    eprintln!("ping_blocking latency: {}ms", latency);
 }

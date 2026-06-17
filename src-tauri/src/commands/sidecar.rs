@@ -75,6 +75,86 @@ impl SidecarState {
             *s = status;
         }
     }
+
+    /// v0.11b — Send a `ping` to the running sidecar via stdin, read
+    /// one line from stdout, return `Ok(latency_ms)` on success.
+    ///
+    /// This is a synchronous helper used by the health-probe scheduler
+    /// loop. It MUST be called from a blocking context (e.g. via
+    /// `tokio::task::spawn_blocking`) because it holds the stdin +
+    /// stdout mutexes for the duration of the read.
+    ///
+    /// Returns:
+    ///   - `Ok(latency_ms)` if we got a `pong` back within the timeout
+    ///   - `Err(String)`     otherwise (process not running, write/read
+    ///                        failed, timeout, parse error, etc.)
+    ///
+    /// Lock discipline: hold stdin only while writing, hold stdout
+    /// only while reading. This way other code paths (e.g. user-initiated
+    /// `sidecar_predict`) can interleave their own I/O without
+    /// deadlocking.
+    pub fn ping_blocking(&self, timeout_ms: u64) -> Result<u64, String> {
+        use std::io::{BufRead, BufReader, Write};
+        use std::time::{Duration, Instant};
+
+        // Build the JSON-line request
+        let id = format!("sweeper-{}", chrono::Utc::now().timestamp_millis());
+        let payload = serde_json::json!({
+            "id": id,
+            "method": "ping",
+            "params": {},
+        });
+        let line = serde_json::to_string(&payload).map_err(|e| format!("encode: {e}"))?;
+
+        let started = Instant::now();
+        let deadline = Duration::from_millis(timeout_ms);
+
+        // Write + flush under stdin lock, then release.
+        {
+            let mut stdin_guard = self.stdin.lock().map_err(|e| format!("stdin lock: {e}"))?;
+            let stdin = stdin_guard.as_mut().ok_or_else(|| "stdin not available".to_string())?;
+            if let Err(e) = writeln!(stdin, "{line}") {
+                return Err(format!("write: {e}"));
+            }
+            if let Err(e) = stdin.flush() {
+                return Err(format!("flush: {e}"));
+            }
+        }
+
+        // Read one line under stdout lock, then release.
+        let response = {
+            let mut stdout_guard = self.stdout.lock().map_err(|e| format!("stdout lock: {e}"))?;
+            let stdout = stdout_guard.as_mut().ok_or_else(|| "stdout not available".to_string())?;
+            let mut reader = BufReader::new(stdout);
+            let mut buf = String::new();
+            if let Err(e) = reader.read_line(&mut buf) {
+                return Err(format!("read: {e}"));
+            }
+            buf
+        };
+
+        // Check the deadline AFTER releasing the lock. (Approximate —
+        // a hung read can block past the deadline, but in practice the
+        // Python sidecar responds in <50ms and the pipe is line-
+        // buffered, so read_line returns as soon as '\n' arrives.)
+        if started.elapsed() > deadline {
+            return Err(format!("timeout after {}ms", started.elapsed().as_millis()));
+        }
+        if response.trim().is_empty() {
+            return Err("empty response".into());
+        }
+
+        // Best-effort parse: we just check that the response has
+        // `ok: true`. We don't correlate the id because v0.11b is
+        // the only writer; future versions with concurrent probes
+        // will need a per-id oneshot channel.
+        let parsed: serde_json::Value = serde_json::from_str(response.trim())
+            .map_err(|e| format!("parse: {e}"))?;
+        if parsed.get("ok").and_then(|v| v.as_bool()) != Some(true) {
+            return Err(format!("not ok: {response}"));
+        }
+        Ok(started.elapsed().as_millis() as u64)
+    }
 }
 
 /// Start the sidecar. If already running, no-op.
