@@ -531,6 +531,7 @@ sequenceDiagram
 | **v0.8 final** | overview + README + release build | ✅ v0.8e 完成 |
 | **Retry 策略** | `lib/retry-policy.ts` (TanStack 替换 retry: 1) | ✅ v0.9a 完成（backoff + jitter + respects retryable） |
 | **Component tests** | testing-library + happy-dom + 12 新 test | ✅ v0.9b 完成（ErrorBoundary/QueryError/KbdHelpDialog 端到端） |
+| **Command palette** | `lib/command-palette.ts` + `CommandPalette` modal | ✅ v0.9c 完成（Cmd+K + 14 命令 + fuzzy filter） |
 
 ### 5.2 v0.4 — 功能模块全实现 (13 模块)
 

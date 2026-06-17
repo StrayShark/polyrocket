@@ -1,8 +1,13 @@
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, LineChart, Zap, Copy, BarChart3, FlaskConical, Search, RefreshCw, Bell, Settings, Radar, CircleDot, Crosshair, Landmark, Circle } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
 import { KbdHelpDialog, useKbdHelpDialog } from '@/components/feedback/KbdHelpDialog';
+import { CommandPalette, useCommandPalette } from '@/components/feedback/CommandPalette';
 import { useKeyboardNav, useNavBindings } from '@/lib/keyboard-nav';
+import { buildPaletteCommands, isPaletteTrigger } from '@/lib/command-palette';
+import { isSeeded, syncMarkets, recomputeSignals, seedDemoData, purgeAuditLogNow } from '@/ipc';
+import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/cn';
 
 const PRIMARY_NAV = [
@@ -22,11 +27,16 @@ const CATEGORY_NAV = [
 
 export function AppShell() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const breadcrumb = location.pathname.split('/').filter(Boolean)[0] ?? 'dashboard';
   const pretty = breadcrumb.charAt(0).toUpperCase() + breadcrumb.slice(1);
 
   // v0.8d — keyboard navigation (g d / g m / ? / Esc)
   const kbdHelp = useKbdHelpDialog();
+  // v0.9c — command palette (Cmd+K)
+  const palette = useCommandPalette();
+
   const bindings = useNavBindings({
     onOpenHelp: kbdHelp.openDialog,
     onOpenSearch: () => {
@@ -39,6 +49,44 @@ export function AppShell() {
     onCloseDialog: kbdHelp.closeDialog,
   });
   const { pendingPrefix } = useKeyboardNav(bindings);
+
+  // v0.9c — palette commands
+  const paletteCommands = buildPaletteCommands({
+    onNavigate: navigate,
+    onOpenHelp: kbdHelp.openDialog,
+    onSyncMarkets: async () => {
+      await syncMarkets();
+      queryClient.invalidateQueries({ queryKey: ['markets'] });
+    },
+    onRecomputeSignals: async () => {
+      await recomputeSignals();
+      queryClient.invalidateQueries({ queryKey: ['signals'] });
+    },
+    onOpenSettings: () => navigate('/settings'),
+    onResetDemoData: async () => {
+      await seedDemoData(true);
+      await isSeeded();  // touch so import isn't dead
+      queryClient.invalidateQueries();
+    },
+    onPurgeAuditLog: async () => {
+      const n = await purgeAuditLogNow();
+      queryClient.invalidateQueries({ queryKey: ['audit'] });
+      // eslint-disable-next-line no-console
+      console.log(`purged ${n} audit rows`);
+    },
+  });
+
+  // v0.9c — global Cmd+K / Ctrl+K listener
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (isPaletteTrigger(e)) {
+        e.preventDefault();
+        palette.openPalette();
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [palette]);
 
   return (
     <div className="flex h-screen">
@@ -170,6 +218,13 @@ export function AppShell() {
 
       {/* v0.8d — keyboard help dialog (`?` to open) */}
       <KbdHelpDialog bindings={bindings} open={kbdHelp.open} onClose={kbdHelp.closeDialog} />
+
+      {/* v0.9c — command palette (Cmd+K to open) */}
+      <CommandPalette
+        commands={paletteCommands}
+        open={palette.open}
+        onClose={palette.closePalette}
+      />
     </div>
   );
 }

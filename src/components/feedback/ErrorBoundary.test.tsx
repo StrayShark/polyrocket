@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import type { ReactNode } from 'react';
 import { describe, expect, it, vi, beforeAll, afterAll } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -6,12 +7,12 @@ import { QueryError } from './QueryError';
 import { classifyError } from '@/lib/invoke-safe';
 
 // Component that always throws — used to test ErrorBoundary.
-function Bomb({ message = 'boom' }: { message?: string }) {
+function Bomb({ message = 'boom' }: { message?: string }): ReactNode {
   throw new Error(message);
 }
 
 // Component that renders fine.
-function Safe() {
+function Safe(): ReactNode {
   return <div data-testid="safe">ok</div>;
 }
 
