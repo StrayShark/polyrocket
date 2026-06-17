@@ -6,8 +6,8 @@
 |---|---|
 | Bundle id | `com.polyrocket.app` |
 | Stack | Tauri 2 · React 18 · TypeScript · Rust · SQLite · Python (sidecar) |
-| Test totals | **204 cargo + 167 vitest + 35 Python = 406/406** |
-| Status | v0.10 — i18n wiring, real ML train+promote, modal a11y, sidecar health badge |
+| Test totals | **205 cargo + 168 vitest + 43 Python = 416/416** |
+| Status | v0.11 — i18n page titles, real sidecar ping, train→promote→predict closed, hot-path opt |
 
 ## What it does
 
@@ -171,6 +171,10 @@ Grouped by module — see `docs/overview.md` §3 for the full table.
 | v0.10b | ✅ `51bf1ba` | Real Python train_job + promote_model (4-trial hyperparameter sweep) |
 | v0.10c | ✅ `02f3fe4` | Modal focus trap + restore (5 a11y requirements) |
 | v0.10d | ✅ `589481c` | Sidecar health probe (6th scheduler loop + topbar badge) |
+| v0.11a | ✅ `8d4c107` | i18n page titles (18 page.* keys × zh/en) |
+| v0.11b | ✅ `614b625` | Real sidecar ping (scheduler → SidecarState::ping_blocking) |
+| v0.11c | ✅ `27388c9` | predict() reads from active.json — closed train→promote→predict loop |
+| v0.11d | ✅ `0107397` | predict hot-path optimize — 1M markets/sec |
 
 ## Documentation
 
