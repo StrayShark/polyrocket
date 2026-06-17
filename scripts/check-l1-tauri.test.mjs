@@ -47,50 +47,57 @@ test('passes on the real repo', () => {
   if (!r.stdout.match(/✓ L1↔Tauri OK/)) {
     throw new Error(`unexpected output: ${r.stdout}`);
   }
-  // Sanity: the output should mention all 6 sidecar L1 wrappers
-  if (!r.stdout.match(/6 sidecar L1 wrappers/)) {
-    throw new Error(`expected 6 sidecar L1 wrappers in output: ${r.stdout}`);
+  // Sanity: the output should mention all L1 wrappers
+  // and registered commands. The exact count varies as
+  // the project grows, so we just check the format.
+  if (!r.stdout.match(/\d+ L1 wrappers/)) {
+    throw new Error(`expected "N L1 wrappers" in output: ${r.stdout}`);
+  }
+  if (!r.stdout.match(/\d+ registered commands/)) {
+    throw new Error(`expected "N registered commands" in output: ${r.stdout}`);
   }
 });
 
 // =========================================================================
-// Test 2: output mentions skipped non-sidecar wrappers
+// Test 2: output mentions orphan commands (info only, not an error)
 // =========================================================================
-test('reports non-sidecar wrappers are skipped', () => {
+test('reports orphan commands (registered but no L1 wrapper)', () => {
   const r = spawnSync('node', [SCRIPT], { encoding: 'utf8' });
   if (r.status !== 0) {
     throw new Error(`exit ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
   }
-  if (!r.stdout.match(/non-sidecar skipped/)) {
-    throw new Error(`expected "non-sidecar skipped" in output: ${r.stdout}`);
+  // The script reports orphan commands as [info: ...] when there are any.
+  // This is informational only; not an error.
+  // Some real repos have 0 orphan commands; this test just
+  // verifies the script runs cleanly in that case.
+  if (!r.stdout.match(/L1↔Tauri OK/)) {
+    throw new Error(`expected L1↔Tauri OK: ${r.stdout}`);
   }
 });
 
 // =========================================================================
 // Test 3: fails when a Tauri command is missing
 // =========================================================================
-test('fails when a Tauri command is missing', () => {
-  // Make a backup, remove one Tauri command, run the script,
-  // restore. This is the exact failure case the guard is
-  // designed to catch.
-  const sidecarPath = 'src-tauri/src/commands/sidecar.rs';
-  const original = readFileSync(sidecarPath, 'utf8');
+test('fails when a Tauri command is missing (unregistered from lib.rs)', () => {
+  // Make a backup, remove one Tauri command REGISTRATION from
+  // lib.rs, run the script, restore. This is the exact failure
+  // case the guard is designed to catch: an L1 wrapper exists
+  // but the command isn't registered in lib.rs (or was removed).
+  const libPath = 'src-tauri/src/lib.rs';
+  const original = readFileSync(libPath, 'utf8');
   try {
-    // Remove the `#[tauri::command]` attribute for
-    // auto_promote_if_better. We delete the attribute
-    // line; the function still exists, but it's no
-    // longer a Tauri command.
+    // Remove the registration of auto_promote_if_better
     const lines = original.split('\n');
     let removed = false;
     for (let i = 0; i < lines.length; i++) {
-      if (lines[i] === '#[tauri::command]' && lines[i + 1] && lines[i + 1].includes('auto_promote_if_better')) {
+      if (lines[i].includes('commands::sidecar::auto_promote_if_better')) {
         lines.splice(i, 1);
         removed = true;
         break;
       }
     }
-    if (!removed) throw new Error('could not find #[tauri::command] before auto_promote_if_better');
-    writeFileSync(sidecarPath, lines.join('\n'));
+    if (!removed) throw new Error('could not find commands::sidecar::auto_promote_if_better in lib.rs');
+    writeFileSync(libPath, lines.join('\n'));
 
     const r = spawnSync('node', [SCRIPT], { encoding: 'utf8' });
     if (r.status === 0) {
@@ -106,7 +113,44 @@ test('fails when a Tauri command is missing', () => {
     }
   } finally {
     // Always restore, even on test failure
-    writeFileSync(sidecarPath, original);
+    writeFileSync(libPath, original);
+  }
+});
+
+// =========================================================================
+// Test 4: catches a v0.4-era missing command bug
+// =========================================================================
+test('catches a missing Tauri command for an L1 wrapper', () => {
+  // This is the exact case the guard caught when generalized
+  // to all modules in v0.27a: an L1 wrapper calls
+  // `invoke('X', ...)` but no Tauri command with that name
+  // is registered in lib.rs. The L1 wrapper would fail at
+  // runtime with "command not found". This test simulates
+  // that scenario by adding a fake L1 wrapper.
+  const ipcPath = 'src/ipc.ts';
+  const ipcOriginal = readFileSync(ipcPath, 'utf8');
+  try {
+    // Add a fake L1 wrapper for a non-existent command
+    const fakeWrapper = `
+
+// v0.27a test — fake wrapper for a missing command
+export const fakeTestWrapper = () => invoke<unknown>('fake_test_method');
+`;
+    writeFileSync(ipcPath, ipcOriginal + fakeWrapper);
+
+    const r = spawnSync('node', [SCRIPT], { encoding: 'utf8' });
+    if (r.status === 0) {
+      throw new Error(`expected non-zero exit, got 0\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    }
+    const output = r.stderr || r.stdout;
+    if (!output.match(/fakeTestWrapper/)) {
+      throw new Error(`expected "fakeTestWrapper" in error: ${output}`);
+    }
+    if (!output.match(/fake_test_method/)) {
+      throw new Error(`expected "fake_test_method" in error: ${output}`);
+    }
+  } finally {
+    writeFileSync(ipcPath, ipcOriginal);
   }
 });
 

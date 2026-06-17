@@ -16,7 +16,7 @@ import type {
   Wallet,
   AddWalletArgs,
 } from '@/types/wallet';
-import type { Market, ListMarketsArgs, MarketSummary } from '@/types/market';
+import type { Market, ListMarketsArgs } from '@/types/market';
 import type { Signal, ListSignalsArgs } from '@/types/signal';
 import type { Bet, PlaceJumpArgs, PlaceSignedArgs, ListBetsArgs } from '@/types/bet';
 import type {
@@ -56,7 +56,6 @@ export const addWallet = (args: AddWalletArgs) => invoke<Wallet>('add_wallet', {
 export const listMarkets = (args: ListMarketsArgs = {}) =>
   invoke<Market[]>('list_markets', { args });
 export const syncMarkets = () => invoke<number>('sync_markets');
-export const fetchActiveMarkets = () => invoke<MarketSummary[]>('fetch_active_markets');
 
 // ---------------------------------------------------------------- Signal (M2)
 export const listActiveSignals = (args: ListSignalsArgs = {}) =>

@@ -55,18 +55,15 @@ if (hasRs) {
   }
 }
 
-// 3. L1↔TauriGuard (v0.26a) — only run if either the
-//    L1 wrapper file or the sidecar command file is
+// 3. L1↔TauriGuard (v0.26a, generalized in v0.27a) —
+//    only run if either the L1 wrapper file or the
+//    Tauri lib.rs (which registers commands) is
 //    staged. Catches "wire format but no Tauri command"
-//    issues at commit time.
+//    issues at commit time. v0.27a generalized the
+//    guard from sidecar-only to all modules.
 const hasL1 = staged.some((f) => f === 'src/ipc.ts');
-const hasSidecar = staged.some(
-  (f) =>
-    f === 'src-tauri/src/commands/sidecar.rs' ||
-    f === 'src-tauri/src/lib.rs' ||
-    f === 'src-tauri/src/domain/lab/sidecar.rs',
-);
-if (hasL1 || hasSidecar) {
+const hasLibRs = staged.some((f) => f === 'src-tauri/src/lib.rs');
+if (hasL1 || hasLibRs) {
   const here = dirname(fileURLToPath(import.meta.url));
   const guard = resolve(here, 'check-l1-tauri.mjs');
   const r = spawnSync('node', [guard], { stdio: 'inherit' });
