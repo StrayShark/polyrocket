@@ -444,3 +444,44 @@ export const onTrainStarted = (cb: (e: TrainStartedEvent) => void): Promise<Unli
  * result (per-trial stats + best Brier + params). */
 export const onTrainFinished = (cb: (e: TrainFinishedEvent) => void): Promise<UnlistenFn> =>
   listen<TrainFinishedEvent>('train_job:finished', (msg) => cb(msg.payload));
+
+// ---------------------------------------------------------------- Promote model (v0.18a)
+// Wire-format mirror of the Rust `PromoteResult` (returned by
+// the `promote_model` IPC). v0.18a — promote is a fast file
+// move (~10ms); no progress events.
+//
+// `promoted: true` means the candidate was successfully renamed
+// to active.json. The new model version is in `model_version`.
+//
+// `promoted: false` means the promote was refused (no candidate,
+// job_id mismatch, or sidecar not running). The `message` field
+// has a human-readable diagnostic; the L1 shows it in a toast.
+
+export interface PromoteResult {
+  promoted: boolean;
+  /** "ok" | "failed" */
+  status: 'ok' | 'failed' | string;
+  /** Path of the previous active.json. `null` on first promote. */
+  previous_path: string | null;
+  /** Path of the new active.json (the candidate was renamed to this). */
+  active_path: string | null;
+  /** Wall-clock time of the promote in ms. `null` on failure. */
+  promoted_at_ms: number | null;
+  /** New model version (e.g. `logistic-train-441c352b`). Empty on failure. */
+  model_version: string;
+  /** Human-readable error message. `null` on success. */
+  message: string | null;
+}
+
+/** Args for the `promote_model` IPC. v0.18a — `job_id`
+ * is optional. If set, the Python sidecar refuses to
+ * promote a candidate from a different job (race-condition
+ * protection). */
+export interface PromoteModelArgs {
+  job_id?: string;
+}
+
+/** Promote the current candidate to the active slot. v0.18a.
+ * Returns the full `PromoteResult`. */
+export const promoteModel = (args: PromoteModelArgs = {}) =>
+  invoke<PromoteResult>('promote_model', { args });

@@ -281,3 +281,79 @@ describe('Train job event payloads (v0.17b)', () => {
     // adds finished_at to make event subscribers unambiguous.
   });
 });
+
+interface PromoteResult {
+  promoted: boolean;
+  status: 'ok' | 'failed' | string;
+  previous_path: string | null;
+  active_path: string | null;
+  promoted_at_ms: number | null;
+  model_version: string;
+  message: string | null;
+}
+
+describe('Promote model wire format (v0.18b)', () => {
+  it('PromoteResult success', () => {
+    const r: PromoteResult = JSON.parse(JSON.stringify({
+      promoted: true,
+      status: 'ok',
+      previous_path: '/home/x/.polyrocket/sidecar/models/active.json',
+      active_path: '/home/x/.polyrocket/sidecar/models/active.json',
+      promoted_at_ms: 1_700_000_000_000,
+      model_version: 'logistic-train-441c352b',
+      message: null,
+    }));
+    expect(r.promoted).toBe(true);
+    expect(r.status).toBe('ok');
+    expect(r.model_version).toBe('logistic-train-441c352b');
+    expect(r.promoted_at_ms).toBe(1_700_000_000_000);
+  });
+
+  it('PromoteResult failure (no candidate)', () => {
+    const r: PromoteResult = JSON.parse(JSON.stringify({
+      promoted: false,
+      status: 'failed',
+      previous_path: null,
+      active_path: null,
+      promoted_at_ms: null,
+      model_version: '',
+      message: 'no candidate found at /home/x/.polyrocket/sidecar/models/candidate.json; run train_job first',
+    }));
+    expect(r.promoted).toBe(false);
+    expect(r.status).toBe('failed');
+    expect(r.model_version).toBe('');
+    expect(r.message).toContain('run train_job first');
+  });
+
+  it('PromoteResult failure (job_id mismatch)', () => {
+    const r: PromoteResult = JSON.parse(JSON.stringify({
+      promoted: false,
+      status: 'failed',
+      previous_path: null,
+      active_path: null,
+      promoted_at_ms: null,
+      model_version: '',
+      message: 'candidate job_id mismatch: expected train-abc, got train-xyz',
+    }));
+    expect(r.promoted).toBe(false);
+    expect(r.message).toContain('mismatch');
+    expect(r.message).toContain('train-abc');
+  });
+
+  it('PromoteResult first promote (no previous_path)', () => {
+    // On the very first promote, the active.json doesn't
+    // exist yet, so previous_path is null.
+    const r: PromoteResult = JSON.parse(JSON.stringify({
+      promoted: true,
+      status: 'ok',
+      previous_path: null,
+      active_path: '/home/x/.polyrocket/sidecar/models/active.json',
+      promoted_at_ms: 1_700_000_000_000,
+      model_version: 'logistic-train-441c352b',
+      message: null,
+    }));
+    expect(r.promoted).toBe(true);
+    expect(r.previous_path).toBeNull();
+    expect(r.active_path).toBe('/home/x/.polyrocket/sidecar/models/active.json');
+  });
+});
