@@ -125,6 +125,12 @@ describe('Analysis / LlmPerf / LlmMgmt keys (v0.14a)', () => {
       'analysis.recommendation.cost', 'analysis.recommendation.latency',
       'analysis.recommendation.rationale', 'analysis.toast.failed',
       'analysis.toast.decision_recorded',
+      'analysis.progress.running', 'analysis.progress.done',
+      'analysis.progress.total_latency', 'analysis.progress.total_cost',
+      'analysis.progress.consensus',
+      'analysis.progress.status.completed', 'analysis.progress.status.partial',
+      'analysis.progress.status.failed',
+      'analysis.progress.row.pending', 'analysis.progress.row.running',
       // LlmPerf
       'llmperf.kpi.models', 'llmperf.kpi.cost', 'llmperf.kpi.wins',
       'llmperf.kpi.roi', 'llmperf.delta.profitable', 'llmperf.delta.unprofitable',

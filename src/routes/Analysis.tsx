@@ -1,7 +1,14 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { Sparkles, Play, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
-import { llmAnalyze, llmGetRecommendation, recordLlmDecision, listActiveSignals } from '@/ipc';
+import {
+  llmAnalyze,
+  llmGetRecommendation,
+  recordLlmDecision,
+  listActiveSignals,
+  onAnalyzeStarted,
+  type AnalyzeStartedEvent,
+} from '@/ipc';
 import { Card } from '@/components/base/Card';
 import { Pill } from '@/components/base/Pill';
 import { Button } from '@/components/base/Button';
@@ -9,6 +16,7 @@ import { Input } from '@/components/base/Input';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { Modal } from '@/components/feedback/Modal';
+import { AnalyzeProgress } from '@/components/feedback/AnalyzeProgress';
 import { toast } from '@/stores/toast-store';
 import { fmtPct, fmtConfidence, fmtLatency, fmtCents, fmtRelativeTime } from '@/lib/format';
 import { downloadCsv, toCsv } from '@/lib/csv';
@@ -24,6 +32,31 @@ export function Analysis() {
     consensusProb: number | null;
     consensusConfidence: number | null;
   } | null>(null);
+  // v0.15c — track the UUID of the in-flight analyze so the
+  // AnalyzeProgress component can subscribe to the right events.
+  // We can't get the id from the IPC return value (events fire
+  // BEFORE the IPC resolves). Instead, we listen for the next
+  // `llm_analyze:started` event and capture the id from its
+  // payload. The listener is set up once on mount and stashes
+  // the id in a ref.
+  const [activeAnalysisId, setActiveAnalysisId] = useState<string | null>(null);
+  const expectedAnalysisRef = useRef<boolean>(false);
+  useEffect(() => {
+    let cancelled = false;
+    const unsubPromise = onAnalyzeStarted((e: AnalyzeStartedEvent) => {
+      if (cancelled) return;
+      // Only capture if the user just clicked Analyze
+      if (expectedAnalysisRef.current) {
+        setActiveAnalysisId(e.analysis_id);
+        expectedAnalysisRef.current = false;
+      }
+    });
+    return () => {
+      cancelled = true;
+      unsubPromise.then((u) => u()).catch(() => { /* ignore */ });
+    };
+  }, []);
+
   const [chosen, setChosen] = useState<LlmRecommendation | null>(null);
 
   const signals = useQuery({
@@ -33,17 +66,35 @@ export function Analysis() {
 
   const queryClient = useQueryClient();
   const analyzeMut = useMutation({
-    mutationFn: (m: string) => llmAnalyze(m),
-    onSuccess: (a) => {
+    // v0.15c — return the analysis id from the mutation function
+    // so the caller (the onClick handler) knows the id before
+    // onSuccess fires. This lets us set activeAnalysisId and
+    // start listening to events immediately.
+    mutationFn: async (m: string) => {
+      const a = await llmAnalyze(m);
+      return { analysis: a, marketId: m };
+    },
+    onSuccess: (r) => {
       setAnalyzeResult({
-        analysisId: a.id,
-        consensusSide: a.consensus_side,
-        consensusProb: a.consensus_prob,
-        consensusConfidence: a.consensus_confidence,
+        // v0.15c — the IPC returns a uuid string despite the
+        // LlmAnalysis TS type saying `id: number` (the type is
+        // wrong — see schema/src/db/schema/index.ts which uses
+        // text('id').primaryKey()). Cast to string for the events.
+        analysisId: r.analysis.id as unknown as number,
+        consensusSide: r.analysis.consensus_side,
+        consensusProb: r.analysis.consensus_prob,
+        consensusConfidence: r.analysis.consensus_confidence,
       });
+      // The mutation has already returned; the finished event
+      // fired before the IPC returned. Clear the in-flight ID
+      // so the progress grid stops subscribing.
+      setActiveAnalysisId(null);
       queryClient.invalidateQueries({ queryKey: ['llm-analyses'] });
     },
-    onError: (e: Error) => toast.error(t('analysis.toast.failed'), e.message),
+    onError: (e: Error) => {
+      toast.error(t('analysis.toast.failed'), e.message);
+      setActiveAnalysisId(null);
+    },
   });
 
   const recMut = useMutation({
@@ -94,11 +145,30 @@ export function Analysis() {
             iconLeft={<Play className="w-3 h-3" />}
             loading={analyzeMut.isPending}
             disabled={!marketId.trim()}
-            onClick={() => analyzeMut.mutate(marketId.trim())}
+            onClick={() => {
+              // v0.15c — set a flag that the next `started` event
+              // is "ours". The useEffect above will capture the
+              // analysis_id from that event and pass it down to
+              // AnalyzeProgress.
+              expectedAnalysisRef.current = true;
+              analyzeMut.mutate(marketId.trim());
+            }}
           >
             {t('analysis.btn.analyze')}
           </Button>
         </div>
+        {/* v0.15c — per-provider progress grid. Subscribes to the
+            4 LLM analyze events emitted by the backend. The id
+            is set by the onAnalyzeStarted listener (above) when
+            the next `started` event fires after the user clicks
+            Analyze. */}
+        {activeAnalysisId && (
+          <AnalyzeProgress
+            key={activeAnalysisId}
+            analysisId={activeAnalysisId}
+            className="mt-3"
+          />
+        )}
         {analyzeResult && (
           <div className="mt-4 grid grid-cols-3 gap-3">
             <ResultCard
