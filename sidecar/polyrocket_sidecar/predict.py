@@ -46,6 +46,27 @@ def _clamp(v: float, lo: float, hi: float) -> float:
     return lo if v < lo else hi if v > hi else v
 
 
+def _brier_score_from_active() -> float | None:
+    """Read the brier score from the active.json file. Returns
+    None if the file is missing or has no brier field.
+
+    Cheap to call (one read of the same mtime-cached file) but we
+    don't import active.py here to keep this module dependency-light.
+    """
+    from .train import ACTIVE_FILE
+    import json
+    try:
+        if not ACTIVE_FILE.exists():
+            return None
+        with ACTIVE_FILE.open() as f:
+            data = json.load(f)
+        best = data.get("best", {})
+        brier = best.get("brier")
+        return float(brier) if brier is not None else None
+    except (OSError, json.JSONDecodeError, ValueError):
+        return None
+
+
 def predict_from_markets(markets: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Public entry — accepts the Rust-shape markets list, returns the
     Rust-shape predictions list.
@@ -72,6 +93,9 @@ def predict_from_markets(markets: list[dict[str, Any]]) -> list[dict[str, Any]]:
     w0 = weights["w0"]
     w1 = weights["w1"]
     w2 = weights["w2"]
+    # v0.13b — also surface the brier score from the active model
+    # so the L1 ModelLab tooltip can show calibration info.
+    brier_score = _brier_score_from_active()
     del weights  # don't hold a reference past the loop
 
     out: list[dict[str, Any]] = []
@@ -117,7 +141,7 @@ def predict_from_markets(markets: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "confidence": round(confidence, 4),
             "rationale": f"{model_version or 'logistic'}: w={w_str} price={price:.3f} age_h={age:.1f} → p={prob:.3f}",
         })
-    return {"predictions": out, "model_version": model_version}
+    return {"predictions": out, "model_version": model_version, "brier_score": brier_score}
 
 
 _WEIGHTS_VERSION = "0.1.0"

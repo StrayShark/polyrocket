@@ -27,6 +27,7 @@ export function ModelLab() {
   // v0.12d — the "currently active" model. We hit the sidecar
   // with a cheap predict (m1/m2) to surface the model_version
   // that future predict calls will use.
+  // v0.13b — also returns the brier score for the tooltip.
   const activeModel = useQuery({
     queryKey: ['sidecar-active-model'],
     queryFn: async () => {
@@ -34,7 +35,7 @@ export function ModelLab() {
         const snap = await sidecarHealthSnapshot();
         if (snap.success_count === 0) return null;
         const r = await sidecarPredict([['__probe__', 0.5]]);
-        return r.model_version;
+        return r;
       } catch {
         return null;
       }
@@ -46,7 +47,11 @@ export function ModelLab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-[14px] font-medium text-fg">Model performance</h2>
-        <ModelVersionPill modelVersion={activeModel.data} variant="verbose" />
+        <ModelVersionPill
+          modelVersion={activeModel.data?.model_version}
+          brierScore={activeModel.data?.brier_score}
+          variant="verbose"
+        />
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <KpiCard label="Model versions" value={total.toString()} icon={GitBranch} />

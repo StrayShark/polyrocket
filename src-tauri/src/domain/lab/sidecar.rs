@@ -69,6 +69,8 @@ pub struct Prediction {
 /// The `predictions` field mirrors the per-row data; `model_version`
 /// is hoisted to the top level so the L1 ModelLab page can show
 /// "scoring with logistic-train-..." without iterating rows.
+/// v0.13b — also carries `brier_score` from the active model so
+/// the L1 ModelVersionPill can show calibration in the tooltip.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PredictResult {
     pub predictions: Vec<Prediction>,
@@ -76,6 +78,11 @@ pub struct PredictResult {
     /// `logistic-train-441c352b` (active promoted model).
     /// `None` if the sidecar didn't include it (back-compat).
     pub model_version: Option<String>,
+    /// Brier score from the most recent train run (the score of
+    /// the "best" trial that was promoted to active.json). `None`
+    /// if no model has been promoted (using inline fallback) or
+    /// the sidecar didn't include it.
+    pub brier_score: Option<f64>,
 }
 
 /// Methods enum for type-safe dispatch.
@@ -186,7 +193,8 @@ pub fn parse_predict_response(
     let model_version = v.get("model_version")
         .and_then(|x| x.as_str())
         .map(String::from);
-    Ok(PredictResult { predictions: out, model_version })
+    let brier_score = v.get("brier_score").and_then(|x| x.as_f64());
+    Ok(PredictResult { predictions: out, model_version, brier_score })
 }
 
 #[cfg(test)]
@@ -291,6 +299,23 @@ mod tests {
         let result = parse_predict_response(&resp).unwrap();
         assert_eq!(result.predictions.len(), 1);
         assert!(result.model_version.is_none());
+        assert!(result.brier_score.is_none());
+    }
+
+    #[test]
+    fn parse_predict_response_brier_round_trip() {
+        // v0.13b — brier_score is hoisted from the response.
+        let resp = SidecarResponse::ok("r1", serde_json::json!({
+            "predictions": [
+                { "market_id": "m1", "prob": 0.6, "confidence": 0.5 },
+            ],
+            "model_version": "logistic-train-abc123",
+            "brier_score": 0.220012
+        }));
+        let result = parse_predict_response(&resp).unwrap();
+        assert_eq!(result.predictions.len(), 1);
+        assert_eq!(result.model_version.as_deref(), Some("logistic-train-abc123"));
+        assert_eq!(result.brier_score, Some(0.220012));
     }
 
     #[test]

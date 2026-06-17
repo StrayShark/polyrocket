@@ -227,6 +227,8 @@ export interface Prediction {
 export interface PredictResult {
   predictions: Prediction[];
   model_version: string | null;
+  /** v0.13b — Brier score of the most recent promoted model. */
+  brier_score: number | null;
 }
 export const sidecarPredict = (markets: Array<[string, number]>) =>
   invoke<PredictResult>('sidecar_predict', { args: { markets } });
