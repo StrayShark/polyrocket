@@ -555,6 +555,7 @@ sequenceDiagram
 | **i18n info routes** | Audit / Help / ModelLab / MarketDetail use `t()` | ✅ v0.14c 完成（~100 新 key × 2 locale） |
 | **i18n home routes** | Dashboard / Brief use `t()` | ✅ v0.14d 完成（~50 新 key × 2 locale） |
 | **LLM analyze progress** | 4 progress events emitted from `llm_analyze` | ✅ v0.15a 完成（started/provider_done/consensus_done/finished） |
+| **L1 listen wrappers** | `onAnalyzeStarted` / `onProviderDone` / `onConsensusDone` / `onAnalyzeFinished` | ✅ v0.15b 完成（typed event payloads + 7 unit tests） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |

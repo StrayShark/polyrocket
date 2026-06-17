@@ -11,6 +11,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type {
   Wallet,
   AddWalletArgs,
@@ -268,3 +269,72 @@ export const sidecarPredictAsync = (
   invoke<PredictResult>('sidecar_predict_async', {
     args: { markets, timeout_ms: timeoutMs ?? null },
   });
+
+// ---------------------------------------------------------------- LLM analyze progress (v0.15a)
+// Event payloads for the four `llm_analyze:*` events emitted from
+// `commands::llm::llm_analyze`. See `domain::llm::progress` for the
+// Rust side. Each event has a stable shape; the L1 can listen to
+// all four and update UI as they arrive.
+
+export interface AnalyzeStartedEvent {
+  analysis_id: string;
+  market_id: string;
+  prompt_version: string;
+  providers: string[];
+  started_at: number;
+}
+
+export interface ProviderDoneEvent {
+  analysis_id: string;
+  provider_id: string;
+  ok: boolean;
+  latency_ms: number;
+  tokens_in: number | null;
+  tokens_out: number | null;
+  cost_cents: number;
+  /** matches `domain::llm::err::*` plus the literal `"none"` and
+   * `"parse"` (for successful-HTTP-but-bad-JSON responses). */
+  error_kind: string;
+  error_message: string | null;
+  finished_at: number;
+}
+
+export interface ConsensusDoneEvent {
+  analysis_id: string;
+  status: 'completed' | 'partial' | 'failed';
+  n_success: number;
+  n_failed: number;
+  consensus_pred: number | null;
+  consensus_side: string | null;
+  consensus_conf: number | null;
+}
+
+export interface AnalyzeFinishedEvent {
+  analysis_id: string;
+  status: 'completed' | 'partial' | 'failed';
+  total_latency_ms: number;
+  total_cost_cents: number;
+  n_success: number;
+  n_failed: number;
+  finished_at: number;
+}
+
+/** Listen for `llm_analyze:started` events. Returns an unlisten
+ * function. Use in `useEffect`'s cleanup to avoid leaks. */
+export const onAnalyzeStarted = (cb: (e: AnalyzeStartedEvent) => void): Promise<UnlistenFn> =>
+  listen<AnalyzeStartedEvent>('llm_analyze:started', (msg) => cb(msg.payload));
+
+/** Listen for `llm_analyze:provider_done` events. Fires once per
+ * provider, in any order (since the fan-out is parallel). */
+export const onProviderDone = (cb: (e: ProviderDoneEvent) => void): Promise<UnlistenFn> =>
+  listen<ProviderDoneEvent>('llm_analyze:provider_done', (msg) => cb(msg.payload));
+
+/** Listen for `llm_analyze:consensus_done` events. Fires once per
+ * analyze, after all providers finished and consensus computed. */
+export const onConsensusDone = (cb: (e: ConsensusDoneEvent) => void): Promise<UnlistenFn> =>
+  listen<ConsensusDoneEvent>('llm_analyze:consensus_done', (msg) => cb(msg.payload));
+
+/** Listen for `llm_analyze:finished` events. The terminal event
+ * the L1 typically `await`s to know the analyze is done. */
+export const onAnalyzeFinished = (cb: (e: AnalyzeFinishedEvent) => void): Promise<UnlistenFn> =>
+  listen<AnalyzeFinishedEvent>('llm_analyze:finished', (msg) => cb(msg.payload));
