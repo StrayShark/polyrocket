@@ -519,6 +519,11 @@ export interface PromoteHistoryEntry {
   /** Hyperparameters of the best trial, or `null` if not
    * stored (e.g. v0.18 active.json files). */
   best_params: Record<string, unknown> | null;
+  /** v0.24a — which trial of the train sweep was promoted.
+   * `null` = best (default); `number` = trial n (bulk).
+   * Older history entries from before v0.21a won't have
+   * this field; treat missing as "best" for UI purposes. */
+  trial_index?: number | null;
 }
 
 /** Wire-format mirror of the Rust `PromoteHistoryResult`

@@ -186,6 +186,31 @@ function HistoryRow({
               {t('promote.history.active')}
             </span>
           )}
+          {/* v0.24a — per-trial badge. The model version
+              already has a `-t{N}` suffix for bulk-promoted
+              trials, but the user has to look carefully to
+              see it. A small explicit badge makes the trial
+              source immediately visible.
+              "best" → the auto-picked best trial
+              "trial N" → a bulk-promoted specific trial
+              missing trial_index → treat as best (v0.18 back-compat) */}
+          {entry.trial_index != null ? (
+            <span
+              className="text-[9px] uppercase tracking-wide text-accent"
+              data-testid="promote-history-trial-badge"
+              data-trial-index={entry.trial_index}
+            >
+              {t('promote.history.trial_n', { n: entry.trial_index + 1 })}
+            </span>
+          ) : (
+            <span
+              className="text-[9px] uppercase tracking-wide text-muted"
+              data-testid="promote-history-trial-badge"
+              data-trial-index="best"
+            >
+              {t('promote.history.trial_best')}
+            </span>
+          )}
         </div>
         <div className="text-[10px] text-muted mt-0.5">
           {fmtRelativeTime(entry.promoted_at_ms)}

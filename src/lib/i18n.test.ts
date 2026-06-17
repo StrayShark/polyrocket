@@ -149,6 +149,7 @@ describe('Analysis / LlmPerf / LlmMgmt keys (v0.14a)', () => {
       'promote.history.title', 'promote.history.desc',
       'promote.history.empty', 'promote.history.empty_desc',
       'promote.history.brier', 'promote.history.active',
+      'promote.history.trial_best', 'promote.history.trial_n',
       'rollback.btn.rollback', 'rollback.toast.rolled_back',
       'rollback.toast.version', 'rollback.toast.failed',
       'rollback.confirm.title', 'rollback.confirm.body',

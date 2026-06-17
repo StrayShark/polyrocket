@@ -405,6 +405,8 @@ interface PromoteHistoryEntry {
   promoted_at_ms: number;
   best_brier: number | null;
   best_params: Record<string, unknown> | null;
+  /** v0.24a — which trial of the sweep was promoted. */
+  trial_index?: number | null;
 }
 
 interface PromoteHistoryResult {

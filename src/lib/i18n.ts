@@ -470,6 +470,9 @@ const en: Dictionary = {
   'promote.history.empty_desc': 'Train a model and click Promote to start the history.',
   'promote.history.brier': 'Brier',
   'promote.history.active': 'active',
+  // v0.24a — per-trial badge labels
+  'promote.history.trial_best': 'best trial',
+  'promote.history.trial_n': 'trial #{{n}}',
   // v0.20c — Rollback button + confirmation
   'rollback.btn.rollback': 'Rollback',
   'rollback.toast.rolled_back': 'Model rolled back',
@@ -1036,6 +1039,9 @@ const zh: Dictionary = {
   'promote.history.empty_desc': '训练一个模型并点击 "晋升" 即可开始记录历史。',
   'promote.history.brier': 'Brier',
   'promote.history.active': '当前',
+  // v0.24a — per-trial badge labels
+  'promote.history.trial_best': '最佳',
+  'promote.history.trial_n': '第 {{n}} 个试验',
   // v0.20c — Rollback button + confirmation
   'rollback.btn.rollback': '回滚',
   'rollback.toast.rolled_back': '模型已回滚',

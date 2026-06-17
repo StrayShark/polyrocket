@@ -217,4 +217,62 @@ describe('PromoteHistory (v0.19c)', () => {
     });
     expect(screen.getByText('rollback.confirm.title')).toBeInTheDocument();
   });
+
+  it('shows "best trial" badge when trial_index is null (v0.24a)', async () => {
+    vi.mocked(listPromoteHistory).mockResolvedValue({
+      ok: true,
+      count: 1,
+      entries: [
+        { job_id: 'train-aaa', model_version: 'logistic-train-aaa', promoted_at_ms: 1_700_000_000_000, best_brier: 0.18, best_params: null, trial_index: null },
+      ],
+      message: null,
+    });
+    render(wrap(<PromoteHistory />));
+    await waitFor(() => {
+      expect(screen.getByTestId('promote-history')).toBeInTheDocument();
+    });
+    const badge = screen.getByTestId('promote-history-trial-badge');
+    expect(badge).toHaveAttribute('data-trial-index', 'best');
+    expect(badge.textContent).toContain('promote.history.trial_best');
+  });
+
+  it('shows "best trial" badge when trial_index is missing (v0.18 back-compat, v0.24a)', async () => {
+    // Old history entries from before v0.21a don't have
+    // trial_index at all. The L1 type marks it as optional,
+    // so undefined should be treated like null (best).
+    vi.mocked(listPromoteHistory).mockResolvedValue({
+      ok: true,
+      count: 1,
+      entries: [
+        { job_id: 'train-old', model_version: 'logistic-train-old', promoted_at_ms: 1_700_000_000_000, best_brier: 0.18, best_params: null },
+      ],
+      message: null,
+    });
+    render(wrap(<PromoteHistory />));
+    await waitFor(() => {
+      expect(screen.getByTestId('promote-history')).toBeInTheDocument();
+    });
+    const badge = screen.getByTestId('promote-history-trial-badge');
+    expect(badge).toHaveAttribute('data-trial-index', 'best');
+  });
+
+  it('shows "trial #N" badge for bulk-promoted trials (v0.24a)', async () => {
+    // trial_index=2 → 0-indexed 2, displayed as "trial #3"
+    // (1-indexed for human display)
+    vi.mocked(listPromoteHistory).mockResolvedValue({
+      ok: true,
+      count: 1,
+      entries: [
+        { job_id: 'train-bbb', model_version: 'logistic-train-bbb-t2', promoted_at_ms: 1_700_000_000_000, best_brier: 0.18, best_params: null, trial_index: 2 },
+      ],
+      message: null,
+    });
+    render(wrap(<PromoteHistory />));
+    await waitFor(() => {
+      expect(screen.getByTestId('promote-history')).toBeInTheDocument();
+    });
+    const badge = screen.getByTestId('promote-history-trial-badge');
+    expect(badge).toHaveAttribute('data-trial-index', '2');
+    expect(badge.textContent).toContain('promote.history.trial_n');
+  });
 });
