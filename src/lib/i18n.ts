@@ -481,6 +481,14 @@ const en: Dictionary = {
   'promote.history.filter_empty': 'No entries match the "{{filter}}" filter.',
   'promote.history.brier': 'Brier',
   'promote.history.active': 'active',
+  // v0.34a — promote history archive modal
+  'promote.archive.title': 'Promote history archive',
+  'promote.archive.empty_title': 'No archive yet',
+  'promote.archive.empty_desc': 'The archive is created automatically when the in-memory 20-entry cap is exceeded. Promote 21+ models to start archiving.',
+  'promote.archive.no_entries': '0 entries',
+  'promote.archive.range': '{{start}}–{{end}} of {{total}}',
+  'common.prev': 'Prev',
+  'common.next': 'Next',
   // v0.24a — per-trial badge labels
   'promote.history.trial_best': 'best trial',
   'promote.history.trial_n': 'trial #{{n}}',
@@ -1066,6 +1074,14 @@ const zh: Dictionary = {
   'promote.history.filter_empty': '没有匹配 "{{filter}}" 过滤器的记录。',
   'promote.history.brier': 'Brier',
   'promote.history.active': '当前',
+  // v0.34a — promote history archive modal
+  'promote.archive.title': '晋升历史归档',
+  'promote.archive.empty_title': '暂无归档',
+  'promote.archive.empty_desc': '当内存中 20 条记录超过上限时，归档会自动创建。晋升 21+ 个模型即可开始归档。',
+  'promote.archive.no_entries': '0 条记录',
+  'promote.archive.range': '第 {{start}}–{{end}} 条，共 {{total}} 条',
+  'common.prev': '上一页',
+  'common.next': '下一页',
   // v0.24a — per-trial badge labels
   'promote.history.trial_best': '最佳',
   'promote.history.trial_n': '第 {{n}} 个试验',

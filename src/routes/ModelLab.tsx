@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FlaskConical, GitBranch, Play, CheckCircle2, XCircle, Clock, Sparkles, ArrowUpCircle } from 'lucide-react';
+import { FlaskConical, GitBranch, Play, CheckCircle2, XCircle, Clock, Sparkles, ArrowUpCircle, Archive } from 'lucide-react';
 import {
   llmPerformance,
   sidecarPredict,
@@ -13,6 +13,7 @@ import {
   onAutoPromoteFinished,
   type TrainStartedEvent,
 } from '@/ipc';
+import { PromoteHistoryArchive } from '@/components/feedback/PromoteHistoryArchive';
 import { Card } from '@/components/base/Card';
 import { Pill } from '@/components/base/Pill';
 import { KpiCard } from '@/components/data/KpiCard';
@@ -75,6 +76,9 @@ export function ModelLab() {
   // train writes a new candidate.json; once promoted
   // the per-version list updates).
   const [activeTrainJobId, setActiveTrainJobId] = useState<string | null>(null);
+  // v0.34a — archive modal open state. Local state,
+  // not persisted. Resets to false on remount.
+  const [archiveOpen, setArchiveOpen] = useState(false);
   const expectedTrainRef = useRef<boolean>(false);
   useEffect(() => {
     let cancelled = false;
@@ -529,7 +533,33 @@ export function ModelLab() {
         <PromoteHistory
           activeModelVersion={activeModel.data?.model_version ?? null}
         />
+        {/* v0.34a — "View archive" button. Opens the
+            PromoteHistoryArchive modal which shows the
+            full history (beyond the in-memory 20-entry
+            cap). The button is below the panel so it
+            doesn't interfere with the per-row actions. */}
+        <div className="mt-2 flex justify-end">
+          <Button
+            size="sm"
+            variant="ghost"
+            iconLeft={<Archive className="w-3 h-3" />}
+            onClick={() => setArchiveOpen(true)}
+            data-testid="view-archive-btn"
+          >
+            {t('promote.archive.title')}
+          </Button>
+        </div>
       </Card>
+
+      {/* v0.34a — archive modal. Renders only when
+          archiveOpen is true; the component itself
+          handles the open prop. The modal is mounted
+          at the page level so the trigger button can
+          be inside a Card without z-index issues. */}
+      <PromoteHistoryArchive
+        open={archiveOpen}
+        onClose={() => setArchiveOpen(false)}
+      />
 
       <Card title={t('modellab.sm.title')} description={t('modellab.sm.desc')}>
         <div className="flex items-center gap-2 text-[12px] flex-wrap">
