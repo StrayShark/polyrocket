@@ -360,3 +360,87 @@ export const onConsensusDone = (cb: (e: ConsensusDoneEvent) => void): Promise<Un
  * the L1 typically `await`s to know the analyze is done. */
 export const onAnalyzeFinished = (cb: (e: AnalyzeFinishedEvent) => void): Promise<UnlistenFn> =>
   listen<AnalyzeFinishedEvent>('llm_analyze:finished', (msg) => cb(msg.payload));
+
+// ---------------------------------------------------------------- Train job (v0.17a)
+// Event payloads for the `train_job:*` events emitted from
+// `commands::sidecar::train_job`. See `domain::lab::train_progress`
+// for the Rust side. Two events: started (before the sidecar
+// call) and finished (after the sweep completes or fails).
+
+export interface TrainStartedEvent {
+  job_id: string;
+  /** Total trials the Python sidecar will run (1-4). */
+  n_trials: number;
+  /** Per-trial training epochs (default 80). */
+  epochs: number;
+  started_at: number;
+}
+
+export interface TrainTrialDto {
+  lr: number;
+  reg: number;
+  brier: number;
+  /** `{"w0", "w1", "w2"}` — trained weights for this trial. */
+  weights: Record<string, number>;
+}
+
+export interface TrainFinishedEvent {
+  job_id: string;
+  /** "completed" | "failed" */
+  status: 'completed' | 'failed' | string;
+  /** Lower is better. `null` on failure. */
+  best_brier: number | null;
+  /** Best trial's weights: `{"w0", "w1", "w2"}`. `null` on failure. */
+  best_params: Record<string, number> | null;
+  /** Per-trial stats. Empty on failure. */
+  trials: TrainTrialDto[];
+  duration_ms: number;
+  /** Absolute path of the candidate JSON. `null` on failure. */
+  candidate_path: string | null;
+  /** Human-readable error message. `null` on success. */
+  message: string | null;
+  finished_at: number;
+}
+
+/** Wire-format mirror of the Rust `TrainResult` (returned by
+ * the `train_job` IPC). Same fields as the finished event
+ * except no `finished_at` (the IPC is the source of truth for
+ * "this just finished", the event is the source of truth for
+ * "any subscriber should know"). */
+export interface TrainResult {
+  job_id: string;
+  status: 'completed' | 'failed' | string;
+  best_brier: number | null;
+  best_params: Record<string, number> | null;
+  trials: TrainTrialDto[];
+  duration_ms: number;
+  candidate_path: string | null;
+  message: string | null;
+}
+
+/** Args for the `train_job` IPC. All fields optional — the
+ * Python sidecar uses sensible defaults (4 trials, 80 epochs,
+ * 60s timeout). */
+export interface TrainJobArgs {
+  n_trials?: number;
+  epochs?: number;
+  timeout_ms?: number;
+}
+
+/** Kick off a model training sweep on the Python sidecar.
+ * v0.17a — wraps `commands::sidecar::train_job`. Returns
+ * the full `TrainResult` when the sweep completes. */
+export const trainJob = (args: TrainJobArgs = {}) =>
+  invoke<TrainResult>('train_job', { args });
+
+/** Listen for `train_job:started` events. The L1 typically
+ * uses this to render a "Training…" pill right after the
+ * user clicks Train. */
+export const onTrainStarted = (cb: (e: TrainStartedEvent) => void): Promise<UnlistenFn> =>
+  listen<TrainStartedEvent>('train_job:started', (msg) => cb(msg.payload));
+
+/** Listen for `train_job:finished` events. The terminal event
+ * the L1 awaits to know the sweep is done. Carries the full
+ * result (per-trial stats + best Brier + params). */
+export const onTrainFinished = (cb: (e: TrainFinishedEvent) => void): Promise<UnlistenFn> =>
+  listen<TrainFinishedEvent>('train_job:finished', (msg) => cb(msg.payload));

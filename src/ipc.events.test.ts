@@ -171,3 +171,113 @@ describe('LLM analyze event payloads (v0.15b)', () => {
     expect(valid.size).toBe(9);
   });
 });
+
+interface TrainStartedEvent {
+  job_id: string;
+  n_trials: number;
+  epochs: number;
+  started_at: number;
+}
+
+interface TrainTrialDto {
+  lr: number;
+  reg: number;
+  brier: number;
+  weights: Record<string, number>;
+}
+
+interface TrainFinishedEvent {
+  job_id: string;
+  status: 'completed' | 'failed' | string;
+  best_brier: number | null;
+  best_params: Record<string, number> | null;
+  trials: TrainTrialDto[];
+  duration_ms: number;
+  candidate_path: string | null;
+  message: string | null;
+  finished_at: number;
+}
+
+interface TrainResult {
+  job_id: string;
+  status: 'completed' | 'failed' | string;
+  best_brier: number | null;
+  best_params: Record<string, number> | null;
+  trials: TrainTrialDto[];
+  duration_ms: number;
+  candidate_path: string | null;
+  message: string | null;
+}
+
+describe('Train job event payloads (v0.17b)', () => {
+  it('TrainStartedEvent shape', () => {
+    const e: TrainStartedEvent = JSON.parse(JSON.stringify({
+      job_id: 'train-441c352b',
+      n_trials: 4,
+      epochs: 80,
+      started_at: 1_700_000_000_000,
+    }));
+    expect(e.job_id).toBe('train-441c352b');
+    expect(e.n_trials).toBe(4);
+    expect(e.epochs).toBe(80);
+  });
+
+  it('TrainFinishedEvent completed with trials', () => {
+    const e: TrainFinishedEvent = JSON.parse(JSON.stringify({
+      job_id: 'train-441c352b',
+      status: 'completed',
+      best_brier: 0.184,
+      best_params: { w0: 0.1, w1: 0.2, w2: 0.3 },
+      trials: [
+        { lr: 0.05, reg: 0.01, brier: 0.184, weights: { w0: 0.1, w1: 0.2, w2: 0.3 } },
+        { lr: 0.10, reg: 0.01, brier: 0.210, weights: { w0: 0.1, w1: 0.2, w2: 0.3 } },
+        { lr: 0.05, reg: 0.10, brier: 0.225, weights: { w0: 0.1, w1: 0.2, w2: 0.3 } },
+        { lr: 0.10, reg: 0.10, brier: 0.243, weights: { w0: 0.1, w1: 0.2, w2: 0.3 } },
+      ],
+      duration_ms: 4200,
+      candidate_path: '/home/x/.polyrocket/sidecar/models/candidate.json',
+      message: null,
+      finished_at: 1_700_000_004_200,
+    }));
+    expect(e.status).toBe('completed');
+    expect(e.trials.length).toBe(4);
+    expect(e.trials[0].brier).toBeLessThan(e.trials[3].brier);
+  });
+
+  it('TrainFinishedEvent failed with diagnostic message', () => {
+    const e: TrainFinishedEvent = JSON.parse(JSON.stringify({
+      job_id: 'train-deadbeef',
+      status: 'failed',
+      best_brier: null,
+      best_params: null,
+      trials: [],
+      duration_ms: 500,
+      candidate_path: null,
+      message: 'sidecar not running',
+      finished_at: 1_700_000_001_000,
+    }));
+    expect(e.status).toBe('failed');
+    expect(e.best_brier).toBeNull();
+    expect(e.trials).toEqual([]);
+    expect(e.message).toContain('sidecar not running');
+  });
+
+  it('TrainResult IPC return shape (same as finished, no finished_at)', () => {
+    const r: TrainResult = JSON.parse(JSON.stringify({
+      job_id: 'train-441c352b',
+      status: 'completed',
+      best_brier: 0.184,
+      best_params: { w0: 0.1, w1: 0.2, w2: 0.3 },
+      trials: [
+        { lr: 0.05, reg: 0.01, brier: 0.184, weights: { w0: 0.1, w1: 0.2, w2: 0.3 } },
+      ],
+      duration_ms: 4200,
+      candidate_path: '/home/x/.polyrocket/sidecar/models/candidate.json',
+      message: null,
+    }));
+    expect(r.best_brier).toBeLessThan(0.2);
+    // The IPC return is missing finished_at — the IPC itself
+    // is the "this just finished" signal, so the event payload
+    // adds finished_at to make event subscribers unambiguous.
+  });
+});
