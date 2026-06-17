@@ -54,3 +54,24 @@ if (hasRs) {
     process.exit(r.status ?? 1);
   }
 }
+
+// 3. L1↔TauriGuard (v0.26a) — only run if either the
+//    L1 wrapper file or the sidecar command file is
+//    staged. Catches "wire format but no Tauri command"
+//    issues at commit time.
+const hasL1 = staged.some((f) => f === 'src/ipc.ts');
+const hasSidecar = staged.some(
+  (f) =>
+    f === 'src-tauri/src/commands/sidecar.rs' ||
+    f === 'src-tauri/src/lib.rs' ||
+    f === 'src-tauri/src/domain/lab/sidecar.rs',
+);
+if (hasL1 || hasSidecar) {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const guard = resolve(here, 'check-l1-tauri.mjs');
+  const r = spawnSync('node', [guard], { stdio: 'inherit' });
+  if (r.status !== 0) {
+    console.error('❌ L1↔TauriGuard failed (see above)');
+    process.exit(r.status ?? 1);
+  }
+}
