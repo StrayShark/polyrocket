@@ -14,7 +14,12 @@
  * catches up.
  */
 import { describe, expect, it } from 'vitest';
-import type { LlmAnalysis, LlmRecommendation, LlmCallLog, RecordLlmDecisionArgs } from './llm';
+import type { LlmAnalysis, LlmRecommendation, LlmCallLog } from './llm';
+// RecordLlmDecisionArgs is in `@/ipc` (not `./llm`) because
+// it's the L1 wrapper's arg shape, not a DTO. The DTOs are
+// the wire-format mirror of the Rust DTOs; the wrapper args
+// mirror the Rust command's input struct.
+import type { RecordLlmDecisionArgs } from '@/ipc';
 
 describe('LlmAnalysis shape (v0.16a wire format)', () => {
   it('parses a complete completed analysis', () => {
