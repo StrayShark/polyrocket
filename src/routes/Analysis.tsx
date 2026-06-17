@@ -34,6 +34,10 @@ export function Analysis() {
     consensusSide: string | null;
     consensusProb: number | null;
     consensusConfidence: number | null;
+    /** v0.16b — full recommendation list (parsed from the
+     * `LlmAnalysis.recommendations` field). Used by recMut
+     * to pick a rec id for `llmGetRecommendation`. */
+    recommendations: LlmRecommendation[];
   } | null>(null);
   // v0.15c — track the UUID of the in-flight analyze so the
   // AnalyzeProgress component can subscribe to the right events.
@@ -85,6 +89,10 @@ export function Analysis() {
         consensusSide: r.analysis.consensus_side,
         consensusProb: r.analysis.consensus_predicted,
         consensusConfidence: r.analysis.consensus_conf,
+        // v0.16b — keep the recommendations so recMut can pick
+        // a rec id (the Rust `llm_get_recommendation` command
+        // takes a rec id, NOT the analysis id).
+        recommendations: r.analysis.recommendations,
       });
       // The mutation has already returned; the finished event
       // fired before the IPC returned. Clear the in-flight ID
@@ -99,16 +107,53 @@ export function Analysis() {
   });
 
   const recMut = useMutation({
-    mutationFn: (analysisId: number) => llmGetRecommendation(analysisId),
+    // v0.16b — the Rust `llm_get_recommendation` command takes
+    // a recommendation id (auto-increment i64), NOT the analysis
+    // UUID. v0.15c's call passed the analysis id, which the Rust
+    // deserializer couldn't parse as i64 → silent IPC failure.
+    //
+    // We pick the top recommendation (by parse_ok, then by
+    // confidence desc) so the modal shows the LLM the user is
+    // most likely to follow.
+    mutationFn: () => {
+      // v0.16b — the Rust command takes a rec id, not the
+      // analysis id. We pick the top rec from the current
+      // analyzeResult's recommendations. (The Button's
+      // `mutate(analyzeResult.analysisId)` call below is a
+      // vestigial arg from v0.15c — recMut ignores it now
+      // and uses the closed-over analyzeResult instead.)
+      const recs = analyzeResult?.recommendations ?? [];
+      const top = [...recs]
+        .filter((r) => r.parse_ok)
+        .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))[0]
+        ?? recs[0];
+      if (!top) throw new Error('no recommendations to show');
+      return llmGetRecommendation(top.id);
+    },
     onSuccess: (r) => setChosen(r),
+    onError: (e: Error) => toast.error(t('analysis.toast.failed'), e.message),
   });
 
   const decisionMut = useMutation({
-    mutationFn: (decision: string) => recordLlmDecision(analyzeResult!.analysisId, decision),
+    // v0.16b — Rust `record_llm_decision` takes a
+    // `RecordDecisionArgs` struct. The L1 wrapper (v0.16b)
+    // accepts the same shape as a typed object. v0.15c's call
+    // passed `(analysisId: number, decision: string)` which
+    // didn't match the Rust arg struct at all → silent IPC
+    // failure.
+    mutationFn: (decision: 'follow_top' | 'manual_yes' | 'manual_no' | 'skip' | 're_analyze') =>
+      recordLlmDecision({
+        analysisId: analyzeResult!.analysisId,
+        userDecision: decision,
+        // userDecidedSide, followedLlmId, betId, contextSnapshot
+        // are optional — the Rust struct's Option<T> defaults
+        // to None.
+      }),
     onSuccess: () => {
       toast.success(t('analysis.toast.decision_recorded'));
       queryClient.invalidateQueries({ queryKey: ['llm-stats'] });
     },
+    onError: (e: Error) => toast.error(t('analysis.toast.failed'), e.message),
   });
 
   const exportCsv = () => {
@@ -195,10 +240,18 @@ export function Analysis() {
         )}
         {analyzeResult && (
           <div className="mt-3 flex items-center gap-2">
+            {/* v0.16b — recMut takes the analysis id and
+                internally picks the top rec. Rust receives
+                a recommendation id (i64), not the analysis
+                UUID. */}
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => recMut.mutate(analyzeResult.analysisId)}
+              // v0.16b — recMut no longer takes the analysis
+              // id as an arg; it uses the closed-over
+              // analyzeResult.recommendations and picks the
+              // top rec to send to the Rust side.
+              onClick={() => recMut.mutate()}
               loading={recMut.isPending}
             >
               {t('analysis.btn.recommendation')}

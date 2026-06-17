@@ -88,8 +88,30 @@ export const upsertLlmProvider = (args: UpsertLlmProviderArgs) =>
 export const llmAnalyze = (marketId: string, providers?: string[]) =>
   invoke<LlmAnalysis>('llm_analyze', { marketId, providers });
 export const llmPerformance = () => invoke<LlmPerformance[]>('llm_performance');
-export const recordLlmDecision = (analysisId: number, decision: string) =>
-  invoke<void>('record_llm_decision', { analysisId, decision });
+
+/**
+ * v0.16b — `record_llm_decision` arg shape.
+ *
+ * The Rust side takes a `RecordDecisionArgs` struct
+ * (see `commands::llm::RecordDecisionArgs`). Tauri 2
+ * auto-converts the JS object's camelCase keys to
+ * the Rust struct's snake_case fields, so we send
+ * `{ analysisId, userDecision, ... }` and Tauri maps
+ * them to `analysis_id`, `user_decision`, etc.
+ *
+ * `user_decision` is one of: `'follow_top' | 'manual_yes'
+ * | 'manual_no' | 'skip' | 're_analyze'`.
+ */
+export interface RecordLlmDecisionArgs {
+  analysisId: string;
+  userDecision: 'follow_top' | 'manual_yes' | 'manual_no' | 'skip' | 're_analyze';
+  userDecidedSide?: 'YES' | 'NO' | null;
+  followedLlmId?: number | null;
+  betId?: string | null;
+  contextSnapshot?: string | null;
+}
+export const recordLlmDecision = (args: RecordLlmDecisionArgs) =>
+  invoke<number>('record_llm_decision', { args });
 export const llmStatsHeatmap = () => invoke<LlmHeatmapCell[]>('llm_stats_heatmap');
 export const llmStatsScatter = (marketId?: string) =>
   invoke<LlmScatterPoint[]>('llm_stats_scatter', { marketId });

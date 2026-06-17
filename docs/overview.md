@@ -559,6 +559,7 @@ sequenceDiagram
 | **LLM analyze progress UI** | `AnalyzeProgress` component + Analysis page integration | ✅ v0.15c 完成（per-provider status grid，3 status 状态） |
 | **AnalyzeProgress tests** | 8 component tests with mocked `@tauri-apps/api/event` | ✅ v0.15d 完成（mocked events + 8 component scenarios） |
 | **LLM DTO types fixed** | `LlmAnalysis` / `LlmRecommendation` / `LlmCallLog` corrected to match Rust | ✅ v0.16a 完成（id: string, field renames, casts removed） |
+| **Broken LLM IPC calls** | `recMut` + `recordLlmDecision` now match Rust arg shape | ✅ v0.16b 完成（real production bug, buttons were silently failing） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |
