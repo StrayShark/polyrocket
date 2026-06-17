@@ -476,9 +476,19 @@ export interface PromoteResult {
 /** Args for the `promote_model` IPC. v0.18a — `job_id`
  * is optional. If set, the Python sidecar refuses to
  * promote a candidate from a different job (race-condition
- * protection). */
+ * protection).
+ *
+ * v0.21a — `trial_index` is also optional. If set, the
+ * Python sidecar promotes that specific trial from
+ * `all_trials[]` (bulk promote) instead of the best.
+ * 0-indexed. If both `job_id` and `trial_index` are set,
+ * both checks apply.
+ */
 export interface PromoteModelArgs {
   job_id?: string;
+  /** v0.21a — bulk promote. 0-indexed trial number.
+   * `undefined` (or omitted) means "promote the best". */
+  trial_index?: number;
 }
 
 /** Promote the current candidate to the active slot. v0.18a.

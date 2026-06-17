@@ -290,6 +290,8 @@ interface PromoteResult {
   promoted_at_ms: number | null;
   model_version: string;
   message: string | null;
+  /** v0.21a — bulk promote. undefined = best, number = trial n. */
+  trial_index?: number;
 }
 
 describe('Promote model wire format (v0.18b)', () => {
@@ -355,6 +357,41 @@ describe('Promote model wire format (v0.18b)', () => {
     expect(r.promoted).toBe(true);
     expect(r.previous_path).toBeNull();
     expect(r.active_path).toBe('/home/x/.polyrocket/sidecar/models/active.json');
+  });
+
+  it('PromoteResult bulk promote (v0.21a — trial_index=2)', () => {
+    // v0.21a — bulk promote: the model_version has a
+    // -t2 suffix, and trial_index is recorded.
+    const r: PromoteResult = JSON.parse(JSON.stringify({
+      promoted: true,
+      status: 'ok',
+      previous_path: '/home/x/.polyrocket/sidecar/models/active.json',
+      active_path: '/home/x/.polyrocket/sidecar/models/active.json',
+      promoted_at_ms: 1_700_010_000_000,
+      model_version: 'logistic-train-441c352b-t2',
+      message: null,
+      trial_index: 2,
+    }));
+    expect(r.promoted).toBe(true);
+    expect(r.model_version).toBe('logistic-train-441c352b-t2');
+    expect(r.trial_index).toBe(2);
+  });
+
+  it('PromoteResult default (no trial_index) — backward compat', () => {
+    // v0.21a — when the Python sidecar doesn't return
+    // trial_index (older version), the TS side treats
+    // it as undefined (best, not bulk).
+    const r: PromoteResult = JSON.parse(JSON.stringify({
+      promoted: true,
+      status: 'ok',
+      previous_path: '/home/x/.polyrocket/sidecar/models/active.json',
+      active_path: '/home/x/.polyrocket/sidecar/models/active.json',
+      promoted_at_ms: 1_700_011_000_000,
+      model_version: 'logistic-train-441c352b',
+      message: null,
+    }));
+    expect(r.model_version).toBe('logistic-train-441c352b');
+    expect(r.trial_index).toBeUndefined();
   });
 });
 
