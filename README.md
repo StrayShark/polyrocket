@@ -6,8 +6,8 @@
 |---|---|
 | Bundle id | `com.polyrocket.app` |
 | Stack | Tauri 2 · React 18 · TypeScript · Rust · SQLite · Python (sidecar) |
-| Test totals | **196 cargo + 117 vitest + 26 Python = 339/339** |
-| Status | v0.8 — first-run seeder, L1 error boundary, audit retention, keyboard nav |
+| Test totals | **196 cargo + 161 vitest + 26 Python = 383/383** |
+| Status | v0.9 — retry policy, component tests, command palette, i18n (zh/en) |
 
 ## What it does
 
@@ -163,6 +163,10 @@ Grouped by module — see `docs/overview.md` §3 for the full table.
 | v0.8b | ✅ `b5118d2` | L1 error boundary + invoke classifier (10 kinds) |
 | v0.8c | ✅ `3e09741` | Audit log retention (90d / 50k / 1k floor) + 5th scheduler |
 | v0.8d | ✅ `da146ef` | Keyboard navigation (g+key + ? help) |
+| v0.9a | ✅ `e0f4a53` | TanStack retry with backoff + jitter + error-kind aware |
+| v0.9b | ✅ `84dbf9f` | L1 component tests (testing-library + happy-dom, 12 cases) |
+| v0.9c | ✅ `21ebe9d` | Command palette (Cmd+K + 14 commands + fuzzy filter) |
+| v0.9d | ✅ `19765df` | i18n foundation (39 strings × zh/en, persisted) |
 
 ## Documentation
 
