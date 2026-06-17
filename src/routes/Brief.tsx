@@ -10,8 +10,10 @@ import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { toast } from '@/stores/toast-store';
 import { fmtDate, fmtUsdc, fmtEdge, fmtPct } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 
 export function Brief() {
+  const { t } = useT();
   const queryClient = useQueryClient();
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ['daily-brief'],
@@ -22,16 +24,19 @@ export function Brief() {
   const refreshMut = useMutation({
     mutationFn: () => dailyBriefRefresh(),
     onSuccess: (r) => {
-      toast.success(`Brief refreshed`, `${r.n_items} items at ${fmtDate(r.computed_at)}`);
+      toast.success(
+        t('brief.toast.refreshed'),
+        t('brief.toast.refreshed_body', { n: r.n_items, when: fmtDate(r.computed_at) }),
+      );
       queryClient.invalidateQueries({ queryKey: ['daily-brief'] });
     },
-    onError: (e: Error) => toast.error('Refresh failed', e.message),
+    onError: (e: Error) => toast.error(t('brief.toast.refresh_failed'), e.message),
   });
 
   const dismissMut = useMutation({
     mutationFn: (marketId: string) => dailyBriefDismiss(marketId),
     onSuccess: () => {
-      toast.info('Dismissed for 24h');
+      toast.info(t('brief.toast.dismissed'));
       queryClient.invalidateQueries({ queryKey: ['daily-brief'] });
     },
   });
@@ -45,9 +50,9 @@ export function Brief() {
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-muted" />
             <div>
-              <h2 className="text-[13px] font-semibold text-fg">Daily Brief</h2>
+              <h2 className="text-[13px] font-semibold text-fg">{t('brief.title')}</h2>
               <p className="text-[11px] text-muted mt-0.5">
-                Top markets worth watching today. Scored by edge × confidence × consensus.
+                {t('brief.subtitle')}
               </p>
             </div>
           </div>
@@ -59,7 +64,7 @@ export function Brief() {
               onClick={() => refetch()}
               disabled={isRefetching}
             >
-              Refresh
+              {t('brief.refresh')}
             </Button>
             <Button
               variant="primary"
@@ -68,7 +73,7 @@ export function Brief() {
               loading={refreshMut.isPending}
               onClick={() => refreshMut.mutate()}
             >
-              Re-score
+              {t('brief.rescore')}
             </Button>
           </div>
         </div>
@@ -83,11 +88,11 @@ export function Brief() {
       ) : !data || data.length === 0 ? (
         <EmptyState
           icon={<Calendar className="w-5 h-5" />}
-          title="No brief entries"
-          description="Run a refresh to score today's market candidates."
+          title={t('brief.empty.title')}
+          description={t('brief.empty.desc')}
           action={
             <Button variant="primary" size="sm" onClick={() => refreshMut.mutate()} loading={refreshMut.isPending}>
-              Generate now
+              {t('brief.empty.generate')}
             </Button>
           }
         />
@@ -108,27 +113,30 @@ export function Brief() {
                       {b.market_question}
                     </Link>
                     {b.dismissed && (
-                      <Pill kind="muted">dismissed</Pill>
+                      <Pill kind="muted">{t('brief.entry.dismissed')}</Pill>
                     )}
                   </div>
                   <div className="flex items-center gap-3 mt-0.5 text-[10px] text-muted">
                     <Pill kind="muted">{b.market_category}</Pill>
-                    <span>closes {fmtDate(b.market_end_date)}</span>
-                    <span>liq ${fmtUsdc(b.market_liquidity)}</span>
+                    <span>{t('brief.entry.closes', { when: fmtDate(b.market_end_date) })}</span>
+                    <span>{t('brief.entry.liq', { n: fmtUsdc(b.market_liquidity) })}</span>
                   </div>
                 </div>
                 <div className="text-right shrink-0">
                   {b.edge != null && (
                     <div className={'text-[13px] font-mono font-semibold ' + (b.edge > 0 ? 'text-bull' : 'text-bear')}>
-                      edge {fmtEdge(b.edge)}
+                      {t('brief.entry.edge', { value: fmtEdge(b.edge) })}
                     </div>
                   )}
                   {b.confidence != null && (
-                    <div className="text-[10px] text-muted">conf {fmtPct(b.confidence)}</div>
+                    <div className="text-[10px] text-muted">{t('brief.entry.conf', { value: fmtPct(b.confidence) })}</div>
                   )}
                   {b.consensus_side && (
                     <Pill kind={b.consensus_side === 'YES' ? 'bull' : 'bear'}>
-                      consensus {b.consensus_side} ({fmtPct(b.consensus_strength ?? 0)})
+                      {t('brief.entry.consensus', {
+                        side: b.consensus_side,
+                        strength: fmtPct(b.consensus_strength ?? 0),
+                      })}
                     </Pill>
                   )}
                 </div>
@@ -139,11 +147,11 @@ export function Brief() {
                     iconLeft={<X className="w-3 h-3" />}
                     onClick={() => dismissMut.mutate(b.market_id)}
                   >
-                    Dismiss
+                    {t('brief.btn.dismiss')}
                   </Button>
                   <Link to={`/markets/${b.market_id}`}>
                     <Button variant="ghost" size="xs" iconRight={<ChevronRight className="w-3 h-3" />}>
-                      Open
+                      {t('brief.btn.open')}
                     </Button>
                   </Link>
                 </div>

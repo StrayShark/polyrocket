@@ -23,8 +23,10 @@ import { Skeleton } from '@/components/feedback/Skeleton';
 import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { fmtUsdc, fmtPct, fmtEdge, fmtRelativeTime } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 
 export function Dashboard() {
+  const { t } = useT();
   const kpis = useQuery({
     queryKey: ['kpis'],
     queryFn: () => dashboardKpis(),
@@ -74,10 +76,18 @@ export function Dashboard() {
     const items: Array<{ kind: 'bet' | 'signal'; at: number; text: string }> = [];
     for (const b of (bets.data ?? []).slice(0, 20)) {
       if (b.status === 'won' || b.status === 'lost') {
+        const sign = b.pnl && Number(b.pnl) >= 0 ? '+' : '';
         items.push({
           kind: 'bet',
           at: b.placed_at,
-          text: `${b.status.toUpperCase()} ${b.side} $${fmtUsdc(b.size)} @ ${b.price.toFixed(3)} (${b.pnl && Number(b.pnl) >= 0 ? '+' : ''}$${fmtUsdc(b.pnl)})`,
+          text: t('dashboard.recent.bet_text', {
+            status: b.status.toUpperCase(),
+            side: b.side,
+            size: fmtUsdc(b.size),
+            price: b.price.toFixed(3),
+            sign,
+            pnl: fmtUsdc(b.pnl),
+          }),
         });
       }
     }
@@ -85,11 +95,15 @@ export function Dashboard() {
       items.push({
         kind: 'signal',
         at: s.computed_at,
-        text: `${s.edge > 0 ? 'YES' : 'NO'} ${fmtEdge(s.edge)} on ${(s.market_question ?? s.market_id).slice(0, 40)}`,
+        text: t('dashboard.recent.signal_text', {
+          side: s.edge > 0 ? 'YES' : 'NO',
+          edge: fmtEdge(s.edge),
+          question: (s.market_question ?? s.market_id).slice(0, 40),
+        }),
       });
     }
     return items.sort((a, b) => b.at - a.at).slice(0, 6);
-  }, [bets.data, signals.data]);
+  }, [bets.data, signals.data, t]);
 
   if (kpis.error) return <ErrorState message={String(kpis.error)} onRetry={() => kpis.refetch()} />;
 
@@ -98,13 +112,13 @@ export function Dashboard() {
       {/* Top KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiCard
-          label="Total Equity"
+          label={t('dashboard.kpi.equity')}
           value={`$${fmtUsdc(kpis.data?.total_equity_usdc)}`}
           icon={BarChart3}
-          hint={`${kpis.data?.open_positions ?? 0} open`}
+          hint={t('dashboard.kpi.equity_hint', { n: kpis.data?.open_positions ?? 0 })}
         />
         <KpiCard
-          label="Open PnL"
+          label={t('dashboard.kpi.open_pnl')}
           value={`$${fmtUsdc(kpis.data?.open_pnl_usdc)}`}
           icon={
             kpis.data && Number(kpis.data.open_pnl_usdc) >= 0 ? TrendingUp : TrendingDown
@@ -112,28 +126,28 @@ export function Dashboard() {
           delta={
             kpis.data
               ? {
-                  text: Number(kpis.data.open_pnl_usdc) >= 0 ? 'profit' : 'loss',
+                  text: Number(kpis.data.open_pnl_usdc) >= 0 ? t('dashboard.delta.profit') : t('dashboard.delta.loss'),
                   positive: Number(kpis.data.open_pnl_usdc) >= 0,
                 }
               : null
           }
         />
         <KpiCard
-          label="Win Rate (30d)"
+          label={t('dashboard.kpi.winrate')}
           value={fmtPct(kpis.data?.win_rate_30d)}
           icon={Target}
         />
         <KpiCard
-          label="Brier Score"
+          label={t('dashboard.kpi.brier')}
           value={kpis.data ? kpis.data.brier_score.toFixed(3) : '—'}
           icon={Activity}
           hint={
             kpis.data
               ? kpis.data.brier_score < 0.2
-                ? 'good'
+                ? t('dashboard.brier.good')
                 : kpis.data.brier_score < 0.25
-                ? 'fair'
-                : 'poor'
+                ? t('dashboard.brier.fair')
+                : t('dashboard.brier.poor')
               : ''
           }
         />
@@ -142,8 +156,8 @@ export function Dashboard() {
       {/* Charts row: equity curve + calibration */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card
-          title="Equity curve"
-          description="Cumulative realized PnL across settled bets"
+          title={t('dashboard.equity.title')}
+          description={t('dashboard.equity.desc')}
           action={
             <span
               className={
@@ -158,8 +172,8 @@ export function Dashboard() {
           {equityCurve.length === 0 ? (
             <EmptyState
               icon={<LineChartIcon className="w-5 h-5" />}
-              title="No settled bets"
-              description="Resolve some bets to see the equity curve."
+              title={t('dashboard.equity.empty')}
+              description={t('dashboard.equity.empty_desc')}
             />
           ) : (
             <div className="flex flex-col gap-2">
@@ -171,9 +185,9 @@ export function Dashboard() {
                 refLines={[heightForZero(equityCurve, 100, 0.15)]}
               />
               <div className="flex items-center justify-between text-[10px] text-muted">
-                <span>{equityCurve.length} settled bets</span>
+                <span>{t('dashboard.equity.settled_count', { n: equityCurve.length })}</span>
                 <span>
-                  from {fmtUsdc(equityCurve[0])} → {fmtUsdc(totalPnl)}
+                  {t('dashboard.equity.range', { from: fmtUsdc(equityCurve[0]), to: fmtUsdc(totalPnl) })}
                 </span>
               </div>
             </div>
@@ -181,14 +195,14 @@ export function Dashboard() {
         </Card>
 
         <Card
-          title="Signal calibration"
-          description="Avg |edge| per 5% bucket — wider bars = stronger conviction"
+          title={t('dashboard.calibration.title')}
+          description={t('dashboard.calibration.desc')}
         >
           {calibrationBuckets.every((b) => b.n === 0) ? (
             <EmptyState
               icon={<BarChart3 className="w-5 h-5" />}
-              title="No signals"
-              description="Recompute signals to see calibration."
+              title={t('dashboard.calibration.empty')}
+              description={t('dashboard.calibration.empty_desc')}
             />
           ) : (
             <div className="flex justify-center">
@@ -204,12 +218,12 @@ export function Dashboard() {
       </div>
 
       {/* Recent activity timeline */}
-      <Card title="Recent activity" description="Latest 6 events: settled bets + new signals">
+      <Card title={t('dashboard.activity.title')} description={t('dashboard.activity.desc')}>
         {recentActivity.length === 0 ? (
           <EmptyState
             icon={<Activity className="w-5 h-5" />}
-            title="No activity"
-            description="Activity will appear as bets settle and signals compute."
+            title={t('dashboard.activity.empty')}
+            description={t('dashboard.activity.empty_desc')}
           />
         ) : (
           <div className="space-y-1.5">
@@ -231,11 +245,11 @@ export function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Top signals */}
         <Card
-          title="Top signals"
-          description="Highest-edge active signals across all markets"
+          title={t('dashboard.signals.title')}
+          description={t('dashboard.signals.desc')}
           action={
             <Link to="/signals">
-              <Button variant="ghost" size="xs">View all</Button>
+              <Button variant="ghost" size="xs">{t('dashboard.signals.view_all')}</Button>
             </Link>
           }
         >
@@ -248,8 +262,8 @@ export function Dashboard() {
           ) : topSignals.length === 0 ? (
             <EmptyState
               icon={<Zap className="w-5 h-5" />}
-              title="No active signals"
-              description="Run recompute_signals to generate predictions."
+              title={t('dashboard.signals.empty')}
+              description={t('dashboard.signals.empty_desc')}
             />
           ) : (
             <div className="space-y-2">
@@ -266,7 +280,7 @@ export function Dashboard() {
                       {s.market_question ?? s.market_id}
                     </Link>
                     <div className="text-[10px] text-muted mt-0.5">
-                      model {s.model_version} · {s.horizon_hours}h horizon
+                      {t('dashboard.signals.model', { version: s.model_version, hours: s.horizon_hours })}
                     </div>
                   </div>
                   <Pill kind={s.edge > 0 ? 'bull' : 'bear'}>
@@ -288,11 +302,11 @@ export function Dashboard() {
 
         {/* Open positions */}
         <Card
-          title="Open positions"
-          description="Unsettled bets"
+          title={t('dashboard.positions.title')}
+          description={t('dashboard.positions.desc')}
           action={
             <Link to="/history">
-              <Button variant="ghost" size="xs">View all</Button>
+              <Button variant="ghost" size="xs">{t('dashboard.positions.view_all')}</Button>
             </Link>
           }
         >
@@ -305,12 +319,12 @@ export function Dashboard() {
           ) : openBets.length === 0 ? (
             <EmptyState
               icon={<Activity className="w-5 h-5" />}
-              title="No open positions"
-              description="Place a bet from a Market Detail page."
+              title={t('dashboard.positions.empty')}
+              description={t('dashboard.positions.empty_desc')}
               action={
                 <Link to="/markets">
                   <Button variant="primary" size="sm" iconLeft={<Plus className="w-3 h-3" />}>
-                    Browse markets
+                    {t('dashboard.positions.browse')}
                   </Button>
                 </Link>
               }
@@ -330,7 +344,11 @@ export function Dashboard() {
                       {b.market_id}
                     </Link>
                     <div className="text-[10px] text-muted mt-0.5">
-                      ${fmtUsdc(b.size)} @ {b.price.toFixed(3)} · {fmtRelativeTime(b.placed_at)}
+                      {t('dashboard.positions.size_at', {
+                        size: fmtUsdc(b.size),
+                        price: b.price.toFixed(3),
+                        when: fmtRelativeTime(b.placed_at),
+                      })}
                     </div>
                   </div>
                   <Pill kind={b.side === 'YES' ? 'bull' : 'bear'}>{b.side}</Pill>

@@ -280,6 +280,47 @@ describe('Audit / Help / ModelLab / MarketDetail keys (v0.14c)', () => {
   });
 });
 
+describe('Dashboard / Brief keys (v0.14d)', () => {
+  it('every new key is in both locales', () => {
+    const keys = [
+      // Dashboard
+      'dashboard.kpi.equity', 'dashboard.kpi.equity_hint',
+      'dashboard.kpi.open_pnl', 'dashboard.kpi.winrate', 'dashboard.kpi.brier',
+      'dashboard.brier.good', 'dashboard.brier.fair', 'dashboard.brier.poor',
+      'dashboard.delta.profit', 'dashboard.delta.loss',
+      'dashboard.equity.title', 'dashboard.equity.desc',
+      'dashboard.equity.empty', 'dashboard.equity.empty_desc',
+      'dashboard.equity.settled_count', 'dashboard.equity.range',
+      'dashboard.calibration.title', 'dashboard.calibration.desc',
+      'dashboard.calibration.empty', 'dashboard.calibration.empty_desc',
+      'dashboard.activity.title', 'dashboard.activity.desc',
+      'dashboard.activity.empty', 'dashboard.activity.empty_desc',
+      'dashboard.signals.title', 'dashboard.signals.desc',
+      'dashboard.signals.view_all', 'dashboard.signals.empty',
+      'dashboard.signals.empty_desc', 'dashboard.signals.model',
+      'dashboard.positions.title', 'dashboard.positions.desc',
+      'dashboard.positions.view_all', 'dashboard.positions.empty',
+      'dashboard.positions.empty_desc', 'dashboard.positions.browse',
+      'dashboard.positions.size_at', 'dashboard.recent.bet_text',
+      'dashboard.recent.signal_text',
+      // Brief
+      'brief.title', 'brief.subtitle', 'brief.refresh', 'brief.rescore',
+      'brief.empty.title', 'brief.empty.desc', 'brief.empty.generate',
+      'brief.entry.dismissed', 'brief.entry.closes', 'brief.entry.liq',
+      'brief.entry.edge', 'brief.entry.conf', 'brief.entry.consensus',
+      'brief.btn.dismiss', 'brief.btn.open', 'brief.toast.refreshed',
+      'brief.toast.refreshed_body', 'brief.toast.refresh_failed',
+      'brief.toast.dismissed',
+    ];
+    for (const key of keys) {
+      const enVal = translate('en', key);
+      const zhVal = translate('zh', key);
+      expect(enVal, `en missing: ${key}`).not.toBe(`?${key}?`);
+      expect(zhVal, `zh missing: ${key}`).not.toBe(`?${key}?`);
+    }
+  });
+});
+
 describe('SUPPORTED_LOCALES', () => {
   it('contains en and zh', () => {
     expect(SUPPORTED_LOCALES).toContain('en');

@@ -553,6 +553,7 @@ sequenceDiagram
 | **i18n LLM routes** | Analysis / LlmPerf / LlmMgmt use `t()` | ✅ v0.14a 完成（~90 新 key × 2 locale） |
 | **i18n mgmt routes** | Wallets / Settings / Notifications use `t()` | ✅ v0.14b 完成（~80 新 key × 2 locale） |
 | **i18n info routes** | Audit / Help / ModelLab / MarketDetail use `t()` | ✅ v0.14c 完成（~100 新 key × 2 locale） |
+| **i18n home routes** | Dashboard / Brief use `t()` | ✅ v0.14d 完成（~50 新 key × 2 locale） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |
