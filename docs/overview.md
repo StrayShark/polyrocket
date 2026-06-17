@@ -588,6 +588,8 @@ sequenceDiagram
 | **L1 autoPromoteIfBetter wrapper** | L1 wrapper + 3 round-trip tests + Tauri command | ✅ v0.23b 完成（back-fills the Tauri command, adds "Promote if better" button） |
 | **Settings UI for margin** | New AutoPromoteCard on Settings + persisted to localStorage | ✅ v0.23c 完成（no IPC, no DB, just zustand+localStorage like other UI prefs） |
 | **v0.23 final docs** | Ship log + tally + complete model lifecycle | ✅ v0.23d 完成（587 tests total, user has full control over train→promote→rollback→auto-promote→chart） |
+| **Per-trial badges in PromoteHistory** | Pure L1: `trial_index` from v0.21a surfaced as badge | ✅ v0.24a 完成（"best trial" / "trial #N" badge next to model version） |
+| **v0.24 final docs** | Ship log + tally + next steps | ✅ v0.24b 完成（590 tests total, all model lifecycle data now visible to user） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |
