@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider, createBrowserRouter, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { applyRetryPolicy } from '@/lib/retry-policy';
 import { Dashboard } from '@/routes/Dashboard';
 import { Markets } from '@/routes/Markets';
 import { MarketDetail } from '@/routes/MarketDetail';
@@ -30,15 +31,10 @@ import './styles/globals.css';
 const initialTheme = useThemeStore.getState().theme;
 document.documentElement.setAttribute('data-theme', initialTheme);
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 30_000,
-      refetchOnWindowFocus: false,
-      retry: 1,
-    },
-  },
-});
+const queryClient = new QueryClient();
+// v0.9a — smarter retry policy: backoff + jitter + respects error kind.
+// (Replaces the old hard-coded `retry: 1`.)
+applyRetryPolicy(queryClient);
 
 const router = createBrowserRouter([
   {

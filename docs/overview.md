@@ -529,6 +529,7 @@ sequenceDiagram
 | **Audit log 保留** | `domain::audit` + `infra::db::audit` + 5th scheduler loop | ✅ v0.8c 完成（90d/50k/1k 策略 + 14 tests + 手动 IPC） |
 | **A11y 键盘导航** | `lib/keyboard-nav.ts` + `KbdHelpDialog` | ✅ v0.8d 完成（g+key 二级 chord + ? 帮助 + 7 vitest） |
 | **v0.8 final** | overview + README + release build | ✅ v0.8e 完成 |
+| **Retry 策略** | `lib/retry-policy.ts` (TanStack 替换 retry: 1) | ✅ v0.9a 完成（backoff + jitter + respects retryable） |
 
 ### 5.2 v0.4 — 功能模块全实现 (13 模块)
 
