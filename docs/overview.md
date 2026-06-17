@@ -590,6 +590,9 @@ sequenceDiagram
 | **v0.23 final docs** | Ship log + tally + complete model lifecycle | ✅ v0.23d 完成（587 tests total, user has full control over train→promote→rollback→auto-promote→chart） |
 | **Per-trial badges in PromoteHistory** | Pure L1: `trial_index` from v0.21a surfaced as badge | ✅ v0.24a 完成（"best trial" / "trial #N" badge next to model version） |
 | **v0.24 final docs** | Ship log + tally + next steps | ✅ v0.24b 完成（590 tests total, all model lifecycle data now visible to user） |
+| **promote_all_trials IPC** | 8th sidecar method + 7 tests (Rust+Python) | ✅ v0.25a 完成（loops over all_trials, returns per-trial results） |
+| **L1 promoteAllTrials wrapper** | L1 wrapper + 3 round-trip tests + Tauri command | ✅ v0.25b 完成（5th time back-filling Tauri command; CI check is now a real v0.26 candidate） |
+| **v0.25 final docs** | Ship log + tally + 1-click A/B compare | ✅ v0.25c 完成（602 tests total, "Promote all 4" button for A/B comparison） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |
