@@ -316,12 +316,19 @@ export function ModelLab() {
           promoted models, newest first. The currently
           active model is NOT in this list (use the
           ModelVersionPill at the top of the page for
-          that). */}
+          that).
+          v0.20c — passes the active model version so
+          the row can be marked as "active" and the
+          Rollback button can be hidden for the active
+          row (you can't roll back to the active
+          model). */}
       <Card
         title={t('promote.history.title')}
         description={t('promote.history.desc')}
       >
-        <PromoteHistory />
+        <PromoteHistory
+          activeModelVersion={activeModel.data?.model_version ?? null}
+        />
       </Card>
 
       <Card title={t('modellab.sm.title')} description={t('modellab.sm.desc')}>

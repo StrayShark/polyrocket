@@ -21,11 +21,12 @@
 // @vitest-environment happy-dom
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 vi.mock('@/ipc', () => ({
   listPromoteHistory: vi.fn(),
+  rollbackModel: vi.fn(),
 }));
 
 import { listPromoteHistory } from '@/ipc';
@@ -147,5 +148,73 @@ describe('PromoteHistory (v0.19c)', () => {
     });
     expect(screen.getByTestId('promote-history')).toHaveAttribute('data-count', '5');
     expect(screen.getAllByTestId('promote-history-row')).toHaveLength(5);
+  });
+
+  it('hides the Rollback button on the active row (v0.20c)', async () => {
+    vi.mocked(listPromoteHistory).mockResolvedValue({
+      ok: true,
+      count: 2,
+      entries: [
+        { job_id: 'train-aaa', model_version: 'logistic-train-aaa', promoted_at_ms: 1_700_000_000_000, best_brier: 0.18, best_params: null },
+        { job_id: 'train-bbb', model_version: 'logistic-train-bbb', promoted_at_ms: 1_700_001_000_000, best_brier: 0.16, best_params: null },
+      ],
+      message: null,
+    });
+    // The active model is train-bbb (the newer one, but
+    // we display newest first so it's the first row).
+    render(wrap(<PromoteHistory activeModelVersion="logistic-train-bbb" />));
+    await waitFor(() => {
+      expect(screen.getByTestId('promote-history')).toBeInTheDocument();
+    });
+    // The active row is marked
+    const rows = screen.getAllByTestId('promote-history-row');
+    expect(rows[0]).toHaveAttribute('data-active', 'true');
+    expect(rows[1]).toHaveAttribute('data-active', 'false');
+    // Only the non-active row has a Rollback button
+    const rollbackButtons = screen.getAllByTestId('promote-history-rollback');
+    expect(rollbackButtons).toHaveLength(1);
+    // The active badge is on the active row
+    expect(screen.getByTestId('promote-history-active-badge')).toBeInTheDocument();
+  });
+
+  it('shows Rollback button on all rows when no active version is set', async () => {
+    vi.mocked(listPromoteHistory).mockResolvedValue({
+      ok: true,
+      count: 2,
+      entries: [
+        { job_id: 'train-aaa', model_version: 'logistic-train-aaa', promoted_at_ms: 1_700_000_000_000, best_brier: 0.18, best_params: null },
+        { job_id: 'train-bbb', model_version: 'logistic-train-bbb', promoted_at_ms: 1_700_001_000_000, best_brier: 0.16, best_params: null },
+      ],
+      message: null,
+    });
+    render(wrap(<PromoteHistory activeModelVersion={null} />));
+    await waitFor(() => {
+      expect(screen.getByTestId('promote-history')).toBeInTheDocument();
+    });
+    const rollbackButtons = screen.getAllByTestId('promote-history-rollback');
+    expect(rollbackButtons).toHaveLength(2);
+    // No active badge
+    expect(screen.queryByTestId('promote-history-active-badge')).toBeNull();
+  });
+
+  it('opens confirmation modal when Rollback is clicked (v0.20c)', async () => {
+    vi.mocked(listPromoteHistory).mockResolvedValue({
+      ok: true,
+      count: 1,
+      entries: [
+        { job_id: 'train-aaa', model_version: 'logistic-train-aaa', promoted_at_ms: 1_700_000_000_000, best_brier: 0.18, best_params: null },
+      ],
+      message: null,
+    });
+    render(wrap(<PromoteHistory />));
+    await waitFor(() => {
+      expect(screen.getByTestId('promote-history-rollback')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('promote-history-rollback'));
+    // Confirmation modal opens
+    await waitFor(() => {
+      expect(screen.getByTestId('rollback-confirm-btn')).toBeInTheDocument();
+    });
+    expect(screen.getByText('rollback.confirm.title')).toBeInTheDocument();
   });
 });

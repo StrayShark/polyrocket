@@ -141,7 +141,12 @@ describe('Analysis / LlmPerf / LlmMgmt keys (v0.14a)', () => {
       'promote.last_candidate.hint',
       'promote.history.title', 'promote.history.desc',
       'promote.history.empty', 'promote.history.empty_desc',
-      'promote.history.brier',
+      'promote.history.brier', 'promote.history.active',
+      'rollback.btn.rollback', 'rollback.toast.rolled_back',
+      'rollback.toast.version', 'rollback.toast.failed',
+      'rollback.confirm.title', 'rollback.confirm.body',
+      'rollback.confirm.warning',
+      'rollback.confirm.confirm', 'rollback.confirm.cancel',
       // LlmPerf
       'llmperf.kpi.models', 'llmperf.kpi.cost', 'llmperf.kpi.wins',
       'llmperf.kpi.roi', 'llmperf.delta.profitable', 'llmperf.delta.unprofitable',
