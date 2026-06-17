@@ -787,8 +787,9 @@ async fn ping_sidecar_once() -> (SidecarHealthKind, Option<i64>, Option<String>)
     // doesn't have direct access to it (5-layer rule: L4 doesn't
     // import L2), so we use the app handle to look it up.
     //
-    // If the sidecar isn't running, the AppHandle's `manage()`
-    // state isn't set; we record "failed" with a clear message.
+    // v0.12c — use the async wrapper (ping_async) which composes
+    // cleanly with `tokio::time::timeout` and `spawn_blocking`,
+    // instead of manually managing `spawn_blocking` here.
     let state = TAURI_APP.get();
     let Some(handle) = state else {
         return (SidecarHealthKind::Failed, None, Some("app handle not set".into()));
@@ -800,15 +801,9 @@ async fn ping_sidecar_once() -> (SidecarHealthKind, Option<i64>, Option<String>)
     if !sidecar_state.is_running() {
         return (SidecarHealthKind::Failed, None, Some("sidecar not running".into()));
     }
-    // Run the blocking I/O on a blocking thread (the helper holds
-    // sync mutexes; can't be on the async runtime directly).
-    let result = tokio::task::spawn_blocking(move || {
-        sidecar_state.ping_blocking(2000)
-    }).await;
-    match result {
-        Ok(Ok(latency_ms)) => (SidecarHealthKind::Ok, Some(latency_ms as i64), None),
-        Ok(Err(e)) => (SidecarHealthKind::Failed, None, Some(e)),
-        Err(e) => (SidecarHealthKind::Failed, None, Some(format!("join: {e}"))),
+    match sidecar_state.ping_async(2000).await {
+        Ok(latency_ms) => (SidecarHealthKind::Ok, Some(latency_ms as i64), None),
+        Err(e) => (SidecarHealthKind::Failed, None, Some(e)),
     }
 }
 

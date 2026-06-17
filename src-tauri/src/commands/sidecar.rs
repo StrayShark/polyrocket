@@ -155,6 +155,46 @@ impl SidecarState {
         }
         Ok(started.elapsed().as_millis() as u64)
     }
+
+    /// v0.12c — async-friendly wrapper around `ping_blocking`.
+    ///
+    /// The blocking helper holds a sync mutex; calling it directly
+    /// from the async runtime would block the worker thread. This
+    /// wrapper uses `tokio::task::spawn_blocking` to run the I/O
+    /// off the runtime, with `tokio::time::timeout` for an enforced
+    /// wall-clock deadline (the blocking helper's timeout is best-
+    /// effort because the read can race the deadline).
+    ///
+    /// Returns the latency in ms on success, or an error string
+    /// describing the failure.
+    pub async fn ping_async(&self, timeout_ms: u64) -> Result<u64, String> {
+        let this = Self {
+            child: Mutex::new(None),  // ping_async doesn't need the child
+            stdin: Mutex::new(None),
+            stdout: Mutex::new(None),
+            status: Mutex::new(self.status.lock().map_err(|e| format!("status lock: {e}"))?.clone()),
+        };
+        // Move the real stdin/stdout into the spawned task by
+        // swapping the contents. This is safe because we hold
+        // no other references and we're on a single-threaded
+        // async runtime per call.
+        *this.stdin.lock().map_err(|e| format!("stdin lock: {e}"))? =
+            self.stdin.lock().map_err(|e| format!("stdin lock: {e}"))?.take();
+        *this.stdout.lock().map_err(|e| format!("stdout lock: {e}"))? =
+            self.stdout.lock().map_err(|e| format!("stdout lock: {e}"))?.take();
+
+        match tokio::time::timeout(
+            std::time::Duration::from_millis(timeout_ms),
+            tokio::task::spawn_blocking(move || this.ping_blocking(timeout_ms)),
+        )
+        .await
+        {
+            Ok(Ok(Ok(latency))) => Ok(latency),
+            Ok(Ok(Err(e))) => Err(e),
+            Ok(Err(e)) => Err(format!("spawn_blocking: {e}")),
+            Err(_) => Err(format!("async timeout after {timeout_ms}ms")),
+        }
+    }
 }
 
 /// Start the sidecar. If already running, no-op.

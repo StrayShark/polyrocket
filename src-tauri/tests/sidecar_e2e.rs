@@ -277,7 +277,7 @@ fn sidecar_ping_blocking_returns_pong() {
     use polyrocket_lib::SidecarState;
     use polyrocket_lib::SidecarStatus;
     use std::process::{Command, Stdio};
-    let Some((_child_ignored, repo, py)) = spawn_sidecar() else {
+    let Some((_child_ignored, repo, py)) = spawn_sidecar_in("ping_blocking") else {
         eprintln!("[skip] python3 or sidecar/ not available");
         return;
     };
@@ -306,4 +306,58 @@ fn sidecar_ping_blocking_returns_pong() {
     assert!(latency < 2000, "ping took too long: {}ms", latency);
     assert!(elapsed.as_millis() < 2500, "wall clock over 2.5s: {:?}", elapsed);
     eprintln!("ping_blocking latency: {}ms", latency);
+}
+
+#[tokio::test]
+async fn sidecar_ping_async_returns_pong() {
+    // v0.12c — exercise SidecarState::ping_async end-to-end.
+    // Same as the blocking test but uses tokio::time::timeout +
+    // spawn_blocking to keep the async runtime free.
+    use polyrocket_lib::SidecarState;
+    use polyrocket_lib::SidecarStatus;
+    use std::process::{Command, Stdio};
+    let Some((_child_ignored, repo, py)) = spawn_sidecar_in("ping_async") else {
+        eprintln!("[skip] python3 or sidecar/ not available");
+        return;
+    };
+    let mut child = Command::new(&py)
+        .arg("-m").arg("polyrocket_sidecar")
+        .current_dir(&repo)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn sidecar");
+    let stdin = child.stdin.take().unwrap();
+    let stdout = child.stdout.take().unwrap();
+    let state = SidecarState::new();
+    *state.stdin.lock().unwrap() = Some(stdin);
+    *state.stdout.lock().unwrap() = Some(stdout);
+    state.set_status(SidecarStatus {
+        running: true, pid: Some(child.id()), command: "polyrocket-sidecar".into(), last_error: None,
+    });
+    *state.child.lock().unwrap() = Some(child);
+
+    let started = std::time::Instant::now();
+    let result = state.ping_async(2000).await;
+    let elapsed = started.elapsed();
+    let latency = result.expect("ping_async should succeed against running sidecar");
+    assert!(latency < 2000, "ping_async took too long: {}ms", latency);
+    assert!(elapsed.as_millis() < 2500, "wall clock over 2.5s: {:?}", elapsed);
+    eprintln!("ping_async latency: {}ms", latency);
+}
+
+#[tokio::test]
+async fn sidecar_ping_async_timeout() {
+    // v0.12c — when the sidecar is dead/missing, ping_async
+    // returns an error within the timeout, not after.
+    use polyrocket_lib::SidecarState;
+    let state = SidecarState::new();
+    // No stdin/stdout → ping_blocking returns "stdin not available"
+    // immediately, well under the timeout.
+    let started = std::time::Instant::now();
+    let result = state.ping_async(2000).await;
+    let elapsed_ms = started.elapsed().as_millis();
+    assert!(result.is_err(), "ping should fail without a sidecar");
+    assert!(elapsed_ms < 2000, "should fail fast, took {}ms", elapsed_ms);
 }
