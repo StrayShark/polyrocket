@@ -1,18 +1,30 @@
-import { useQuery } from '@tanstack/react-query';
-import { FlaskConical, GitBranch, Play, CheckCircle2, XCircle, Clock } from 'lucide-react';
-import { llmPerformance, sidecarPredict, sidecarHealthSnapshot } from '@/ipc';
+import { useState, useRef, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { FlaskConical, GitBranch, Play, CheckCircle2, XCircle, Clock, Sparkles } from 'lucide-react';
+import {
+  llmPerformance,
+  sidecarPredict,
+  sidecarHealthSnapshot,
+  trainJob,
+  onTrainStarted,
+  type TrainStartedEvent,
+} from '@/ipc';
 import { Card } from '@/components/base/Card';
 import { Pill } from '@/components/base/Pill';
 import { KpiCard } from '@/components/data/KpiCard';
+import { Button } from '@/components/base/Button';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { ModelVersionPill } from '@/components/feedback/ModelVersionPill';
+import { TrainProgress } from '@/components/feedback/TrainProgress';
 import { fmtPct } from '@/lib/format';
 import { useT } from '@/lib/i18n';
+import { toast } from '@/stores/toast-store';
 
 export function ModelLab() {
   const { t } = useT();
+  const queryClient = useQueryClient();
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['llm-performance'],
     queryFn: () => llmPerformance(),
@@ -43,6 +55,60 @@ export function ModelLab() {
       }
     },
     staleTime: 60_000,
+  });
+
+  // v0.17d — model training state. Same chicken-and-egg
+  // pattern as v0.15c Analysis page: the Rust `train_job`
+  // IPC emits `train_job:started` BEFORE returning, so we
+  // can't get the job_id from the IPC return value. We
+  // listen for the next `started` event after the user
+  // clicks Train, capture the id, and pass it to
+  // `TrainProgress`. On `finished`, we toast the result
+  // and invalidate the per-version query (a successful
+  // train writes a new candidate.json; once promoted
+  // the per-version list updates).
+  const [activeTrainJobId, setActiveTrainJobId] = useState<string | null>(null);
+  const expectedTrainRef = useRef<boolean>(false);
+  useEffect(() => {
+    let cancelled = false;
+    const unsubStarted = onTrainStarted((e: TrainStartedEvent) => {
+      if (cancelled) return;
+      if (expectedTrainRef.current) {
+        setActiveTrainJobId(e.job_id);
+        expectedTrainRef.current = false;
+      }
+    });
+    return () => {
+      cancelled = true;
+      unsubStarted.then((u) => u()).catch(() => { /* ignore */ });
+    };
+  }, []);
+
+  const trainMut = useMutation({
+    mutationFn: () => trainJob({}),
+    onSuccess: (r) => {
+      // IPC returned AFTER the `finished` event fired.
+      // The TrainProgress panel already shows the final
+      // state. We just toast the summary and refresh
+      // any dependent queries.
+      if (r.status === 'completed') {
+        toast.success(
+          t('train.toast.completed'),
+          r.best_brier != null
+            ? t('train.toast.brier', { value: r.best_brier.toFixed(3) })
+            : '',
+        );
+      } else {
+        toast.error(t('train.toast.failed'), r.message ?? undefined);
+      }
+      setActiveTrainJobId(null);
+      queryClient.invalidateQueries({ queryKey: ['llm-performance'] });
+      queryClient.invalidateQueries({ queryKey: ['sidecar-active-model'] });
+    },
+    onError: (e: Error) => {
+      toast.error(t('train.toast.failed'), e.message);
+      setActiveTrainJobId(null);
+    },
   });
 
   return (
@@ -109,12 +175,48 @@ export function ModelLab() {
         )}
       </Card>
 
-      <Card title={t('modellab.runs.title')} description={t('modellab.runs.desc')}>
-        <EmptyState
-          icon={<Play className="w-5 h-5" />}
-          title={t('modellab.runs.empty')}
-          description={t('modellab.runs.empty_desc')}
-        />
+      <Card
+        title={t('modellab.runs.title')}
+        description={t('modellab.runs.desc')}
+        action={
+          <Button
+            data-testid="model-train-btn"
+            variant="primary"
+            size="sm"
+            iconLeft={<Sparkles className="w-3 h-3" />}
+            loading={trainMut.isPending}
+            disabled={trainMut.isPending}
+            onClick={() => {
+              // v0.17d — same pattern as v0.15c: the train_job
+              // IPC emits `started` BEFORE returning, so we
+              // listen for the next `started` event and
+              // capture the id. The flag ensures we only
+              // capture events triggered by THIS click.
+              expectedTrainRef.current = true;
+              trainMut.mutate();
+            }}
+          >
+            {trainMut.isPending ? t('modellab.runs.training') : t('modellab.runs.train')}
+          </Button>
+        }
+      >
+        {/* v0.17d — live progress panel. Subscribes to the 2
+            `train_job:*` events. Mounts when the user clicks
+            Train and the next `started` event fires. */}
+        {activeTrainJobId && (
+          <TrainProgress
+            key={activeTrainJobId}
+            jobId={activeTrainJobId}
+            className="mt-0"
+          />
+        )}
+        {!activeTrainJobId && !trainMut.isPending && (
+          <EmptyState
+            icon={<Play className="w-5 h-5" />}
+            title={t('modellab.runs.empty')}
+            description={t('modellab.runs.empty_desc')}
+          />
+        )}
       </Card>
 
       <Card title={t('modellab.sm.title')} description={t('modellab.sm.desc')}>
