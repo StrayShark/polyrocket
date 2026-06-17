@@ -136,8 +136,14 @@ export function ModelLab() {
   } | null>(null);
 
   const promoteMut = useMutation({
-    mutationFn: () =>
-      promoteModel(lastCandidate ? { job_id: lastCandidate.jobId } : {}),
+    // v0.21c — bulk promote: accept an optional trial_index.
+    // The variables param is the trial_index (or undefined for
+    // the default "promote the best" behavior).
+    mutationFn: (trialIndex?: number) =>
+      promoteModel({
+        ...(lastCandidate ? { job_id: lastCandidate.jobId } : {}),
+        ...(trialIndex !== undefined ? { trial_index: trialIndex } : {}),
+      }),
     onSuccess: (r) => {
       if (r.promoted) {
         toast.success(
@@ -263,7 +269,7 @@ export function ModelLab() {
                 iconLeft={<ArrowUpCircle className="w-3 h-3" />}
                 loading={promoteMut.isPending}
                 disabled={promoteMut.isPending || !!activeTrainJobId}
-                onClick={() => promoteMut.mutate()}
+                onClick={() => promoteMut.mutate(undefined)}
               >
                 {promoteMut.isPending ? t('promote.btn.promoting') : t('promote.btn.promote')}
               </Button>
@@ -279,6 +285,22 @@ export function ModelLab() {
             key={activeTrainJobId}
             jobId={activeTrainJobId}
             className="mt-0"
+            // v0.21c — per-trial Promote buttons. The
+            // promoteMut now accepts an optional trial_index;
+            // we pass the row's index to bulk-promote that
+            // specific trial. The button on the "best" row
+            // (rendered with `isBest=true` inside the component)
+            // shows "Promote best" for clarity.
+            onPromote={(trialIndex) => promoteMut.mutate(trialIndex)}
+            promotingTrialIndex={
+              // promoteMut.variables is the trial_index
+              // passed to mutate(); null when not pending.
+              // Type-cast to number|null since variables
+              // is unknown by default.
+              promoteMut.isPending && typeof promoteMut.variables === 'number'
+                ? promoteMut.variables
+                : null
+            }
           />
         )}
         {/* v0.18c — Last-candidate hint. Shown when the user

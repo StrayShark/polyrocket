@@ -218,6 +218,9 @@ const en: Dictionary = {
   'train.progress.col.reg': 'reg',
   'train.progress.col.brier': 'Brier',
   'train.progress.best_brier': 'Best Brier: {{value}}',
+  // v0.21c — per-trial Promote buttons
+  'train.progress.promote_best': 'Promote best',
+  'train.progress.promote_trial': 'Promote #{{n}}',
   // LlmPerf page (v0.14a)
   'llmperf.kpi.models': 'Models tracked',
   'llmperf.kpi.cost': 'Total cost',
@@ -762,6 +765,9 @@ const zh: Dictionary = {
   'train.progress.col.reg': 'reg',
   'train.progress.col.brier': 'Brier',
   'train.progress.best_brier': '最佳 Brier: {{value}}',
+  // v0.21c — per-trial Promote buttons
+  'train.progress.promote_best': '晋升最佳',
+  'train.progress.promote_trial': '晋升 #{{n}}',
   // LlmPerf page (v0.14a)
   'llmperf.kpi.models': '已跟踪模型',
   'llmperf.kpi.cost': '总成本',

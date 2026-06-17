@@ -135,6 +135,7 @@ describe('Analysis / LlmPerf / LlmMgmt keys (v0.14a)', () => {
       'train.progress.status.completed', 'train.progress.status.failed',
       'train.progress.col.trial', 'train.progress.col.lr', 'train.progress.col.reg',
       'train.progress.col.brier', 'train.progress.best_brier',
+      'train.progress.promote_best', 'train.progress.promote_trial',
       'train.toast.completed', 'train.toast.brier', 'train.toast.failed',
       'promote.btn.promote', 'promote.btn.promoting',
       'promote.toast.promoted', 'promote.toast.version', 'promote.toast.failed',

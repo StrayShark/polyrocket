@@ -181,4 +181,56 @@ describe('TrainProgress (v0.17e)', () => {
     expect(screen.getByTestId('train-progress-row-1')).toHaveAttribute('data-best', 'true');
     expect(screen.getByTestId('train-progress-row-2')).toHaveAttribute('data-best', 'false');
   });
+
+  it('hides Promote buttons when onPromote is undefined (v0.21c)', async () => {
+    const JID = 'train-abc';
+    fireStarted({ job_id: JID, n_trials: 4, epochs: 80, started_at: 1000 });
+    fireFinished({
+      job_id: JID,
+      status: 'completed',
+      best_brier: 0.150,
+      best_params: { w0: 0.05, w1: 0.10, w2: 0.15 },
+      trials: [
+        { lr: 0.05, reg: 0.01, brier: 0.300, weights: { w0: 0.1, w1: 0.2, w2: 0.3 } },
+        { lr: 0.10, reg: 0.01, brier: 0.150, weights: { w0: 0.05, w1: 0.10, w2: 0.15 } },
+      ],
+      duration_ms: 3000,
+      candidate_path: '/tmp/c.json',
+      message: null,
+      finished_at: 4000,
+    });
+    // No onPromote passed → no Promote buttons
+    expect(screen.queryByTestId('train-promote-btn-0')).toBeNull();
+    expect(screen.queryByTestId('train-promote-btn-1')).toBeNull();
+  });
+
+  it('shows Promote buttons on every row when onPromote is set (v0.21c)', async () => {
+    const JID = 'train-abc';
+    render(
+      <TrainProgress
+        jobId={JID}
+        onPromote={vi.fn()}
+        promotingTrialIndex={null}
+      />
+    );
+    await flushListeners();
+    fireStarted({ job_id: JID, n_trials: 4, epochs: 80, started_at: 1000 });
+    fireFinished({
+      job_id: JID,
+      status: 'completed',
+      best_brier: 0.150,
+      best_params: { w0: 0.05, w1: 0.10, w2: 0.15 },
+      trials: [
+        { lr: 0.05, reg: 0.01, brier: 0.300, weights: { w0: 0.1, w1: 0.2, w2: 0.3 } },
+        { lr: 0.10, reg: 0.01, brier: 0.150, weights: { w0: 0.05, w1: 0.10, w2: 0.15 } },
+      ],
+      duration_ms: 3000,
+      candidate_path: '/tmp/c.json',
+      message: null,
+      finished_at: 4000,
+    });
+    // Both rows have a Promote button
+    expect(screen.getByTestId('train-promote-btn-0')).toBeInTheDocument();
+    expect(screen.getByTestId('train-promote-btn-1')).toBeInTheDocument();
+  });
 });

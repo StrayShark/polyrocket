@@ -1,21 +1,27 @@
 /**
- * TrainProgress (v0.17c).
+ * TrainProgress (v0.17c, v0.21c).
  *
  * Renders the live status of an in-flight `train_job` IPC as
  * a per-trial table:
  *
  *   ⟳ Training… (2/4 trials)
- *   ┌─────┬──────┬───────┐
- *   │ lr  │ reg  │ brier │
- *   ├─────┼──────┼───────┤
- *   │0.05 │ 0.01 │ 0.184 │  ✓ best
- *   │0.10 │ 0.01 │ 0.210 │
- *   │0.05 │ 0.10 │ 0.225 │
- *   │0.10 │ 0.10 │ 0.243 │
- *   └─────┴──────┴───────┘
+ *   ┌─────┬──────┬───────┬─────────────────┐
+ *   │ lr  │ reg  │ brier │                 │
+ *   ├─────┼──────┼───────┼─────────────────┤
+ *   │0.05 │ 0.01 │ 0.184 │ ✓ best  [Promote]│
+ *   │0.10 │ 0.01 │ 0.210 │         [Promote]│
+ *   │0.05 │ 0.10 │ 0.225 │         [Promote]│
+ *   │0.10 │ 0.10 │ 0.243 │         [Promote]│
+ *   └─────┴──────┴───────┴─────────────────┘
  *
  *   Best: 0.05 / 0.01 → w0=0.10 w1=0.20 w2=0.30
  *   candidate.json: /home/x/.polyrocket/sidecar/models/candidate.json
+ *
+ * v0.21c — per-trial Promote button. The user can promote
+ * ANY trial (not just the best). The "best" trial's button
+ * says "Promote best" to distinguish it; the others say
+ * "Promote #N". Clicking calls the `onPromote` callback
+ * with the trial index.
  *
  * Hooks into the 2 events emitted from
  * `commands::sidecar::train_job`:
@@ -34,7 +40,7 @@
  */
 
 import { useEffect, useState, useRef } from 'react';
-import { CheckCircle2, XCircle, Loader2, Cpu, Sparkles } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Cpu, Sparkles, ArrowUpCircle } from 'lucide-react';
 import {
   onTrainStarted,
   onTrainFinished,
@@ -43,6 +49,7 @@ import {
   type TrainTrialDto,
 } from '@/ipc';
 import { Pill } from '@/components/base/Pill';
+import { Button } from '@/components/base/Button';
 import { useT } from '@/lib/i18n';
 
 export interface TrainProgressProps {
@@ -54,12 +61,22 @@ export interface TrainProgressProps {
    * finished (e.g. for showing the last result on mount). */
   defaultExpanded?: boolean;
   className?: string;
+  /** v0.21c — bulk promote. Optional callback fired when
+   * the user clicks "Promote" on a trial row. The callback
+   * receives the 0-indexed trial number. If undefined, the
+   * Promote buttons are hidden. */
+  onPromote?: (trialIndex: number) => void;
+  /** v0.21c — which trial is currently being promoted
+   * (loading state on that row's button). */
+  promotingTrialIndex?: number | null;
 }
 
 export function TrainProgress({
   jobId,
   defaultExpanded = false,
   className = '',
+  onPromote,
+  promotingTrialIndex = null,
 }: TrainProgressProps) {
   const { t } = useT();
   const [started, setStarted] = useState<TrainStartedEvent | null>(null);
@@ -180,12 +197,13 @@ export function TrainProgress({
                 <th className="text-right px-2 py-1 font-medium">{t('train.progress.col.lr')}</th>
                 <th className="text-right px-2 py-1 font-medium">{t('train.progress.col.reg')}</th>
                 <th className="text-right px-2 py-1 font-medium">{t('train.progress.col.brier')}</th>
-                <th className="text-right px-2 py-1 font-medium w-12" />
+                <th className="text-right px-2 py-1 font-medium w-32" />
               </tr>
             </thead>
             <tbody>
               {trials.map((t2, i) => {
                 const isBest = i === bestIdx;
+                const isPromoting = promotingTrialIndex === i;
                 return (
                   <tr
                     key={i}
@@ -198,9 +216,26 @@ export function TrainProgress({
                     <td className="px-2 py-1 text-right text-fg">{t2.reg.toFixed(2)}</td>
                     <td className="px-2 py-1 text-right text-fg">{t2.brier.toFixed(3)}</td>
                     <td className="px-2 py-1 text-right">
-                      {isBest && (
-                        <span className="text-[9px] uppercase text-bull">best</span>
-                      )}
+                      <div className="flex items-center justify-end gap-1.5">
+                        {isBest && (
+                          <span className="text-[9px] uppercase text-bull">best</span>
+                        )}
+                        {onPromote && (
+                          <Button
+                            data-testid={`train-promote-btn-${i}`}
+                            variant="ghost"
+                            size="sm"
+                            iconLeft={<ArrowUpCircle className="w-3 h-3" />}
+                            loading={isPromoting}
+                            disabled={promotingTrialIndex !== null}
+                            onClick={() => onPromote(i)}
+                          >
+                            {isBest
+                              ? t('train.progress.promote_best')
+                              : t('train.progress.promote_trial', { n: i + 1 })}
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
