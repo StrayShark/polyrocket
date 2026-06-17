@@ -6,8 +6,8 @@
 |---|---|
 | Bundle id | `com.polyrocket.app` |
 | Stack | Tauri 2 · React 18 · TypeScript · Rust · SQLite · Python (sidecar) |
-| Test totals | **196 cargo + 161 vitest + 26 Python = 383/383** |
-| Status | v0.9 — retry policy, component tests, command palette, i18n (zh/en) |
+| Test totals | **204 cargo + 167 vitest + 35 Python = 406/406** |
+| Status | v0.10 — i18n wiring, real ML train+promote, modal a11y, sidecar health badge |
 
 ## What it does
 
@@ -167,6 +167,10 @@ Grouped by module — see `docs/overview.md` §3 for the full table.
 | v0.9b | ✅ `84dbf9f` | L1 component tests (testing-library + happy-dom, 12 cases) |
 | v0.9c | ✅ `21ebe9d` | Command palette (Cmd+K + 14 commands + fuzzy filter) |
 | v0.9d | ✅ `19765df` | i18n foundation (39 strings × zh/en, persisted) |
+| v0.10a | ✅ `b387155` | Wire i18n into sidebar nav + KbdHelpDialog + CommandPalette |
+| v0.10b | ✅ `51bf1ba` | Real Python train_job + promote_model (4-trial hyperparameter sweep) |
+| v0.10c | ✅ `02f3fe4` | Modal focus trap + restore (5 a11y requirements) |
+| v0.10d | ✅ `589481c` | Sidecar health probe (6th scheduler loop + topbar badge) |
 
 ## Documentation
 
