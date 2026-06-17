@@ -577,6 +577,10 @@ sequenceDiagram
 | **L1 rollbackModel wrapper + Tauri commands** | `rollbackModel` + back-fill `list_promote_history` command | ✅ v0.20b 完成（3 round-trip tests; v0.19b command was missing!） |
 | **ModelLab Rollback button** | Per-row Rollback button + confirmation modal + active badge | ✅ v0.20c 完成（3 new component tests, 12 new i18n keys, modal a11y） |
 | **v0.20 final docs** | Ship log + tally + test isolation fix (PredictTests setUp) | ✅ v0.20d 完成（556 tests total, full train→promote→history→rollback loop, 1 pre-existing bug fixed） |
+| **promote_model trial_index** | Sidecar `run_promote_model(trial_index)` for bulk promote | ✅ v0.21a 完成（model_version gets `-t{N}` suffix, 6 tests） |
+| **L1 promoteModel trial_index** | L1 wrapper accepts trial_index + 2 round-trip tests | ✅ v0.21b 完成（backward compat: undefined = best） |
+| **TrainProgress per-trial Promote** | Per-row Promote button + "Promote best" label + 2 tests | ✅ v0.21c 完成（12-component-test promote-history-panel pattern reused, only one trial promote at a time） |
+| **v0.21 final docs** | Ship log + tally + A/B compare via Rollback | ✅ v0.21d 完成（566 tests total, user can bulk-promote any of 4 trials） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |
