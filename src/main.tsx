@@ -23,6 +23,7 @@ import { Help } from '@/routes/Help';
 import { AppShell } from '@/components/layout/AppShell';
 import { useThemeStore } from '@/stores/theme-store';
 import { ToastHost } from '@/components/feedback/Toast';
+import { ErrorBoundary } from '@/components/feedback/ErrorBoundary';
 import './styles/globals.css';
 
 // Initialize theme on app boot (before paint)
@@ -69,9 +70,11 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-      <ToastHost />
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+        <ToastHost />
+      </QueryClientProvider>
+    </ErrorBoundary>
   </StrictMode>,
 );

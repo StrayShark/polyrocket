@@ -525,6 +525,7 @@ sequenceDiagram
 | **Tauri 能力** | `capabilities/default.json` + 7 自检 tests | ✅ v0.7c 完成（notification + sql-close + path + 反误配 guard） |
 | **README + release** | `README.md` v2.0 + 8.1 MB arm64 release binary 启动 OK | ✅ v0.7d 完成（pnpm tauri build 1m54s） |
 | **首次启动 seeder** | `domain::seed` + `infra::db::seed` + `commands::seed` + L1 wrapper | ✅ v0.8a 完成（首次启动自动注入 50+ 行 demo 数据） |
+| **L1 错误边界** | `lib/invoke-safe.ts` + `ErrorBoundary` + `QueryError` | ✅ v0.8b 完成（错误分类 10 种 + 22 vitest tests） |
 
 ### 5.2 v0.4 — 功能模块全实现 (13 模块)
 
