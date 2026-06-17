@@ -91,3 +91,30 @@ export const fmtDateTime = (ms: number | null | undefined): string => {
     minute: '2-digit',
   });
 };
+
+/**
+ * v0.13c — format a millisecond duration as a human-friendly
+ * retention age (e.g. "7 days", "1.5 years"). Used in the audit
+ * retention settings card so the user sees the policy in
+ * natural-language units.
+ */
+export const formatRetentionAge = (ms: number | null | undefined): string => {
+  if (ms === null || ms === undefined) return '—';
+  if (ms < 0) return '—';
+  const SEC = 1000;
+  const MIN = 60 * SEC;
+  const HOUR = 60 * MIN;
+  const DAY = 24 * HOUR;
+  if (ms < HOUR) return `${Math.round(ms / MIN)} min`;
+  if (ms < DAY) {
+    const h = ms / HOUR;
+    return Number.isInteger(h) ? `${h} hours` : `${h.toFixed(1)} hours`;
+  }
+  const days = ms / DAY;
+  if (days < 60) {
+    return Number.isInteger(days) ? `${days} days` : `${days.toFixed(1)} days`;
+  }
+  const years = days / 365;
+  if (years < 2) return `${(days / 30).toFixed(1)} months`;
+  return `${years.toFixed(1)} years`;
+};

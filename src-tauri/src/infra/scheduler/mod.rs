@@ -709,6 +709,7 @@ pub async fn run_health_probe_now(pool: &SqlitePool, http: &reqwest::Client) -> 
 
 use crate::domain::audit::RetentionPolicy;
 use crate::infra::db::audit::purge_old;
+use crate::infra::db::settings as app_settings;
 
 const DEFAULT_AUDIT_PURGE_HOUR_UTC: u32 = 3; // 3 AM UTC
 const DEFAULT_AUDIT_PURGE_TICK_SEC: u64 = 600; // 10 min — cheap check; only fires on the hour
@@ -718,13 +719,38 @@ fn default_retention_policy() -> RetentionPolicy {
     RetentionPolicy::default()
 }
 
+/// v0.13c — read the user's retention policy, with fallback to the
+/// hard-coded default. The user can override any of the three
+/// fields from Settings; missing fields fall back individually.
+pub async fn read_user_retention(pool: &SqlitePool) -> sqlx::Result<RetentionPolicy> {
+    app_settings::read_audit_retention(pool).await
+}
+
+/// v0.13c — write a user retention override.
+pub async fn write_user_retention(
+    pool: &SqlitePool,
+    policy: &RetentionPolicy,
+) -> sqlx::Result<()> {
+    app_settings::write_audit_retention(pool, policy).await
+}
+
 async fn run_audit_purge_once(pool: &SqlitePool) -> sqlx::Result<usize> {
     let now = chrono::Utc::now().timestamp_millis();
-    let policy = default_retention_policy();
+    // v0.13c — read the user's retention policy. Falls back to
+    // `RetentionPolicy::default()` if no overrides are set.
+    let policy = read_user_retention(pool).await.unwrap_or_else(|e| {
+        tracing::warn!(error = %e, "failed to read user retention; using default");
+        default_retention_policy()
+    });
     match purge_old(pool, &policy, now).await {
         Ok(n) => {
             if n > 0 {
-                tracing::info!(rows_purged = n, "audit log retention purge");
+                tracing::info!(
+                    rows_purged = n,
+                    retain_recent_ms = policy.retain_recent_ms,
+                    max_rows = policy.max_rows,
+                    "audit log retention purge"
+                );
             }
             Ok(n)
         }

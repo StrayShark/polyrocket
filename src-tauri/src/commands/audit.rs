@@ -76,6 +76,60 @@ pub async fn purge_audit_log_now(state: State<'_, AppState>) -> AppResult<usize>
     Ok(n)
 }
 
+/// v0.13c — return the user's current retention policy.
+#[tauri::command]
+pub async fn get_audit_retention(state: State<'_, AppState>) -> AppResult<AuditRetentionView> {
+    let policy = crate::infra::scheduler::read_user_retention(&state.db).await?;
+    Ok(AuditRetentionView::from(&policy))
+}
+
+/// v0.13c — set the user's retention policy. Triggers an immediate
+/// purge so the new policy takes effect on the existing data.
+#[tauri::command]
+pub async fn set_audit_retention(
+    state: State<'_, AppState>,
+    args: SetAuditRetentionArgs,
+) -> AppResult<usize> {
+    let policy = crate::domain::audit::RetentionPolicy {
+        retain_recent_ms: args.retain_recent_ms.unwrap_or(90 * 86_400_000),
+        max_rows: args.max_rows.unwrap_or(50_000),
+        min_keep_rows: args.min_keep_rows.unwrap_or(1_000),
+    };
+    crate::infra::scheduler::write_user_retention(&state.db, &policy).await?;
+    // Apply immediately so the user sees the effect
+    let n = crate::infra::scheduler::run_audit_purge_now(&state.db)
+        .await
+        .map_err(crate::AppError::Db)?;
+    Ok(n)
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AuditRetentionView {
+    pub retain_recent_ms: i64,
+    pub max_rows: i64,
+    pub min_keep_rows: i64,
+}
+
+impl From<&crate::domain::audit::RetentionPolicy> for AuditRetentionView {
+    fn from(p: &crate::domain::audit::RetentionPolicy) -> Self {
+        Self {
+            retain_recent_ms: p.retain_recent_ms,
+            max_rows: p.max_rows,
+            min_keep_rows: p.min_keep_rows,
+        }
+    }
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct SetAuditRetentionArgs {
+    /// Defaults to 90 days.
+    pub retain_recent_ms: Option<i64>,
+    /// Defaults to 50,000.
+    pub max_rows: Option<i64>,
+    /// Defaults to 1,000.
+    pub min_keep_rows: Option<i64>,
+}
+
 /// Look up the most recent N entries for a specific action.
 pub async fn recent_for_action(
     state: &AppState,

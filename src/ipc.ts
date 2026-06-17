@@ -176,6 +176,31 @@ export const auditCountForActor = (actor: string) =>
 // v0.8c — manual trigger for the daily retention purge.
 export const purgeAuditLogNow = () => invoke<number>('purge_audit_log_now');
 
+// v0.13c — read the user-overridden retention policy. Returns the
+// effective policy (user overrides merged with defaults).
+export const getAuditRetention = () =>
+  invoke<AuditRetentionView>('get_audit_retention');
+
+// v0.13c — set the user's retention policy. Triggers an immediate
+// purge and returns the number of rows deleted.
+export const setAuditRetention = (args: SetAuditRetentionArgs) =>
+  invoke<number>('set_audit_retention', { args });
+
+export interface AuditRetentionView {
+  /** Age cutoff in ms. Rows older than this are eligible for purge. */
+  retain_recent_ms: number;
+  /** Hard cap on total row count. */
+  max_rows: number;
+  /** Safety floor — never auto-purge below this many rows. */
+  min_keep_rows: number;
+}
+
+export interface SetAuditRetentionArgs {
+  retain_recent_ms?: number;
+  max_rows?: number;
+  min_keep_rows?: number;
+}
+
 // ---------------------------------------------------------------- Brief (M12)
 export const dailyBriefGet = (limit = 5) =>
   invoke<DailyBriefEntry[]>('daily_brief_get', { limit });

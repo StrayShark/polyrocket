@@ -96,6 +96,81 @@ pub async fn delete(pool: &SqlitePool, k: &str) -> sqlx::Result<()> {
     Ok(())
 }
 
+// =================================================================
+// ============== v0.13c — Audit retention user policy ==============
+// =================================================================
+//
+// The default `RetentionPolicy` (90d / 50k / 1k) lives in
+// `domain::audit`. Users can override it from Settings. The
+// overrides are stored in the same `_polyrocket_settings` table
+// under three separate keys, so a partial override still merges
+// with the defaults. `delete_user_retention()` clears overrides
+// and falls back to defaults.
+
+const K_RETAIN_MS: &str = "audit.retain_recent_ms";
+const K_MAX_ROWS: &str = "audit.max_rows";
+const K_MIN_KEEP: &str = "audit.min_keep_rows";
+
+/// Read the user-overridden retention policy. Missing keys fall
+/// back to `RetentionPolicy::default()`.
+pub async fn read_audit_retention(
+    pool: &SqlitePool,
+) -> sqlx::Result<crate::domain::audit::RetentionPolicy> {
+    use crate::domain::audit::RetentionPolicy;
+    let def = RetentionPolicy::default();
+    let retain = get_i64_or(pool, K_RETAIN_MS, def.retain_recent_ms).await?;
+    let max = get_i64_or(pool, K_MAX_ROWS, def.max_rows).await?;
+    let min = get_i64_or(pool, K_MIN_KEEP, def.min_keep_rows).await?;
+    Ok(RetentionPolicy {
+        retain_recent_ms: retain,
+        max_rows: max,
+        min_keep_rows: min,
+    })
+}
+
+/// Write a user retention policy. Only non-default values are
+/// persisted (saves table churn). Use `delete_audit_retention()`
+/// to clear all overrides and revert to defaults.
+pub async fn write_audit_retention(
+    pool: &SqlitePool,
+    policy: &crate::domain::audit::RetentionPolicy,
+) -> sqlx::Result<()> {
+    let def = crate::domain::audit::RetentionPolicy::default();
+    if policy.retain_recent_ms != def.retain_recent_ms {
+        set(pool, K_RETAIN_MS, &policy.retain_recent_ms.to_string()).await?;
+    } else {
+        delete(pool, K_RETAIN_MS).await.ok();
+    }
+    if policy.max_rows != def.max_rows {
+        set(pool, K_MAX_ROWS, &policy.max_rows.to_string()).await?;
+    } else {
+        delete(pool, K_MAX_ROWS).await.ok();
+    }
+    if policy.min_keep_rows != def.min_keep_rows {
+        set(pool, K_MIN_KEEP, &policy.min_keep_rows.to_string()).await?;
+    } else {
+        delete(pool, K_MIN_KEEP).await.ok();
+    }
+    Ok(())
+}
+
+/// Delete all retention overrides. The scheduler will then fall
+/// back to `RetentionPolicy::default()` on the next tick.
+pub async fn delete_audit_retention(pool: &SqlitePool) -> sqlx::Result<()> {
+    delete(pool, K_RETAIN_MS).await.ok();
+    delete(pool, K_MAX_ROWS).await.ok();
+    delete(pool, K_MIN_KEEP).await.ok();
+    Ok(())
+}
+
+/// Read and parse as i64; return `default` on missing or unparseable.
+async fn get_i64_or(pool: &SqlitePool, k: &str, default: i64) -> sqlx::Result<i64> {
+    Ok(get(pool, k)
+        .await?
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -160,5 +235,94 @@ mod tests {
     async fn get_or_returns_default_for_missing() {
         let p = fresh_pool().await;
         assert_eq!(get_or(&p, "absent", "fallback").await.unwrap(), "fallback");
+    }
+
+    // v0.13c — audit retention overrides
+
+    #[tokio::test]
+    async fn audit_retention_defaults_when_no_overrides() {
+        let p = fresh_pool().await;
+        let policy = read_audit_retention(&p).await.unwrap();
+        let def = crate::domain::audit::RetentionPolicy::default();
+        assert_eq!(policy.retain_recent_ms, def.retain_recent_ms);
+        assert_eq!(policy.max_rows, def.max_rows);
+        assert_eq!(policy.min_keep_rows, def.min_keep_rows);
+    }
+
+    #[tokio::test]
+    async fn audit_retention_round_trip() {
+        let p = fresh_pool().await;
+        let custom = crate::domain::audit::RetentionPolicy {
+            retain_recent_ms: 30 * 86_400_000,
+            max_rows: 10_000,
+            min_keep_rows: 500,
+        };
+        write_audit_retention(&p, &custom).await.unwrap();
+        let got = read_audit_retention(&p).await.unwrap();
+        assert_eq!(got.retain_recent_ms, 30 * 86_400_000);
+        assert_eq!(got.max_rows, 10_000);
+        assert_eq!(got.min_keep_rows, 500);
+    }
+
+    #[tokio::test]
+    async fn audit_retention_partial_override() {
+        let p = fresh_pool().await;
+        // Override only retain_recent_ms
+        let custom = crate::domain::audit::RetentionPolicy {
+            retain_recent_ms: 7 * 86_400_000,
+            max_rows: crate::domain::audit::RetentionPolicy::default().max_rows,
+            min_keep_rows: crate::domain::audit::RetentionPolicy::default().min_keep_rows,
+        };
+        write_audit_retention(&p, &custom).await.unwrap();
+        let got = read_audit_retention(&p).await.unwrap();
+        assert_eq!(got.retain_recent_ms, 7 * 86_400_000);
+        // other fields fall back to defaults
+        let def = crate::domain::audit::RetentionPolicy::default();
+        assert_eq!(got.max_rows, def.max_rows);
+        assert_eq!(got.min_keep_rows, def.min_keep_rows);
+    }
+
+    #[tokio::test]
+    async fn audit_retention_writing_defaults_clears_overrides() {
+        let p = fresh_pool().await;
+        let custom = crate::domain::audit::RetentionPolicy {
+            retain_recent_ms: 1 * 86_400_000,
+            max_rows: 100,
+            min_keep_rows: 10,
+        };
+        write_audit_retention(&p, &custom).await.unwrap();
+        // Now write the default — should clear all overrides
+        write_audit_retention(&p, &crate::domain::audit::RetentionPolicy::default()).await.unwrap();
+        let got = read_audit_retention(&p).await.unwrap();
+        let def = crate::domain::audit::RetentionPolicy::default();
+        assert_eq!(got.retain_recent_ms, def.retain_recent_ms);
+        assert_eq!(got.max_rows, def.max_rows);
+        assert_eq!(got.min_keep_rows, def.min_keep_rows);
+    }
+
+    #[tokio::test]
+    async fn audit_retention_delete_clears_overrides() {
+        let p = fresh_pool().await;
+        let custom = crate::domain::audit::RetentionPolicy {
+            retain_recent_ms: 7 * 86_400_000,
+            max_rows: 1_000,
+            min_keep_rows: 50,
+        };
+        write_audit_retention(&p, &custom).await.unwrap();
+        delete_audit_retention(&p).await.unwrap();
+        let got = read_audit_retention(&p).await.unwrap();
+        let def = crate::domain::audit::RetentionPolicy::default();
+        assert_eq!(got.retain_recent_ms, def.retain_recent_ms);
+        assert_eq!(got.max_rows, def.max_rows);
+        assert_eq!(got.min_keep_rows, def.min_keep_rows);
+    }
+
+    #[tokio::test]
+    async fn audit_retention_falls_back_on_unparseable() {
+        let p = fresh_pool().await;
+        set(&p, "audit.retain_recent_ms", "not-a-number").await.unwrap();
+        let def = crate::domain::audit::RetentionPolicy::default();
+        let got = read_audit_retention(&p).await.unwrap();
+        assert_eq!(got.retain_recent_ms, def.retain_recent_ms);
     }
 }
