@@ -334,6 +334,17 @@ def run_promote_model(
         # for rollback (no need to re-train or read the
         # candidate file later). The candidate["best"] has
         # {w0, w1, w2, brier, ...}; we only need the weights.
+        # v0.41a — `reason` is a short human-readable
+        # description of WHY this promote happened. For
+        # best-trial promotes, it's "Promoted as best trial".
+        # For bulk-trial promotes, it's "Promoted as trial
+        # N of M". The L1 surfaces this as a hover tooltip
+        # on the history row.
+        n_trials = len(all_trials)
+        if trial_index is not None:
+            reason = f"Promoted as trial {trial_index + 1} of {n_trials}"
+        else:
+            reason = "Promoted as best trial"
         new_entry: dict[str, Any] = {
             "job_id": candidate.get("job_id"),
             "model_version": f"logistic-{candidate.get('job_id', 'unknown')}{version_suffix}",
@@ -345,6 +356,10 @@ def run_promote_model(
             # can see "this was the best trial" vs "this
             # was trial 2 of 4" in the history panel.
             "trial_index": trial_index,
+            # v0.41a — human-readable reason for the
+            # promote. Surfaced as a hover tooltip on
+            # the history row in the L1.
+            "reason": reason,
         }
         # v0.33a — BEFORE the 20-cap takes effect, write
         # the entries that are about to be dropped to the

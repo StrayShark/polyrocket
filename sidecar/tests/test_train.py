@@ -205,6 +205,29 @@ class PromoteModelTests(unittest.TestCase):
         self.assertIn("best_brier", entry)
         self.assertAlmostEqual(entry["best_brier"], t["best_brier"], places=4)
 
+    def test_history_entry_includes_reason(self) -> None:
+        """v0.41a: each history entry has a `reason` field
+        with a human-readable description ("Promoted as
+        best trial" or "Promoted as trial N of M"). The L1
+        surfaces this as a hover tooltip.
+        """
+        t = run_train_job(n_trials=4, epochs=5)
+        # Best-trial promote
+        run_promote_model()
+        from polyrocket_sidecar.train import run_list_promote_history
+        h = run_list_promote_history()
+        entry = h["entries"][0]
+        self.assertIn("reason", entry)
+        self.assertEqual(entry["reason"], "Promoted as best trial")
+
+        # Bulk trial promote
+        t2 = run_train_job(n_trials=4, epochs=5)
+        run_promote_model(trial_index=1)
+        h = run_list_promote_history()
+        # h["entries"] is oldest-first; the new entry is last
+        new_entry = h["entries"][-1]
+        self.assertEqual(new_entry["reason"], "Promoted as trial 2 of 4")
+
     def test_rollback_to_previous_version(self) -> None:
         """v0.20a: train → promote → train → promote → rollback
         to the FIRST version. The new active should be the
@@ -512,7 +535,7 @@ class TestPromoteHistoryArchive(unittest.TestCase):
             set(archived.keys()),
             {"job_id", "model_version", "promoted_at_ms",
              "best_brier", "best_params", "weights",
-             "trial_index", "archived_at_ms"},
+             "trial_index", "reason", "archived_at_ms"},
         )
         # Weights has the 3 expected keys
         self.assertEqual(set(archived["weights"].keys()), {"w0", "w1", "w2"})
