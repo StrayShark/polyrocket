@@ -119,6 +119,7 @@ pub fn run() {
             commands::sidecar::sidecar_status,
             commands::sidecar::sidecar_predict,
             commands::sidecar::sidecar_predict_async,
+            commands::sidecar::train_job,
             commands::sidecar::sidecar_request,
             commands::sidecar_health::sidecar_health_now,
             commands::sidecar_health::sidecar_health_snapshot,

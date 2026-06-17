@@ -9,6 +9,7 @@
 use serde::{Deserialize, Serialize};
 
 pub mod sidecar;
+pub mod train_progress;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LabRun {

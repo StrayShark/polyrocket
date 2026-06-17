@@ -197,6 +197,117 @@ pub fn parse_predict_response(
     Ok(PredictResult { predictions: out, model_version, brier_score })
 }
 
+// =================================================================
+// ============== v0.17a — train_job wire format ====================
+// =================================================================
+
+/// Build a `train_job` request. Pure function: serializes to a
+/// JSON-line string. The Python sidecar accepts these params
+/// (see `sidecar/polyrocket_sidecar/dispatch.py::train_job`):
+///
+///   - n_trials: int (default 4, max 4)
+///   - epochs:   int (default 80)
+///   - job_id:   str (server-generated; client-side is ignored)
+///
+/// The Rust side generates a fresh `job_id` and passes it back
+/// in the started event so the L1 can correlate.
+pub fn build_train_request(
+    id: impl Into<String>,
+    n_trials: Option<u32>,
+    epochs: Option<u32>,
+) -> String {
+    let mut params = serde_json::Map::new();
+    if let Some(n) = n_trials {
+        params.insert("n_trials".into(), serde_json::json!(n));
+    }
+    if let Some(e) = epochs {
+        params.insert("epochs".into(), serde_json::json!(e));
+    }
+    let req = SidecarRequest {
+        id: id.into(),
+        method: SidecarMethod::TrainJob.as_str().to_string(),
+        params: serde_json::Value::Object(params),
+    };
+    serde_json::to_string(&req).unwrap_or_default()
+}
+
+/// One trial's result in a `train_job` response. v0.17a
+/// mirrors the Python sidecar's `trials[]` array.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrainTrial {
+    pub lr: f64,
+    pub reg: f64,
+    pub brier: f64,
+    /// `{"w0": ..., "w1": ..., "w2": ...}` — the trained weights
+    /// for this trial. Maps to the Python `weights` dict.
+    pub weights: serde_json::Value,
+}
+
+/// Wire-format mirror of the Python `run_train_job` return value.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrainResult {
+    /// Server-generated job id (e.g. `"train-441c352b"`).
+    pub job_id: String,
+    /// "completed" | "failed" (mirrors the Python return value).
+    pub status: String,
+    /// Best trial's Brier score (lower is better). Null on failure.
+    pub best_brier: Option<f64>,
+    /// Best trial's weights: `{"w0", "w1", "w2"}`. Null on failure.
+    pub best_params: Option<serde_json::Value>,
+    /// Per-trial stats. Length 0 if the train failed before any
+    /// trial finished.
+    pub trials: Vec<TrainTrial>,
+    /// Wall-clock time in milliseconds (Python's `duration_ms`).
+    pub duration_ms: i64,
+    /// Absolute path of the candidate JSON the Python sidecar
+    /// wrote (e.g. `~/.polyrocket/sidecar/models/candidate.json`).
+    /// Null on failure.
+    pub candidate_path: Option<String>,
+    /// Human-readable error message if `status == "failed"`.
+    /// None on success.
+    pub message: Option<String>,
+}
+
+/// Parse a `train_job` response into a `TrainResult`. Returns
+/// Err if the response is `ok=false`.
+///
+/// The Python sidecar's `run_train_job` returns a dict with
+/// the fields above; some are optional on failure paths
+/// (e.g. `best_brier` may be null even on partial success).
+pub fn parse_train_response(resp: &SidecarResponse) -> Result<TrainResult, String> {
+    if !resp.ok {
+        return Err(resp.error.clone().unwrap_or_else(|| "unknown error".into()));
+    }
+    let v = resp.result.clone().unwrap_or(Value::Null);
+    Ok(TrainResult {
+        job_id: v.get("job_id")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string(),
+        status: v.get("status")
+            .and_then(|x| x.as_str())
+            .unwrap_or("unknown")
+            .to_string(),
+        best_brier: v.get("best_brier").and_then(|x| x.as_f64()),
+        best_params: v.get("best_params").cloned(),
+        trials: v.get("trials")
+            .and_then(|x| x.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|item| serde_json::from_value::<TrainTrial>(item.clone()).ok())
+                    .collect()
+            })
+            .unwrap_or_default(),
+        duration_ms: v.get("duration_ms").and_then(|x| x.as_i64()).unwrap_or(0),
+        candidate_path: v.get("candidate_path")
+            .and_then(|x| x.as_str())
+            .map(String::from),
+        message: v.get("message")
+            .and_then(|x| x.as_str())
+            .map(String::from),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

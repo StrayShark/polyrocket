@@ -7,14 +7,18 @@
 use crate::AppError;
 use crate::AppResult;
 use crate::domain::lab::sidecar::{
-    build_predict_request, parse_line, parse_predict_response, Prediction, SidecarMethod,
-    SidecarRequest, SidecarResponse,
+    build_predict_request, build_train_request, parse_line, parse_predict_response,
+    parse_train_response, Prediction, SidecarMethod, SidecarRequest, SidecarResponse,
+    TrainResult, TrainTrial,
+};
+use crate::domain::lab::train_progress::{
+    TrainFinishedEvent, TrainStartedEvent, TrainTrialDto,
 };
 use crate::infra::db;
 use serde::{Deserialize, Serialize};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SidecarStatus {
@@ -456,6 +460,193 @@ pub async fn sidecar_predict_async(
         Ok(p) => Ok(p),
         Err(e) => Err(AppError::Internal(format!("sidecar predict_async: {e}"))),
     }
+}
+
+// =================================================================
+// ============== v0.17a — train_job IPC + progress events ==========
+// =================================================================
+
+/// Args for the `train_job` IPC. v0.17a — mirrors the Python
+/// sidecar's optional params. All fields are optional; the
+/// Python sidecar uses sensible defaults (n_trials=4, epochs=80).
+#[derive(Debug, Clone, Deserialize)]
+pub struct TrainJobArgs {
+    /// Default 4 (max 4 in v0.17a; the grid is 4 hardcoded
+    /// (lr, reg) combinations in `train.py`).
+    pub n_trials: Option<u32>,
+    /// Default 80. Per-trial training epochs.
+    pub epochs: Option<u32>,
+    /// Optional timeout in milliseconds for the IPC. Default
+    /// 60s — the Python sweep is 4 × 80 epochs, usually 2-10s
+    /// but can spike to 30s on a slow box.
+    pub timeout_ms: Option<u64>,
+}
+
+/// v0.17a — kick off a training job on the Python sidecar.
+///
+/// Emits two events on the Tauri bus:
+///   - `train_job:started`  — when the IPC is dispatched
+///   - `train_job:finished` — when the sweep completes (or fails)
+///
+/// Returns the full `TrainResult` (job_id, status, best_brier,
+/// best_params, trials, duration_ms, candidate_path, message).
+///
+/// Falls back to a "failed" result with no trials when the
+/// sidecar is not running — matches the v0.6b predict fallback
+/// (the L1 doesn't have to special-case "sidecar down").
+#[tauri::command]
+pub async fn train_job(
+    state: State<'_, SidecarState>,
+    app: AppHandle,
+    args: TrainJobArgs,
+) -> AppResult<TrainResult> {
+    let job_id = format!("train-{}", uuid::Uuid::new_v4().to_string().split('-').next().unwrap_or("00000000"));
+    let n_trials = args.n_trials.unwrap_or(4).clamp(1, 4);
+    let epochs = args.epochs.unwrap_or(80).clamp(1, 1000);
+    let timeout = args.timeout_ms.unwrap_or(60_000);
+    let started_at = chrono::Utc::now().timestamp_millis();
+
+    // v0.17a — emit started BEFORE the sidecar call so the L1
+    // can immediately render the "Training…" pill.
+    let _ = app.emit(
+        "train_job:started",
+        TrainStartedEvent {
+            job_id: job_id.clone(),
+            n_trials,
+            epochs,
+            started_at,
+        },
+    );
+
+    if !state.is_running() {
+        // Sidecar not running — emit a finished event with
+        // status="failed" and a descriptive message, then
+        // return the same shape so the L1 doesn't have to
+        // handle a special "no sidecar" path.
+        let _ = app.emit(
+            "train_job:finished",
+            TrainFinishedEvent {
+                job_id: job_id.clone(),
+                status: "failed".into(),
+                best_brier: None,
+                best_params: None,
+                trials: vec![],
+                duration_ms: 0,
+                candidate_path: None,
+                message: Some("sidecar not running".into()),
+                finished_at: chrono::Utc::now().timestamp_millis(),
+            },
+        );
+        return Ok(TrainResult {
+            job_id,
+            status: "failed".into(),
+            best_brier: None,
+            best_params: None,
+            trials: vec![],
+            duration_ms: 0,
+            candidate_path: None,
+            message: Some("sidecar not running".into()),
+        });
+    }
+
+    // Build the request line, write under stdin lock, read
+    // one line under stdout lock. Same lock discipline as
+    // `sidecar_predict` (v0.6b). The 4-trial sweep takes
+    // 2-30s, well within the 60s timeout.
+    let line = build_train_request(&job_id, Some(n_trials), Some(epochs));
+    let started = std::time::Instant::now();
+    let deadline = std::time::Duration::from_millis(timeout);
+
+    let response_line = {
+        // Write under stdin lock, release before reading.
+        {
+            let mut stdin_guard = state.stdin.lock().map_err(|e| format!("stdin lock: {e}"))
+                .map_err(AppError::Internal)?;
+            let stdin = stdin_guard.as_mut()
+                .ok_or_else(|| AppError::Internal("stdin not available".into()))?;
+            use std::io::Write;
+            if let Err(e) = writeln!(stdin, "{line}") {
+                return Err(AppError::Internal(format!("train_job write: {e}")));
+            }
+            if let Err(e) = stdin.flush() {
+                return Err(AppError::Internal(format!("train_job flush: {e}")));
+            }
+        }
+        // Read one line under stdout lock.
+        let mut stdout_guard = state.stdout.lock().map_err(|e| format!("stdout lock: {e}"))
+            .map_err(AppError::Internal)?;
+        let stdout = stdout_guard.as_mut()
+            .ok_or_else(|| AppError::Internal("stdout not available".into()))?;
+        use std::io::{BufRead, BufReader};
+        let mut reader = BufReader::new(stdout);
+        let mut buf = String::new();
+        if let Err(e) = reader.read_line(&mut buf) {
+            return Err(AppError::Internal(format!("train_job read: {e}")));
+        }
+        buf
+    };
+
+    let elapsed = started.elapsed();
+    if elapsed > deadline {
+        let msg = format!("train_job timeout after {}ms", elapsed.as_millis());
+        let _ = app.emit(
+            "train_job:finished",
+            TrainFinishedEvent {
+                job_id: job_id.clone(),
+                status: "failed".into(),
+                best_brier: None,
+                best_params: None,
+                trials: vec![],
+                duration_ms: elapsed.as_millis() as i64,
+                candidate_path: None,
+                message: Some(msg.clone()),
+                finished_at: chrono::Utc::now().timestamp_millis(),
+            },
+        );
+        return Err(AppError::Internal(msg));
+    }
+
+    let parsed = parse_line(&response_line).map_err(|e| {
+        AppError::Internal(format!("train_job parse: {e}"))
+    })?;
+    let response = match parsed {
+        crate::domain::lab::sidecar::ParseResult::Response(r) => r,
+        _ => {
+            return Err(AppError::Internal("train_job: not a response".into()));
+        }
+    };
+    if response.id != job_id {
+        return Err(AppError::Internal(format!(
+            "train_job id mismatch: sent={job_id}, got={}",
+            response.id
+        )));
+    }
+    let result = parse_train_response(&response).map_err(|e| {
+        AppError::Internal(format!("train_job decode: {e}"))
+    })?;
+
+    // v0.17a — emit finished with the parsed result.
+    let _ = app.emit(
+        "train_job:finished",
+        TrainFinishedEvent {
+            job_id: result.job_id.clone(),
+            status: result.status.clone(),
+            best_brier: result.best_brier,
+            best_params: result.best_params.clone(),
+            trials: result.trials.iter().map(|t| TrainTrialDto {
+                lr: t.lr,
+                reg: t.reg,
+                brier: t.brier,
+                weights: t.weights.clone(),
+            }).collect(),
+            duration_ms: result.duration_ms,
+            candidate_path: result.candidate_path.clone(),
+            message: result.message.clone(),
+            finished_at: chrono::Utc::now().timestamp_millis(),
+        },
+    );
+
+    Ok(result)
 }
 
 /// Send an arbitrary `SidecarRequest` and return the raw response.

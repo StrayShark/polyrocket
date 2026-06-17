@@ -561,6 +561,7 @@ sequenceDiagram
 | **LLM DTO types fixed** | `LlmAnalysis` / `LlmRecommendation` / `LlmCallLog` corrected to match Rust | ✅ v0.16a 完成（id: string, field renames, casts removed） |
 | **Broken LLM IPC calls** | `recMut` + `recordLlmDecision` now match Rust arg shape | ✅ v0.16b 完成（real production bug, buttons were silently failing） |
 | **DTO wire-format tests** | 19 tests for the corrected `LlmAnalysis` / `LlmRecommendation` / `LlmCallLog` / `RecordLlmDecisionArgs` shapes | ✅ v0.16c 完成（5 describe blocks, 19 scenarios） |
+| **train_job IPC + events** | `train_job` IPC + 2 progress events (Rust) | ✅ v0.17a 完成（TrainResult DTO, 2 emit events, 3 serde tests） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |
