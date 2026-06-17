@@ -72,3 +72,43 @@ if (hasL1 || hasLibRs) {
     process.exit(r.status ?? 1);
   }
 }
+
+// 4. SnapshotDiff lint (v0.35b) — informational only.
+//    If any `docs/previews/*.png` is staged, compare it
+//    against the version in HEAD using git. Reports the
+//    list of changed PNGs. This is NOT a blocker (the
+//    user may have intentionally regenerated snapshots),
+//    but it makes the change visible in the commit
+//    output so the reviewer knows what to expect.
+//
+//    To run a real "before/after" diff with byte
+//    comparison, the user can call
+//    `node scripts/diff-snapshots.mjs <before> <after>`
+//    manually after `snapshot_pages.py` regenerates.
+const hasSnapshotChanges = staged.some(
+  (f) => f.startsWith('docs/previews/') && f.endsWith('.png'),
+);
+if (hasSnapshotChanges) {
+  // Get the list of changed PNGs via git
+  let diffOutput = '';
+  try {
+    diffOutput = execSync(
+      'git diff --cached --name-only --diff-filter=AM -- docs/previews/',
+      { encoding: 'utf8' },
+    ).trim();
+  } catch {
+    // git not available or not in a repo; skip
+  }
+  if (diffOutput) {
+    const changedPngs = diffOutput.split('\n').filter(Boolean);
+    console.log('');
+    console.log(`ℹ SnapshotDiff (v0.35b): ${changedPngs.length} PNG(s) changed`);
+    for (const p of changedPngs.slice(0, 10)) {
+      console.log(`   ~ ${p}`);
+    }
+    if (changedPngs.length > 10) {
+      console.log(`   ... and ${changedPngs.length - 10} more`);
+    }
+    console.log('   (informational only; review the visual changes)');
+  }
+}

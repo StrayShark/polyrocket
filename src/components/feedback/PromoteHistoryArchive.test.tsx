@@ -131,7 +131,7 @@ describe('PromoteHistoryArchive (v0.34a)', () => {
       expect(screen.getAllByTestId('promote-history-archive-row').length).toBe(25);
     });
     // Initial call: offset=0
-    expect(vi.mocked(listPromoteHistoryArchive).mock.calls[0][0].offset).toBe(0);
+    expect(vi.mocked(listPromoteHistoryArchive).mock.calls[0]?.[0]?.offset).toBe(0);
     // Click next
     fireEvent.click(screen.getByTestId('promote-history-archive-next'));
     // Wait for the next call to be made
@@ -140,7 +140,7 @@ describe('PromoteHistoryArchive (v0.34a)', () => {
     });
     // The latest call should have offset=25
     const calls = vi.mocked(listPromoteHistoryArchive).mock.calls;
-    expect(calls[calls.length - 1][0].offset).toBe(25);
+    expect(calls[calls.length - 1]?.[0]?.offset).toBe(25);
   });
 
   it('pagination: prev button is disabled on first page', async () => {
