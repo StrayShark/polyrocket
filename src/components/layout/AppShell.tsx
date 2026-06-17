@@ -1,6 +1,8 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { LayoutDashboard, LineChart, Zap, Copy, BarChart3, FlaskConical, Search, RefreshCw, Bell, Settings, Radar, CircleDot, Crosshair, Landmark, Circle } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
+import { KbdHelpDialog, useKbdHelpDialog } from '@/components/feedback/KbdHelpDialog';
+import { useKeyboardNav, useNavBindings } from '@/lib/keyboard-nav';
 import { cn } from '@/lib/cn';
 
 const PRIMARY_NAV = [
@@ -22,6 +24,21 @@ export function AppShell() {
   const location = useLocation();
   const breadcrumb = location.pathname.split('/').filter(Boolean)[0] ?? 'dashboard';
   const pretty = breadcrumb.charAt(0).toUpperCase() + breadcrumb.slice(1);
+
+  // v0.8d — keyboard navigation (g d / g m / ? / Esc)
+  const kbdHelp = useKbdHelpDialog();
+  const bindings = useNavBindings({
+    onOpenHelp: kbdHelp.openDialog,
+    onOpenSearch: () => {
+      // Search box lives in the topbar; focus it via a DOM selector.
+      // (Future: hoist this into a proper ref when the topbar is split
+      // into its own component.)
+      const input = document.querySelector<HTMLInputElement>('input[type="search"], input[placeholder*="Search" i]');
+      input?.focus();
+    },
+    onCloseDialog: kbdHelp.closeDialog,
+  });
+  const { pendingPrefix } = useKeyboardNav(bindings);
 
   return (
     <div className="flex h-screen">
@@ -117,7 +134,23 @@ export function AppShell() {
             </div>
           </div>
           <div className="ml-auto flex items-center gap-1">
+            {/* v0.8d — pending key chord indicator (e.g. "g…") */}
+            {pendingPrefix && (
+              <span
+                className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface border border-border text-muted"
+                aria-live="polite"
+              >
+                {pendingPrefix}…
+              </span>
+            )}
             <IconBtn><RefreshCw className="w-3.5 h-3.5" /></IconBtn>
+            <IconBtn
+              aria-label="Keyboard shortcuts"
+              title="Keyboard shortcuts (?)"
+              onClick={kbdHelp.openDialog}
+            >
+              <span className="text-[10px] font-mono">?</span>
+            </IconBtn>
             <IconBtn><Bell className="w-3.5 h-3.5" /></IconBtn>
             <IconBtn><Settings className="w-3.5 h-3.5" /></IconBtn>
             <div
@@ -134,6 +167,9 @@ export function AppShell() {
           <Outlet />
         </div>
       </main>
+
+      {/* v0.8d — keyboard help dialog (`?` to open) */}
+      <KbdHelpDialog bindings={bindings} open={kbdHelp.open} onClose={kbdHelp.closeDialog} />
     </div>
   );
 }
@@ -182,12 +218,25 @@ function NavItem({ to, icon: Icon, label, count, badge }: {
   );
 }
 
-function IconBtn({ children }: { children: React.ReactNode }) {
+function IconBtn({
+  children,
+  onClick,
+  title,
+  ...rest
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  title?: string;
+  [k: string]: unknown;
+}) {
   return (
     <button
       type="button"
+      onClick={onClick}
+      title={title}
       className="w-7 h-7 grid place-items-center rounded-md hover:bg-surface-hover"
       style={{ color: 'var(--fg-secondary)' }}
+      {...rest}
     >
       {children}
     </button>
