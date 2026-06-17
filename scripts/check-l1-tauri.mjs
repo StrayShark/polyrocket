@@ -1,44 +1,50 @@
 #!/usr/bin/env node
 /**
- * L1 ↔ Tauri command guard (v0.27a — generalized).
+ * L1 ↔ Tauri command guard (v0.27a — generalized;
+ * v0.32a — also checks Rust command definitions).
  *
- * Enforces: every L1 wrapper in `src/ipc.ts` that calls
- * `invoke<...>('METHOD', ...)` MUST have a corresponding
- * Tauri command registered in
- * `src-tauri/src/lib.rs::tauri::generate_handler!`.
+ * Enforces two invariants:
  *
- * v0.27a — generalized the v0.26a sidecar-only guard to
- * cover ALL modules (wallet, market, signal, bet, copy,
- * pnl, llm, llm_mgmt, polyrocket, scheduler, notification,
- * audit, brief, sidecar, etc.). The approach is the same
- * — extract registered command names from lib.rs and
- * check every L1 wrapper's method name against the set —
- * but we no longer filter by the `SidecarMethod` enum.
+ *   1. Every L1 wrapper in `src/ipc.ts` that calls
+ *      `invoke<...>('METHOD', ...)` MUST have a
+ *      corresponding Tauri command registered in
+ *      `src-tauri/src/lib.rs::tauri::generate_handler!`.
+ *      (Caught the v0.4 `fetchActiveMarkets` bug
+ *      retroactively in v0.27a.)
  *
- * Why this exists: between v0.19a and v0.25a, we hit the
- * "wire format but no Tauri command" issue 5 times, all
- * in the sidecar module. The same risk exists for other
- * modules. v0.27a extends the v0.26a guard to all
- * modules, catching the same bug class for the rest of
- * the project.
+ *   2. Every `#[tauri::command]` function defined in
+ *      `src-tauri/src/commands/*.rs` MUST be
+ *      registered in `lib.rs::generate_handler!`.
+ *      (v0.32a — catches the inverse: "function
+ *      defined but not registered", which the Rust
+ *      compiler doesn't catch because `generate_handler!`
+ *      is a macro that takes any expression.)
+ *
+ * Why this exists: between v0.19a and v0.25a, we hit
+ * the "wire format but no Tauri command" issue 5
+ * times, all in the sidecar module. v0.26a added
+ * the v0.27a guard to catch the L1→Rust direction.
+ * v0.32a extends it to catch the inverse
+ * Rust→lib.rs direction.
  *
  * Usage: `node scripts/check-l1-tauri.mjs` (or
  * `node scripts/check-doc-sync.mjs` which calls this).
  *
  * Exit codes:
- *   0 — all L1 wrappers have matching Tauri commands
+ *   0 — all invariants hold
  *   1 — at least one mismatch
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { dirname, resolve, basename } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..');
 
 const ipcPath = resolve(repoRoot, 'src/ipc.ts');
 const libPath = resolve(repoRoot, 'src-tauri/src/lib.rs');
+const commandsDir = resolve(repoRoot, 'src-tauri/src/commands');
 
 /**
  * Extract ALL registered Tauri commands from
@@ -92,20 +98,89 @@ function extractL1Wrappers(src) {
   return wrappers;
 }
 
+/**
+ * v0.32a — extract all `#[tauri::command]` function names
+ * from a single Rust source file.
+ *
+ * Pattern:
+ *   #[tauri::command]
+ *   pub async fn <NAME>(...) -> ...   (or `pub fn <NAME>`)
+ *
+ * We use a simple regex: `#[tauri::command]\s*(?:#[^\n]*\s*)*pub\s+(?:async\s+)?fn\s+(\w+)`.
+ * The inner `(?:#[^\n]*\s*)*` allows arbitrary attribute lines
+ * (e.g. `#[tauri::command(rename_all = "snake_case")]`)
+ * between `#[tauri::command]` and the function. We don't
+ * support multi-line attributes, but those don't appear
+ * in the project.
+ *
+ * Returns: array of { name, file }.
+ */
+function extractTauriCommandsFromFile(filePath, fileContent) {
+  const fns = [];
+  const re = /#\[tauri::command\][\s\S]*?pub\s+(?:async\s+)?fn\s+(\w+)/g;
+  let m;
+  while ((m = re.exec(fileContent)) !== null) {
+    fns.push({ name: m[1], file: basename(filePath) });
+  }
+  return fns;
+}
+
+/**
+ * v0.32a — scan all `commands/*.rs` files and build a
+ * set of defined Tauri command names.
+ *
+ * Skips `mod.rs` (which contains `pub mod X;` lines, not
+ * `#[tauri::command]` functions). Also skips files where
+ * the regex matches a `#[tauri::command]` in a doc-comment
+ * or a test (rare; the regex is intentionally simple).
+ */
+function extractAllDefinedTauriCommands() {
+  const defined = new Map(); // name → file
+  const files = readdirSync(commandsDir).filter(
+    (f) => f.endsWith('.rs') && f !== 'mod.rs',
+  );
+  for (const f of files) {
+    const fullPath = resolve(commandsDir, f);
+    const src = readFileSync(fullPath, 'utf8');
+    const fns = extractTauriCommandsFromFile(fullPath, src);
+    for (const fn of fns) {
+      defined.set(fn.name, fn.file);
+    }
+  }
+  return defined;
+}
+
 function main() {
   const ipcSrc = readFileSync(ipcPath, 'utf8');
   const libSrc = readFileSync(libPath, 'utf8');
 
   const wrappers = extractL1Wrappers(ipcSrc);
   const registeredCommands = extractAllRegisteredCommands(libSrc);
+  const definedCommands = extractAllDefinedTauriCommands();
 
   const errors = [];
 
+  // Direction 1: L1 wrapper → registered Tauri command
   for (const { wrapper, method } of wrappers) {
     if (!registeredCommands.has(method)) {
       errors.push(
         `L1 wrapper "${wrapper}" calls invoke('${method}', ...)` +
         ` but no Tauri command "${method}" is registered in` +
+        ` src-tauri/src/lib.rs::tauri::generate_handler!`
+      );
+    }
+  }
+
+  // Direction 2 (v0.32a): defined Tauri command → registered
+  // Catches: a `#[tauri::command] pub fn X` exists in
+  // commands/Y.rs but X is missing from lib.rs::generate_handler!.
+  // The Rust compiler doesn't catch this (the macro accepts
+  // any expression).
+  for (const [name, file] of definedCommands) {
+    if (!registeredCommands.has(name)) {
+      errors.push(
+        `Tauri command "${name}" is defined in src-tauri/src/commands/${file}` +
+        ` (with #[tauri::command]) but is NOT registered in` +
         ` src-tauri/src/lib.rs::tauri::generate_handler!`
       );
     }
@@ -123,8 +198,10 @@ function main() {
   );
 
   if (errors.length === 0) {
-    let msg = `✓ L1↔Tauri OK (${wrappers.length} L1 wrappers,` +
-              ` ${registeredCommands.size} registered commands)`;
+    let msg =
+      `✓ L1↔Tauri OK (${wrappers.length} L1 wrappers,` +
+      ` ${registeredCommands.size} registered commands,` +
+      ` ${definedCommands.size} #[tauri::command] defs)`;
     if (orphanCommands.length > 0) {
       msg += ` [info: ${orphanCommands.length} registered command(s) have no L1 wrapper: ${orphanCommands.slice(0, 5).join(', ')}${orphanCommands.length > 5 ? '…' : ''}]`;
     }

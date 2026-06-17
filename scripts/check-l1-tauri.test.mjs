@@ -155,6 +155,60 @@ export const fakeTestWrapper = () => invoke<unknown>('fake_test_method');
 });
 
 // =========================================================================
+// Test 5 (v0.32a): catches a "defined but not registered" Tauri command
+// =========================================================================
+test('catches a #[tauri::command] function that is defined but not registered', () => {
+  // v0.32a — inverse direction. We add a `#[tauri::command]`
+  // function to commands/seed.rs that is NOT registered in
+  // lib.rs::generate_handler!. The guard should catch it.
+  const seedPath = 'src-tauri/src/commands/seed.rs';
+  const original = readFileSync(seedPath, 'utf8');
+  try {
+    // Append a fake #[tauri::command] function to seed.rs
+    const fakeFn = `
+
+// v0.32a test — fake tauri::command that is not registered in lib.rs
+#[tauri::command]
+pub async fn fake_unregistered_command_v032a() -> AppResult<String> {
+    Ok("never wired up".into())
+}
+`;
+    writeFileSync(seedPath, original + fakeFn);
+
+    const r = spawnSync('node', [SCRIPT], { encoding: 'utf8' });
+    if (r.status === 0) {
+      throw new Error(`expected non-zero exit, got 0\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+    }
+    const output = r.stderr || r.stdout;
+    if (!output.match(/L1↔Tauri mismatch/)) {
+      throw new Error(`expected "L1↔Tauri mismatch" in output: ${output}`);
+    }
+    if (!output.match(/fake_unregistered_command_v032a/)) {
+      throw new Error(`expected "fake_unregistered_command_v032a" in error: ${output}`);
+    }
+    if (!output.match(/seed\.rs/)) {
+      throw new Error(`expected "seed.rs" in error (file hint): ${output}`);
+    }
+  } finally {
+    writeFileSync(seedPath, original);
+  }
+});
+
+// =========================================================================
+// Test 6 (v0.32a): output reports the defs count
+// =========================================================================
+test('reports #[tauri::command] defs count in the OK line', () => {
+  const r = spawnSync('node', [SCRIPT], { encoding: 'utf8' });
+  if (r.status !== 0) {
+    throw new Error(`exit ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
+  }
+  // The v0.32a output adds "N #[tauri::command] defs" to the OK line
+  if (!r.stdout.match(/\d+ #\[tauri::command\] defs/)) {
+    throw new Error(`expected "N #[tauri::command] defs" in OK line: ${r.stdout}`);
+  }
+});
+
+// =========================================================================
 // Summary
 // =========================================================================
 console.log('');
