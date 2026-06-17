@@ -64,6 +64,34 @@ describe('page title keys (v0.11a)', () => {
   });
 });
 
+describe('History + Onboarding keys (v0.12b)', () => {
+  it('every history.* and onboarding.* key is in both locales', () => {
+    const keys = [
+      'history.kpi.total', 'history.kpi.open', 'history.kpi.winrate', 'history.kpi.pnl',
+      'history.refresh', 'history.empty.title', 'history.empty.all', 'history.empty.filtered',
+      'history.filter.all', 'history.filter.open', 'history.filter.won', 'history.filter.lost',
+      'history.filter.cancelled', 'history.profit', 'history.loss',
+      'onboarding.welcome', 'onboarding.subtitle', 'onboarding.welcome_toast',
+      'onboarding.tagline', 'onboarding.feature.multi_llm',
+      'onboarding.feature.self_custody', 'onboarding.feature.os_keyring',
+      'settings.section.appearance', 'settings.section.language',
+    ];
+    for (const key of keys) {
+      const enVal = translate('en', key);
+      const zhVal = translate('zh', key);
+      expect(enVal, `en missing: ${key}`).not.toBe(`?${key}?`);
+      expect(zhVal, `zh missing: ${key}`).not.toBe(`?${key}?`);
+    }
+  });
+
+  it('history.empty.filtered interpolates {{status}}', () => {
+    expect(translate('en', 'history.empty.filtered', { status: 'won' }))
+      .toBe('No bets with status "won".');
+    expect(translate('zh', 'history.empty.filtered', { status: '已胜' }))
+      .toBe('没有状态为 "已胜" 的投注。');
+  });
+});
+
 describe('SUPPORTED_LOCALES', () => {
   it('contains en and zh', () => {
     expect(SUPPORTED_LOCALES).toContain('en');

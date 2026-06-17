@@ -542,6 +542,7 @@ sequenceDiagram
 | **Train→Promote→Predict 闭环** | `active.py` loader + `predict` 用 active weights | ✅ v0.11c 完成（rationale 含 w0/w1/w2，promote 后下次 predict 用新权重） |
 | **predict hot path** | 局部变量绑定 sigmoid/math.exp + bench guard test | ✅ v0.11d 完成（1M markets/sec，10k<500ms） |
 | **predict model_version** | `PredictResult` struct + `get_active_model_info` | ✅ v0.12a 完成（rationale 显示 "logistic-train-xxx: ..."） |
+| **i18n routes** | History + Onboarding 用 t() + 27 新 key | ✅ v0.12b 完成（用户切 locale 立即看到 2 个核心 route 中文） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |

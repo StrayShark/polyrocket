@@ -8,6 +8,7 @@ import { Card } from '@/components/base/Card';
 import { useToastStore } from '@/stores/toast-store';
 import { CheckCircle2, Wallet, Key, Sparkles, ChevronRight, ChevronLeft, Radar } from 'lucide-react';
 import { POLYGON_MAINNET } from '@/types/wallet';
+import { useT } from '@/lib/i18n';
 
 interface OnbState {
   done: boolean;
@@ -38,6 +39,7 @@ const STEPS = ['welcome', 'theme', 'wallet', 'llm'] as const;
 export function Onboarding() {
   const onb = useOnbStore();
   const navigate = useNavigate();
+  const { t } = useT();
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
   const push = useToastStore((s) => s.push);
@@ -57,7 +59,7 @@ export function Onboarding() {
   const next = () => {
     if (isLast) {
       onb.setDone(true);
-      push({ kind: 'success', title: 'Welcome to polyrocket!', ttl: 4000 });
+      push({ kind: 'success', title: t('onboarding.welcome_toast'), ttl: 4000 });
       navigate('/dashboard', { replace: true });
     } else {
       onb.setStep(step + 1);
@@ -115,22 +117,22 @@ export function Onboarding() {
 }
 
 function WelcomeStep() {
+  const { t } = useT();
   return (
     <div className="space-y-4 text-center py-6">
       <div className="w-16 h-16 rounded-2xl bg-accent mx-auto grid place-items-center">
         <Radar className="w-8 h-8 text-white" />
       </div>
       <div>
-        <h1 className="text-[24px] font-semibold text-fg">Welcome to polyrocket</h1>
+        <h1 className="text-[24px] font-semibold text-fg">{t('onboarding.welcome')}</h1>
         <p className="text-[13px] text-muted mt-2 max-w-md mx-auto">
-          A Polymarket analysis desktop client with multi-LLM fan-out,
-          signal detection, copy trading, and self-custodial key storage.
+          {t('onboarding.tagline')}
         </p>
       </div>
       <div className="grid grid-cols-3 gap-3 max-w-md mx-auto pt-4">
-        <Feature icon={Sparkles} label="Multi-LLM" />
-        <Feature icon={Wallet} label="Self-custody" />
-        <Feature icon={Key} label="OS keyring" />
+        <Feature icon={Sparkles} label={t('onboarding.feature.multi_llm')} />
+        <Feature icon={Wallet} label={t('onboarding.feature.self_custody')} />
+        <Feature icon={Key} label={t('onboarding.feature.os_keyring')} />
       </div>
     </div>
   );

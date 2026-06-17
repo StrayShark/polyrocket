@@ -12,11 +12,13 @@ import { Skeleton } from '@/components/feedback/Skeleton';
 import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { fmtUsdc, fmtDateTime, fmtRelativeTime } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 import type { Bet, BetStatus } from '@/types/bet';
 
 const STATUS_FILTERS: Array<BetStatus | 'all'> = ['all', 'open', 'won', 'lost', 'cancelled'];
 
 export function History() {
+  const { t } = useT();
   const [statusFilter, setStatusFilter] = useState<BetStatus | 'all'>('all');
 
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
@@ -175,23 +177,23 @@ export function History() {
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiCard
-          label="Total Bets"
+          label={t('history.kpi.total')}
           value={summary.total.toString()}
           icon={HistoryIcon}
         />
         <KpiCard
-          label="Open"
+          label={t('history.kpi.open')}
           value={summary.open.toString()}
         />
         <KpiCard
-          label="Win Rate"
+          label={t('history.kpi.winrate')}
           value={`${Math.round(summary.winRate * 100)}%`}
           delta={summary.won + summary.lost > 0 ? { text: `${summary.won}W/${summary.lost}L`, positive: summary.winRate >= 0.5 } : null}
         />
         <KpiCard
-          label="Realized PnL"
+          label={t('history.kpi.pnl')}
           value={`$${fmtUsdc(summary.totalPnl)}`}
-          delta={{ text: summary.totalPnl >= 0 ? 'profit' : 'loss', positive: summary.totalPnl >= 0 }}
+          delta={{ text: t(summary.totalPnl >= 0 ? 'history.profit' : 'history.loss'), positive: summary.totalPnl >= 0 }}
         />
       </div>
 
@@ -208,7 +210,7 @@ export function History() {
                   : 'bg-surface-2 text-muted border-border hover:text-fg')
               }
             >
-              {s}
+              {t(`history.filter.${s}`)}
             </button>
           ))}
           <div className="flex-1" />
@@ -219,7 +221,7 @@ export function History() {
             onClick={() => refetch()}
             disabled={isRefetching}
           >
-            Refresh
+            {t('history.refresh')}
           </Button>
         </div>
       </Card>
@@ -237,11 +239,11 @@ export function History() {
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={<HistoryIcon className="w-5 h-5" />}
-          title="No bets"
+          title={t('history.empty.title')}
           description={
             data && data.length === 0
-              ? 'No bets placed yet. Use a Market Detail page to place your first bet.'
-              : `No bets with status "${statusFilter}".`
+              ? t('history.empty.all')
+              : t('history.empty.filtered', { status: t(`history.filter.${statusFilter}`) })
           }
         />
       ) : (
