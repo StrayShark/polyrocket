@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, LineChart, Zap, Copy, BarChart3, FlaskConical, Search, RefreshCw, Bell, Settings, Radar, CircleDot, Crosshair, Landmark, Circle } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
+import { LocaleSwitcher } from '@/components/i18n/LocaleSwitcher';
 import { KbdHelpDialog, useKbdHelpDialog } from '@/components/feedback/KbdHelpDialog';
 import { CommandPalette, useCommandPalette } from '@/components/feedback/CommandPalette';
 import { useKeyboardNav, useNavBindings } from '@/lib/keyboard-nav';
@@ -146,6 +147,9 @@ export function AppShell() {
             Theme
           </div>
           <ThemeSwitcher />
+          <div className="mt-2">
+            <LocaleSwitcher />
+          </div>
           <div className="mt-2 flex items-center gap-2 px-1 py-1 text-[11px]" style={{ color: 'var(--muted)' }}>
             <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--bull)' }} />
             <span className="font-mono">0x4f…a91</span>
