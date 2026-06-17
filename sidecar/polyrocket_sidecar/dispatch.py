@@ -18,6 +18,7 @@ import time
 from typing import Any, Callable
 
 from .predict import predict_from_markets
+from .train import run_promote_model, run_train_job
 
 
 def ping(_params: dict[str, Any]) -> dict[str, Any]:
@@ -32,22 +33,27 @@ def predict(params: dict[str, Any]) -> dict[str, Any]:
     return {"predictions": predictions}
 
 
-def train_job(_params: dict[str, Any]) -> dict[str, Any]:
-    # Stub: v0.8+ will run a real hyperparameter sweep.
-    return {
-        "job_id": "stub-train-job",
-        "status": "stub",
-        "message": "train_job is a placeholder in v0.7b; see polyrocket-sidecar README",
-    }
+def train_job(params: dict[str, Any]) -> dict[str, Any]:
+    """Run a small hyperparameter sweep, persist the best model
+    as a candidate. Optional params:
+      - n_trials: int (default 4, max 4)
+      - epochs: int (default 80)
+      - job_id: str (ignored; the server generates one)
+    """
+    n_trials = int(params.get("n_trials", 4))
+    epochs = int(params.get("epochs", 80))
+    return run_train_job(n_trials=n_trials, epochs=epochs)
 
 
-def promote_model(_params: dict[str, Any]) -> dict[str, Any]:
-    # Stub: v0.8+ will atomically swap the active model.
-    return {
-        "promoted": True,
-        "status": "stub",
-        "message": "promote_model is a placeholder in v0.7b; see polyrocket-sidecar README",
-    }
+def promote_model(params: dict[str, Any]) -> dict[str, Any]:
+    """Promote the current candidate to the active slot.
+
+    Optional params:
+      - job_id: str (if set, refuses to promote a candidate from
+                 a different job — protects against race conditions)
+    """
+    job_id = params.get("job_id")
+    return run_promote_model(job_id=job_id)
 
 
 DISPATCH: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {

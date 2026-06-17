@@ -63,8 +63,10 @@ def main() -> int:
             print(f"❌ {line!r} → !parse {e} (raw: {out!r})")
             all_ok = False
             continue
-        if "error" in obj:
-            print(f"  → id={obj['id']} ERROR code={obj['error']['code']}: {obj['error']['message']}")
+        if obj.get("error"):
+            print(f"  → id={obj['id']} ERROR: {obj['error']}")
+        elif obj.get("ok") is False:
+            print(f"  → id={obj['id']} FAILED: {obj.get('error') or 'unknown'}")
         else:
             print(f"  → id={obj['id']} result={obj['result']}")
         import time

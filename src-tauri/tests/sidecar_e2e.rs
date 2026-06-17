@@ -167,7 +167,7 @@ fn sidecar_unknown_method_returns_ok_false() {
 }
 
 #[test]
-fn sidecar_train_job_stub_returns_ok() {
+fn sidecar_train_job_runs_real_sweep() {
     let Some((mut child, _repo, _py)) = spawn_sidecar() else {
         eprintln!("[skip] python3 or sidecar/ not available");
         return;
@@ -176,10 +176,13 @@ fn sidecar_train_job_stub_returns_ok() {
     let stdout = child.stdout.take().expect("stdout");
     let mut stdout = BufReader::new(stdout);
 
+    // v0.10b — train_job is no longer a stub. It runs a hyperparameter
+    // sweep and writes a candidate file. We just verify the response
+    // shape here (a real e2e would inspect the candidate file too).
     let req = SidecarRequest {
         id: "rt-4".into(),
         method: SidecarMethod::TrainJob.as_str().into(),
-        params: serde_json::json!({}),
+        params: serde_json::json!({ "n_trials": 1, "epochs": 5 }),
     };
     let payload = serde_json::to_string(&req).unwrap();
     let response = send_line(&mut stdin, &mut stdout, &payload).expect("round trip");
@@ -189,6 +192,55 @@ fn sidecar_train_job_stub_returns_ok() {
         _ => panic!("expected response"),
     };
     assert_eq!(resp.id, "rt-4");
-    assert!(resp.ok, "stub should return ok=true: {resp:?}");
+    assert!(resp.ok, "train_job should return ok=true: {resp:?}");
+    // Result should have a job_id and best_brier from the sweep
+    let result = resp.result.expect("train_job result");
+    assert!(result.get("job_id").is_some(), "expected job_id in result");
+    assert!(result.get("best_brier").is_some(), "expected best_brier");
+    let _ = child.kill();
+}
+
+#[test]
+fn sidecar_promote_model_round_trip() {
+    let Some((mut child, _repo, _py)) = spawn_sidecar() else {
+        eprintln!("[skip] python3 or sidecar/ not available");
+        return;
+    };
+    let mut stdin = child.stdin.take().expect("stdin");
+    let stdout = child.stdout.take().expect("stdout");
+    let mut stdout = BufReader::new(stdout);
+
+    // First train (writes candidate), then promote (copies to active).
+    // Both should return ok=true.
+    let train_req = SidecarRequest {
+        id: "rt-5a".into(),
+        method: SidecarMethod::TrainJob.as_str().into(),
+        params: serde_json::json!({ "n_trials": 1, "epochs": 3 }),
+    };
+    let train_payload = serde_json::to_string(&train_req).unwrap();
+    let train_resp = send_line(&mut stdin, &mut stdout, &train_payload).expect("train round trip");
+    let train_parsed = parse_line(&train_resp).expect("parse");
+    let train_resp = match train_parsed {
+        ParseResult::Response(r) => r,
+        _ => panic!("expected response"),
+    };
+    assert!(train_resp.ok, "train should be ok: {train_resp:?}");
+
+    let promote_req = SidecarRequest {
+        id: "rt-5b".into(),
+        method: SidecarMethod::PromoteModel.as_str().into(),
+        params: serde_json::json!({}),
+    };
+    let promote_payload = serde_json::to_string(&promote_req).unwrap();
+    let promote_resp = send_line(&mut stdin, &mut stdout, &promote_payload).expect("promote round trip");
+    let promote_parsed = parse_line(&promote_resp).expect("parse");
+    let promote_resp = match promote_parsed {
+        ParseResult::Response(r) => r,
+        _ => panic!("expected response"),
+    };
+    assert!(promote_resp.ok, "promote should be ok: {promote_resp:?}");
+    let result = promote_resp.result.expect("promote result");
+    assert_eq!(result.get("promoted").and_then(|v| v.as_bool()), Some(true));
+    assert!(result.get("active_path").is_some());
     let _ = child.kill();
 }

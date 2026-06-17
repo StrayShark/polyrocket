@@ -160,14 +160,35 @@ class DispatchTests(unittest.TestCase):
         self.assertEqual(len(out["predictions"]), 1)
         self.assertGreater(out["predictions"][0]["prob"], 0.5)
 
-    def test_train_job_stub(self) -> None:
+    def test_train_job_real(self) -> None:
+        """v0.10b: train_job runs a real sweep and writes a candidate file."""
         out = DISPATCH["train_job"]({})
-        self.assertEqual(out["status"], "stub")
+        self.assertEqual(out["status"], "completed", msg=f"train failed: {out}")
+        self.assertIn("job_id", out)
+        self.assertIn("best_brier", out)
+        self.assertIn("best_params", out)
+        self.assertIn("candidate_path", out)
+        # Trials were attempted
+        self.assertGreaterEqual(len(out.get("trials", [])), 1)
+        # The candidate file should now exist on disk
+        from pathlib import Path
+        self.assertTrue(Path(out["candidate_path"]).exists())
 
-    def test_promote_model_stub(self) -> None:
+    def test_promote_model_real(self) -> None:
+        """v0.10b: promote_model requires a candidate first; without one
+        it returns ok=false with a clear error message.
+        """
+        # Promote with no candidate on disk should fail cleanly
+        # (the model_dir may have a leftover from test_train_job_real —
+        # accept either outcome, just verify the shape).
         out = DISPATCH["promote_model"]({})
-        self.assertEqual(out["status"], "stub")
-        self.assertTrue(out["promoted"])
+        if out.get("promoted"):
+            self.assertEqual(out["status"], "ok")
+            self.assertIn("active_path", out)
+            self.assertIn("promoted_at_ms", out)
+        else:
+            # Either no candidate (from a clean test env) — both are valid
+            self.assertEqual(out["status"], "failed")
 
     def test_predict_rejects_non_list_markets(self) -> None:
         with self.assertRaises(ValueError):
