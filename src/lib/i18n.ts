@@ -491,6 +491,10 @@ const en: Dictionary = {
   'promote.history.active': 'active',
   // v0.34a — promote history archive modal
   'promote.archive.title': 'Promote history archive',
+  // v0.39b — auto-promote OS notification
+  'auto_promote.notify.label': 'Desktop notification on auto-promote',
+  'auto_promote.notify.desc': 'When ON, a real OS notification (macOS Notification Center / Windows toast) fires when a background auto-promote completes. The in-app toast always fires regardless.',
+  'auto_promote.toast.auto_promoted_body': 'A new model was auto-promoted',
   'promote.archive.empty_title': 'No archive yet',
   'promote.archive.empty_desc': 'The archive is created automatically when the in-memory 20-entry cap is exceeded. Promote 21+ models to start archiving.',
   'promote.archive.no_entries': '0 entries',
@@ -1092,6 +1096,10 @@ const zh: Dictionary = {
   'promote.history.active': '当前',
   // v0.34a — promote history archive modal
   'promote.archive.title': '晋升历史归档',
+  // v0.39b — auto-promote OS notification
+  'auto_promote.notify.label': '自动晋升时发送桌面通知',
+  'auto_promote.notify.desc': '开启后，后台自动晋升完成时会发送真实系统通知（macOS 通知中心 / Windows 通知）。应用内 Toast 始终会显示。',
+  'auto_promote.toast.auto_promoted_body': '新模型已自动晋升',
   'promote.archive.empty_title': '暂无归档',
   'promote.archive.empty_desc': '当内存中 20 条记录超过上限时，归档会自动创建。晋升 21+ 个模型即可开始归档。',
   'promote.archive.no_entries': '0 条记录',

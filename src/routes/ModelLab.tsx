@@ -11,6 +11,8 @@ import {
   promoteAllTrials,
   onTrainStarted,
   onAutoPromoteFinished,
+  sendNotification,
+  requestNotificationPermission,
   type TrainStartedEvent,
 } from '@/ipc';
 import { PromoteHistoryArchive } from '@/components/feedback/PromoteHistoryArchive';
@@ -103,12 +105,28 @@ export function ModelLab() {
   //      and the history panel (so they re-fetch).
   //   2. Show a toast with the result so the user knows
   //      whether their new model was auto-promoted.
+  //   3. v0.39b — also send an OS notification (in
+  //      addition to the toast) if the
+  //      `autoPromoteNotify` pref is on.
   //
   // The listener is registered once on mount and stays
   // alive for the lifetime of the ModelLab page. If the
   // user navigates away and comes back, it re-registers.
+  // v0.39b — read the auto-promote-notify flag once at
+  // mount time (the listener is registered once too;
+  // toggling the flag mid-session takes effect on the
+  // next mount).
+  const autoPromoteNotify = usePrefsStore((s) => s.autoPromoteNotify);
   useEffect(() => {
     let cancelled = false;
+    // v0.39b — request notification permission once on
+    // mount. If the user grants, the OS notification
+    // fires for every auto-promote that completes.
+    // If denied, the in-app toast still works.
+    requestNotificationPermission().catch(() => {
+      // No-op: best-effort. The L1 falls back to
+      // in-app toast only.
+    });
     const unsub = onAutoPromoteFinished((e) => {
       if (cancelled) return;
       // Refresh everything that depends on the active
@@ -121,6 +139,20 @@ export function ModelLab() {
           t('auto_promote.toast.auto_promoted'),
           e.model_version ?? undefined,
         );
+        // v0.39b — also send a real OS notification so
+        // the user knows even if they're in another app.
+        // Skipped for "skipped" events (those are normal,
+        // the user is usually still at the ModelLab page).
+        if (autoPromoteNotify) {
+          sendNotification(
+            'auto_promote',
+            t('auto_promote.toast.auto_promoted'),
+            e.model_version ?? t('auto_promote.toast.auto_promoted_body'),
+          ).catch(() => {
+            // Best-effort: the in-app toast already
+            // fired, so the user has feedback.
+          });
+        }
       } else {
         // Don't show an error toast for "skipped" — that's
         // the normal case where the candidate wasn't

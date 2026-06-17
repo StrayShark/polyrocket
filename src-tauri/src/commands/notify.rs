@@ -85,6 +85,7 @@ impl NotificationKind {
             "provider_auto_disable" => Some(NotificationKind::ProviderAutoDisabled),
             "daily_brief" => Some(NotificationKind::DailyBrief),
             "mirror_decision" => Some(NotificationKind::MirrorDecision),
+            "auto_promote" => Some(NotificationKind::AutoPromote),
             "info" => Some(NotificationKind::Info),
             _ => None,
         }

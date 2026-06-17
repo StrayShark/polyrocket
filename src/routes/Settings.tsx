@@ -442,6 +442,7 @@ function AutoPromoteCard() {
   const { t } = useT();
   const margin = usePrefsStore((s) => s.autoPromoteBrierMargin);
   const afterTrain = usePrefsStore((s) => s.autoPromoteAfterTrain);
+  const notifyOnAutoPromote = usePrefsStore((s) => s.autoPromoteNotify);
   const setPref = usePrefsStore((s) => s.setPref);
   const [value, setValue] = useState<number>(margin);
   const [saved, setSaved] = useState(false);
@@ -466,6 +467,14 @@ function AutoPromoteCard() {
       // is the source of truth, Rust will re-read on
       // the next Settings mount.
     });
+  };
+
+  // v0.39b — when the user toggles the desktop notification
+  // flag, update the prefs store only (no Rust push
+  // needed — the notification is L1-only, Rust doesn't
+  // know about it).
+  const onNotifyToggle = (next: boolean) => {
+    setPref('autoPromoteNotify', next);
   };
 
   const onSave = () => {
@@ -499,6 +508,20 @@ function AutoPromoteCard() {
           />
           <p className="text-[10px] text-muted mt-1 ml-1">
             {t('auto_promote.after_train.desc')}
+          </p>
+        </div>
+        {/* v0.39b — desktop notification toggle. Sits
+            below "Auto-run after train" so the user
+            sees the related options together. */}
+        <div>
+          <Toggle
+            data-testid="auto-promote-notify-toggle"
+            label={t('auto_promote.notify.label')}
+            checked={notifyOnAutoPromote}
+            onChange={onNotifyToggle}
+          />
+          <p className="text-[10px] text-muted mt-1 ml-1">
+            {t('auto_promote.notify.desc')}
           </p>
         </div>
         <NumberField
@@ -565,6 +588,7 @@ function BackupRestoreCard() {
       advancedStats: prefs.advancedStats,
       autoPromoteBrierMargin: prefs.autoPromoteBrierMargin,
       autoPromoteAfterTrain: prefs.autoPromoteAfterTrain,
+      autoPromoteNotify: prefs.autoPromoteNotify,
     };
     downloadPrefsAsFile(snapshot);
     toast.success(t('prefs.backup.exported'));

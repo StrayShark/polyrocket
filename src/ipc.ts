@@ -179,7 +179,8 @@ export const schedulerRunDailyBriefNow = () =>
 // ---------------------------------------------------------------- Notify (X2)
 export const sendNotification = (
   kind: 'new_signal' | 'order_fill' | 'keyring_ok' | 'keyring_error' |
-        'provider_auto_disable' | 'daily_brief' | 'mirror_decision' | 'info',
+        'provider_auto_disable' | 'daily_brief' | 'mirror_decision' |
+        'auto_promote' | 'info',
   title: string,
   body: string,
   prefsEnabled = true,

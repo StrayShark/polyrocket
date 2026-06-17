@@ -57,6 +57,7 @@ const PREF_DEFAULTS: UiPrefs = {
   advancedStats: false,
   autoPromoteBrierMargin: 0.005,
   autoPromoteAfterTrain: false,
+  autoPromoteNotify: true,
 };
 
 /**
@@ -163,6 +164,16 @@ export function parsePrefsFromString(json: string): UiPrefs {
       throw new Error('Invalid export: autoPromoteAfterTrain must be a boolean');
     }
     result.autoPromoteAfterTrain = v;
+  }
+  // v0.39b — autoPromoteNotify. New in v0.39; old
+  // exports don't have it (forward-compat: defaults
+  // to true).
+  if ('autoPromoteNotify' in rawPrefs) {
+    const v = rawPrefs.autoPromoteNotify;
+    if (typeof v !== 'boolean') {
+      throw new Error('Invalid export: autoPromoteNotify must be a boolean');
+    }
+    result.autoPromoteNotify = v;
   }
   return result;
 }

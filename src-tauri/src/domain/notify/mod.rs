@@ -24,6 +24,12 @@ pub enum NotificationKind {
     DailyBrief,
     /// Mirror decided (whale filled, we considered copying)
     MirrorDecision,
+    /// v0.39a — background auto-promote after train
+    /// completed. The L1 calls this when
+    /// `auto_promote:finished` event fires and the
+    /// promote succeeded. Distinct from `Info` so
+    /// the OS notification badge can be customized.
+    AutoPromote,
     /// Generic info
     Info,
 }
@@ -38,6 +44,7 @@ impl NotificationKind {
             NotificationKind::ProviderAutoDisabled => "provider_auto_disable",
             NotificationKind::DailyBrief => "daily_brief",
             NotificationKind::MirrorDecision => "mirror_decision",
+            NotificationKind::AutoPromote => "auto_promote",
             NotificationKind::Info => "info",
         }
     }
@@ -52,6 +59,7 @@ impl NotificationKind {
             NotificationKind::ProviderAutoDisabled => "Provider disabled",
             NotificationKind::DailyBrief => "Daily brief ready",
             NotificationKind::MirrorDecision => "Mirror decision",
+            NotificationKind::AutoPromote => "Auto-promote",
             NotificationKind::Info => "polyrocket",
         }
     }

@@ -55,6 +55,7 @@ const mockPrefsState = {
   advancedStats: false,
   autoPromoteBrierMargin: 0.005,
   autoPromoteAfterTrain: false,
+  autoPromoteNotify: true,
   setPref: mockSetPref,
   reset: vi.fn(),
 };
@@ -211,5 +212,22 @@ describe('Backup & restore card (v0.36b)', () => {
     expect(capturedAnchor!.download).toMatch(/^polyrocket-prefs-\d{8}\.json$/);
     // Restore
     vi.mocked(document.createElement).mockRestore();
+  });
+
+  // v0.39b — the auto-promote desktop-notification toggle
+  it('renders the auto-promote-notify toggle', async () => {
+    render(wrap(<Settings />));
+    await waitFor(() => {
+      expect(screen.getByTestId('auto-promote-notify-toggle')).toBeInTheDocument();
+    });
+  });
+
+  it('toggling auto-promote-notify updates the prefs store', async () => {
+    render(wrap(<Settings />));
+    const toggle = await screen.findByTestId('auto-promote-notify-toggle');
+    fireEvent.click(toggle);
+    await waitFor(() => {
+      expect(mockSetPref).toHaveBeenCalledWith('autoPromoteNotify', false);
+    });
   });
 });
