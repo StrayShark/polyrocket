@@ -33,6 +33,19 @@ pub async fn init_pool(app: &AppHandle) -> AppResult<SqlitePool> {
     super::settings::ensure_table(&pool).await?;
     ensure_copy_mirror_queue(&pool).await?;
 
+    // v0.8a — first-run demo data seeder.
+    // Idempotent: if the DB is already populated (e.g. user has used
+    // the app before), this is a no-op. Otherwise it inserts the
+    // canonical demo bundle so the UI shows a populated dashboard
+    // out of the box.
+    if !super::seed::is_seeded(&pool).await? {
+        let inserted = super::seed::apply_seed(&pool, false).await?;
+        tracing::info!(
+            rows = inserted,
+            "first-run seeder populated demo data"
+        );
+    }
+
     Ok(pool)
 }
 

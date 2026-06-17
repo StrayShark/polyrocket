@@ -15,6 +15,8 @@
 //! internal use (boot, IPC commands that mutate prefs).
 
 pub mod pool;
+pub mod seed;
 pub mod settings;
 
 pub use pool::init_pool;
+pub use seed::{apply_seed, is_seeded};

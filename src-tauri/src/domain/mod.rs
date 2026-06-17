@@ -14,6 +14,7 @@
 //! | `pnl`        | stub v0.3c | M8 — dashboard KPI aggregation                |
 //! | `lab`        | stub v0.3c | M5.2 — backtest / model experiments           |
 //! | `wallet`     | stub v0.3c | M3 — wallet metadata (keys live in L5 keyring)|
+//! | `seed`       | full v0.8a | v0.8a — first-run demo data (deterministic)   |
 //!
 //! Public API stability: `llm/` and `polymarket/` are used by L2 today;
 //! stubs are scaffolded for the M3-M9 milestones and not yet imported
@@ -28,5 +29,6 @@ pub mod mirror;
 pub mod notify;
 pub mod pnl;
 pub mod polymarket;
+pub mod seed;
 pub mod signal;
 pub mod wallet;

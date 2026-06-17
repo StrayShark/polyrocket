@@ -524,6 +524,7 @@ sequenceDiagram
 | **M7 真 sidecar** | `sidecar/polyrocket_sidecar/` Python 包 + `sidecar_e2e` Rust 集成测试 | ✅ v0.7b 完成（4 Rust e2e + 26 Python unit + 1 smoke） |
 | **Tauri 能力** | `capabilities/default.json` + 7 自检 tests | ✅ v0.7c 完成（notification + sql-close + path + 反误配 guard） |
 | **README + release** | `README.md` v2.0 + 8.1 MB arm64 release binary 启动 OK | ✅ v0.7d 完成（pnpm tauri build 1m54s） |
+| **首次启动 seeder** | `domain::seed` + `infra::db::seed` + `commands::seed` + L1 wrapper | ✅ v0.8a 完成（首次启动自动注入 50+ 行 demo 数据） |
 
 ### 5.2 v0.4 — 功能模块全实现 (13 模块)
 

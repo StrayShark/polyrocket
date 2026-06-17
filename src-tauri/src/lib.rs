@@ -114,6 +114,8 @@ pub fn run() {
             commands::brief::daily_brief_dismiss,
             commands::brief::daily_brief_refresh,
             commands::brief::daily_brief_set_prefs,
+            commands::seed::seed_demo_data,
+            commands::seed::is_seeded,
         ])
         .run(tauri::generate_context!())
         .expect("error while running polyrocket");

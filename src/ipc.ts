@@ -182,3 +182,10 @@ export const dailyBriefDismiss = (marketId: string) =>
 export const dailyBriefRefresh = () => invoke<BriefRefreshResult>('daily_brief_refresh');
 export const dailyBriefSetPrefs = (args: SetBriefPrefsArgs) =>
   invoke<void>('daily_brief_set_prefs', { args });
+
+// ---------------------------------------------------------------- Seed (v0.8a)
+// First-run demo data so the UI shows a populated dashboard out of the box.
+// Idempotent: the second call is a no-op unless `force: true`.
+export const seedDemoData = (force = false) =>
+  invoke<number>('seed_demo_data', { args: { force } });
+export const isSeeded = () => invoke<boolean>('is_seeded');
