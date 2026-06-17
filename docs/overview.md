@@ -545,6 +545,7 @@ sequenceDiagram
 | **i18n routes** | History + Onboarding 用 t() + 27 新 key | ✅ v0.12b 完成（用户切 locale 立即看到 2 个核心 route 中文） |
 | **Async sidecar ping** | `ping_async` + scheduler 用它代替 blocking | ✅ v0.12c 完成（tokio::time::timeout + spawn_blocking） |
 | **ModelLab model pill** | `ModelVersionPill` + `sidecarPredict` L1 wrapper | ✅ v0.12d 完成（"scoring with logistic-train-..."） |
+| **v0.12 final** | overview + README + release build | ✅ v0.12e 完成 |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |

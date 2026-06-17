@@ -6,8 +6,8 @@
 |---|---|
 | Bundle id | `com.polyrocket.app` |
 | Stack | Tauri 2 · React 18 · TypeScript · Rust · SQLite · Python (sidecar) |
-| Test totals | **205 cargo + 168 vitest + 43 Python = 416/416** |
-| Status | v0.11 — i18n page titles, real sidecar ping, train→promote→predict closed, hot-path opt |
+| Test totals | **208 cargo + 176 vitest + 44 Python = 428/428** |
+| Status | v0.12 — predict model_version, i18n landing, async sidecar, ModelLab pill |
 
 ## What it does
 
@@ -175,6 +175,11 @@ Grouped by module — see `docs/overview.md` §3 for the full table.
 | v0.11b | ✅ `614b625` | Real sidecar ping (scheduler → SidecarState::ping_blocking) |
 | v0.11c | ✅ `27388c9` | predict() reads from active.json — closed train→promote→predict loop |
 | v0.11d | ✅ `0107397` | predict hot-path optimize — 1M markets/sec |
+| v0.11.1 | ✅ `2bfb254` | hotfix: confidence sign in predict_from_markets |
+| v0.12a | ✅ `8fb2c23` | predict returns model_version (metadata loop closed) |
+| v0.12b | ✅ `09766ea` | i18n landing — History + Onboarding use t() |
+| v0.12c | ✅ `b1b09bf` | Async sidecar ping (ping_async) |
+| v0.12d | ✅ `26f637d` | ModelLab shows "scoring with logistic-train-..." pill |
 
 ## Documentation
 
