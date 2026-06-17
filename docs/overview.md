@@ -616,6 +616,9 @@ sequenceDiagram
 | **Snapshot diff tool (byte-level)** | `diff-snapshots.mjs` compares 2 PNG dirs, returns changed/added/removed | ✅ v0.35a 完成（10 standalone tests; SHA-256 hash; fast + deterministic） |
 | **Snapshot diff lint** | `check-doc-sync.mjs` lists changed PNGs (info-only, not blocking) | ✅ v0.35b 完成（uses `git diff --cached`; manual `diff-snapshots.mjs` for real diffs） |
 | **v0.35 final docs** | Ship log + tally + 4 governance checks + 1 manual tool | ✅ v0.35c 完成（661 tests total; 3 blocking + 1 info check + 1 manual tool） |
+| **prefs-io library** | `src/lib/prefs-io.ts` — export/import/parse with version envelope | ✅ v0.36a 完成（14 unit tests; version=1 envelope; forward-compat defaults） |
+| **BackupRestoreCard in Settings** | Export button + Import button + hidden file input + i18n | ✅ v0.36b 完成（2 component tests; 6 new i18n keys × 2 locales; pushes to Rust on import） |
+| **v0.36 final docs** | Ship log + tally + prefs now portable | ✅ v0.36c 完成（677 tests total; wire format versioned; UI push to Rust on import） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |
