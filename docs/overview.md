@@ -569,6 +569,10 @@ sequenceDiagram
 | **L1 promote types + wrapper** | `promoteModel` IPC + `PromoteResult` + 4 round-trip tests | ✅ v0.18b 完成（mirrors v0.17b but no listen wrappers since no events） |
 | **ModelLab Promote button** | Promote button + last-candidate hint + race-condition guard | ✅ v0.18c 完成（6 i18n keys, 2 toasts, candidate tracking） |
 | **lastCandidate reducer tests** | 7 reducer tests + ship log + final docs | ✅ v0.18d 完成（523 tests total, full train→promote closed loop） |
+| **list_promote_history IPC + history field** | 5th sidecar method + active.json.promotion_history[] | ✅ v0.19a 完成（read-only audit, 20-entry cap, backward-compat with v0.18 files） |
+| **L1 listPromoteHistory wrapper** | `listPromoteHistory` IPC + `PromoteHistoryEntry` + 3 round-trip tests | ✅ v0.19b 完成（typed entries, snake_case preserved, no args） |
+| **ModelLab history panel** | Read-only "Promotion history" card + 5 component tests | ✅ v0.19c 完成（newest-first, Brier badge colors, auto-refresh on promote） |
+| **v0.19 final docs** | Ship log + tally + new convention (rollback deferred to v0.20) | ✅ v0.19d 完成（539 tests total, full train→promote→history audit loop） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |
