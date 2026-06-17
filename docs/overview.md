@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v1.7 · 2026-06-17 (v0.32 + v0.33 — guard v2 + promote history archive)
+> 版本：v1.8 · 2026-06-17 (v0.34 — PromoteHistoryArchive component (audit trail UI))
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
 
@@ -611,6 +611,8 @@ sequenceDiagram
 | **list_promote_history_archive IPC** | New Rust command reads archive.jsonl + filter + sort + paginate | ✅ v0.33b 完成（4 rust tests; reads from `POLYROCKET_SIDECAR_MODEL_DIR`; 78→79 Tauri cmds） |
 | **L1 listPromoteHistoryArchive wrapper** | IPC wrapper + 3 interfaces (args/entry/result) | ✅ v0.33c 完成（6 wire-format tests; L1 IPC surface ready; UI deferred to v0.34） |
 | **v0.33 final docs** | Ship log + tally + audit trail now durable | ✅ v0.33d 完成（645 tests total; primary+secondary audit trail; 4/4 v0.31 deferred closed） |
+| **PromoteHistoryArchive component** | Modal showing full audit trail + "View archive" button in ModelLab | ✅ v0.34a 完成（6 component tests; 7 new i18n keys × 2 locales; pagination 25/page） |
+| **v0.34 final docs** | Ship log + tally + audit trail now user-visible | ✅ v0.34b 完成（651 tests total; full chain archive→IPC→wrapper→UI complete） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |
