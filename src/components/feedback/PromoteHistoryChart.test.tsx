@@ -19,7 +19,7 @@
 // @vitest-environment happy-dom
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 vi.mock('@/ipc', () => ({
@@ -179,5 +179,120 @@ describe('PromoteHistoryChart (v0.22a)', () => {
       expect(screen.getByTestId('promote-history-chart')).toBeInTheDocument();
     });
     expect(screen.getByTestId('promote-history-chart')).toHaveAttribute('data-points', '5');
+  });
+});
+
+// =================================================================
+// ==================== v0.29a — hover tooltips =====================
+// =================================================================
+
+describe('PromoteHistoryChart hover tooltips (v0.29a)', () => {
+  beforeEach(() => {
+    vi.mocked(listPromoteHistory).mockReset();
+  });
+
+  it('renders a <title> child for each dot (native browser tooltip)', async () => {
+    vi.mocked(listPromoteHistory).mockResolvedValue({
+      ok: true,
+      count: 2,
+      entries: [
+        { job_id: 'train-aaa', model_version: 'logistic-train-aaa', promoted_at_ms: 1_700_000_000_000, best_brier: 0.20, best_params: null },
+        { job_id: 'train-bbb', model_version: 'logistic-train-bbb', promoted_at_ms: 1_700_001_000_000, best_brier: 0.18, best_params: null },
+      ],
+      message: null,
+    });
+    const { container } = render(wrap(<PromoteHistoryChart />));
+    await waitFor(() => {
+      expect(screen.getByTestId('promote-history-chart')).toBeInTheDocument();
+    });
+    // Each <circle> dot has a <title> child
+    const titles = container.querySelectorAll('circle[data-testid="promote-history-chart-dot"] > title');
+    expect(titles).toHaveLength(2);
+    // The first dot's title contains its model version and brier
+    expect(titles[0].textContent).toMatch(/logistic-train-aaa/);
+    expect(titles[0].textContent).toMatch(/Brier 0\.200/);
+  });
+
+  it('renders invisible hit-area circles for easier hovering', async () => {
+    vi.mocked(listPromoteHistory).mockResolvedValue({
+      ok: true,
+      count: 3,
+      entries: [
+        { job_id: 'a', model_version: 'a', promoted_at_ms: 1, best_brier: 0.2, best_params: null },
+        { job_id: 'b', model_version: 'b', promoted_at_ms: 2, best_brier: 0.18, best_params: null },
+        { job_id: 'c', model_version: 'c', promoted_at_ms: 3, best_brier: 0.16, best_params: null },
+      ],
+      message: null,
+    });
+    render(wrap(<PromoteHistoryChart />));
+    await waitFor(() => {
+      expect(screen.getByTestId('promote-history-chart')).toBeInTheDocument();
+    });
+    const hits = screen.getAllByTestId('promote-history-chart-hit');
+    expect(hits).toHaveLength(3);
+    // Each hit has the data-hit-index attribute
+    expect(hits[0]).toHaveAttribute('data-hit-index', '0');
+    expect(hits[1]).toHaveAttribute('data-hit-index', '1');
+    expect(hits[2]).toHaveAttribute('data-hit-index', '2');
+  });
+
+  it('shows the custom tooltip on hover and hides on leave', async () => {
+    vi.mocked(listPromoteHistory).mockResolvedValue({
+      ok: true,
+      count: 2,
+      entries: [
+        { job_id: 'train-aaa', model_version: 'logistic-train-aaa', promoted_at_ms: 1_700_000_000_000, best_brier: 0.20, best_params: null, trial_index: null },
+        { job_id: 'train-bbb', model_version: 'logistic-train-bbb', promoted_at_ms: 1_700_001_000_000, best_brier: 0.18, best_params: null, trial_index: 2 },
+      ],
+      message: null,
+    });
+    render(wrap(<PromoteHistoryChart />));
+    await waitFor(() => {
+      expect(screen.getByTestId('promote-history-chart')).toBeInTheDocument();
+    });
+
+    // No tooltip before hover
+    expect(screen.queryByTestId('promote-history-chart-tooltip')).toBeNull();
+
+    // Hover the second hit area
+    const hits = screen.getAllByTestId('promote-history-chart-hit');
+    fireEvent.mouseEnter(hits[1]);
+
+    // Tooltip now visible with the hovered entry's data
+    const tooltip = screen.getByTestId('promote-history-chart-tooltip');
+    expect(tooltip).toBeInTheDocument();
+    expect(tooltip).toHaveAttribute('data-job-id', 'train-bbb');
+    expect(tooltip).toHaveAttribute('data-brier', '0.18');
+    expect(tooltip).toHaveAttribute('data-trial-index', '2');
+
+    // Mouse leave on the SVG hides the tooltip
+    const svg = screen.getByTestId('promote-history-chart-svg');
+    fireEvent.mouseLeave(svg);
+    expect(screen.queryByTestId('promote-history-chart-tooltip')).toBeNull();
+  });
+
+  it('grows the hovered dot and adds a stroke ring', async () => {
+    vi.mocked(listPromoteHistory).mockResolvedValue({
+      ok: true,
+      count: 2,
+      entries: [
+        { job_id: 'a', model_version: 'a', promoted_at_ms: 1, best_brier: 0.2, best_params: null },
+        { job_id: 'b', model_version: 'b', promoted_at_ms: 2, best_brier: 0.18, best_params: null },
+      ],
+      message: null,
+    });
+    render(wrap(<PromoteHistoryChart />));
+    await waitFor(() => {
+      expect(screen.getByTestId('promote-history-chart')).toBeInTheDocument();
+    });
+    const hits = screen.getAllByTestId('promote-history-chart-hit');
+    fireEvent.mouseEnter(hits[0]);
+    const dots = screen.getAllByTestId('promote-history-chart-dot');
+    // The hovered dot is larger
+    expect(dots[0]).toHaveAttribute('r', '3.5');
+    expect(dots[1]).toHaveAttribute('r', '2.5');
+    // The hovered dot has a stroke
+    expect(dots[0]).toHaveAttribute('stroke-width', '1');
+    expect(dots[1]).toHaveAttribute('stroke-width', '0');
   });
 });

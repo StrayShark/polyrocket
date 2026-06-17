@@ -164,8 +164,8 @@ describe('AutoPromoteCard — v0.28c toggle + save (v0.28d)', () => {
     const calls = vi.mocked(setAutoPromoteConfig).mock.calls;
     const fullPush = calls.find(
       (c) =>
-        typeof c[0].enabled === 'boolean' &&
-        typeof c[0].brier_margin === 'number',
+        typeof c[0]?.enabled === 'boolean' &&
+        typeof c[0]?.brier_margin === 'number',
     );
     expect(fullPush).toBeDefined();
   });
