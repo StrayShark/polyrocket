@@ -170,3 +170,46 @@ describe('AutoPromoteCard — v0.28c toggle + save (v0.28d)', () => {
     expect(fullPush).toBeDefined();
   });
 });
+
+// =================================================================
+// =================== v0.36b — Backup & restore card =================
+// =================================================================
+
+describe('Backup & restore card (v0.36b)', () => {
+  beforeEach(() => {
+    vi.mocked(setAutoPromoteConfig).mockReset();
+    vi.mocked(setAutoPromoteConfig).mockResolvedValue({
+      enabled: false,
+      brier_margin: 0.005,
+    });
+    mockSetPref.mockReset();
+  });
+
+  it('renders the Backup & restore card with Export and Import buttons', async () => {
+    render(wrap(<Settings />));
+    await waitFor(() => {
+      expect(screen.getByTestId('backup-restore-card')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('backup-export-btn')).toBeInTheDocument();
+    expect(screen.getByTestId('backup-import-btn')).toBeInTheDocument();
+  });
+
+  it('Export button triggers a download (spy on anchor click)', async () => {
+    // Spy on document.createElement to capture the
+    // anchor element used for the download
+    const realCreate = document.createElement.bind(document);
+    let capturedAnchor: HTMLAnchorElement | null = null;
+    vi.spyOn(document, 'createElement').mockImplementation((tag) => {
+      const el = realCreate(tag);
+      if (tag === 'a') capturedAnchor = el as HTMLAnchorElement;
+      return el;
+    });
+    render(wrap(<Settings />));
+    const exportBtn = await screen.findByTestId('backup-export-btn');
+    fireEvent.click(exportBtn);
+    expect(capturedAnchor).not.toBeNull();
+    expect(capturedAnchor!.download).toMatch(/^polyrocket-prefs-\d{8}\.json$/);
+    // Restore
+    vi.mocked(document.createElement).mockRestore();
+  });
+});

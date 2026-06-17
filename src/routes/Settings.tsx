@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, RotateCcw, Save, Database, Bell, Eye, FlaskConical, Trash2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Settings as SettingsIcon, RotateCcw, Save, Database, Bell, Eye, FlaskConical, Trash2, Download, Upload } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/base/Card';
 import { Button } from '@/components/base/Button';
@@ -17,6 +17,12 @@ import {
 } from '@/ipc';
 import { formatRetentionAge } from '@/lib/format';
 import { useT } from '@/lib/i18n';
+import {
+  downloadPrefsAsFile,
+  parsePrefsFromString,
+  readFileAsText,
+} from '@/lib/prefs-io';
+import type { UiPrefs } from '@/stores/prefs-store';
 
 export function Settings() {
   const { t } = useT();
@@ -181,6 +187,9 @@ export function Settings() {
 
       {/* v0.23c — auto-promote margin */}
       <AutoPromoteCard />
+
+      {/* v0.36b — export/import of UI prefs */}
+      <BackupRestoreCard />
     </div>
   );
 }
@@ -519,6 +528,124 @@ function AutoPromoteCard() {
             </span>
           )}
         </div>
+      </div>
+    </Card>
+  );
+}
+
+/** v0.36b — Backup & restore card. Lets the user
+ *  export their UI prefs to a JSON file, and
+ *  import from a JSON file. Useful for:
+ *   - Sharing a preferred config with other users
+ *   - Backup before a re-install
+ *   - Replicating the same config across machines
+ *
+ *  The export triggers a browser download. The
+ *  import opens a file picker. On import, the
+ *  prefs are validated; on success, the prefs
+ *  store is updated and a toast is shown. On
+ *  failure, an error toast with the message is
+ *  shown.
+ */
+function BackupRestoreCard() {
+  const { t } = useT();
+  const prefs = usePrefsStore();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  const onExport = () => {
+    // Snapshot the current prefs (excluding the
+    // setPref/reset functions). The download utility
+    // serializes the rest.
+    const snapshot: UiPrefs = {
+      defaultMinEdgePct: prefs.defaultMinEdgePct,
+      defaultAllocationCapUsdc: prefs.defaultAllocationCapUsdc,
+      copyTradingEnabled: prefs.copyTradingEnabled,
+      notificationsEnabled: prefs.notificationsEnabled,
+      advancedStats: prefs.advancedStats,
+      autoPromoteBrierMargin: prefs.autoPromoteBrierMargin,
+      autoPromoteAfterTrain: prefs.autoPromoteAfterTrain,
+    };
+    downloadPrefsAsFile(snapshot);
+    toast.success(t('prefs.backup.exported'));
+  };
+
+  const onImportClick = () => {
+    // Trigger the hidden file input
+    fileInputRef.current?.click();
+  };
+
+  const onFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    try {
+      const text = await readFileAsText(file);
+      const newPrefs = parsePrefsFromString(text);
+      // Apply each pref. We use setPref for each
+      // field so the store's zustand middleware
+      // persists them to localStorage.
+      for (const k of Object.keys(newPrefs) as (keyof UiPrefs)[]) {
+        prefs.setPref(k, newPrefs[k]);
+      }
+      // v0.36b — also push the auto-promote config
+      // to Rust so the next train's auto-promote
+      // worker uses the imported values.
+      setAutoPromoteConfig({
+        enabled: newPrefs.autoPromoteAfterTrain,
+        brier_margin: newPrefs.autoPromoteBrierMargin,
+      }).catch(() => {
+        // Best-effort; the L1 store is the source
+        // of truth, Rust re-reads on next mount.
+      });
+      toast.success(t('prefs.backup.imported'));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(t('prefs.backup.import_failed'), message);
+    } finally {
+      setImporting(false);
+      // Clear the input so the user can re-select
+      // the same file (the change event would
+      // otherwise not fire)
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  return (
+    <Card
+      title={t('prefs.backup.title')}
+      description={t('prefs.backup.desc')}
+    >
+      <div className="flex items-center gap-2" data-testid="backup-restore-card">
+        <Button
+          size="sm"
+          variant="secondary"
+          iconLeft={<Download className="w-3 h-3" />}
+          onClick={onExport}
+          data-testid="backup-export-btn"
+        >
+          {t('prefs.backup.export')}
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          iconLeft={<Upload className="w-3 h-3" />}
+          onClick={onImportClick}
+          loading={importing}
+          data-testid="backup-import-btn"
+        >
+          {t('prefs.backup.import')}
+        </Button>
+        {/* Hidden file input; clicking the Import
+            button triggers a click on this input. */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json,.json"
+          onChange={onFileSelected}
+          style={{ display: 'none' }}
+          data-testid="backup-import-input"
+        />
       </div>
     </Card>
   );
