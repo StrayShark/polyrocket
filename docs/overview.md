@@ -619,6 +619,10 @@ sequenceDiagram
 | **prefs-io library** | `src/lib/prefs-io.ts` — export/import/parse with version envelope | ✅ v0.36a 完成（14 unit tests; version=1 envelope; forward-compat defaults） |
 | **BackupRestoreCard in Settings** | Export button + Import button + hidden file input + i18n | ✅ v0.36b 完成（2 component tests; 6 new i18n keys × 2 locales; pushes to Rust on import） |
 | **v0.36 final docs** | Ship log + tally + prefs now portable | ✅ v0.36c 完成（677 tests total; wire format versioned; UI push to Rust on import） |
+| **Snapshot history rotation** | `rotate-snapshots.sh` moves current previews to history/YYYY-MM-DD/ | ✅ v0.37a 完成（idempotent; configurable retention; auto-prunes old dirs） |
+| **Weekly snapshot diff** | `diff-snapshots-weekly.mjs` diffs current vs ~7-days-ago | ✅ v0.37b 完成（5 tests; ±2-day fallback; reuses diffDirs from v0.35a） |
+| **v0.37 final docs** | Ship log + tally + slow-drift detection | ✅ v0.37c 完成（682 tests total; catches "looked the same yesterday, different a week ago"） |
+| **CI: snapshot-diff workflow** | `.github/workflows/snapshot-diff.yml` runs on every PR | ✅ v0.38a 完成（uses snapshot_pages.py + diff-snapshots.mjs; posts PR comment on visual changes） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |
