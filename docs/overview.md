@@ -573,6 +573,10 @@ sequenceDiagram
 | **L1 listPromoteHistory wrapper** | `listPromoteHistory` IPC + `PromoteHistoryEntry` + 3 round-trip tests | ✅ v0.19b 完成（typed entries, snake_case preserved, no args） |
 | **ModelLab history panel** | Read-only "Promotion history" card + 5 component tests | ✅ v0.19c 完成（newest-first, Brier badge colors, auto-refresh on promote） |
 | **v0.19 final docs** | Ship log + tally + new convention (rollback deferred to v0.20) | ✅ v0.19d 完成（539 tests total, full train→promote→history audit loop） |
+| **rollback_model IPC + weights in history** | 6th sidecar method + weights in history entries | ✅ v0.20a 完成（read existing entries refused if no weights） |
+| **L1 rollbackModel wrapper + Tauri commands** | `rollbackModel` + back-fill `list_promote_history` command | ✅ v0.20b 完成（3 round-trip tests; v0.19b command was missing!） |
+| **ModelLab Rollback button** | Per-row Rollback button + confirmation modal + active badge | ✅ v0.20c 完成（3 new component tests, 12 new i18n keys, modal a11y） |
+| **v0.20 final docs** | Ship log + tally + test isolation fix (PredictTests setUp) | ✅ v0.20d 完成（556 tests total, full train→promote→history→rollback loop, 1 pre-existing bug fixed） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |

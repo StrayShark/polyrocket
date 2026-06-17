@@ -92,6 +92,19 @@ class ProtocolTests(unittest.TestCase):
 
 
 class PredictTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # v0.20d — pre-existing test isolation fix. Earlier
+        # tests (TrainJobTests, E2ESubprocessTests) may have
+        # written an active.json file. PredictTests expects
+        # the "no active model" state (model_version =
+        # "logistic-0.1.0") for some of its tests. Clearing
+        # the file + resetting the cache gives us a clean
+        # slate for each Predict test.
+        from polyrocket_sidecar.active import ACTIVE_FILE as _ACTIVE_FILE, reset_cache
+        if _ACTIVE_FILE.exists():
+            _ACTIVE_FILE.unlink()
+        reset_cache()
+
     def test_zero_price_zero_age_near_baseline(self) -> None:
         # price=0 (max cheap) + age=0 → high prob
         p = predict_logic(price=0.0, market_age_hours=0.0)
