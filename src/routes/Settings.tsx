@@ -152,6 +152,9 @@ export function Settings() {
 
       {/* v0.13c — audit retention policy (per-user override) */}
       <RetentionCard />
+
+      {/* v0.23c — auto-promote margin */}
+      <AutoPromoteCard />
     </div>
   );
 }
@@ -386,5 +389,80 @@ function NumberHintField({
         className="w-32"
       />
     </div>
+  );
+}
+
+// =================================================================
+// =============== v0.23c — Auto-promote margin panel ===============
+// =================================================================
+
+/** Card that lets the user configure the Brier margin
+ *  for the auto-promote-if-better action.
+ *
+ *  The margin is stored in the UI prefs store (zustand +
+ *  localStorage). It's a simple float; no IPC needed.
+ *  Range: 0.001 (very aggressive) to 1.0 (effectively
+ *  disabled). Default 0.005. */
+function AutoPromoteCard() {
+  const { t } = useT();
+  const margin = usePrefsStore((s) => s.autoPromoteBrierMargin);
+  const setPref = usePrefsStore((s) => s.setPref);
+  const [value, setValue] = useState<number>(margin);
+  const [saved, setSaved] = useState(false);
+
+  // Sync local form state when the persisted margin changes
+  // (e.g. on mount, or after a reset). useState with a
+  // function-form initializer is intentional: it runs only
+  // on the first render, not on every state change.
+  useState(() => {
+    setValue(margin);
+  });
+
+  const onSave = () => {
+    if (!Number.isFinite(value) || value < 0) {
+      setValue(margin);
+      return;
+    }
+    setPref('autoPromoteBrierMargin', value);
+    setSaved(true);
+    toast.success(t('auto_promote.margin.saved'));
+    setTimeout(() => setSaved(false), 1500);
+  };
+
+  return (
+    <Card
+      title={t('auto_promote.title')}
+      description={t('auto_promote.desc')}
+    >
+      <div className="space-y-2">
+        <NumberField
+          label={t('auto_promote.margin.label')}
+          hint={t('auto_promote.margin.hint')}
+          value={value}
+          onChange={setValue}
+          min={0}
+          max={1}
+          step={0.001}
+        />
+        <div className="flex items-center gap-2">
+          <Button
+            data-testid="auto-promote-save-btn"
+            size="sm"
+            iconLeft={<Save className="w-3 h-3" />}
+            onClick={onSave}
+          >
+            {t('settings.btn.save')}
+          </Button>
+          {saved && (
+            <span
+              data-testid="auto-promote-saved-badge"
+              className="text-[10px] text-bull"
+            >
+              ✓ {t('auto_promote.margin.saved')}
+            </span>
+          )}
+        </div>
+      </div>
+    </Card>
   );
 }

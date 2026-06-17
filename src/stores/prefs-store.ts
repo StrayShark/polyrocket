@@ -12,6 +12,11 @@ export interface UiPrefs {
   notificationsEnabled: boolean;
   /** Show advanced stats in PnL/Lab pages. */
   advancedStats: boolean;
+  /** v0.23c — auto-promote if better: how much better
+   * the candidate must be (lower Brier) to auto-promote.
+   * Default 0.005. Set to 1.0 to effectively disable
+   * auto-promote (candidate is never 1.0 better). */
+  autoPromoteBrierMargin: number;
 }
 
 interface PrefsState extends UiPrefs {
@@ -25,6 +30,7 @@ const DEFAULT: UiPrefs = {
   copyTradingEnabled: false,
   notificationsEnabled: true,
   advancedStats: false,
+  autoPromoteBrierMargin: 0.005,
 };
 
 export const usePrefsStore = create<PrefsState>()(

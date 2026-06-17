@@ -456,6 +456,12 @@ const en: Dictionary = {
   'promote.toast.auto_promoted': 'Auto-promoted (improved by {{delta}})',
   'promote.toast.auto_skipped': 'Not promoted (improvement {{delta}} < margin {{margin}})',
   'promote.toast.auto_failed': 'Auto-promote failed',
+  // v0.23c — Auto-promote margin setting
+  'auto_promote.title': 'Auto-promote if better',
+  'auto_promote.desc': 'After each train, the Python sidecar compares the candidate\'s Brier score to the active model\'s. If the candidate is at least the margin better, it is auto-promoted. Otherwise, no action.',
+  'auto_promote.margin.label': 'Brier margin',
+  'auto_promote.margin.hint': 'How much better the candidate must be (default 0.005). Lower = more aggressive auto-promote. Set to 1.0 to disable.',
+  'auto_promote.margin.saved': 'Margin saved',
   'promote.last_candidate.hint': 'Click "Promote" to make this the active model.',
   // v0.19c — Promote history panel
   'promote.history.title': 'Promotion history',
@@ -1016,6 +1022,12 @@ const zh: Dictionary = {
   'promote.toast.auto_promoted': '已自动晋升（提升 {{delta}}）',
   'promote.toast.auto_skipped': '未晋升（提升 {{delta}} < 阈值 {{margin}}）',
   'promote.toast.auto_failed': '自动晋升失败',
+  // v0.23c — Auto-promote margin setting
+  'auto_promote.title': '自动晋升阈值',
+  'auto_promote.desc': '每次训练后，Python sidecar 会比较候选模型与当前活动模型的 Brier 分数。若候选模型至少比当前活动模型好（低）margin，则自动晋升；否则不操作。',
+  'auto_promote.margin.label': 'Brier 阈值',
+  'auto_promote.margin.hint': '候选模型需比当前活动模型好（低）的程度（默认 0.005）。越小越激进。设为 1.0 等同于禁用。',
+  'auto_promote.margin.saved': '阈值已保存',
   'promote.last_candidate.hint': '点击 "晋升" 将其设为活动模型。',
   // v0.19c — Promote history panel
   'promote.history.title': '晋升历史',

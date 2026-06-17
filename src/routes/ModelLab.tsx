@@ -25,6 +25,7 @@ import { PromoteHistoryChart } from '@/components/feedback/PromoteHistoryChart';
 import { fmtPct } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import { toast } from '@/stores/toast-store';
+import { usePrefsStore } from '@/stores/prefs-store';
 
 export function ModelLab() {
   const { t } = useT();
@@ -171,12 +172,17 @@ export function ModelLab() {
 
   // v0.23b — auto-promote if better. One-click action:
   // the Python sidecar compares Brier scores and either
-  // promotes (if candidate is at least the default 0.005
-  // better) or no-ops with a clear "skipped" reason.
+  // promotes (if candidate is at least the margin better)
+  // or no-ops with a clear "skipped" reason.
+  // v0.23c — the margin is now user-configurable via
+  // Settings (default 0.005).
+  const autoPromoteBrierMargin = usePrefsStore(
+    (s) => s.autoPromoteBrierMargin,
+  );
   const autoPromoteMut = useMutation({
     mutationFn: () =>
       autoPromoteIfBetter({
-        brier_margin: 0.005,  // v0.23c will make this configurable
+        brier_margin: autoPromoteBrierMargin,
       }),
     onSuccess: (r) => {
       if (r.promoted) {
