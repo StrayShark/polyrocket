@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.2 · 2026-06-18 (v0.40 — multi-model comparison view)
+> 版本：v2.3 · 2026-06-18 (v0.41 — per-promotion reason field)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
 
@@ -628,6 +628,8 @@ sequenceDiagram
 | **L1 auto-promote OS notification** | `sendNotification` wrapper + Settings toggle + ModelLab listener integration | ✅ v0.39b 完成（2 new component tests; 3 new i18n keys × 2 locales; toggle in AutoPromoteCard） |
 | **ModelComparison component** | Modal showing 2-3 entries side-by-side, "lowest Brier" highlighted | ✅ v0.40a 完成（5 component tests; shows Brier + best_params; max 3 selected） |
 | **ModelLab compare integration** | checkboxes in PromoteHistory rows + "Compare (N)" button + historyQuery for modal data | ✅ v0.40b 完成（4 new i18n keys × 2 locales; checkboxes in rows; modal at page level） |
+| **Per-promotion `reason` field (Python)** | "Promoted as best trial" / "Promoted as trial N of M" written to new_entry; archive picks up automatically | ✅ v0.41a 完成（1 new python test; archive_entries_have_correct_shape updated to expect reason） |
+| **Reason wire mirror (Rust + L1) + hover tooltip** | `PromoteHistoryEntry.reason: Option<String>` (serde-default for pre-v0.41); ⓘ icon with native title in PromoteHistory row | ✅ v0.41b 完成（Rust serde-default; 2 new vitest tests; 1 new i18n key × 2 locales） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |
