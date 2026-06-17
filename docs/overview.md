@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v1.2 · 2026-06-16 (v0.6 — mirror auto-exec + sidecar scaffold + dashboard charts)
+> 版本：v1.3 · 2026-06-17 (v0.27 — generalize L1↔Tauri guard to all modules + 1 bug fix)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
 
@@ -595,6 +595,8 @@ sequenceDiagram
 | **v0.25 final docs** | Ship log + tally + 1-click A/B compare | ✅ v0.25c 完成（602 tests total, "Promote all 4" button for A/B comparison） |
 | **L1↔Tauri CI guard** | scripts/check-l1-tauri.mjs + 3 tests + check-doc-sync integration | ✅ v0.26a 完成（meta-feature: catches the 5-times-recurring "wire format but no Tauri command" issue at commit time） |
 | **v0.26 final docs** | Ship log + tally + meta-feature done | ✅ v0.26b 完成（605 tests total, governance infra upgraded with 3rd CI guard） |
+| **L1↔Tauri guard generalized** | scripts/check-l1-tauri.mjs extended to all modules + 1 bug fix | ✅ v0.27a 完成（catches v0.4 `fetchActiveMarkets` 12-version-old bug retroactively; 110 lines, broader scope） |
+| **v0.27 final docs** | Ship log + tally + guard generalization done | ✅ v0.27b 完成（606 tests total, governance infra upgraded: 3rd CI guard now covers all modules） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
 | **v0.9 final** | overview + README + release build | ✅ v0.9e 完成 |
