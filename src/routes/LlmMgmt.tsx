@@ -12,9 +12,11 @@ import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { toast } from '@/stores/toast-store';
 import { fmtLatency } from '@/lib/format';
+import { useT } from '@/lib/i18n';
 import type { LlmProvider, LlmProviderKey } from '@/types/llm';
 
 export function LlmMgmt() {
+  const { t } = useT();
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
   const [addKeyOpen, setAddKeyOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -38,9 +40,12 @@ export function LlmMgmt() {
       llmTestConnectivity(providerId, keyId),
     onSuccess: (r) => {
       if (r.ok) {
-        toast.success(`${r.provider_id} OK`, `latency ${r.latency_ms}ms`);
+        toast.success(
+          t('llmmgmt.test.ok_toast', { provider: r.provider_id }),
+          t('llmmgmt.test.ok_latency', { ms: r.latency_ms }),
+        );
       } else {
-        toast.error(`${r.provider_id} failed`, r.error_message ?? `code ${r.error_code}`);
+        toast.error(t('llmmgmt.test.failed', { provider: r.provider_id }), r.error_message ?? `code ${r.error_code}`);
       }
       queryClient.invalidateQueries({ queryKey: ['llm-health'] });
     },
@@ -49,7 +54,7 @@ export function LlmMgmt() {
   const deleteMut = useMutation({
     mutationFn: (keyId: string) => llmKeyDelete(keyId),
     onSuccess: () => {
-      toast.success('Key deleted');
+      toast.success(t('llmmgmt.keys.toast.deleted'));
       queryClient.invalidateQueries({ queryKey: ['llm-keys'] });
       queryClient.invalidateQueries({ queryKey: ['secrets-status'] });
     },
@@ -60,31 +65,31 @@ export function LlmMgmt() {
       {/* Keyring status */}
       <Card padding="sm">
         <div className="flex items-center gap-3 text-[11px] flex-wrap">
-          <span className="text-muted">OS keyring:</span>
+          <span className="text-muted">{t('llmmgmt.keyring')}</span>
           {secrets.isLoading ? (
             <Skeleton className="h-3 w-32" />
           ) : (
             <>
               <Pill kind="muted">
-                <Key className="w-2.5 h-2.5" /> {secrets.data?.llm_keys ?? 0} LLM keys
+                <Key className="w-2.5 h-2.5" /> {t('llmmgmt.keys_count', { n: secrets.data?.llm_keys ?? 0 })}
               </Pill>
               <Pill kind={secrets.data?.pm_api ? 'bull' : 'muted'}>
-                <Database className="w-2.5 h-2.5" /> PM API
+                <Database className="w-2.5 h-2.5" /> {t('llmmgmt.pm_api')}
               </Pill>
               <Pill kind={secrets.data?.wallet_pk ? 'bull' : 'muted'}>
-                wallet PK × {secrets.data?.wallet_pk ?? 0}
+                {t('llmmgmt.wallet_pk', { n: secrets.data?.wallet_pk ?? 0 })}
               </Pill>
             </>
           )}
           <span className="text-muted text-[10px]">
-            (macOS Keychain / Windows Credential Manager / Linux Secret Service)
+            {t('llmmgmt.keyring_backends')}
           </span>
         </div>
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Providers */}
-        <Card title="Providers" description="Enabled LLM providers">
+        <Card title={t('llmmgmt.providers.title')} description={t('llmmgmt.providers.desc')}>
           {providers.isLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 3 }).map((_, i) => (
@@ -94,7 +99,7 @@ export function LlmMgmt() {
           ) : providers.error ? (
             <ErrorState message={String(providers.error)} onRetry={() => providers.refetch()} />
           ) : !providers.data || providers.data.length === 0 ? (
-            <EmptyState title="No providers" description="Add a provider in v0.4.1 settings." />
+            <EmptyState title={t('llmmgmt.providers.empty')} description={t('llmmgmt.providers.empty_desc')} />
           ) : (
             <div className="space-y-1.5">
               {providers.data.map((p) => (
@@ -104,6 +109,7 @@ export function LlmMgmt() {
                   selected={selectedProvider === p.id}
                   onClick={() => setSelectedProvider(p.id === selectedProvider ? null : p.id)}
                   onTest={() => testMut.mutate({ providerId: p.id })}
+                  testLabel={t('llmmgmt.providers.test')}
                 />
               ))}
             </div>
@@ -112,16 +118,16 @@ export function LlmMgmt() {
 
         {/* Keys for selected provider */}
         <Card
-          title={selectedProvider ? `Keys for ${selectedProvider}` : 'Keys'}
+          title={selectedProvider ? t('llmmgmt.keys.title_for', { provider: selectedProvider }) : t('llmmgmt.keys.title')}
           description={
             selectedProvider
-              ? 'OS-keyring-backed API keys for this provider'
-              : 'Select a provider to view its keys'
+              ? t('llmmgmt.keys.desc_for')
+              : t('llmmgmt.keys.desc')
           }
           action={
             selectedProvider && (
               <Button variant="primary" size="sm" iconLeft={<Plus className="w-3 h-3" />} onClick={() => setAddKeyOpen(true)}>
-                Add key
+                {t('llmmgmt.keys.add')}
               </Button>
             )
           }
@@ -129,8 +135,8 @@ export function LlmMgmt() {
           {!selectedProvider ? (
             <EmptyState
               icon={<Eye className="w-5 h-5" />}
-              title="No provider selected"
-              description="Click a provider on the left to see its keys."
+              title={t('llmmgmt.keys.no_provider')}
+              description={t('llmmgmt.keys.no_provider_desc')}
             />
           ) : keys.isLoading ? (
             <div className="space-y-2">
@@ -141,11 +147,11 @@ export function LlmMgmt() {
           ) : !keys.data || keys.data.length === 0 ? (
             <EmptyState
               icon={<Key className="w-5 h-5" />}
-              title="No keys"
-              description="Add a key to start using this provider."
+              title={t('llmmgmt.keys.empty')}
+              description={t('llmmgmt.keys.empty_desc')}
               action={
                 <Button variant="primary" size="sm" iconLeft={<Plus className="w-3 h-3" />} onClick={() => setAddKeyOpen(true)}>
-                  Add first key
+                  {t('llmmgmt.keys.add_first')}
                 </Button>
               }
             />
@@ -157,8 +163,12 @@ export function LlmMgmt() {
                   keyRow={k}
                   onTest={() => testMut.mutate({ providerId: k.provider_id, keyId: k.id })}
                   onDelete={() => {
-                    if (confirm(`Delete key ${k.alias}?`)) deleteMut.mutate(k.id);
+                    if (confirm(t('llmmgmt.keys.confirm_delete', { alias: k.alias }))) deleteMut.mutate(k.id);
                   }}
+                  testLabel={t('llmmgmt.providers.test')}
+                  deleteLabel={t('llmmgmt.keys.delete')}
+                  inKeyringLabel={t('llmmgmt.keys.in_keyring')}
+                  noSecretLabel={t('llmmgmt.keys.no_secret')}
                 />
               ))}
             </div>
@@ -186,11 +196,13 @@ function ProviderRow({
   selected,
   onClick,
   onTest,
+  testLabel,
 }: {
   provider: LlmProvider;
   selected: boolean;
   onClick: () => void;
   onTest: () => void;
+  testLabel: string;
 }) {
   const statusKind =
     p.health_status === 'ok' ? 'bull' :
@@ -220,7 +232,7 @@ function ProviderRow({
           </Pill>
         )}
         <Button variant="ghost" size="xs" iconLeft={<TestTube2 className="w-3 h-3" />} onClick={(e) => { e.stopPropagation(); onTest(); }}>
-          Test
+          {testLabel}
         </Button>
       </div>
     </div>
@@ -231,10 +243,18 @@ function KeyRow({
   keyRow: k,
   onTest,
   onDelete,
+  testLabel,
+  deleteLabel,
+  inKeyringLabel,
+  noSecretLabel,
 }: {
   keyRow: LlmProviderKey;
   onTest: () => void;
   onDelete: () => void;
+  testLabel: string;
+  deleteLabel: string;
+  inKeyringLabel: string;
+  noSecretLabel: string;
 }) {
   return (
     <div className="rounded-md border border-border bg-surface-2 p-2.5 flex items-center gap-2">
@@ -246,18 +266,18 @@ function KeyRow({
       </div>
       {k.has_secret ? (
         <Pill kind="bull">
-          <CheckCircle2 className="w-2.5 h-2.5" /> in keyring
+          <CheckCircle2 className="w-2.5 h-2.5" /> {inKeyringLabel}
         </Pill>
       ) : (
         <Pill kind="bear">
-          <XCircle className="w-2.5 h-2.5" /> no secret
+          <XCircle className="w-2.5 h-2.5" /> {noSecretLabel}
         </Pill>
       )}
       <Button variant="ghost" size="xs" iconLeft={<TestTube2 className="w-3 h-3" />} onClick={onTest}>
-        Test
+        {testLabel}
       </Button>
       <Button variant="ghost" size="xs" iconLeft={<Trash2 className="w-3 h-3" />} onClick={onDelete}>
-        Delete
+        {deleteLabel}
       </Button>
     </div>
   );
@@ -272,6 +292,7 @@ function AddKeyModal({
   onClose: () => void;
   onAdded: () => void;
 }) {
+  const { t } = useT();
   const [alias, setAlias] = useState('');
   const [secret, setSecret] = useState('');
   const [showSecret, setShowSecret] = useState(false);
@@ -294,21 +315,21 @@ function AddKeyModal({
       return key;
     },
     onSuccess: () => {
-      toast.success('Key added');
+      toast.success(t('llmmgmt.add.toast.added'));
       onAdded();
     },
-    onError: (e: Error) => toast.error('Add key failed', e.message),
+    onError: (e: Error) => toast.error(t('llmmgmt.add.toast.failed'), e.message),
   });
 
   return (
     <Modal
       open
       onClose={onClose}
-      title={`Add key for ${providerId}`}
+      title={t('llmmgmt.add.title', { provider: providerId })}
       size="md"
       footer={
         <>
-          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" size="sm" onClick={onClose}>{t('llmmgmt.add.cancel')}</Button>
           <Button
             variant="primary"
             size="sm"
@@ -316,20 +337,20 @@ function AddKeyModal({
             disabled={!alias.trim()}
             onClick={() => upsertMut.mutate()}
           >
-            Add
+            {t('llmmgmt.add.add')}
           </Button>
         </>
       }
     >
       <div className="space-y-3">
-        <Field label="Alias (e.g. prod-1, fallback)">
+        <Field label={t('llmmgmt.add.alias')}>
           <Input
-            placeholder="prod-1"
+            placeholder={t('llmmgmt.add.alias_placeholder')}
             value={alias}
             onChange={(e) => setAlias(e.target.value)}
           />
         </Field>
-        <Field label="Priority (lower = tried first)">
+        <Field label={t('llmmgmt.add.priority')}>
           <Input
             type="number"
             min={1}
@@ -338,24 +359,32 @@ function AddKeyModal({
             onChange={(e) => setPriority(Math.max(1, Number(e.target.value) || 1))}
           />
         </Field>
-        <Field label="API key / secret (stored in OS keyring only)">
+        <Field label={t('llmmgmt.add.secret')}>
           <div className="flex gap-1">
             <Input
               type={showSecret ? 'text' : 'password'}
-              placeholder="sk-…"
+              placeholder={t('llmmgmt.add.secret_placeholder')}
               value={secret}
               onChange={(e) => setSecret(e.target.value)}
               className="font-mono"
             />
             <Button variant="ghost" size="sm" iconLeft={showSecret ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />} onClick={() => setShowSecret((s) => !s)}>
-              {showSecret ? 'Hide' : 'Show'}
+              {showSecret ? t('llmmgmt.add.hide') : t('llmmgmt.add.show')}
             </Button>
           </div>
         </Field>
-        <div className="text-[11px] text-muted pt-2 border-t border-border">
-          Secret is written to the OS keyring under{' '}
-          <code className="font-mono text-fg">polyrocket/llm/{providerId}/&lt;alias&gt;</code> and never persisted in SQLite or any plain file.
-        </div>
+        <div
+          className="text-[11px] text-muted pt-2 border-t border-border"
+          // v0.14a — notice text contains a `<code>` element with
+          // the keyring path; the i18n string embeds the tags
+          // directly (no React node split) so zh/en can format
+          // the same way.
+          dangerouslySetInnerHTML={{
+            __html: t('llmmgmt.add.notice', {
+              path: `polyrocket/llm/${providerId}/&lt;alias&gt;`,
+            }),
+          }}
+        />
       </div>
     </Modal>
   );

@@ -10,8 +10,10 @@ import { EmptyState } from '@/components/feedback/EmptyState';
 import { fmtPct, fmtCents } from '@/lib/format';
 import { downloadCsv, toCsv } from '@/lib/csv';
 import { toast } from '@/stores/toast-store';
+import { useT } from '@/lib/i18n';
 
 export function LlmPerf() {
+  const { t } = useT();
   const perf = useQuery({ queryKey: ['llm-performance'], queryFn: () => llmPerformance() });
   const byConf = useQuery({ queryKey: ['llm-stats-by-conf'], queryFn: () => llmStatsByConfidence() });
   const byPrompt = useQuery({ queryKey: ['llm-stats-by-prompt'], queryFn: () => llmStatsByPrompt() });
@@ -26,23 +28,23 @@ export function LlmPerf() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiCard label="Models tracked" value={(perf.data?.length ?? 0).toString()} icon={BarChart3} />
-        <KpiCard label="Total cost" value={fmtCents(totalCost)} icon={Activity} />
-        <KpiCard label="Total wins" value={totalWins.toString()} icon={TrendingUp} />
+        <KpiCard label={t('llmperf.kpi.models')} value={(perf.data?.length ?? 0).toString()} icon={BarChart3} />
+        <KpiCard label={t('llmperf.kpi.cost')} value={fmtCents(totalCost)} icon={Activity} />
+        <KpiCard label={t('llmperf.kpi.wins')} value={totalWins.toString()} icon={TrendingUp} />
         <KpiCard
-          label="Avg ROI"
+          label={t('llmperf.kpi.roi')}
           value={fmtPct(avgRoi)}
           icon={avgRoi >= 0 ? TrendingUp : TrendingDown}
-          delta={{ text: avgRoi >= 0 ? 'profitable' : 'unprofitable', positive: avgRoi >= 0 }}
+          delta={{ text: avgRoi >= 0 ? t('llmperf.delta.profitable') : t('llmperf.delta.unprofitable'), positive: avgRoi >= 0 }}
         />
       </div>
 
       {/* By confidence bucket */}
-      <Card title="By confidence bucket" description="Win rate grouped by LLM confidence decile (0-10, 10-20, ...)">
+      <Card title={t('llmperf.bucket.title')} description={t('llmperf.bucket.desc')}>
         {byConf.isLoading ? (
           <Skeleton className="h-24" />
         ) : !byConf.data || byConf.data.length === 0 ? (
-          <EmptyState title="No data" description="Run more analyses to populate this view." />
+          <EmptyState title={t('llmperf.bucket.empty')} description={t('llmperf.bucket.empty_desc')} />
         ) : (
           <div className="space-y-1.5">
             {byConf.data.map((b) => (
@@ -65,11 +67,11 @@ export function LlmPerf() {
       </Card>
 
       {/* By prompt version */}
-      <Card title="By prompt version" description="Which prompt template is performing best?">
+      <Card title={t('llmperf.prompt.title')} description={t('llmperf.prompt.desc')}>
         {byPrompt.isLoading ? (
           <Skeleton className="h-20" />
         ) : !byPrompt.data || byPrompt.data.length === 0 ? (
-          <EmptyState title="No data" />
+          <EmptyState title={t('llmperf.bucket.empty')} />
         ) : (
           <div className="space-y-1.5">
             {byPrompt.data.map((p) => (
@@ -78,7 +80,7 @@ export function LlmPerf() {
                 className="flex items-center gap-2 rounded-md border border-border bg-surface-2 p-2.5"
               >
                 <Pill kind="accent">{p.prompt_version}</Pill>
-                <span className="font-mono text-[12px] text-fg flex-1">win rate {fmtPct(p.win_rate)}</span>
+                <span className="font-mono text-[12px] text-fg flex-1">{t('llmperf.prompt.winrate', { rate: fmtPct(p.win_rate) })}</span>
                 <span className="text-muted text-[11px]">n={p.n}</span>
               </div>
             ))}
@@ -88,8 +90,8 @@ export function LlmPerf() {
 
       {/* Cost efficiency */}
       <Card
-        title="Cost efficiency by provider"
-        description="ROI = wins / cost. Higher is better."
+        title={t('llmperf.cost.title')}
+        description={t('llmperf.cost.desc')}
         action={
           <Button
             variant="ghost"
@@ -99,20 +101,20 @@ export function LlmPerf() {
               try {
                 const csv = await llmStatsExport('csv');
                 downloadCsv(`llm_stats_${Date.now()}.csv`, csv);
-                toast.success('Exported');
+                toast.success(t('llmperf.toast.exported'));
               } catch (e) {
-                toast.error('Export failed', String(e));
+                toast.error(t('llmperf.toast.export_failed'), String(e));
               }
             }}
           >
-            Export CSV
+            {t('llmperf.btn.export')}
           </Button>
         }
       >
         {costEff.isLoading ? (
           <Skeleton className="h-20" />
         ) : !costEff.data || costEff.data.length === 0 ? (
-          <EmptyState title="No data" />
+          <EmptyState title={t('llmperf.bucket.empty')} />
         ) : (
           <div className="space-y-1.5">
             {costEff.data.map((c) => (
@@ -121,15 +123,15 @@ export function LlmPerf() {
                 className="flex items-center gap-2 rounded-md border border-border bg-surface-2 p-2.5"
               >
                 <span className="text-[12px] font-mono text-fg flex-1">{c.provider_id}</span>
-                <span className="text-[11px] text-muted">cost {fmtCents(c.cost_cents)}</span>
-                <span className="text-[11px] text-muted">wins {c.wins}</span>
+                <span className="text-[11px] text-muted">{t('llmperf.cost.cost', { amount: fmtCents(c.cost_cents) })}</span>
+                <span className="text-[11px] text-muted">{t('llmperf.cost.wins', { n: c.wins })}</span>
                 <span className={'text-[12px] font-mono font-semibold ' + (c.roi >= 0 ? 'text-bull' : 'text-bear')}>
-                  ROI {c.roi >= 0 ? '+' : ''}{c.roi.toFixed(2)}
+                  {t('llmperf.cost.roi')} {c.roi >= 0 ? '+' : ''}{c.roi.toFixed(2)}
                 </span>
               </div>
             ))}
             <details className="text-[10px] text-muted pt-2">
-              <summary className="cursor-pointer hover:text-fg">Raw CSV preview</summary>
+              <summary className="cursor-pointer hover:text-fg">{t('llmperf.csv.preview')}</summary>
               <pre className="mt-1 font-mono whitespace-pre-wrap text-[10px]">
                 {toCsv(
                   (costEff.data ?? []).map((c) => ({

@@ -12,9 +12,11 @@ import { Modal } from '@/components/feedback/Modal';
 import { toast } from '@/stores/toast-store';
 import { fmtPct, fmtConfidence, fmtLatency, fmtCents, fmtRelativeTime } from '@/lib/format';
 import { downloadCsv, toCsv } from '@/lib/csv';
+import { useT } from '@/lib/i18n';
 import type { LlmRecommendation } from '@/types/llm';
 
 export function Analysis() {
+  const { t } = useT();
   const [marketId, setMarketId] = useState('');
   const [analyzeResult, setAnalyzeResult] = useState<{
     analysisId: number;
@@ -41,7 +43,7 @@ export function Analysis() {
       });
       queryClient.invalidateQueries({ queryKey: ['llm-analyses'] });
     },
-    onError: (e: Error) => toast.error('Analysis failed', e.message),
+    onError: (e: Error) => toast.error(t('analysis.toast.failed'), e.message),
   });
 
   const recMut = useMutation({
@@ -52,7 +54,7 @@ export function Analysis() {
   const decisionMut = useMutation({
     mutationFn: (decision: string) => recordLlmDecision(analyzeResult!.analysisId, decision),
     onSuccess: () => {
-      toast.success('Decision recorded');
+      toast.success(t('analysis.toast.decision_recorded'));
       queryClient.invalidateQueries({ queryKey: ['llm-stats'] });
     },
   });
@@ -76,12 +78,12 @@ export function Analysis() {
     <div className="space-y-4">
       {/* Run analysis */}
       <Card
-        title="Run multi-LLM analysis"
-        description="Fan out to enabled providers, build consensus, return per-LLM recommendations."
+        title={t('analysis.run.title')}
+        description={t('analysis.run.desc')}
       >
         <div className="flex items-center gap-2">
           <Input
-            placeholder="market id (paste from /markets)"
+            placeholder={t('analysis.input.placeholder')}
             value={marketId}
             onChange={(e) => setMarketId(e.target.value)}
             className="flex-1 font-mono"
@@ -94,13 +96,13 @@ export function Analysis() {
             disabled={!marketId.trim()}
             onClick={() => analyzeMut.mutate(marketId.trim())}
           >
-            Analyze
+            {t('analysis.btn.analyze')}
           </Button>
         </div>
         {analyzeResult && (
           <div className="mt-4 grid grid-cols-3 gap-3">
             <ResultCard
-              label="Consensus side"
+              label={t('analysis.kpi.side')}
               value={analyzeResult.consensusSide ?? '—'}
               icon={
                 analyzeResult.consensusSide === 'YES'
@@ -111,11 +113,11 @@ export function Analysis() {
               }
             />
             <ResultCard
-              label="Consensus prob"
+              label={t('analysis.kpi.prob')}
               value={analyzeResult.consensusProb != null ? fmtPct(analyzeResult.consensusProb) : '—'}
             />
             <ResultCard
-              label="Confidence"
+              label={t('analysis.kpi.confidence')}
               value={analyzeResult.consensusConfidence != null ? fmtConfidence(analyzeResult.consensusConfidence) : '—'}
             />
           </div>
@@ -128,21 +130,21 @@ export function Analysis() {
               onClick={() => recMut.mutate(analyzeResult.analysisId)}
               loading={recMut.isPending}
             >
-              Show top recommendation
+              {t('analysis.btn.recommendation')}
             </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => decisionMut.mutate('follow_top')}
             >
-              I follow top
+              {t('analysis.btn.follow')}
             </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => decisionMut.mutate('skip')}
             >
-              Skip
+              {t('analysis.btn.skip')}
             </Button>
           </div>
         )}
@@ -150,11 +152,11 @@ export function Analysis() {
 
       {/* Active signals */}
       <Card
-        title="Active signals"
-        description="Top predictions by |edge|. Pick one to analyze."
+        title={t('analysis.signals.title')}
+        description={t('analysis.signals.desc')}
         action={
           <Button variant="ghost" size="sm" iconLeft={<RefreshCw className="w-3 h-3" />} onClick={() => signals.refetch()}>
-            Refresh
+            {t('analysis.signals.refresh')}
           </Button>
         }
       >
@@ -167,8 +169,8 @@ export function Analysis() {
         ) : !signals.data || signals.data.length === 0 ? (
           <EmptyState
             icon={<Sparkles className="w-5 h-5" />}
-            title="No active signals"
-            description="Recompute signals first, then pick one to analyze."
+            title={t('analysis.signals.empty')}
+            description={t('analysis.signals.empty_desc')}
           />
         ) : (
           <div className="space-y-1.5">
@@ -209,7 +211,7 @@ export function Analysis() {
             ))}
             <div className="pt-2 flex justify-end">
               <Button variant="ghost" size="xs" onClick={exportCsv}>
-                Export top {Math.min(10, signals.data.length)} as CSV
+                {t('analysis.signals.export', { n: Math.min(10, signals.data.length) })}
               </Button>
             </div>
           </div>
@@ -220,19 +222,19 @@ export function Analysis() {
         <Modal
           open
           onClose={() => setChosen(null)}
-          title="Top recommendation"
+          title={t('analysis.recommendation.title')}
           size="md"
         >
           <div className="space-y-2">
-            <Field label="Provider" value={chosen.provider_id} mono />
-            <Field label="Side" value={chosen.side} />
-            <Field label="Predicted probability" value={fmtPct(chosen.predicted_prob)} />
-            <Field label="Confidence" value={fmtConfidence(chosen.confidence)} />
-            <Field label="Cost" value={fmtCents(chosen.cost_cents)} />
-            <Field label="Latency" value={fmtLatency(chosen.latency_ms)} />
+            <Field label={t('analysis.recommendation.provider')} value={chosen.provider_id} mono />
+            <Field label={t('analysis.recommendation.side')} value={chosen.side} />
+            <Field label={t('analysis.recommendation.predicted')} value={fmtPct(chosen.predicted_prob)} />
+            <Field label={t('analysis.recommendation.confidence')} value={fmtConfidence(chosen.confidence)} />
+            <Field label={t('analysis.recommendation.cost')} value={fmtCents(chosen.cost_cents)} />
+            <Field label={t('analysis.recommendation.latency')} value={fmtLatency(chosen.latency_ms)} />
             {chosen.rationale && (
               <div>
-                <div className="text-[11px] text-muted mb-1">Rationale</div>
+                <div className="text-[11px] text-muted mb-1">{t('analysis.recommendation.rationale')}</div>
                 <div className="text-[12px] text-fg bg-surface-2 rounded p-2 max-h-40 overflow-y-auto">
                   {chosen.rationale}
                 </div>
