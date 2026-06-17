@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FlaskConical, GitBranch, Play, CheckCircle2, XCircle, Clock, Sparkles } from 'lucide-react';
+import { FlaskConical, GitBranch, Play, CheckCircle2, XCircle, Clock, Sparkles, ArrowUpCircle } from 'lucide-react';
 import {
   llmPerformance,
   sidecarPredict,
   sidecarHealthSnapshot,
   trainJob,
+  promoteModel,
   onTrainStarted,
   type TrainStartedEvent,
 } from '@/ipc';
@@ -89,7 +90,8 @@ export function ModelLab() {
     onSuccess: (r) => {
       // IPC returned AFTER the `finished` event fired.
       // The TrainProgress panel already shows the final
-      // state. We just toast the summary and refresh
+      // state. We just toast the summary, remember the
+      // candidate for the Promote button, and refresh
       // any dependent queries.
       if (r.status === 'completed') {
         toast.success(
@@ -98,8 +100,16 @@ export function ModelLab() {
             ? t('train.toast.brier', { value: r.best_brier.toFixed(3) })
             : '',
         );
+        // v0.18c — remember the candidate so the user
+        // can promote it without re-entering the job_id.
+        setLastCandidate({
+          jobId: r.job_id,
+          candidatePath: r.candidate_path,
+          bestBrier: r.best_brier,
+        });
       } else {
         toast.error(t('train.toast.failed'), r.message ?? undefined);
+        setLastCandidate(null);
       }
       setActiveTrainJobId(null);
       queryClient.invalidateQueries({ queryKey: ['llm-performance'] });
@@ -108,6 +118,42 @@ export function ModelLab() {
     onError: (e: Error) => {
       toast.error(t('train.toast.failed'), e.message);
       setActiveTrainJobId(null);
+    },
+  });
+
+  // v0.18c — remember the last successful train so the
+  // Promote button can pass the right `job_id` (race-
+  // condition protection: the Python sidecar refuses
+  // to promote a candidate from a different job, so
+  // we capture the job_id at train time and pass it
+  // to promote to ensure we're promoting the model
+  // we just trained, not some older one).
+  const [lastCandidate, setLastCandidate] = useState<{
+    jobId: string;
+    candidatePath: string | null;
+    bestBrier: number | null;
+  } | null>(null);
+
+  const promoteMut = useMutation({
+    mutationFn: () =>
+      promoteModel(lastCandidate ? { job_id: lastCandidate.jobId } : {}),
+    onSuccess: (r) => {
+      if (r.promoted) {
+        toast.success(
+          t('promote.toast.promoted'),
+          t('promote.toast.version', { version: r.model_version }),
+        );
+        setLastCandidate(null);
+      } else {
+        toast.error(t('promote.toast.failed'), r.message ?? undefined);
+      }
+      // Refresh the active-model probe so the
+      // ModelVersionPill updates to the new version.
+      queryClient.invalidateQueries({ queryKey: ['sidecar-active-model'] });
+      queryClient.invalidateQueries({ queryKey: ['llm-performance'] });
+    },
+    onError: (e: Error) => {
+      toast.error(t('promote.toast.failed'), e.message);
     },
   });
 
@@ -179,25 +225,46 @@ export function ModelLab() {
         title={t('modellab.runs.title')}
         description={t('modellab.runs.desc')}
         action={
-          <Button
-            data-testid="model-train-btn"
-            variant="primary"
-            size="sm"
-            iconLeft={<Sparkles className="w-3 h-3" />}
-            loading={trainMut.isPending}
-            disabled={trainMut.isPending}
-            onClick={() => {
-              // v0.17d — same pattern as v0.15c: the train_job
-              // IPC emits `started` BEFORE returning, so we
-              // listen for the next `started` event and
-              // capture the id. The flag ensures we only
-              // capture events triggered by THIS click.
-              expectedTrainRef.current = true;
-              trainMut.mutate();
-            }}
-          >
-            {trainMut.isPending ? t('modellab.runs.training') : t('modellab.runs.train')}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              data-testid="model-train-btn"
+              variant="primary"
+              size="sm"
+              iconLeft={<Sparkles className="w-3 h-3" />}
+              loading={trainMut.isPending}
+              disabled={trainMut.isPending}
+              onClick={() => {
+                // v0.17d — same pattern as v0.15c: the train_job
+                // IPC emits `started` BEFORE returning, so we
+                // listen for the next `started` event and
+                // capture the id. The flag ensures we only
+                // capture events triggered by THIS click.
+                expectedTrainRef.current = true;
+                trainMut.mutate();
+              }}
+            >
+              {trainMut.isPending ? t('modellab.runs.training') : t('modellab.runs.train')}
+            </Button>
+            {/* v0.18c — Promote button. Only enabled when
+                there's a successful candidate from a
+                recent train (lastCandidate is non-null). The
+                button passes the candidate's job_id so the
+                Python sidecar refuses to promote a different
+                job (race-condition protection). */}
+            {lastCandidate && (
+              <Button
+                data-testid="model-promote-btn"
+                variant="secondary"
+                size="sm"
+                iconLeft={<ArrowUpCircle className="w-3 h-3" />}
+                loading={promoteMut.isPending}
+                disabled={promoteMut.isPending || !!activeTrainJobId}
+                onClick={() => promoteMut.mutate()}
+              >
+                {promoteMut.isPending ? t('promote.btn.promoting') : t('promote.btn.promote')}
+              </Button>
+            )}
+          </div>
         }
       >
         {/* v0.17d — live progress panel. Subscribes to the 2
@@ -210,7 +277,29 @@ export function ModelLab() {
             className="mt-0"
           />
         )}
-        {!activeTrainJobId && !trainMut.isPending && (
+        {/* v0.18c — Last-candidate hint. Shown when the user
+            has a successful train that hasn't been promoted
+            yet. Tells the user what they're about to promote. */}
+        {!activeTrainJobId && lastCandidate && (
+          <div
+            data-testid="model-last-candidate"
+            className="flex items-center gap-2 text-[11px] text-muted px-2 py-1.5 rounded border border-dashed border-border"
+          >
+            <ArrowUpCircle className="w-3.5 h-3.5 text-accent" />
+            <span className="flex-1 font-mono text-fg">
+              {lastCandidate.jobId}
+              {lastCandidate.bestBrier != null && (
+                <span className="text-muted ml-2">
+                  Brier: {lastCandidate.bestBrier.toFixed(3)}
+                </span>
+              )}
+            </span>
+            <span className="text-[10px]">
+              {t('promote.last_candidate.hint')}
+            </span>
+          </div>
+        )}
+        {!activeTrainJobId && !trainMut.isPending && !lastCandidate && (
           <EmptyState
             icon={<Play className="w-5 h-5" />}
             title={t('modellab.runs.empty')}
