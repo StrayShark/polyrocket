@@ -46,6 +46,8 @@ function wrap(node: React.ReactNode) {
   return <QueryClientProvider client={qc}>{node}</QueryClientProvider>;
 }
 
+const mockListPromoteHistory = vi.mocked(listPromoteHistory);
+
 describe('PromoteHistory (v0.19c)', () => {
   beforeEach(() => {
     vi.mocked(listPromoteHistory).mockReset();
@@ -378,5 +380,57 @@ describe('PromoteHistory trial-type filter (v0.30a)', () => {
       expect(screen.getByTestId('promote-history-filtered-empty')).toBeInTheDocument();
     });
     expect(screen.queryAllByTestId('promote-history-row')).toHaveLength(0);
+  });
+
+  it('renders reason icon with the per-entry reason (v0.41a)', async () => {
+    mockListPromoteHistory.mockResolvedValue({
+      ok: true,
+      count: 1,
+      entries: [
+        {
+          job_id: 'train-bbb',
+          model_version: 'logistic-train-bbb',
+          promoted_at_ms: 1_700_000_000_000,
+          best_brier: 0.17,
+          best_params: null,
+          trial_index: null,
+          reason: 'Promoted as best trial',
+        },
+      ],
+    });
+    render(wrap(<PromoteHistory />));
+    await waitFor(() => {
+      expect(screen.getByTestId('promote-history-row')).toBeInTheDocument();
+    });
+    const icon = screen.getByTestId('promote-history-reason-icon');
+    expect(icon).toBeInTheDocument();
+    expect(icon.getAttribute('data-reason')).toBe('Promoted as best trial');
+    expect(icon.getAttribute('title')).toBe('Promoted as best trial');
+  });
+
+  it('falls back to generic "Promoted" tooltip when reason is missing (v0.41a back-compat)', async () => {
+    mockListPromoteHistory.mockResolvedValue({
+      ok: true,
+      count: 1,
+      entries: [
+        {
+          job_id: 'train-ccc',
+          model_version: 'logistic-train-ccc',
+          promoted_at_ms: 1_700_000_000_000,
+          best_brier: 0.19,
+          best_params: null,
+          trial_index: 1,
+          // reason missing — pre-v0.41 archive
+        },
+      ],
+    });
+    render(wrap(<PromoteHistory />));
+    await waitFor(() => {
+      expect(screen.getByTestId('promote-history-row')).toBeInTheDocument();
+    });
+    const icon = screen.getByTestId('promote-history-reason-icon');
+    expect(icon).toBeInTheDocument();
+    expect(icon.getAttribute('data-reason')).toBe('');
+    expect(icon.getAttribute('title')).toBe('promote.history.reason_fallback');
   });
 });
