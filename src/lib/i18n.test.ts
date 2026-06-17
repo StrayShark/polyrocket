@@ -131,6 +131,10 @@ describe('Analysis / LlmPerf / LlmMgmt keys (v0.14a)', () => {
       'analysis.progress.status.completed', 'analysis.progress.status.partial',
       'analysis.progress.status.failed',
       'analysis.progress.row.pending', 'analysis.progress.row.running',
+      'train.progress.running', 'train.progress.done', 'train.progress.duration',
+      'train.progress.status.completed', 'train.progress.status.failed',
+      'train.progress.col.trial', 'train.progress.col.lr', 'train.progress.col.reg',
+      'train.progress.col.brier', 'train.progress.best_brier',
       // LlmPerf
       'llmperf.kpi.models', 'llmperf.kpi.cost', 'llmperf.kpi.wins',
       'llmperf.kpi.roi', 'llmperf.delta.profitable', 'llmperf.delta.unprofitable',
