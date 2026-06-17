@@ -21,7 +21,7 @@ use crate::domain::lab::train_progress::{
 use crate::infra::db;
 use serde::{Deserialize, Serialize};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, State};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,20 +53,27 @@ pub struct StartSidecarArgs {
 }
 
 /// Wrap the OS process + pipes in a small state struct.
+///
+/// v0.28a — fields are `Arc<Mutex<...>>` so the struct is
+/// cheaply `Clone` (one Arc bump per field). This lets the
+/// auto-promote worker in `train_job` clone the sidecar
+/// state into a background `tokio::spawn` task without
+/// moving the original out of Tauri's `State`.
+#[derive(Clone)]
 pub struct SidecarState {
-    pub child: Mutex<Option<Child>>,
-    pub stdin: Mutex<Option<ChildStdin>>,
-    pub stdout: Mutex<Option<ChildStdout>>,
-    pub status: Mutex<SidecarStatus>,
+    pub child: Arc<Mutex<Option<Child>>>,
+    pub stdin: Arc<Mutex<Option<ChildStdin>>>,
+    pub stdout: Arc<Mutex<Option<ChildStdout>>>,
+    pub status: Arc<Mutex<SidecarStatus>>,
 }
 
 impl Default for SidecarState {
     fn default() -> Self {
         Self {
-            child: Mutex::new(None),
-            stdin: Mutex::new(None),
-            stdout: Mutex::new(None),
-            status: Mutex::new(SidecarStatus::default()),
+            child: Arc::new(Mutex::new(None)),
+            stdin: Arc::new(Mutex::new(None)),
+            stdout: Arc::new(Mutex::new(None)),
+            status: Arc::new(Mutex::new(SidecarStatus::default())),
         }
     }
 }
@@ -177,10 +184,10 @@ impl SidecarState {
     /// describing the failure.
     pub async fn ping_async(&self, timeout_ms: u64) -> Result<u64, String> {
         let this = Self {
-            child: Mutex::new(None),  // ping_async doesn't need the child
-            stdin: Mutex::new(None),
-            stdout: Mutex::new(None),
-            status: Mutex::new(self.status.lock().map_err(|e| format!("status lock: {e}"))?.clone()),
+            child: Arc::new(Mutex::new(None)),  // ping_async doesn't need the child
+            stdin: Arc::new(Mutex::new(None)),
+            stdout: Arc::new(Mutex::new(None)),
+            status: Arc::new(Mutex::new(self.status.lock().map_err(|e| format!("status lock: {e}"))?.clone())),
         };
         // Move the real stdin/stdout into the spawned task by
         // swapping the contents. This is safe because we hold
@@ -283,10 +290,10 @@ impl SidecarState {
         timeout_ms: u64,
     ) -> Result<crate::domain::lab::sidecar::PredictResult, String> {
         let this = Self {
-            child: Mutex::new(None),
-            stdin: Mutex::new(None),
-            stdout: Mutex::new(None),
-            status: Mutex::new(self.status.lock().map_err(|e| format!("status lock: {e}"))?.clone()),
+            child: Arc::new(Mutex::new(None)),
+            stdin: Arc::new(Mutex::new(None)),
+            stdout: Arc::new(Mutex::new(None)),
+            status: Arc::new(Mutex::new(self.status.lock().map_err(|e| format!("status lock: {e}"))?.clone())),
         };
         *this.stdin.lock().map_err(|e| format!("stdin lock: {e}"))? =
             self.stdin.lock().map_err(|e| format!("stdin lock: {e}"))?.take();
@@ -501,6 +508,7 @@ pub struct TrainJobArgs {
 #[tauri::command]
 pub async fn train_job(
     state: State<'_, SidecarState>,
+    app_state: State<'_, crate::infra::state::AppState>,
     app: AppHandle,
     args: TrainJobArgs,
 ) -> AppResult<TrainResult> {
@@ -649,6 +657,47 @@ pub async fn train_job(
             finished_at: chrono::Utc::now().timestamp_millis(),
         },
     );
+
+    // v0.28a — if auto-promote is enabled in AppState AND
+    // the train succeeded, spawn a background worker that
+    // calls `auto_promote_if_better` and emits the result
+    // on `auto_promote:finished`. The train IPC returns
+    // immediately; the worker runs in the background.
+    //
+    // The worker reads `state` (SidecarState) and `app` (AppHandle)
+    // by cloning — both are cheap (SidecarState is just
+    // Arc<Mutex<...>> internally; AppHandle is a clone of
+    // a long-lived handle).
+    if result.status == "succeeded" || result.status == "ok" {
+        let auto_promote_enabled = {
+            let guard = app_state
+                .auto_promote
+                .lock()
+                .map_err(|e| AppError::Internal(format!("auto_promote lock: {e}")))?;
+            guard.enabled
+        };
+        if auto_promote_enabled {
+            let brier_margin = {
+                let guard = app_state
+                    .auto_promote
+                    .lock()
+                    .map_err(|e| AppError::Internal(format!("auto_promote lock: {e}")))?;
+                guard.brier_margin
+            };
+            let sidecar = state.inner().clone();
+            let app_clone = app.clone();
+            let train_job_id = result.job_id.clone();
+            tokio::spawn(async move {
+                run_auto_promote_worker(
+                    sidecar,
+                    app_clone,
+                    brier_margin,
+                    train_job_id,
+                )
+                .await;
+            });
+        }
+    }
 
     Ok(result)
 }
@@ -1131,6 +1180,272 @@ pub fn known_methods() -> Vec<SidecarMethod> {
         SidecarMethod::TrainJob,
         SidecarMethod::PromoteModel,
     ]
+}
+
+// =================================================================
+// v0.28a — auto-promote config (in-memory, set via L1 IPC)
+// =================================================================
+
+/// v0.28a — args for `set_auto_promote_config`. Both fields
+/// are optional: `None` means "leave unchanged" so the L1
+/// can update only the field the user changed in the UI
+/// (e.g. just the toggle, not the margin).
+#[derive(Debug, Clone, Deserialize)]
+pub struct SetAutoPromoteConfigArgs {
+    pub enabled: Option<bool>,
+    pub brier_margin: Option<f64>,
+}
+
+/// v0.28a — current auto-promote config. Returned by
+/// `get_auto_promote_config` for the L1 to display
+/// "what the Rust side currently has" (in case the L1
+/// store was reset, e.g. by a hard refresh).
+#[derive(Debug, Clone, Serialize)]
+pub struct AutoPromoteConfigDto {
+    pub enabled: bool,
+    pub brier_margin: f64,
+}
+
+/// v0.28a — L1 pushes the user's auto-promote settings
+/// into `AppState` so the Rust `train_job` handler can
+/// decide whether to spawn the auto-promote worker.
+///
+/// Both fields are optional; only the supplied ones are
+/// updated. Returns the new merged config so the L1
+/// can confirm what Rust now has.
+#[tauri::command]
+pub async fn set_auto_promote_config(
+    state: State<'_, crate::infra::state::AppState>,
+    args: SetAutoPromoteConfigArgs,
+) -> AppResult<AutoPromoteConfigDto> {
+    let mut guard = state
+        .auto_promote
+        .lock()
+        .map_err(|e| AppError::Internal(format!("auto_promote lock: {e}")))?;
+    if let Some(e) = args.enabled {
+        guard.enabled = e;
+    }
+    if let Some(m) = args.brier_margin {
+        // Clamp to a sane range: 0.0 (any improvement) to 0.1
+        // (only promote if 10% better). Negative would be
+        // "promote if not worse", which is silly.
+        guard.brier_margin = m.clamp(0.0, 0.1);
+    }
+    Ok(AutoPromoteConfigDto {
+        enabled: guard.enabled,
+        brier_margin: guard.brier_margin,
+    })
+}
+
+/// v0.28a — read the current auto-promote config from
+/// `AppState`. Returns defaults if the L1 has never
+/// pushed any config.
+#[tauri::command]
+pub async fn get_auto_promote_config(
+    state: State<'_, crate::infra::state::AppState>,
+) -> AppResult<AutoPromoteConfigDto> {
+    let guard = state
+        .auto_promote
+        .lock()
+        .map_err(|e| AppError::Internal(format!("auto_promote lock: {e}")))?;
+    Ok(AutoPromoteConfigDto {
+        enabled: guard.enabled,
+        brier_margin: guard.brier_margin,
+    })
+}
+
+/// v0.28a — event payload for the background auto-promote
+/// worker. Emitted on the Tauri bus as `auto_promote:finished`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutoPromoteFinishedEvent {
+    /// The job_id from the train that triggered the auto-promote.
+    pub job_id: String,
+    /// Whether the auto-promote actually promoted.
+    pub promoted: bool,
+    /// Reason / status string from the sidecar.
+    pub message: String,
+    /// If promoted, the new model version.
+    pub model_version: Option<String>,
+    /// When the auto-promote finished (unix millis).
+    pub finished_at: i64,
+}
+
+/// v0.28a — spawn a background task that calls
+/// `auto_promote_if_better` on the sidecar, then emits
+/// `auto_promote:finished`.
+///
+/// This is a private helper used by `train_job` after
+/// the sidecar returns a successful train. It is NOT a
+/// `#[tauri::command]` — it runs in a `tokio::spawn`'d
+/// task so the train IPC returns immediately.
+///
+/// The worker:
+/// 1. Calls `auto_promote_if_better(brier_margin)` via
+///    the same stdin/stdout protocol as the user-facing
+///    command
+/// 2. Emits the result on `auto_promote:finished`
+/// 3. Silently swallows errors (they are reflected in
+///    `message`; we don't want a failed auto-promote
+///    to crash the train IPC that already returned)
+async fn run_auto_promote_worker(
+    sidecar: SidecarState,
+    app: AppHandle,
+    brier_margin: f64,
+    job_id: String,
+) {
+    let inner_job_id = format!(
+        "auto-promote-{}",
+        uuid::Uuid::new_v4()
+            .to_string()
+            .split('-')
+            .next()
+            .unwrap_or("00000000")
+    );
+    let line = build_auto_promote_if_better_request(&inner_job_id, Some(brier_margin), None);
+
+    // If the sidecar isn't running, the worker just
+    // emits a "no-op" finished event so the L1 can
+    // update its UI (e.g. "auto-promote skipped: sidecar down").
+    if !sidecar.is_running() {
+        let _ = app.emit(
+            "auto_promote:finished",
+            AutoPromoteFinishedEvent {
+                job_id,
+                promoted: false,
+                message: "sidecar not running".into(),
+                model_version: None,
+                finished_at: chrono::Utc::now().timestamp_millis(),
+            },
+        );
+        return;
+    }
+
+    let response_line = {
+        let write_result: Result<String, String> = (|| -> Result<String, String> {
+            let mut stdin_guard = sidecar
+                .stdin
+                .lock()
+                .map_err(|e| format!("stdin lock: {e}"))?;
+            let stdin = stdin_guard
+                .as_mut()
+                .ok_or_else(|| "stdin not available".to_string())?;
+            use std::io::Write;
+            writeln!(stdin, "{line}").map_err(|e| format!("auto_promote write: {e}"))?;
+            stdin.flush().map_err(|e| format!("auto_promote flush: {e}"))?;
+            drop(stdin_guard);
+
+            let mut stdout_guard = sidecar
+                .stdout
+                .lock()
+                .map_err(|e| format!("stdout lock: {e}"))?;
+            let stdout = stdout_guard
+                .as_mut()
+                .ok_or_else(|| "stdout not available".to_string())?;
+            use std::io::{BufRead, BufReader};
+            let mut reader = BufReader::new(stdout);
+            let mut response_line = String::new();
+            reader
+                .read_line(&mut response_line)
+                .map_err(|e| format!("auto_promote read: {e}"))?;
+            Ok(response_line)
+        })();
+        match write_result {
+            Ok(l) => l,
+            Err(e) => {
+                let _ = app.emit(
+                    "auto_promote:finished",
+                    AutoPromoteFinishedEvent {
+                        job_id,
+                        promoted: false,
+                        message: format!("auto_promote worker error: {e}"),
+                        model_version: None,
+                        finished_at: chrono::Utc::now().timestamp_millis(),
+                    },
+                );
+                return;
+            }
+        }
+    };
+
+    let parsed = match parse_line(&response_line) {
+        Ok(p) => p,
+        Err(e) => {
+            let _ = app.emit(
+                "auto_promote:finished",
+                AutoPromoteFinishedEvent {
+                    job_id,
+                    promoted: false,
+                    message: format!("auto_promote parse: {e}"),
+                    model_version: None,
+                    finished_at: chrono::Utc::now().timestamp_millis(),
+                },
+            );
+            return;
+        }
+    };
+    let response = match parsed {
+        crate::domain::lab::sidecar::ParseResult::Response(r) => r,
+        _ => {
+            let _ = app.emit(
+                "auto_promote:finished",
+                AutoPromoteFinishedEvent {
+                    job_id,
+                    promoted: false,
+                    message: "auto_promote: not a response".into(),
+                    model_version: None,
+                    finished_at: chrono::Utc::now().timestamp_millis(),
+                },
+            );
+            return;
+        }
+    };
+    if response.id != inner_job_id {
+        let _ = app.emit(
+            "auto_promote:finished",
+            AutoPromoteFinishedEvent {
+                job_id,
+                promoted: false,
+                message: format!(
+                    "auto_promote id mismatch: sent={inner_job_id}, got={}",
+                    response.id
+                ),
+                model_version: None,
+                finished_at: chrono::Utc::now().timestamp_millis(),
+            },
+        );
+        return;
+    }
+    let result: AutoPromoteIfBetterResult = match parse_auto_promote_if_better_response(&response) {
+        Ok(r) => r,
+        Err(e) => {
+            let _ = app.emit(
+                "auto_promote:finished",
+                AutoPromoteFinishedEvent {
+                    job_id,
+                    promoted: false,
+                    message: format!("auto_promote decode: {e}"),
+                    model_version: None,
+                    finished_at: chrono::Utc::now().timestamp_millis(),
+                },
+            );
+            return;
+        }
+    };
+
+    let _ = app.emit(
+        "auto_promote:finished",
+        AutoPromoteFinishedEvent {
+            job_id,
+            promoted: result.promoted,
+            message: result.message.unwrap_or_default(),
+            model_version: if result.promoted {
+                result.model_version
+            } else {
+                None
+            },
+            finished_at: chrono::Utc::now().timestamp_millis(),
+        },
+    );
 }
 
 #[cfg(test)]

@@ -51,7 +51,7 @@ pub fn run() {
                 // for test shutdown signaling.
                 let http = infra::http::new_http_client();
                 let handle = infra::scheduler::start(pool.clone(), http);
-                app_handle.manage(infra::state::AppState { db: pool });
+                app_handle.manage(infra::state::AppState::new(pool));
                 app_handle.manage(handle);
                 // v0.6b — Python sidecar (M7) singleton state
                 app_handle.manage(commands::sidecar::SidecarState::new());
@@ -126,6 +126,8 @@ pub fn run() {
             commands::sidecar::auto_promote_if_better,
             commands::sidecar::promote_all_trials,
             commands::sidecar::sidecar_request,
+            commands::sidecar::set_auto_promote_config,
+            commands::sidecar::get_auto_promote_config,
             commands::sidecar_health::sidecar_health_now,
             commands::sidecar_health::sidecar_health_snapshot,
             commands::scheduler::scheduler_status,
