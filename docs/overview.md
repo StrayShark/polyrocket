@@ -2,8 +2,8 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.20 · 2026-06-18 (v0.59 real SHAP + v0.60 proxy hot-swap + coverage gate)
-> 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿）
+> 版本：v2.20 · 2026-06-18 (v0.59 real SHAP + v0.60 proxy hot-swap + coverage gate + v0.61 coding-spec)
+> 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿） · [`coding-spec.md`](./coding-spec.md)（v0.61 注释规范）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
 
@@ -799,10 +799,11 @@ v0.6 增量：
 
 ## 8. 变更日志
 
-- **v2.20** (2026-06-18) — v0.59 + v0.60
+- **v2.20** (2026-06-18) — v0.59 + v0.60 + v0.61a
   - v0.59a 真 SHAP (KernelExplainer, 11th sidecar method, 12 tests)
   - v0.60a 代理热切换 (ArcSwap<reqwest::Client>, no restart)
   - v0.60b vitest coverage gate (50% 阈值, CI)
+  - v0.61a coding-spec 注释规范 (Rust + TS + Python 三套规则 + 密度目标 + CI)
   - 总测试数: 875 + 31 script = 906
 - **v2.19** (2026-06-18) — v0.58 ship + clean
   - v0.58a Apply 自动迁移 (no manual Copy)
