@@ -7,14 +7,15 @@
 use crate::AppError;
 use crate::AppResult;
 use crate::domain::lab::sidecar::{
-    build_auto_promote_if_better_request, build_backtest_model_request, build_predict_request,
-    build_promote_all_trials_request, build_promote_request, build_rollback_request,
-    build_train_request, parse_auto_promote_if_better_response, parse_backtest_model_response,
-    parse_line, parse_list_promote_history_response, parse_promote_all_trials_response,
+    build_auto_promote_if_better_request, build_backtest_model_request, build_explain_model_request,
+    build_predict_request, build_promote_all_trials_request, build_promote_request,
+    build_rollback_request, build_train_request, parse_auto_promote_if_better_response,
+    parse_backtest_model_response, parse_explain_model_response, parse_line,
+    parse_list_promote_history_response, parse_promote_all_trials_response,
     parse_predict_response, parse_promote_response, parse_rollback_response, parse_train_response,
-    AutoPromoteIfBetterResult, BacktestResult, BacktestSample, Prediction, PromoteAllTrialsResult,
-    PromoteHistoryResult, PromoteResult, RollbackResult, SidecarMethod, SidecarRequest,
-    SidecarResponse, TrainResult, TrainTrial,
+    AutoPromoteIfBetterResult, BacktestResult, BacktestSample, ExplainResult, ExplainSample,
+    Prediction, PromoteAllTrialsResult, PromoteHistoryResult, PromoteResult, RollbackResult,
+    SidecarMethod, SidecarRequest, SidecarResponse, TrainResult, TrainTrial,
 };
 use crate::domain::lab::train_progress::{
     TrainFinishedEvent, TrainStartedEvent, TrainTrialDto,
@@ -334,6 +335,23 @@ pub async fn start_sidecar(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    // v0.56 — propagate the proxy to the
+    // sidecar. We set the standard env vars
+    // (HTTP_PROXY / HTTPS_PROXY / ALL_PROXY) so
+    // that any HTTP library the sidecar uses
+    // (httpx, requests) automatically routes
+    // through it. We only set these when the
+    // Rust-side proxy is enabled; the env-var
+    // path is opt-in to keep the default
+    // (direct outbound) intact.
+    if let Ok(proxy) = std::env::var("POLYROCKET_PROXY") {
+        let p = proxy.trim();
+        if !p.is_empty() {
+            command.env("HTTP_PROXY", p);
+            command.env("HTTPS_PROXY", p);
+            command.env("ALL_PROXY", p);
+        }
+    }
     let mut child = command.spawn().map_err(|e| {
         AppError::Internal(format!("sidecar spawn '{cmd}': {e}"))
     })?;
@@ -1307,6 +1325,114 @@ pub async fn backtest_model(
     }
     parse_backtest_model_response(&response).map_err(|e| {
         AppError::Internal(format!("backtest decode: {e}"))
+    })
+}
+
+// =================================================================
+// v0.55 — explain_model IPC
+// =================================================================
+
+/// v0.55 — args for the `explain_model` IPC. The
+/// L1 sends a model_version + optional sample;
+/// the sidecar returns per-feature contributions
+/// to the prediction. The L1 renders this as a
+/// horizontal bar chart.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ExplainModelArgs {
+    /// The model to explain, e.g.
+    /// "logistic-train-441c352b". Looked up in
+    /// `archive.jsonl` first, then `active.json`.
+    pub model_version: String,
+    /// Optional sample: { price, market_age_hours }.
+    /// When omitted, the sidecar uses a default
+    /// sample (price=0.5, age=24h) so the user
+    /// gets a "what would the model say for a
+    /// typical market" view.
+    #[serde(default)]
+    pub sample: Option<ExplainSample>,
+}
+
+/// v0.55 — per-feature contribution for one sample.
+/// For the 3-feature logistic model this is an
+/// exact decomposition (not a SHAP approximation):
+/// `contribution_i = w_i * x_i * p(1-p)`. The L1
+/// renders the `features` array as a horizontal
+/// bar chart (positive bars in green, negative
+/// in red, length = `abs_contribution`).
+#[tauri::command]
+pub async fn explain_model(
+    state: State<'_, SidecarState>,
+    args: ExplainModelArgs,
+) -> AppResult<ExplainResult> {
+    let job_id = format!(
+        "explain-{}",
+        uuid::Uuid::new_v4()
+            .to_string()
+            .split('-')
+            .next()
+            .unwrap_or("00000000")
+    );
+    let line = build_explain_model_request(
+        &job_id,
+        &args.model_version,
+        args.sample.as_ref(),
+    );
+
+    if !state.is_running() {
+        return Ok(ExplainResult {
+            ok: false,
+            model_version: args.model_version,
+            features: Vec::new(),
+            prediction: None,
+            sample: None,
+            message: "sidecar not running".into(),
+        });
+    }
+
+    let response_line = {
+        {
+            let mut stdin_guard = state.stdin.lock()
+                .map_err(|e| format!("stdin lock: {e}"))
+                .map_err(AppError::Internal)?;
+            let stdin = stdin_guard.as_mut()
+                .ok_or_else(|| AppError::Internal("stdin not available".into()))?;
+            use std::io::Write;
+            if let Err(e) = writeln!(stdin, "{line}") {
+                return Err(AppError::Internal(format!("explain write: {e}")));
+            }
+            if let Err(e) = stdin.flush() {
+                return Err(AppError::Internal(format!("explain flush: {e}")));
+            }
+        }
+        let mut stdout_guard = state.stdout.lock()
+            .map_err(|e| format!("stdin lock: {e}"))
+            .map_err(AppError::Internal)?;
+        let stdout = stdout_guard.as_mut()
+            .ok_or_else(|| AppError::Internal("stdout not available".into()))?;
+        use std::io::{BufRead, BufReader};
+        let mut reader = BufReader::new(stdout);
+        let mut buf = String::new();
+        if let Err(e) = reader.read_line(&mut buf) {
+            return Err(AppError::Internal(format!("explain read: {e}")));
+        }
+        buf
+    };
+
+    let parsed = parse_line(&response_line).map_err(|e| {
+        AppError::Internal(format!("explain parse: {e}"))
+    })?;
+    let response = match parsed {
+        crate::domain::lab::sidecar::ParseResult::Response(r) => r,
+        _ => return Err(AppError::Internal("explain: not a response".into())),
+    };
+    if response.id != job_id {
+        return Err(AppError::Internal(format!(
+            "explain id mismatch: sent={job_id}, got={}",
+            response.id
+        )));
+    }
+    parse_explain_model_response(&response).map_err(|e| {
+        AppError::Internal(format!("explain decode: {e}"))
     })
 }
 

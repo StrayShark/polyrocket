@@ -31,6 +31,7 @@ from .train import (
     run_promote_all_trials,
     run_backtest_model,
 )
+from .explainability import run_explainability
 
 
 def ping(_params: dict[str, Any]) -> dict[str, Any]:
@@ -192,6 +193,28 @@ def backtest_model(params: dict[str, Any]) -> dict[str, Any]:
     return run_backtest_model(model_version=model_version, samples=samples)
 
 
+def explain_model(params: dict[str, Any]) -> dict[str, Any]:
+    """v0.55 — per-feature contribution for one sample.
+
+    Params:
+      - model_version (str, required): e.g.
+          "logistic-train-441c352b". Looked up in
+          archive.jsonl first, then active.json.
+      - sample (dict, optional): { price, market_age_hours }.
+          When omitted, uses a default sample
+          (price=0.5, age=24h) so the user gets a
+          "what would the model say for a typical
+          market" view.
+
+    Returns: see explainability.run_explainability.
+    """
+    model_version = params.get("model_version")
+    if not isinstance(model_version, str) or not model_version:
+        raise ValueError("'model_version' must be a non-empty string")
+    sample = params.get("sample")
+    return run_explainability(model_version=model_version, sample=sample)
+
+
 DISPATCH: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "ping": ping,
     "predict": predict,
@@ -202,4 +225,5 @@ DISPATCH: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "auto_promote_if_better": auto_promote_if_better,
     "promote_all_trials": promote_all_trials,
     "backtest_model": backtest_model,
+    "explain_model": explain_model,
 }

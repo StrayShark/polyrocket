@@ -22,6 +22,7 @@
 //!   - "log"             → append to sidecar log
 //!   - "metric"          → live metric update
 
+use crate::infra::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -123,6 +124,15 @@ pub enum SidecarMethod {
     /// file); the L1 is expected to pull resolved
     /// markets from the markets DB.
     BacktestModel,
+    /// v0.55 — per-feature contribution for one sample.
+    /// For the 3-feature logistic model this is an
+    /// exact decomposition (not a SHAP approximation):
+    /// contribution_i = w_i * x_i * p(1-p) — the
+    /// actual derivative of the probability w.r.t. the
+    /// feature. The L1 renders this as a horizontal
+    /// bar chart. For tree-based models, a real SHAP
+    /// library would be needed; v0.55+ candidate.
+    ExplainModel,
 }
 
 impl SidecarMethod {
@@ -137,6 +147,7 @@ impl SidecarMethod {
             SidecarMethod::AutoPromoteIfBetter => "auto_promote_if_better",
             SidecarMethod::PromoteAllTrials => "promote_all_trials",
             SidecarMethod::BacktestModel => "backtest_model",
+            SidecarMethod::ExplainModel => "explain_model",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -150,6 +161,7 @@ impl SidecarMethod {
             "auto_promote_if_better" => Some(SidecarMethod::AutoPromoteIfBetter),
             "promote_all_trials" => Some(SidecarMethod::PromoteAllTrials),
             "backtest_model" => Some(SidecarMethod::BacktestModel),
+            "explain_model" => Some(SidecarMethod::ExplainModel),
             _ => None,
         }
     }
@@ -775,6 +787,173 @@ pub fn build_backtest_model_request(
     serde_json::to_string(&req).unwrap_or_default()
 }
 
+// =================================================================
+// v0.55 — explain_model request builder + response types
+// =================================================================
+
+/// v0.55 — input sample for an explainability query.
+/// Mirrors `explainability.run_explainability`'s
+/// `sample` param. Both fields are optional;
+/// omitting both gives a default sample
+/// (price=0.5, age=24h).
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ExplainSample {
+    /// The market price, 0..1. Default 0.5.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub price: Option<f64>,
+    /// The market age in hours, >=0. Default 24.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub market_age_hours: Option<f64>,
+}
+
+/// v0.55 — builder for the `explain_model`
+/// request line. `sample` is optional — when
+/// None, the sidecar uses a default sample.
+pub fn build_explain_model_request(
+    id: impl Into<String>,
+    model_version: &str,
+    sample: Option<&ExplainSample>,
+) -> String {
+    let mut params = serde_json::json!({
+        "model_version": model_version,
+    });
+    if let Some(s) = sample {
+        params["sample"] = serde_json::to_value(s).unwrap_or(serde_json::Value::Null);
+    }
+    let req = SidecarRequest {
+        id: id.into(),
+        method: SidecarMethod::ExplainModel.as_str().to_string(),
+        params,
+    };
+    serde_json::to_string(&req).unwrap_or_default()
+}
+
+/// v0.55 — one feature's contribution to a single
+/// prediction. The L1 renders this as a horizontal
+/// bar chart (positive bars in green, negative
+/// in red, length = abs_contribution).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExplainFeature {
+    /// Feature name, e.g. "price", "bias",
+    /// "market_age_hours".
+    pub feature: String,
+    /// The actual feature value used in the sample.
+    pub value: f64,
+    /// The model's weight for this feature.
+    pub weight: f64,
+    /// The contribution to (p - 0.5). Positive
+    /// means "this feature moved the prediction
+    /// higher", negative means "moved it lower".
+    pub contribution: f64,
+    /// `|contribution|`. Used for sorting +
+    /// chart bar length.
+    pub abs_contribution: f64,
+}
+
+/// v0.55 — wire-format mirror of the Python
+/// sidecar's `explain_model` response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExplainResult {
+    /// `true` on success; `false` for unknown
+    /// model / missing weights / invalid sample.
+    pub ok: bool,
+    /// Echoed from the request.
+    pub model_version: String,
+    /// Per-feature contributions, sorted by
+    /// `abs_contribution` descending.
+    pub features: Vec<ExplainFeature>,
+    /// The model's predicted probability for
+    /// the sample (0..1). `None` on error.
+    pub prediction: Option<f64>,
+    /// The sample we evaluated (price +
+    /// market_age_hours). Echoed from the
+    /// request, with defaults filled in.
+    pub sample: Option<ExplainSample>,
+    /// Human-readable status / error.
+    pub message: String,
+}
+
+/// v0.55 — parse a sidecar `explain_model` response
+/// into a typed `ExplainResult`. The shape is
+/// always there on `ok=true`/`ok=false`; we just
+/// tolerate the failure case.
+pub fn parse_explain_model_response(
+    response: &SidecarResponse,
+) -> AppResult<ExplainResult> {
+    if !response.ok {
+        let message = response
+            .error
+            .clone()
+            .or_else(|| {
+                response
+                    .result
+                    .as_ref()
+                    .and_then(|r| r.get("message").and_then(|m| m.as_str()).map(String::from))
+            })
+            .unwrap_or_else(|| "unknown error".to_string());
+        return Ok(ExplainResult {
+            ok: false,
+            model_version: response
+                .result
+                .as_ref()
+                .and_then(|r| r.get("model_version").and_then(|v| v.as_str()))
+                .unwrap_or("")
+                .to_string(),
+            features: Vec::new(),
+            prediction: None,
+            sample: None,
+            message,
+        });
+    }
+    let result = response.result.as_ref().ok_or_else(|| {
+        AppError::Internal("explain_model: missing result".into())
+    })?;
+    let model_version = result
+        .get("model_version")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let features: Vec<ExplainFeature> = result
+        .get("features")
+        .and_then(|f| f.as_array())
+        .map(|arr| {
+            let mut v: Vec<ExplainFeature> = arr
+                .iter()
+                .filter_map(|x| serde_json::from_value(x.clone()).ok())
+                .collect();
+            // Sort by abs_contribution descending.
+            // The sidecar already sorts, but we
+            // re-sort defensively in case the
+            // protocol changes.
+            v.sort_by(|a, b| {
+                b.abs_contribution
+                    .partial_cmp(&a.abs_contribution)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            v
+        })
+        .unwrap_or_default();
+    let prediction = result
+        .get("prediction")
+        .and_then(|p| p.as_f64());
+    let sample: Option<ExplainSample> = result
+        .get("sample")
+        .and_then(|s| serde_json::from_value(s.clone()).ok());
+    let message = result
+        .get("message")
+        .and_then(|m| m.as_str())
+        .unwrap_or("ok")
+        .to_string();
+    Ok(ExplainResult {
+        ok: true,
+        model_version,
+        features,
+        prediction,
+        sample,
+        message,
+    })
+}
+
 /// v0.43a — one entry in the calibration histogram.
 /// The L1 renders this as a small bar chart:
 /// "in this prediction bucket, the actual
@@ -942,7 +1121,9 @@ mod tests {
                   SidecarMethod::ListPromoteHistory,
                   SidecarMethod::RollbackModel,
                   SidecarMethod::AutoPromoteIfBetter,
-                  SidecarMethod::PromoteAllTrials] {
+                  SidecarMethod::PromoteAllTrials,
+                  SidecarMethod::BacktestModel,
+                  SidecarMethod::ExplainModel] {
             assert_eq!(SidecarMethod::parse(m.as_str()), Some(m));
         }
         assert_eq!(SidecarMethod::parse("nope"), None);
@@ -1719,5 +1900,86 @@ mod tests {
         let m = SidecarMethod::parse("backtest_model").unwrap();
         assert_eq!(m, SidecarMethod::BacktestModel);
         assert_eq!(m.as_str(), "backtest_model");
+    }
+
+    // v0.55 — explain_model request builder
+    #[test]
+    fn build_explain_model_request_no_sample() {
+        let line = build_explain_model_request(
+            "explain-1",
+            "logistic-train-abc",
+            None,
+        );
+        let v: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(v["id"], "explain-1");
+        assert_eq!(v["method"], "explain_model");
+        assert_eq!(v["params"]["model_version"], "logistic-train-abc");
+        // No `sample` key when None.
+        assert!(v["params"].get("sample").is_none());
+    }
+
+    #[test]
+    fn build_explain_model_request_with_sample() {
+        let sample = ExplainSample {
+            price: Some(0.42),
+            market_age_hours: Some(36.0),
+        };
+        let line = build_explain_model_request(
+            "explain-2",
+            "logistic-train-abc",
+            Some(&sample),
+        );
+        let v: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(v["params"]["sample"]["price"], 0.42);
+        assert_eq!(v["params"]["sample"]["market_age_hours"], 36.0);
+    }
+
+    // v0.55 — explain_model response parser
+    #[test]
+    fn parse_explain_response_ok() {
+        let resp = SidecarResponse::ok(
+            "explain-1",
+            serde_json::json!({
+                "ok": true,
+                "model_version": "logistic-train-abc",
+                "features": [
+                    {"feature": "bias", "value": 1.0, "weight": 0.1, "contribution": 0.025, "abs_contribution": 0.025},
+                    {"feature": "price", "value": 0.5, "weight": 2.4, "contribution": 0.30, "abs_contribution": 0.30},
+                    {"feature": "market_age_hours", "value": 24.0, "weight": -0.02, "contribution": -0.024, "abs_contribution": 0.024},
+                ],
+                "prediction": 0.55,
+                "sample": {"price": 0.5, "market_age_hours": 24.0},
+                "message": "ok",
+            }),
+        );
+        let r = parse_explain_model_response(&resp).unwrap();
+        assert!(r.ok);
+        assert_eq!(r.model_version, "logistic-train-abc");
+        assert_eq!(r.features.len(), 3);
+        // Features are sorted by abs_contribution
+        // descending in the sidecar, so the
+        // first should be "price" (0.30).
+        assert_eq!(r.features[0].feature, "price");
+        assert_eq!(r.features[0].abs_contribution, 0.30);
+        assert!((r.prediction.unwrap() - 0.55).abs() < 1e-6);
+    }
+
+    #[test]
+    fn parse_explain_response_err() {
+        let resp = SidecarResponse::err(
+            "explain-1",
+            "model logistic-train-xyz not found",
+        );
+        let r = parse_explain_model_response(&resp).unwrap();
+        assert!(!r.ok);
+        assert!(r.message.contains("not found"));
+        assert!(r.features.is_empty());
+    }
+
+    #[test]
+    fn sidecar_method_explain_round_trip() {
+        let m = SidecarMethod::parse("explain_model").unwrap();
+        assert_eq!(m, SidecarMethod::ExplainModel);
+        assert_eq!(m.as_str(), "explain_model");
     }
 }
