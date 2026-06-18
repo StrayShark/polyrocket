@@ -56,6 +56,16 @@ export interface UiPrefs {
    * changes are pushed to Rust via the
    * `setTelemetryEnabled` IPC. */
   telemetryEnabled: boolean;
+  /** v0.44c — paper trading mode. When true, the
+   * mirror executor's picked orders go to the
+   * `paper_fills` table instead of the `bets`
+   * table, and the CLOB sign_order step is
+   * skipped. The decision logic is unchanged —
+   * paper mode only changes the write path.
+   * Lets the user validate their config
+   * (sizing, exposure caps, frequency) without
+   * risking real money. Default false. */
+  mirrorPaperMode: boolean;
 }
 
 interface PrefsState extends UiPrefs {

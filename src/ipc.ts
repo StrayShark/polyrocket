@@ -18,7 +18,7 @@ import type {
 } from '@/types/wallet';
 import type { Market, ListMarketsArgs } from '@/types/market';
 import type { Signal, ListSignalsArgs } from '@/types/signal';
-import type { Bet, PlaceJumpArgs, PlaceSignedArgs, ListBetsArgs } from '@/types/bet';
+import type { Bet, PaperFill, PlaceJumpArgs, PlaceSignedArgs, ListBetsArgs } from '@/types/bet';
 import type {
   LlmProvider,
   LlmProviderKey,
@@ -76,6 +76,24 @@ export const addCopyTarget = (args: AddCopyTargetArgs) =>
   invoke<CopyTarget>('add_copy_target', { args });
 export const recentCopyEvents = (targetId?: string, limit = 50) =>
   invoke<CopyEvent[]>('recent_copy_events', { targetId, limit });
+
+// ---------------------------------------------------------------- Mirror (M5 executor)
+export const enqueueMirror = (args: EnqueueMirrorArgs) =>
+  invoke<MirrorRow>('enqueue_mirror', { args });
+export const listMirrors = (args: ListMirrorsArgs = {}) =>
+  invoke<MirrorRow[]>('list_mirrors', { args });
+export const runMirrorExecutorPass = (args: RunMirrorPassArgs) =>
+  invoke<ExecutorPassResult>('run_mirror_executor_pass', { args });
+export const mirrorQueueStats = () =>
+  invoke<MirrorQueueStats>('mirror_queue_stats');
+
+// v0.44c — paper trading mode IPCs
+export const setMirrorPaperMode = (args: { enabled: boolean }) =>
+  invoke<boolean>('set_mirror_paper_mode', { args });
+export const getMirrorPaperMode = () =>
+  invoke<boolean>('get_mirror_paper_mode');
+export const listPaperFills = (args: { limit?: number } = {}) =>
+  invoke<PaperFill[]>('list_paper_fills', { args });
 
 // ---------------------------------------------------------------- PnL (M6)
 export const dashboardKpis = () => invoke<DashboardKpis>('dashboard_kpis');

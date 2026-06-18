@@ -41,8 +41,8 @@ export interface PrefsExport {
   version: number;
   /** v0.36a — when the export was created (unix millis). */
   exported_at_ms: number;
-  /** v0.36a — the actual prefs. All 10 UiPrefs fields
-   *  (was 8 until v0.42e-2 added autoPromoteSkippedNotify). */
+  /** v0.36a — the actual prefs. All 11 UiPrefs fields
+   *  (was 10 until v0.44c added mirrorPaperMode). */
   prefs: UiPrefs;
 }
 
@@ -61,6 +61,7 @@ const PREF_DEFAULTS: UiPrefs = {
   autoPromoteNotify: true,
   autoPromoteSkippedNotify: false,
   telemetryEnabled: false,
+  mirrorPaperMode: false,
 };
 
 /**
@@ -197,6 +198,16 @@ export function parsePrefsFromString(json: string): UiPrefs {
       throw new Error('Invalid export: autoPromoteSkippedNotify must be a boolean');
     }
     result.autoPromoteSkippedNotify = v;
+  }
+  // v0.44c — mirrorPaperMode. New in v0.44; old
+  // exports don't have it (forward-compat:
+  // defaults to false).
+  if ('mirrorPaperMode' in rawPrefs) {
+    const v = rawPrefs.mirrorPaperMode;
+    if (typeof v !== 'boolean') {
+      throw new Error('Invalid export: mirrorPaperMode must be a boolean');
+    }
+    result.mirrorPaperMode = v;
   }
   return result;
 }

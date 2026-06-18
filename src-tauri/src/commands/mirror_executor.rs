@@ -150,6 +150,96 @@ pub async fn run_mirror_executor_pass(
     run_pass_impl(&state, args.key_alias, args.wallet_id).await
 }
 
+// =================================================================
+// ============== v0.44c — paper mode IPC + paper_fills query ======
+// =================================================================
+
+/// v0.44c — args for `set_mirror_paper_mode`. The L1
+/// pushes the user's paper-mode pref to Rust on
+/// Settings mount and on every toggle. The
+/// scheduler reads the current value on every tick.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SetMirrorPaperModeArgs {
+    pub enabled: bool,
+}
+
+/// v0.44c — runtime override of paper mode. After
+/// this call, the next mirror executor pass writes
+/// picked orders to `paper_fills` (paper mode on)
+/// or to `bets` (paper mode off). The env-var
+/// `POLYROCKET_MIRROR_PAPER_MODE` only matters at
+/// process start; after this IPC the user's choice
+/// wins.
+#[tauri::command]
+pub async fn set_mirror_paper_mode(
+    state: State<'_, AppState>,
+    args: SetMirrorPaperModeArgs,
+) -> AppResult<bool> {
+    let mut guard = state
+        .mirror_paper_mode
+        .lock()
+        .map_err(|e| AppError::Internal(format!("mirror_paper_mode lock: {e}")))?;
+    *guard = args.enabled;
+    Ok(args.enabled)
+}
+
+/// v0.44c — read the current paper-mode override.
+/// The L1 calls this on Settings mount so the
+/// toggle reflects what the Rust side currently
+/// has (in case the env var set it at startup).
+#[tauri::command]
+pub async fn get_mirror_paper_mode(
+    state: State<'_, AppState>,
+) -> AppResult<bool> {
+    let guard = state
+        .mirror_paper_mode
+        .lock()
+        .map_err(|e| AppError::Internal(format!("mirror_paper_mode lock: {e}")))?;
+    Ok(*guard)
+}
+
+/// v0.44c — wire-format mirror of a single
+/// `paper_fills` row. Used by `list_paper_fills`
+/// below.
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct PaperFillDto {
+    pub id: String,
+    pub mirror_id: String,
+    pub market_id: String,
+    pub side: String,
+    pub size: String,
+    pub price: f64,
+    pub placed_at: i64,
+    pub notes: Option<String>,
+}
+
+/// v0.44c — args for `list_paper_fills`. Same
+/// shape as `list_bets` for consistency.
+#[derive(Debug, Deserialize)]
+pub struct ListPaperFillsArgs {
+    pub limit: Option<i64>,
+}
+
+/// v0.44c — query the paper_fills table. The L1
+/// uses this to render the [PAPER] badges in Copy
+/// / PnL and to show the paper-only PnL summary.
+/// Default limit 100, newest first.
+#[tauri::command]
+pub async fn list_paper_fills(
+    state: State<'_, AppState>,
+    args: ListPaperFillsArgs,
+) -> AppResult<Vec<PaperFillDto>> {
+    let limit = args.limit.unwrap_or(100);
+    let rows = sqlx::query_as::<_, PaperFillDto>(
+        "SELECT id, mirror_id, market_id, side, size, price, placed_at, notes
+         FROM paper_fills ORDER BY placed_at DESC LIMIT ?",
+    )
+    .bind(limit)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(rows)
+}
+
 pub async fn run_pass_impl(
     state: &AppState,
     key_alias: String,

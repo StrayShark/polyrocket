@@ -40,6 +40,8 @@ vi.mock('@/ipc', () => ({
   setAutoPromoteConfig: vi.fn(),
   setTelemetryEnabled: vi.fn().mockResolvedValue(true),
   getTelemetryEnabled: vi.fn().mockResolvedValue(false),
+  setMirrorPaperMode: vi.fn().mockResolvedValue(true),
+  getMirrorPaperMode: vi.fn().mockResolvedValue(false),
 }));
 
 // Mock the prefs store with a controllable in-memory
@@ -262,6 +264,25 @@ describe('Backup & restore card (v0.36b)', () => {
     // it differs.
     await waitFor(() => {
       expect(getTelemetryEnabled).toHaveBeenCalled();
+    });
+  });
+
+  // v0.44c — paper mode toggle
+  it('renders the mirror-paper-mode toggle', async () => {
+    render(wrap(<Settings />));
+    await waitFor(() => {
+      expect(screen.getByTestId('mirror-paper-mode-toggle')).toBeInTheDocument();
+    });
+  });
+
+  it('toggling paper mode ON pushes { enabled: true } to Rust', async () => {
+    const { setMirrorPaperMode } = await import('@/ipc');
+    vi.mocked(setMirrorPaperMode).mockClear();
+    render(wrap(<Settings />));
+    const toggle = await screen.findByTestId('mirror-paper-mode-toggle');
+    fireEvent.click(toggle);
+    await waitFor(() => {
+      expect(setMirrorPaperMode).toHaveBeenCalledWith({ enabled: true });
     });
   });
 

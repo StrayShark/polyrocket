@@ -22,6 +22,21 @@ export interface Bet {
   notes: string | null;
 }
 
+// v0.44c — paper fill DTO. The mirror of a Bet
+// minus tx_hash, plus an explicit mirror_id link.
+// Used by listPaperFills and the [PAPER] badges
+// in Copy / PnL pages.
+export interface PaperFill {
+  id: string;
+  mirror_id: string;
+  market_id: string;
+  side: BetSide;
+  size: string;
+  price: number;
+  placed_at: number;
+  notes: string | null;
+}
+
 export interface PlaceJumpArgs {
   market_slug: string;
   market_id: string;

@@ -14,6 +14,8 @@ import {
   setAutoPromoteConfig,
   setTelemetryEnabled,
   getTelemetryEnabled,
+  setMirrorPaperMode,
+  getMirrorPaperMode,
   type AuditRetentionView,
   type SetAuditRetentionArgs,
 } from '@/ipc';
@@ -195,6 +197,9 @@ export function Settings() {
 
       {/* v0.42c — opt-in lifecycle telemetry */}
       <TelemetryCard />
+
+      {/* v0.44c — paper trading mode toggle */}
+      <PaperModeCard />
     </div>
   );
 }
@@ -797,6 +802,86 @@ function TelemetryCard() {
             className="text-[10px] text-bull"
           >
             ✓ {t('telemetry.pushed')}
+          </span>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// =================================================================
+// ============== v0.44c — Paper trading mode card =================
+// =================================================================
+
+/** v0.44c — paper trading mode toggle.
+ *
+ *  When ON, the mirror executor's picked orders
+ *  go to the `paper_fills` table instead of `bets`,
+ *  and the CLOB sign_order step is skipped. The
+ *  decision logic (sizing, exposure caps,
+ *  frequency) is unchanged. The user can validate
+ *  their config without risking real money.
+ *
+ *  Default OFF. The L1 pushes the value to Rust
+ *  on Settings mount and on every toggle via
+ *  `setMirrorPaperMode`.
+ */
+function PaperModeCard() {
+  const { t } = useT();
+  const enabled = usePrefsStore((s) => s.mirrorPaperMode);
+  const setPref = usePrefsStore((s) => s.setPref);
+  const [pushed, setPushed] = useState(false);
+
+  // v0.44c — on mount, ask Rust what the current
+  // effective state is (in case the env var set
+  // it at startup).
+  useEffect(() => {
+    getMirrorPaperMode()
+      .then((v) => {
+        if (v !== usePrefsStore.getState().mirrorPaperMode) {
+          setPref('mirrorPaperMode', v);
+        }
+      })
+      .catch(() => {
+        // best-effort
+      });
+  }, [setPref]);
+
+  const onToggle = (next: boolean) => {
+    setPref('mirrorPaperMode', next);
+    setMirrorPaperMode({ enabled: next })
+      .then(() => {
+        setPushed(true);
+        setTimeout(() => setPushed(false), 1500);
+      })
+      .catch(() => {
+        toast.error(t('paper_mode.push_failed'));
+      });
+  };
+
+  return (
+    <Card
+      title={t('paper_mode.title')}
+      description={t('paper_mode.desc')}
+    >
+      <div className="space-y-3">
+        <div>
+          <Toggle
+            data-testid="mirror-paper-mode-toggle"
+            label={t('paper_mode.label')}
+            checked={enabled}
+            onChange={onToggle}
+          />
+          <p className="text-[10px] text-muted mt-1 ml-1">
+            {t('paper_mode.hint')}
+          </p>
+        </div>
+        {pushed && (
+          <span
+            data-testid="paper-mode-pushed-badge"
+            className="text-[10px] text-bull"
+          >
+            ✓ {t('paper_mode.pushed')}
           </span>
         )}
       </div>
