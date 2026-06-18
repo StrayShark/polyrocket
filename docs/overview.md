@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.13 · 2026-06-18 (v0.51 — clob_snapshots + fill columns + real CLOB submit path)
+> 版本：v2.14 · 2026-06-18 (v0.52 — place-bet form + signal integration + history columns)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
 
@@ -647,6 +647,9 @@ sequenceDiagram
 | **clob_snapshots table + CLOB IPCs (v0.51a)** | Full order-book per market per timestamp (one row per price level per side); 4 cargo tests; L1 Settings card shows feed status; 3 new IPCs (`clob_feed_status`, `record_clob_snapshot_now`, `latest_clob_snapshot`). The live WebSocket listener is v0.51+ — needs real Polymarket CLOB credentials | ✅ v0.51a 完成（3 cargo + 0 vitest + 7 i18n keys × 2 locales; +3 IPCs） |
 | **Fill columns + slippage/time-to-fill (v0.51b)** | `bets` gains 4 columns (`filled_at`, `fill_price`, `fill_size`, `partial`) via idempotent migration; `FillAnalytics` adds slippage + ttf + partial metrics; Dashboard card grows 3 new tiles | ✅ v0.51b 完成（0 cargo + 0 vitest + 6 i18n keys × 2 locales; no new IPCs） |
 | **Real CLOB submit path (v0.51c)** | `submit_signed_order_via_clob` (domain::polymarket) replaces the v0.5d stub; gated on `POLYROCKET_CLOB_API_KEY` + `SECRET` + `PASSPHRASE`. Without creds: deterministic stub (slippage=0). With creds: real HTTP POST to clob.polymarket.com/order. On HTTP failure: structured `AppError::Invalid`. EIP-712 signing is v0.51+ proper (needs `rs-clob-client`) | ✅ v0.51c 完成（6 cargo + 0 vitest + 3 i18n keys × 2 locales; 0 new IPCs; replaces internal flow） |
+| **Place-bet form + Trade route (v0.52a)** | `PlaceBetForm` component (NEW): market/side/order_type/price/size inputs, conditional limit_price/stop_price/post_only, live validation via `validateOrderArgs` IPC. `/trade` route hosting the form. Defaults pre-fill from query params | ✅ v0.52a 完成（0 cargo + 0 vitest + 19 i18n keys × 2 locales; 0 new IPCs; UI only） |
+| **Signal rows → /trade pre-fill (v0.52b)** | Each signal row gets a "Trade →" link encoding `?market=...&side=YES|NO&price=0.xxxx`. Click → `/trade` pre-fills the form. The integration moment for v0.5d + v0.50a + v0.50b + v0.51c | ✅ v0.52b 完成（0 cargo + 0 vitest + 1 i18n key × 2 locales; 0 new IPCs） |
+| **History page surfaces v0.50a/v0.51b columns (v0.52c)** | New Type column (order_type as colored Pill + post_only badge) and Fill column (fill_price vs price with inline slippage coloring + partial-fill warning). All 12 v0.50a/v0.51b columns visible when present | ✅ v0.52c 完成（0 cargo + 0 vitest + 0 i18n keys; 0 new IPCs） |
 | **Reason wire mirror (Rust + L1) + hover tooltip** | `PromoteHistoryEntry.reason: Option<String>` (serde-default for pre-v0.41); ⓘ icon with native title in PromoteHistory row | ✅ v0.41b 完成（Rust serde-default; 2 new vitest tests; 1 new i18n key × 2 locales） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
