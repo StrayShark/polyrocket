@@ -385,6 +385,7 @@ describe('PromoteHistory trial-type filter (v0.30a)', () => {
   it('renders reason icon with the per-entry reason (v0.41a)', async () => {
     mockListPromoteHistory.mockResolvedValue({
       ok: true,
+      message: 'ok',
       count: 1,
       entries: [
         {
@@ -411,6 +412,7 @@ describe('PromoteHistory trial-type filter (v0.30a)', () => {
   it('falls back to generic "Promoted" tooltip when reason is missing (v0.41a back-compat)', async () => {
     mockListPromoteHistory.mockResolvedValue({
       ok: true,
+      message: 'ok',
       count: 1,
       entries: [
         {

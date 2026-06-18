@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FlaskConical, GitBranch, Play, CheckCircle2, XCircle, Clock, Sparkles, ArrowUpCircle, Archive, GitCompare, BarChart3 } from 'lucide-react';
+import { FlaskConical, GitBranch, Play, CheckCircle2, XCircle, Clock, Sparkles, ArrowUpCircle, Archive, GitCompare } from 'lucide-react';
 import {
   llmPerformance,
   sidecarPredict,

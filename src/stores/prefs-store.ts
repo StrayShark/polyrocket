@@ -92,6 +92,8 @@ const DEFAULT: UiPrefs = {
   autoPromoteNotify: true,
   autoPromoteSkippedNotify: false,
   telemetryEnabled: false,
+  mirrorPaperMode: false,
+  degradationAlertNotify: true,
 };
 
 export const usePrefsStore = create<PrefsState>()(

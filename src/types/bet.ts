@@ -20,6 +20,22 @@ export interface Bet {
   status: BetStatus;
   tx_hash: string | null;
   notes: string | null;
+  // v0.50a — order type (defaulted to 'market' on
+  // the Rust side for back-compat).
+  order_type?: OrderType;
+  // v0.50a — limit / stop price (only set for
+  // non-market orders).
+  limit_price?: number | null;
+  stop_price?: number | null;
+  // v0.50b — post-only flag.
+  post_only?: boolean;
+  // v0.51b — fill columns populated by the
+  // post-submit reconciliation step (real HTTP
+  // path or stub fallback).
+  filled_at?: number | null;
+  fill_price?: number | null;
+  fill_size?: string | null;
+  partial?: boolean;
 }
 
 // v0.44c — paper fill DTO. The mirror of a Bet

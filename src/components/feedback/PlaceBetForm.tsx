@@ -29,10 +29,12 @@ import { useT } from '@/lib/i18n';
 import {
   placeSignedOrder,
   validateOrderArgs,
-  type PlaceSignedArgs,
-  type OrderType,
-  type BetSide,
 } from '@/ipc';
+import type {
+  PlaceSignedArgs,
+  OrderType,
+  BetSide,
+} from '@/types/bet';
 import { toast } from '@/stores/toast-store';
 import { cn } from '@/lib/cn';
 

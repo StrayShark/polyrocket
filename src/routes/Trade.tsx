@@ -7,7 +7,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Card } from '@/components/base/Card';
 import { useT } from '@/lib/i18n';
 import { PlaceBetForm } from '@/components/feedback/PlaceBetForm';
-import type { BetSide } from '@/ipc';
+import type { BetSide } from '@/types/bet';
 
 export function Trade() {
   const { t } = useT();

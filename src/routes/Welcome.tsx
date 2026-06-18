@@ -8,9 +8,8 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/base/Card';
-import { useWelcomeStore, WELCOME_STEPS, type WelcomeStep } from '@/stores/welcome-store';
-import { useLocaleStore } from '@/stores/locale-store';
-import { useT } from '@/lib/i18n';
+import { useWelcomeStore, WELCOME_STEPS, type WelcomeStep as StepName } from '@/stores/welcome-store';
+import { useT, useLocaleStore } from '@/lib/i18n';
 import { StepProgress } from '@/components/welcome/StepProgress';
 import { WelcomeStep } from '@/components/welcome/WelcomeStep';
 import { StorageStep } from '@/components/welcome/StorageStep';
@@ -123,7 +122,7 @@ export function Welcome() {
 }
 
 function renderStep(
-  step: WelcomeStep,
+  step: StepName,
   ctx: {
     welcome: ReturnType<typeof useWelcomeStore.getState>;
     onLocale: (l: string) => void;

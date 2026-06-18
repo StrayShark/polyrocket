@@ -185,7 +185,7 @@ export function History() {
               b.order_type === 'limit'
                 ? 'accent'
                 : b.order_type === 'stop_loss'
-                  ? 'warn'
+                  ? 'warning'
                   : 'muted'
             }
           >
@@ -205,7 +205,7 @@ export function History() {
         </div>
       ),
       sortable: true,
-      sortValue: (b) => b.order_type,
+      sortValue: (b) => b.order_type ?? 'market',
     },
     // v0.52c — Fill column. Shows fill_price vs
     // price when both are non-null; otherwise

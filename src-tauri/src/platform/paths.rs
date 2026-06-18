@@ -33,6 +33,54 @@ pub fn app_data_dir(app: &AppHandle) -> crate::AppResult<PathBuf> {
     Ok(dir)
 }
 
+/// v0.56 — best-effort OS-default app data dir
+/// WITHOUT an AppHandle. Used by the early
+/// startup hook (before the Tauri setup runs) to
+/// load `network_proxy.json`.
+///
+/// The platform convention matches Tauri's
+/// `app.path().app_data_dir()`:
+///   - macOS: `~/Library/Application Support/<bundle_id>`
+///   - Linux: `${XDG_DATA_HOME:-~/.local/share}/<bundle_id>`
+///   - Windows: `%APPDATA%\<bundle_id>`
+///
+/// When the dir doesn't exist yet (first
+/// launch), we return `None` so callers can
+/// fall through to the "no proxy" path.
+pub fn default_app_data_dir() -> Option<PathBuf> {
+    #[cfg(target_os = "macos")]
+    {
+        let home = std::env::var("HOME").ok()?;
+        let p = PathBuf::from(home)
+            .join("Library")
+            .join("Application Support")
+            .join("com.polyrocket.app");
+        Some(p)
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let xdg = std::env::var("XDG_DATA_HOME")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .map(PathBuf::from)
+            .or_else(|| {
+                std::env::var("HOME")
+                    .ok()
+                    .map(|h| PathBuf::from(h).join(".local").join("share"))
+            })?;
+        Some(xdg.join("com.polyrocket.app"))
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let appdata = std::env::var("APPDATA").ok()?;
+        Some(PathBuf::from(appdata).join("com.polyrocket.app"))
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        None
+    }
+}
+
 /// Path to `polyrocket.db` (does NOT touch the file — pure path computation).
 pub fn db_path(app: &AppHandle) -> crate::AppResult<PathBuf> {
     Ok(app_data_dir(app)?.join("polyrocket.db"))
