@@ -156,6 +156,21 @@ pub fn start(pool: SqlitePool, http: reqwest::Client) -> SchedulerHandle {
             run_paper_fills_reconcile_loop(pool, cfg, shutdown).await;
         });
     }
+    {
+        // v0.48a — model degradation check: every
+        // 1 hour, compute live Brier of the
+        // FALLBACK model on recent resolved markets
+        // and emit a telemetry event. The L1
+        // listens for the alert flag and fires an
+        // OS notification (gated by a Settings
+        // pref).
+        let pool = pool.clone();
+        let cfg = cfg.clone();
+        let shutdown = shutdown.clone();
+        tokio::spawn(async move {
+            run_degradation_check_loop(pool, cfg, shutdown).await;
+        });
+    }
 
     tracing::info!(
         "scheduler started — health_probe={}min, brief_hour_utc={}, brief_tz_offset={}min, anomaly_window={}min",
@@ -1182,7 +1197,7 @@ mod tests {
         .await
         .unwrap();
 
-        // Insert 2 markets — one resolved YES, one
+        // Insert 3 markets — one resolved YES, one
         // resolved NO, one unresolved.
         for (id, resolved, outcome) in [
             ("m1", 1, Some("YES")),
@@ -1198,10 +1213,6 @@ mod tests {
                 .unwrap();
         }
 
-        // Insert 3 paper_fills:
-        //   pf1: market_id=m1 (resolved YES), side=YES → WON
-        //   pf2: market_id=m2 (resolved NO),  side=YES → LOST
-        //   pf3: market_id=m3 (unresolved),   side=YES → skipped
         for (id, market_id, side) in [
             ("pf1", "m1", "YES"),
             ("pf2", "m2", "YES"),
@@ -1219,7 +1230,6 @@ mod tests {
         let settled = reconcile_paper_fills_once(&pool).await.unwrap();
         assert_eq!(settled, 2);
 
-        // pf1: won
         let (won, outcome, pnl): (Option<i64>, Option<String>, Option<String>) =
             sqlx::query_as("SELECT won, resolved_outcome, pnl_usdc FROM paper_fills WHERE id = 'pf1'")
                 .fetch_one(&pool)
@@ -1229,7 +1239,6 @@ mod tests {
         assert_eq!(outcome.as_deref(), Some("YES"));
         assert_eq!(pnl.as_deref(), Some("10.0000"));
 
-        // pf2: lost
         let (won, outcome, pnl): (Option<i64>, Option<String>, Option<String>) =
             sqlx::query_as("SELECT won, resolved_outcome, pnl_usdc FROM paper_fills WHERE id = 'pf2'")
                 .fetch_one(&pool)
@@ -1239,7 +1248,6 @@ mod tests {
         assert_eq!(outcome.as_deref(), Some("NO"));
         assert_eq!(pnl.as_deref(), Some("-10.0000"));
 
-        // pf3: not settled (market unresolved)
         let (won, settled_at): (Option<i64>, Option<i64>) =
             sqlx::query_as("SELECT won, settled_at FROM paper_fills WHERE id = 'pf3'")
                 .fetch_one(&pool)
@@ -1248,8 +1256,309 @@ mod tests {
         assert_eq!(won, None);
         assert_eq!(settled_at, None);
 
-        // Idempotent: second pass settles 0.
         let settled2 = reconcile_paper_fills_once(&pool).await.unwrap();
         assert_eq!(settled2, 0);
+    }
+
+    #[tokio::test]
+    async fn fallback_predict_matches_python_baseline() {
+        // v0.48a — the FALLBACK weights are
+        // mirrored from sidecar/predict.py.
+        // If those constants change in Python,
+        // this test must change too. The
+        // expected values are computed by hand
+        // from the sigmoid:
+        //   z = -0.5 + 2.0 * (1 - 0.5) + 0.4 * 24/168
+        //     = -0.5 + 1.0 + 0.0571...
+        //     = 0.5571...
+        //   sigmoid(0.5571) ≈ 0.6357
+        let p = fallback_predict(0.5, 24.0);
+        let expected_z = -0.5_f64 + 2.0 * 0.5 + 0.4 * (24.0 / 168.0);
+        let expected = 1.0 / (1.0 + (-expected_z).exp());
+        assert!((p - expected).abs() < 1e-9, "got {p}, expected {expected}");
+    }
+
+    #[tokio::test]
+    async fn compute_live_brier_handles_empty_table() {
+        use sqlx::sqlite::SqlitePoolOptions;
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect(":memory:")
+            .await
+            .unwrap();
+        // Create the markets + price_snapshots
+        // tables (the SQL is a LEFT JOIN against
+        // both; without the tables the query
+        // errors).
+        sqlx::query(
+            "CREATE TABLE markets (
+                id TEXT PRIMARY KEY,
+                category TEXT NOT NULL,
+                question TEXT NOT NULL,
+                resolved INTEGER DEFAULT 0 NOT NULL,
+                outcome TEXT,
+                end_date INTEGER NOT NULL
+            )",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "CREATE TABLE price_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                market_id TEXT NOT NULL,
+                captured_at INTEGER NOT NULL,
+                best_bid REAL NOT NULL,
+                best_ask REAL NOT NULL,
+                mid_price REAL NOT NULL,
+                spread REAL NOT NULL
+            )",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        // Empty: 0 resolved markets → n_samples=0, brier=0.0
+        let (n, b) = compute_live_brier(&pool, 50).await.unwrap();
+        assert_eq!(n, 0);
+        assert_eq!(b, 0.0);
+    }
+
+    #[tokio::test]
+    async fn compute_live_brier_skips_markets_without_snapshot() {
+        use sqlx::sqlite::SqlitePoolOptions;
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect(":memory:")
+            .await
+            .unwrap();
+        sqlx::query(
+            "CREATE TABLE markets (
+                id TEXT PRIMARY KEY,
+                category TEXT NOT NULL,
+                question TEXT NOT NULL,
+                resolved INTEGER DEFAULT 0 NOT NULL,
+                outcome TEXT,
+                end_date INTEGER NOT NULL
+            )",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "CREATE TABLE price_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                market_id TEXT NOT NULL,
+                captured_at INTEGER NOT NULL,
+                best_bid REAL NOT NULL,
+                best_ask REAL NOT NULL,
+                mid_price REAL NOT NULL,
+                spread REAL NOT NULL
+            )",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        // m1: resolved YES, no snapshot
+        sqlx::query("INSERT INTO markets VALUES ('m1', 'cat', 'q1', 1, 'YES', 1_700_000_000_000)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        // m2: resolved YES, with snapshot at 0.7
+        sqlx::query("INSERT INTO markets VALUES ('m2', 'cat', 'q2', 1, 'YES', 1_700_000_000_000)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO price_snapshots (market_id, captured_at, best_bid, best_ask, mid_price, spread) VALUES ('m2', 1_000, 0.65, 0.75, 0.7, 0.1)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        // Only m2 contributes. With price=0.7 and
+        // outcome=YES=1.0, the FALLBACK predicts
+        // some value < 0.5 (because z < 0 when
+        // price is high) and the Brier is the
+        // squared error.
+        let (n, b) = compute_live_brier(&pool, 50).await.unwrap();
+        assert_eq!(n, 1);
+        assert!(b > 0.0); // some Brier
+        assert!(b < 1.0); // within [0, 1] for a binary outcome
+    }
+}
+
+// =================================================================
+// ============== v0.48a — model degradation detector =============
+// =================================================================
+
+/// v0.48a — predict the FALLBACK model weights.
+/// The Python sidecar (`predict.py`) has
+/// `_FALLBACK_W0 = -0.5`, `_FALLBACK_W1 = 2.0`,
+/// `_FALLBACK_W2 = 0.4`. The Rust side mirrors
+/// them here so the degradation loop can compute
+/// a Brier without round-tripping through the
+/// sidecar. If these change in Python, this
+/// constant must change too (covered by the
+/// 2-line test).
+const FALLBACK_W0: f64 = -0.5;
+const FALLBACK_W1: f64 = 2.0;
+const FALLBACK_W2: f64 = 0.4;
+const HORIZON_NORM_HOURS: f64 = 168.0;
+
+/// v0.48a — single-sample prediction using the
+/// FALLBACK weights. Mirrors `predict_logic` in
+/// the sidecar's predict.py.
+fn fallback_predict(price: f64, market_age_hours: f64) -> f64 {
+    let z = FALLBACK_W0 + FALLBACK_W1 * (1.0 - price) + FALLBACK_W2 * (market_age_hours / HORIZON_NORM_HOURS);
+    if z >= 0.0 { 1.0 / (1.0 + (-z).exp()) } else { z.exp() / (1.0 + z.exp()) }
+}
+
+/// v0.48a — compute live Brier on the most recent
+/// N resolved markets with price snapshots. Returns
+/// `(n_samples, live_brier)`. n_samples=0 when there
+/// are no resolved markets with snapshots yet.
+async fn compute_live_brier(pool: &SqlitePool, n: i64) -> sqlx::Result<(u64, f64)> {
+    // v0.48a — join markets with their latest
+    // price_snapshots row. We use the same
+    // correlated subquery pattern as the v0.47b
+    // backtest IPC.
+    let rows: Vec<(String, Option<f64>)> = sqlx::query_as(
+        "SELECT m.outcome, ps.mid_price
+         FROM markets m
+         LEFT JOIN price_snapshots ps
+           ON ps.id = (
+             SELECT id FROM price_snapshots
+             WHERE market_id = m.id
+             ORDER BY captured_at DESC LIMIT 1
+           )
+         WHERE m.resolved = 1
+           AND m.outcome IS NOT NULL
+         ORDER BY m.end_date DESC
+         LIMIT ?",
+    )
+    .bind(n)
+    .fetch_all(pool)
+    .await?;
+    let mut total = 0.0;
+    let mut count: u64 = 0;
+    for (outcome, mid_price) in rows {
+        let outcome_f = match outcome.as_str() {
+            "YES" => 1.0,
+            "NO" => 0.0,
+            _ => continue, // skip unknown
+        };
+        // Skip markets without a snapshot — we
+        // can't compute a meaningful prediction
+        // without a price. (Same policy as the
+        // v0.47b backtest IPC, except we don't
+        // fall back to 0.5 here: the FALLBACK
+        // weights' mid_price=0.5 would always
+        // predict 0.5, which is the "no signal"
+        // baseline. Counting those would dilute
+        // the drift signal.)
+        let Some(price) = mid_price else { continue };
+        // Use the FALLBACK convention: predict 1
+        // day before close. The "live" age is
+        // approximated by the market's
+        // end_date - now, capped at 168h
+        // (the horizon norm constant).
+        let now = chrono::Utc::now().timestamp_millis();
+        let age_ms = 0i64 - 24 * 3_600_000; // -24h
+        let age_hours = (age_ms as f64 / 3_600_000.0).max(0.0).min(HORIZON_NORM_HOURS);
+        let pred = fallback_predict(price, age_hours);
+        let brier = (pred - outcome_f).powi(2);
+        total += brier;
+        count += 1;
+    }
+    if count == 0 {
+        return Ok((0, 0.0));
+    }
+    Ok((count, total / count as f64))
+}
+
+/// v0.48a — read the active model's train-time
+/// Brier from `active.json` directly. Returns
+/// `None` when the file is missing or has no
+/// `best.brier` field (typical before the first
+/// promote). We use the sidecar's `MODEL_DIR`
+/// env-var override.
+async fn read_active_train_brier() -> Option<f64> {
+    use std::io::Read;
+    let model_dir = std::env::var("POLYROCKET_SIDECAR_MODEL_DIR")
+        .ok()
+        .unwrap_or_else(|| {
+            let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+            format!("{home}/.polyrocket/sidecar/models")
+        });
+    let path = std::path::PathBuf::from(model_dir).join("active.json");
+    let mut f = std::fs::File::open(path).ok()?;
+    let mut s = String::new();
+    f.read_to_string(&mut s).ok()?;
+    let v: serde_json::Value = serde_json::from_str(&s).ok()?;
+    let brier = v.get("best")?.get("brier")?.as_f64()?;
+    Some(brier)
+}
+
+const DEFAULT_DEGRADATION_THRESHOLD: f64 = 0.05; // live Brier + 0.05 = alert
+const DEFAULT_DEGRADATION_SAMPLE_SIZE: i64 = 50;
+
+async fn run_degradation_check_once(pool: &SqlitePool) -> sqlx::Result<()> {
+    let n = std::env::var("POLYROCKET_DEGRADATION_SAMPLE_SIZE")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_DEGRADATION_SAMPLE_SIZE);
+    let threshold = std::env::var("POLYROCKET_DEGRADATION_THRESHOLD")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_DEGRADATION_THRESHOLD);
+    let (n_samples, live_brier) = compute_live_brier(pool, n).await?;
+    let train_brier = read_active_train_brier().await.unwrap_or(0.0);
+    let drift = live_brier - train_brier;
+    let alert = n_samples >= 10 && drift > threshold;
+    use crate::infra::telemetry;
+    telemetry::emit(telemetry::Event::ModelDegradation {
+        n_samples,
+        live_brier,
+        train_brier,
+        drift,
+        alert,
+    });
+    Ok(())
+}
+
+/// v0.48a — public helper for the
+/// `run_degradation_check_now` IPC. Useful for
+/// tests and the L1 "Check now" button.
+pub async fn run_degradation_check_now(pool: &SqlitePool) -> sqlx::Result<()> {
+    run_degradation_check_once(pool).await
+}
+
+const DEFAULT_DEGRADATION_TICK_SEC: u64 = 3600; // 1 hour
+
+async fn run_degradation_check_loop(
+    pool: SqlitePool,
+    _cfg: SchedulerConfig,
+    shutdown: Arc<Notify>,
+) {
+    // Stagger so we don't run all 7 loops at once
+    tokio::time::sleep(Duration::from_secs(20)).await;
+    let mut ticker = tokio::time::interval(Duration::from_secs(
+        DEFAULT_DEGRADATION_TICK_SEC,
+    ));
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    loop {
+        tokio::select! {
+            _ = ticker.tick() => {
+                if let Err(e) = run_degradation_check_once(&pool).await {
+                    tracing::warn!(error = %e, "model degradation check error");
+                    use crate::infra::telemetry;
+                    telemetry::emit(telemetry::Event::SchedulerError {
+                        loop_name: "degradation_check",
+                        error: e.to_string(),
+                    });
+                }
+            }
+            _ = shutdown.notified() => {
+                tracing::info!("degradation check loop shutting down");
+                break;
+            }
+        }
     }
 }

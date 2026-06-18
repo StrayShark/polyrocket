@@ -29,6 +29,7 @@ const FULL_PREFS: UiPrefs = {
   autoPromoteSkippedNotify: true,
   telemetryEnabled: true,
   mirrorPaperMode: true,
+  degradationAlertNotify: false,
 };
 
 describe('prefs-io (v0.36a)', () => {
@@ -40,7 +41,7 @@ describe('prefs-io (v0.36a)', () => {
       expect(typeof parsed.exported_at_ms).toBe('number');
       expect(parsed.prefs).toEqual(FULL_PREFS);
     });
-    it('includes all 11 UiPrefs fields', () => {
+    it('includes all 12 UiPrefs fields', () => {
       const json = exportPrefsToString(FULL_PREFS);
       const parsed = JSON.parse(json);
       expect(Object.keys(parsed.prefs).sort()).toEqual(
@@ -51,6 +52,7 @@ describe('prefs-io (v0.36a)', () => {
           'autoPromoteNotify',
           'autoPromoteSkippedNotify',
           'copyTradingEnabled',
+          'degradationAlertNotify',
           'defaultAllocationCapUsdc',
           'defaultMinEdgePct',
           'mirrorPaperMode',
@@ -80,6 +82,7 @@ describe('prefs-io (v0.36a)', () => {
         autoPromoteSkippedNotify: false,
         telemetryEnabled: false,
         mirrorPaperMode: false,
+        degradationAlertNotify: true,
       };
       const json = exportPrefsToString(defaults);
       const parsed = parsePrefsFromString(json);

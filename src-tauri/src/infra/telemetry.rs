@@ -200,6 +200,38 @@ pub enum Event {
     PaperFillsReconciled {
         settled: u64,
     },
+    /// v0.48a — model degradation check. Emitted by
+    /// the 7th scheduler loop when the live Brier
+    /// (computed against the FALLBACK model
+    /// weights on recently resolved markets) has
+    /// drifted above the threshold relative to the
+    /// train-time Brier. The L1 listens to this and
+    /// optionally fires an OS notification (gated
+    /// by a Settings pref).
+    ModelDegradation {
+        /// Number of recent resolved markets the
+        /// live Brier was computed over. The L1 uses
+        /// this to know "is this a real signal or
+        /// just a small-sample fluctuation".
+        n_samples: u64,
+        /// Live Brier score (mean over the n_samples
+        /// most recent resolved markets, using
+        /// FALLBACK weights as the prediction model).
+        live_brier: f64,
+        /// Train-time Brier from the active model
+        /// (best_brier in active.json, or 0.0 when
+        /// no active model is set).
+        train_brier: f64,
+        /// live_brier - train_brier. Positive means
+        /// the live performance is worse than train.
+        /// Negative means better (rare; usually
+        /// live is at least as good as train).
+        drift: f64,
+        /// True when drift > the configured threshold.
+        /// The L1 only fires an OS notification when
+        /// this is true (rather than every tick).
+        alert: bool,
+    },
 }
 
 /// Emit a single event. No-op if `!is_enabled()`.

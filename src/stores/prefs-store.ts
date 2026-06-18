@@ -66,6 +66,14 @@ export interface UiPrefs {
    * (sizing, exposure caps, frequency) without
    * risking real money. Default false. */
   mirrorPaperMode: boolean;
+  /** v0.48b — OS notification on model
+   * degradation. When the 7th scheduler loop
+   * emits a ModelDegradation event with
+   * `alert=true` (live Brier > train Brier by
+   * the threshold), the L1 fires an OS
+   * notification if this pref is on. Default
+   * true. */
+  degradationAlertNotify: boolean;
 }
 
 interface PrefsState extends UiPrefs {

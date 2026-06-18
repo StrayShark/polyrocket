@@ -200,6 +200,9 @@ export function Settings() {
 
       {/* v0.44c — paper trading mode toggle */}
       <PaperModeCard />
+
+      {/* v0.48b — model degradation alert toggle */}
+      <DegradationAlertCard />
     </div>
   );
 }
@@ -884,6 +887,44 @@ function PaperModeCard() {
             ✓ {t('paper_mode.pushed')}
           </span>
         )}
+      </div>
+    </Card>
+  );
+}
+
+// =================================================================
+// ============== v0.48b — Model degradation alert card ============
+// =================================================================
+
+/** v0.48b — opt-in OS notification for model
+ *  degradation alerts. The 7th scheduler loop
+ *  runs every hour, computes the live Brier of
+ *  the FALLBACK model on recent resolved
+ *  markets, and emits a telemetry event with
+ *  `alert=true` when live > train + threshold.
+ *  When this pref is on, the L1 fires a real OS
+ *  notification on those events. Default ON.
+ */
+function DegradationAlertCard() {
+  const { t } = useT();
+  const enabled = usePrefsStore((s) => s.degradationAlertNotify);
+  const setPref = usePrefsStore((s) => s.setPref);
+
+  return (
+    <Card
+      title={t('degradation.title')}
+      description={t('degradation.desc')}
+    >
+      <div className="space-y-3">
+        <Toggle
+          data-testid="degradation-alert-toggle"
+          label={t('degradation.label')}
+          checked={enabled}
+          onChange={(next) => setPref('degradationAlertNotify', next)}
+        />
+        <p className="text-[10px] text-muted mt-1 ml-1">
+          {t('degradation.hint')}
+        </p>
       </div>
     </Card>
   );

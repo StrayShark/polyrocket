@@ -60,6 +60,8 @@ const mockPrefsState = {
   autoPromoteBrierMargin: 0.005,
   autoPromoteAfterTrain: false,
   autoPromoteNotify: true,
+  // v0.48b — model degradation alert
+  degradationAlertNotify: true,
   setPref: mockSetPref,
   reset: vi.fn(),
 };
@@ -303,6 +305,24 @@ describe('Backup & restore card (v0.36b)', () => {
     fireEvent.click(toggle);
     await waitFor(() => {
       expect(mockSetPref).toHaveBeenCalledWith('autoPromoteSkippedNotify', true);
+    });
+  });
+
+  // v0.48b — model degradation alert toggle
+  it('renders the degradation-alert toggle', async () => {
+    render(wrap(<Settings />));
+    await waitFor(() => {
+      expect(screen.getByTestId('degradation-alert-toggle')).toBeInTheDocument();
+    });
+  });
+
+  it('toggling degradation alert updates the prefs store', async () => {
+    mockSetPref.mockClear();
+    render(wrap(<Settings />));
+    const toggle = await screen.findByTestId('degradation-alert-toggle');
+    fireEvent.click(toggle);
+    await waitFor(() => {
+      expect(mockSetPref).toHaveBeenCalledWith('degradationAlertNotify', false);
     });
   });
 });

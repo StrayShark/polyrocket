@@ -547,6 +547,11 @@ const en: Dictionary = {
   'paper_mode.push_failed': 'failed to update paper mode',
   // v0.44c — copy page banner
   'copy.paper_mode_banner': 'paper mode — {{n}} hypothetical fills captured',
+  // v0.48b — model degradation alert
+  'degradation.title': 'Model degradation alerts',
+  'degradation.desc': 'OS notification when the live Brier of the FALLBACK model drifts above the train-time Brier by more than the threshold on recent resolved markets.',
+  'degradation.label': 'Notify on model degradation',
+  'degradation.hint': 'When ON, the 7th scheduler loop fires an OS notification when alert=true (live > train + 0.05). Runs hourly. The alert is the FALLBACK model, not a specific trained model — that requires reading the active model\'s weights, which is v0.50+.',
   // v0.45c — dashboard paper PnL card
   'dashboard.paper.title': 'Paper trading PnL',
   'dashboard.paper.desc': 'What would have happened if your mirrors were placed as live bets.',
@@ -1215,6 +1220,11 @@ const zh: Dictionary = {
   'paper_mode.push_failed': '模拟盘状态更新失败',
   // v0.44c — 复制页横幅
   'copy.paper_mode_banner': '模拟盘模式 — 已捕获 {{n}} 笔虚拟成交',
+  // v0.48b — 模型衰退提醒
+  'degradation.title': '模型衰退提醒',
+  'degradation.desc': '当 FALLBACK 模型在最近已结算市场上的实时 Brier 比训练 Brier 高出阈值时,发送系统通知。',
+  'degradation.label': '模型衰退时通知',
+  'degradation.hint': '开启后,第 7 个调度器循环会在 alert=true(实时 Brier > 训练 Brier + 0.05)时发送系统通知。每小时跑一次。监控对象是 FALLBACK 模型,不是某个训练模型 —— 后者需要读取 active 模型的权重,是 v0.50+ 的工作。',
   // v0.45c — 仪表盘模拟盘卡片
   'dashboard.paper.title': '模拟盘 PnL',
   'dashboard.paper.desc': '如果你的 mirror 被真实下单,会发生什么。',

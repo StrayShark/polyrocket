@@ -10,8 +10,9 @@
 //!  3. dev / QA: simulate a cron run
 
 use crate::AppResult;
+use crate::infra::error::AppError;
 use crate::infra::state::AppState;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 
 #[derive(Debug, Serialize)]
@@ -84,4 +85,31 @@ fn next_brief_unix_ms(hour_utc: u32, tz_offset_min: i32, now_ms: i64) -> i64 {
         ((target + chrono::Duration::hours(24)) - now).num_seconds()
     };
     now_ms + (secs.max(0) * 1000)
+}
+
+// =================================================================
+// ============== v0.48a — model degradation manual trigger ======
+// =================================================================
+
+/// v0.48a — args for the `degradation_check_now`
+/// IPC. No fields today; the struct is a future
+/// hook (e.g. for a custom sample size or
+/// threshold override).
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct DegradationCheckNowArgs {}
+
+/// v0.48a — manual trigger for the model
+/// degradation check. Useful for the L1
+/// "Check now" button on the ModelLab page or
+/// after a big market sync. The actual telemetry
+/// event is emitted by the underlying scheduler
+/// helper.
+#[tauri::command]
+pub async fn degradation_check_now(
+    state: State<'_, AppState>,
+    _args: DegradationCheckNowArgs,
+) -> AppResult<()> {
+    crate::infra::scheduler::run_degradation_check_now(&state.db).await
+        .map_err(|e| AppError::Internal(format!("degradation check: {e}")))?;
+    Ok(())
 }

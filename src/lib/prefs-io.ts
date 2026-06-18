@@ -62,6 +62,7 @@ const PREF_DEFAULTS: UiPrefs = {
   autoPromoteSkippedNotify: false,
   telemetryEnabled: false,
   mirrorPaperMode: false,
+  degradationAlertNotify: true,
 };
 
 /**
@@ -208,6 +209,16 @@ export function parsePrefsFromString(json: string): UiPrefs {
       throw new Error('Invalid export: mirrorPaperMode must be a boolean');
     }
     result.mirrorPaperMode = v;
+  }
+  // v0.48b — degradationAlertNotify. New in
+  // v0.48; old exports don't have it
+  // (forward-compat: defaults to true).
+  if ('degradationAlertNotify' in rawPrefs) {
+    const v = rawPrefs.degradationAlertNotify;
+    if (typeof v !== 'boolean') {
+      throw new Error('Invalid export: degradationAlertNotify must be a boolean');
+    }
+    result.degradationAlertNotify = v;
   }
   return result;
 }

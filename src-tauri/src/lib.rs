@@ -147,6 +147,7 @@ pub fn run() {
             commands::scheduler::scheduler_status,
             commands::scheduler::scheduler_run_health_probe_now,
             commands::scheduler::scheduler_run_daily_brief_now,
+            commands::scheduler::degradation_check_now,
             commands::brief::daily_brief_get,
             commands::brief::daily_brief_dismiss,
             commands::brief::daily_brief_refresh,
