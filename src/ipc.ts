@@ -1317,6 +1317,63 @@ export const latestClobSnapshot = (marketId: string) =>
   invoke<ClobSnapshot | null>('latest_clob_snapshot', { marketId });
 
 // =================================================================
+// ================== v0.53a — storage path ========================
+// =================================================================
+
+/** v0.53a — current storage path information.
+ * Returned by `getStorageInfo`. The L1 uses this
+ * to render the "Welcome > Storage path" step
+ * and the Settings → Storage card. */
+export interface StorageInfo {
+  /** OS-recommended path (Tauri's app_data_dir). */
+  defaultPath: string;
+  /** The path polyrocket will use on the next
+   * launch. Equals `defaultPath` when the user
+   * hasn't picked a custom one. */
+  currentPath: string;
+  /** True when currentPath !== defaultPath. */
+  isCustom: boolean;
+  /** True when currentPath exists on disk. */
+  exists: boolean;
+  /** True when the current user can write to
+   * currentPath. */
+  writable: boolean;
+  /** Free space in bytes. `null` when the OS
+   * query fails (sandbox / exotic fs). The L1
+   * hides the metric when this is null. */
+  freeBytes: number | null;
+  /** True when the user picked a custom path but
+   * the current process is still using the default
+   * (i.e. the user needs to restart). The L1
+   * surfaces a "Restart now" button when this is
+   * true. */
+  restartRequired: boolean;
+}
+
+/** v0.53a — return the current storage path
+ * information. Cheap (just std::fs metadata +
+ * settings lookup). */
+export const getStorageInfo = () =>
+  invoke<StorageInfo>('get_storage_info');
+
+/** v0.53a — write a custom storage path. The
+ * change takes effect on the NEXT launch
+ * (the current process's DB is already open).
+ *
+ * Throws AppError::Invalid when the path is not
+ * absolute, doesn't exist, isn't a directory, or
+ * isn't writable. The L1 must call `getStorageInfo`
+ * again after this to refresh the UI; the
+ * `restartRequired` flag will be true. */
+export const setStoragePath = (path: string) =>
+  invoke<void>('set_storage_path', { args: { path } });
+
+/** v0.53a — clear the custom storage path.
+ * Next launch falls back to the OS default. */
+export const resetStoragePath = () =>
+  invoke<void>('reset_storage_path');
+
+// =================================================================
 // ================== v0.51c — CLOB submit ========================
 // =================================================================
 

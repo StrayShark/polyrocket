@@ -14,6 +14,10 @@
 //!   polyrocket.db-wal      (SQLite WAL — SQLite internal)
 //!   polyrocket.db-shm      (SQLite shared memory — SQLite internal)
 //!   logs/polyrocket.log    (Tauri app log — Tauri plugin owns)
+//!   storage_path.json      (v0.53a — custom storage path config;
+//!                            read at startup BEFORE the pool is
+//!                            open, since the pool's location
+//!                            depends on this file)
 
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
@@ -39,6 +43,83 @@ pub fn log_dir(app: &AppHandle) -> crate::AppResult<PathBuf> {
     let dir = app_data_dir(app)?.join("logs");
     std::fs::create_dir_all(&dir)?;
     Ok(dir)
+}
+
+// ============================================================
+// v0.53a — custom storage path resolution
+// ============================================================
+//
+// `storage_path.json` is a 1-line JSON file at
+// `<app_data_dir>/storage_path.json` containing either
+// `null` (use the default path) or a string (use
+// the given absolute path). It is the source of
+// truth for path resolution at startup — we read
+// it BEFORE opening the pool, since the pool's
+// location depends on it.
+//
+// The IPC `setStoragePath` writes both this file
+// AND the `_polyrocket_settings.storage_path`
+// row (the latter is for the L1 to display via
+// `getStorageInfo`). The two are kept in sync
+// because the IPC writes both atomically. If
+// they ever diverge (corruption, manual edit),
+// the JSON file wins on the next launch — that's
+// the side that controls where the pool opens.
+//
+// The `storage_path.json` shape is intentionally
+// minimal so users who hand-edit it can't break
+// things:
+//   {"path": null}                    → default
+//   {"path": "/Users/me/polyrocket"}   → custom
+
+const STORAGE_CONFIG_FILE: &str = "storage_path.json";
+
+/// Read the `storage_path.json` and return the
+/// custom path (absolute directory), or None
+/// when the file is missing or `path` is null.
+///
+/// Pure std — no pool, no AppHandle. Used by
+/// `lib.rs::run` before the pool is open.
+pub fn read_custom_storage_path(app: &AppHandle) -> Option<PathBuf> {
+    let path = app_data_dir(app).ok()?.join(STORAGE_CONFIG_FILE);
+    let body = std::fs::read_to_string(&path).ok()?;
+    let v: serde_json::Value = serde_json::from_str(&body).ok()?;
+    let inner = v.get("path")?;
+    if inner.is_null() {
+        return None;
+    }
+    let s = inner.as_str()?;
+    let p = PathBuf::from(s);
+    if p.is_absolute() && p.exists() && p.is_dir() {
+        Some(p)
+    } else {
+        None
+    }
+}
+
+/// Resolve the db path polyrocket will use THIS
+/// launch. If `storage_path.json` says custom +
+/// that path exists, use it. Otherwise use the
+/// default `<app_data_dir>/polyrocket.db`.
+pub fn resolve_db_path(app: &AppHandle) -> crate::AppResult<PathBuf> {
+    if let Some(custom) = read_custom_storage_path(app) {
+        Ok(custom.join("polyrocket.db"))
+    } else {
+        db_path(app)
+    }
+}
+
+/// Resolve the log directory THIS launch. Same
+/// resolution rules as `resolve_db_path` (custom
+/// wins, otherwise default).
+pub fn resolve_log_dir(app: &AppHandle) -> crate::AppResult<PathBuf> {
+    if let Some(custom) = read_custom_storage_path(app) {
+        let logs = custom.join("logs");
+        std::fs::create_dir_all(&logs)?;
+        Ok(logs)
+    } else {
+        log_dir(app)
+    }
 }
 
 /// Build the SQLx connection URL for a given db path.

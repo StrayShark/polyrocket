@@ -18,7 +18,14 @@ use tauri::{AppHandle, Manager};
 ///
 /// Also creates the `_polyrocket_settings` side-table (see [`super::settings`]).
 pub async fn init_pool(app: &AppHandle) -> AppResult<SqlitePool> {
-    let db_path = db_path(app)?;
+    // v0.53a — resolve_db_path checks
+    // `storage_path.json` first. If absent or invalid,
+    // fall back to the OS default. The JSON file is
+    // written by commands::storage::set_storage_path
+    // AFTER the user picks a custom path; it takes
+    // effect on the NEXT launch (we can't migrate
+    // an already-open pool mid-flight).
+    let db_path = crate::platform::paths::resolve_db_path(app)?;
     let db_url = sqlite_url(&db_path);
 
     let pool = SqlitePoolOptions::new()
