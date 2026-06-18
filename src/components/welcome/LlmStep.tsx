@@ -9,7 +9,6 @@
 // On success: welcome.setConfigured('llmAtLeastOne', true)
 
 import { useState, useCallback } from 'react';
-import { Card } from '@/components/base/Card';
 import { Input } from '@/components/base/Input';
 import { Button } from '@/components/base/Button';
 import { useT } from '@/lib/i18n';
@@ -18,8 +17,8 @@ import {
   llmKeyUpsert,
   llmKeySetSecret,
   llmTestConnectivity,
-  type UpsertLlmKeyArgs,
 } from '@/ipc';
+import type { UpsertLlmKeyArgs } from '@/types/llm';
 import { toast } from '@/stores/toast-store';
 import { Key, Plus, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/cn';

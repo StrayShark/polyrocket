@@ -64,14 +64,17 @@ export function WelcomeStep({
           M13 v2.0 onboarding. */}
       <div className="grid grid-cols-3 gap-3 max-w-md mx-auto pt-2">
         <PropChip
+          testid="welcome-step-welcome-vp-0"
           title={t('welcome.prop_local_title')}
           body={t('welcome.prop_local_body')}
         />
         <PropChip
+          testid="welcome-step-welcome-vp-1"
           title={t('welcome.prop_keys_title')}
           body={t('welcome.prop_keys_body')}
         />
         <PropChip
+          testid="welcome-step-welcome-vp-2"
           title={t('welcome.prop_llm_title')}
           body={t('welcome.prop_llm_body')}
         />
@@ -113,9 +116,20 @@ function LocaleButton({
   );
 }
 
-function PropChip({ title, body }: { title: string; body: string }) {
+function PropChip({
+  testid,
+  title,
+  body,
+}: {
+  testid: string;
+  title: string;
+  body: string;
+}) {
   return (
-    <div className="rounded-md border border-border bg-surface-2 p-3 text-center">
+    <div
+      data-testid={testid}
+      className="rounded-md border border-border bg-surface-2 p-3 text-center"
+    >
       <div className="text-[11px] font-medium text-fg">{title}</div>
       <div className="text-[10px] text-muted mt-0.5">{body}</div>
     </div>

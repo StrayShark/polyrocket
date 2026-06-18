@@ -45,7 +45,7 @@ export function FinishStep({
   ];
 
   return (
-    <div className="space-y-4 py-2">
+    <div className="space-y-4 py-2" data-testid="welcome-finish-summary">
       <div>
         <h2
           className="text-[18px] font-semibold text-fg"

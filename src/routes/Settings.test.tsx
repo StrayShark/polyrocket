@@ -39,7 +39,7 @@ function wrap(node: React.ReactNode) {
 // config push; the other IPCs used by Settings are
 // stubbed to prevent network calls.
 vi.mock('@/ipc', () => ({
-  getAuditRetention: vi.fn(),
+  getAuditRetention: vi.fn().mockResolvedValue({ days: 90 }),
   setAuditRetention: vi.fn(),
   purgeAuditLogNow: vi.fn(),
   setAutoPromoteConfig: vi.fn(),
@@ -65,6 +65,38 @@ vi.mock('@/ipc', () => ({
   }),
   setMirrorPaperMode: vi.fn().mockResolvedValue(true),
   getMirrorPaperMode: vi.fn().mockResolvedValue(false),
+  // v0.54b — storage migration tool
+  getStorageInfo: vi.fn().mockResolvedValue({
+    defaultPath: '/tmp/db/polyrocket.db',
+    currentPath: '/tmp/db/polyrocket.db',
+    isCustom: false,
+    exists: true,
+    writable: true,
+    freeBytes: null,
+    restartRequired: false,
+  }),
+  migrateStoragePath: vi.fn().mockResolvedValue({
+    from: '/tmp/db/polyrocket.db',
+    to: '/Volumes/external/polyrocket',
+    filesCopied: 2,
+    bytesCopied: 12345,
+    overwritten: false,
+    noop: false,
+  }),
+  // v0.56 — network proxy / Tor
+  getProxyConfig: vi.fn().mockResolvedValue({
+    enabled: false,
+    url: null,
+    scheme: null,
+    restartRequired: false,
+  }),
+  setProxyConfig: vi.fn().mockResolvedValue({
+    enabled: true,
+    url: 'socks5://127.0.0.1:9050',
+    scheme: 'socks5',
+    restartRequired: true,
+  }),
+  clearProxyConfig: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock the prefs store with a controllable in-memory
@@ -442,5 +474,133 @@ describe('Re-run setup card (v0.53b)', () => {
     expect(
       screen.getByTestId('rerun-setup'),
     ).toBeInTheDocument();
+  });
+});
+
+describe('Storage migration card (v0.54b)', () => {
+  it('does NOT render when no custom path is set (no restart required)', async () => {
+    const { getStorageInfo } = await import('@/ipc');
+    (getStorageInfo as ReturnType<typeof vi.fn>).mockResolvedValue({
+      defaultPath: '/tmp/db/polyrocket.db',
+      currentPath: '/tmp/db/polyrocket.db',
+      isCustom: false,
+      exists: true,
+      writable: true,
+      freeBytes: null,
+      restartRequired: false,
+    });
+    render(wrap(<Settings />));
+    // The migration card is gated on
+    // restartRequired=true. It should not render.
+    expect(
+      screen.queryByTestId('storage-migrate-now'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('renders the migration button when restart is required', async () => {
+    const { getStorageInfo } = await import('@/ipc');
+    (getStorageInfo as ReturnType<typeof vi.fn>).mockResolvedValue({
+      defaultPath: '/tmp/db/polyrocket.db',
+      currentPath: '/Volumes/external/polyrocket',
+      isCustom: true,
+      exists: true,
+      writable: true,
+      freeBytes: null,
+      restartRequired: true,
+    });
+    render(wrap(<Settings />));
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('storage-migrate-now'),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('clicking Copy calls migrateStoragePath IPC', async () => {
+    const { getStorageInfo, migrateStoragePath } = await import('@/ipc');
+    (getStorageInfo as ReturnType<typeof vi.fn>).mockResolvedValue({
+      defaultPath: '/tmp/db/polyrocket.db',
+      currentPath: '/Volumes/external/polyrocket',
+      isCustom: true,
+      exists: true,
+      writable: true,
+      freeBytes: null,
+      restartRequired: true,
+    });
+    (migrateStoragePath as ReturnType<typeof vi.fn>).mockResolvedValue({
+      from: '/tmp/db/polyrocket.db',
+      to: '/Volumes/external/polyrocket',
+      filesCopied: 3,
+      bytesCopied: 99999,
+      overwritten: false,
+      noop: false,
+    });
+    render(wrap(<Settings />));
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('storage-migrate-now'),
+      ).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('storage-migrate-now'));
+    await waitFor(() => {
+      expect(migrateStoragePath).toHaveBeenCalledWith(
+        '/Volumes/external/polyrocket',
+        false,
+      );
+    });
+  });
+});
+
+describe('Network card (v0.56)', () => {
+  it('renders the proxy URL input + Save / Clear buttons', async () => {
+    render(wrap(<Settings />));
+    await waitFor(() => {
+      expect(screen.getByTestId('network-proxy-url')).toBeInTheDocument();
+      expect(screen.getByTestId('network-proxy-save')).toBeInTheDocument();
+      expect(screen.getByTestId('network-proxy-clear')).toBeInTheDocument();
+    });
+  });
+
+  it('Save calls setProxyConfig with the typed URL', async () => {
+    const { setProxyConfig, getProxyConfig } = await import('@/ipc');
+    // Make the IPC return a config with a
+    // pre-existing URL, so the form boots
+    // pre-populated. The user can then
+    // "edit" the URL by re-typing.
+    (getProxyConfig as ReturnType<typeof vi.fn>).mockResolvedValue({
+      enabled: false,
+      url: 'http://old-proxy:8080',
+      scheme: 'http',
+      restartRequired: false,
+    });
+    render(wrap(<Settings />));
+    await waitFor(() => {
+      const inp = screen.getByTestId('network-proxy-url') as HTMLInputElement;
+      expect(inp.value).toBe('http://old-proxy:8080');
+    });
+    const input = screen.getByTestId('network-proxy-url') as HTMLInputElement;
+    fireEvent.input(input, {
+      target: { value: 'socks5://127.0.0.1:9050' },
+    });
+    await waitFor(() => {
+      expect(input.value).toBe('socks5://127.0.0.1:9050');
+    });
+    fireEvent.click(screen.getByTestId('network-proxy-save'));
+    await waitFor(() => {
+      expect(setProxyConfig).toHaveBeenCalledWith(
+        false,
+        'socks5://127.0.0.1:9050',
+      );
+    });
+  });
+
+  it('Clear calls clearProxyConfig', async () => {
+    const { clearProxyConfig } = await import('@/ipc');
+    render(wrap(<Settings />));
+    await waitFor(() => screen.getByTestId('network-proxy-clear'));
+    fireEvent.click(screen.getByTestId('network-proxy-clear'));
+    await waitFor(() => {
+      expect(clearProxyConfig).toHaveBeenCalled();
+    });
   });
 });
