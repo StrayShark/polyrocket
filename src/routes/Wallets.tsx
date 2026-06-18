@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { Plus, Wallet as WalletIcon, RefreshCw, Copy as CopyIcon } from 'lucide-react';
-import { listWallets, addWallet } from '@/ipc';
+import { Plus, Wallet as WalletIcon, RefreshCw, Copy as CopyIcon, FolderSearch } from 'lucide-react';
+import { listWallets, addWallet, pickFile } from '@/ipc';
+import { readFileText } from '@/lib/env-file';
 import { Card } from '@/components/base/Card';
 import { Pill } from '@/components/base/Pill';
 import { Button } from '@/components/base/Button';
@@ -12,6 +13,7 @@ import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { toast } from '@/stores/toast-store';
 import { fmtAddress, fmtRelativeTime, fmtDate } from '@/lib/format';
+import { extractAddressFromJson } from '@/lib/wallet-file';
 import { useT } from '@/lib/i18n';
 import type { Wallet, WalletType } from '@/types/wallet';
 import { POLYGON_MAINNET } from '@/types/wallet';
@@ -174,13 +176,51 @@ function AddWalletModal({ onClose, onAdded }: { onClose: () => void; onAdded: ()
     >
       <div className="space-y-3">
         <Field label={t('wallets.add.address')}>
-          <Input
-            placeholder={t('wallets.add.address_placeholder')}
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            invalid={address.length > 0 && !canSubmit}
-            className="font-mono"
-          />
+          <div className="flex gap-1">
+            <Input
+              placeholder={t('wallets.add.address_placeholder')}
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              invalid={address.length > 0 && !canSubmit}
+              className="font-mono"
+            />
+            {/* v0.57d — native file picker for
+                importing a wallet address from a
+                JSON file (the typical export
+                format from MetaMask / Rabby /
+                frame). The file must contain
+                {"address": "0x..."} somewhere. */}
+            <Button
+              variant="ghost"
+              size="sm"
+              iconLeft={<FolderSearch className="w-3 h-3" />}
+              data-testid="wallet-import-from-file"
+              onClick={async () => {
+                try {
+                  const picked = await pickFile(
+                    [
+                      { name: 'Wallet JSON', extensions: ['json'] },
+                    ],
+                    false,
+                  );
+                  if (typeof picked === 'string') {
+                    const content = await readFileText(picked);
+                    const extracted = extractAddressFromJson(content);
+                    if (extracted) {
+                      setAddress(extracted);
+                      toast.success(t('wallets.add.imported_from_file'));
+                    } else {
+                      toast.error(t('wallets.add.import_no_address'));
+                    }
+                  }
+                } catch (err) {
+                  toast.error(String(err));
+                }
+              }}
+            >
+              {t('wallets.add.import_file')}
+            </Button>
+          </div>
         </Field>
         <Field label={t('wallets.add.label')}>
           <Input

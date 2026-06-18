@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { Plus, Trash2, TestTube2, CheckCircle2, XCircle, Key, Database, Eye, EyeOff } from 'lucide-react';
-import { llmProviderList, llmKeyList, llmKeySetSecret, llmKeyDelete, llmTestConnectivity, secretsStatus } from '@/ipc';
+import { Plus, Trash2, TestTube2, CheckCircle2, XCircle, Key, Database, Eye, EyeOff, FolderSearch } from 'lucide-react';
+import { llmProviderList, llmKeyList, llmKeySetSecret, llmKeyDelete, llmTestConnectivity, secretsStatus, pickFile } from '@/ipc';
+import { extractSecretFromEnv, readFileText } from '@/lib/env-file';
 import { Card } from '@/components/base/Card';
 import { Pill } from '@/components/base/Pill';
 import { Button } from '@/components/base/Button';
@@ -370,6 +371,46 @@ function AddKeyModal({
             />
             <Button variant="ghost" size="sm" iconLeft={showSecret ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />} onClick={() => setShowSecret((s) => !s)}>
               {showSecret ? t('llmmgmt.add.hide') : t('llmmgmt.add.show')}
+            </Button>
+            {/* v0.57d — native file picker for
+                importing a secret from a `.env`-
+                shaped file. The file must have
+                exactly one KEY=VALUE line, with
+                the key matching the expected
+                env var for the chosen provider
+                (OPENAI_API_KEY, ANTHROPIC_API_KEY,
+                etc). The picker filters to
+                .env, .key, .txt. */}
+            <Button
+              variant="ghost"
+              size="sm"
+              iconLeft={<FolderSearch className="w-3 h-3" />}
+              data-testid="llm-import-secret-from-file"
+              onClick={async () => {
+                try {
+                  const picked = await pickFile(
+                    [
+                      { name: 'API key files', extensions: ['env', 'key', 'txt'] },
+                    ],
+                    false,
+                  );
+                  if (typeof picked === 'string') {
+                    const content = await readFileText(picked);
+                    const extracted = extractSecretFromEnv(content);
+                    if (extracted) {
+                      setSecret(extracted);
+                      setShowSecret(true);
+                      toast.success(t('llmmgmt.add.imported_from_file'));
+                    } else {
+                      toast.error(t('llmmgmt.add.import_no_key'));
+                    }
+                  }
+                } catch (err) {
+                  toast.error(String(err));
+                }
+              }}
+            >
+              {t('llmmgmt.add.import_file')}
             </Button>
           </div>
         </Field>

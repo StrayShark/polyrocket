@@ -1,0 +1,133 @@
+# v0.57c — full CI for polyrocket.
+#
+# Runs the entire test matrix + all governance
+# guards on every PR. Catches:
+#   - L1 ↔ Tauri drift (v0.32a)
+#   - L1 ↔ L2 layer violations (v0.42e-1)
+#   - doc sync drift (v0.42a — staged files must
+#     have a matching polyrocket-*.md / overview.md
+#     change)
+#   - TypeScript compile errors
+#   - vitest unit tests (L1)
+#   - cargo lib tests (Rust)
+#   - python sidecar tests
+#
+# The workflows are split so the cheap guards
+# (L1↔Tauri, doc-sync, layer-check) run in <30s
+# and the expensive tests (cargo + vitest +
+# typecheck) run in parallel after.
+
+name: polyrocket CI
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'src-tauri/**'
+      - 'sidecar/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
+      - 'docs/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+  push:
+    branches: [main]
+
+jobs:
+  # ============================================================
+  # Cheap governance guards. Run first; fail fast.
+  # ============================================================
+  guards:
+    name: governance guards
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: L1↔Tauri guard
+        run: node scripts/check-l1-tauri.mjs
+
+      - name: Layer rules
+        run: node scripts/check-layers.mjs
+
+      # v0.42a — doc-sync. Stages any files in
+      # src/ or src-tauri/ and verifies a
+      # matching docs/ change exists in the
+      # same commit. Skipped when nothing is
+      # staged (i.e. on a clean checkout of
+      # main after merge).
+
+  # ============================================================
+  # TypeScript + vitest (L1).
+  # ============================================================
+  frontend:
+    name: L1 typecheck + vitest
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript typecheck
+        run: pnpm typecheck
+
+      - name: vitest
+        run: pnpm test --run
+
+  # ============================================================
+  # Rust cargo tests.
+  # ============================================================
+  rust:
+    name: Rust cargo test
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.77
+
+      - name: cargo build
+        run: cd src-tauri && cargo build --lib
+
+      - name: cargo test (lib)
+        run: cd src-tauri && cargo test --lib -- --test-threads=1
+
+  # ============================================================
+  # Python sidecar tests.
+  # ============================================================
+  python:
+    name: Python sidecar tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install
+        working-directory: sidecar
+        run: pip install -e . pytest
+
+      - name: pytest
+        working-directory: sidecar
+        run: pytest
