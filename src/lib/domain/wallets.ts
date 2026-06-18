@@ -20,6 +20,15 @@ export class WalletValidationError extends Error {
   }
 }
 
+/** 校验 EVM 地址。**L1 镜像 Rust 端 `domain::wallet::validate_address`**。
+ *
+ * **3 条规则**：
+ *   1. 必须以 `0x` 开头
+ *   2. 总长 42 字符（0x + 40 hex）
+ *   3. 后 40 字符必须是 ASCII hex
+ *
+ * @throws WalletValidationError 当校验失败
+ */
 export function validateAddress(addr: string): void {
   if (!addr.startsWith('0x')) {
     throw new WalletValidationError('address must start with 0x');
@@ -56,6 +65,11 @@ export function validateLabel(label: string | null | undefined): void {
   }
 }
 
+/** 缩短 EVM 地址显示：`0x1234567890abcdef...` → `0x1234…cdef`。
+ *
+ * **用途**：L1 列表 / 表格里地址列宽度太窄，用缩短版。
+ * **< 10 字符**：原样返回（避免切到非 EVM 地址）。
+ */
 export function shortAddress(addr: string): string {
   if (addr.length < 10) return addr;
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;

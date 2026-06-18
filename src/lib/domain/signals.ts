@@ -15,12 +15,23 @@ export interface Signal {
   rationale?: string | null;
 }
 
+/** 算 (edge, confidence) 对。**L1 镜像 Rust 端 `domain::signal::score`**。
+ *
+ * **为什么 confidence 用 `min(|edge| * 2, 0.95)`**：`confidence` 应该跟 `edge` 强相关
+ * （大 edge = 高确信）。`* 2` 是个启发式，cap 在 0.95 避免「100% 确信」假象。
+ * **真正的不确定性** 应该由 model 直接输出（v0.55+ 替换）。
+ */
 export function score(predictedProb: number, marketProb: number): { edge: number; confidence: number } {
   const edge = predictedProb - marketProb;
   const confidence = Math.min(0.95, Math.abs(edge) * 2);
   return { edge, confidence };
 }
 
+/** 判断 signal 是否可执行。**L1 镜像 Rust 端 `Signal::is_actionable`**。
+ *
+ * **两条条件**：`|edge| >= minEdge` AND `confidence >= 0.6`。
+ * L1 「Signals」页面过滤「actionable」信号用。
+ */
 export function isActionable(s: Signal, minEdge: number): boolean {
   return Math.abs(s.edge) >= minEdge && s.confidence >= 0.6;
 }
@@ -50,6 +61,11 @@ export interface SignalStats {
   bearish: number;
 }
 
+/** 算一批 signal 的统计：n / avg|edge| / max|edge| / bullish / bearish。
+ *
+ * **调用方**：L1 「Signals」页面顶部 summary 卡。
+ * **空数组**：返回所有 0。
+ */
 export function stats(signals: Signal[]): SignalStats {
   if (signals.length === 0) {
     return { n: 0, avgAbsEdge: 0, maxAbsEdge: 0, bullish: 0, bearish: 0 };

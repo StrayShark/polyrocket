@@ -98,6 +98,15 @@ export interface ModelPerf {
  * Promotion rule: lower brier wins; tiebreak by higher win rate;
  * final tiebreak by more predictions.
  */
+/** Promotion 规则：candidate 是否「更好」。
+ *
+ * **优先级**：
+ *   1. `brierScore` 低者胜（差异 > 1e-9）
+ *   2. 平局时 `winRate` 高者胜
+ *   3. 再平局时 `nPredictions` 多者胜（更多证据 = 更稳）
+ *
+ * **镜像 Rust 端**：`domain::lab::is_better`。
+ */
 export function isBetter(candidate: ModelPerf, incumbent: ModelPerf): boolean {
   if (Math.abs(candidate.brierScore - incumbent.brierScore) > 1e-9) {
     return candidate.brierScore < incumbent.brierScore;

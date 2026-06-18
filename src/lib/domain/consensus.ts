@@ -23,6 +23,16 @@ export interface Consensus {
 }
 
 /** Pick the majority side; strength = agreement fraction. */
+/** 多 LLM 投票产生 consensus。**L1 镜像 Rust 端 `domain::consensus::*`**。
+ *
+ * **算法**：
+ *   1. 数每个 side 的票数
+ *   2. 取票数最多的 side（ties 时 first in `Object.keys` order，即 YES > NO > MAYBE）
+ *   3. `strength = 票数 / 总票数`
+ *   4. `avgConfidence = sum(confidence) / n`
+ *
+ * **空 votes**：返回 `{ side: 'MAYBE', strength: 0, nModels: 0, avgConfidence: 0 }`。
+ */
 export function consensusFrom(
   votes: Array<{ side: ConsensusSide; confidence: number }>,
 ): Consensus {

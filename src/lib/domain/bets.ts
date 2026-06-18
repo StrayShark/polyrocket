@@ -32,6 +32,20 @@ export function pnlOnNo(side: BetSide, shares: number, price: number, sizeUsdc: 
   return side === 'YES' ? -sizeUsdc : shares * price;
 }
 
+/** 算 PnL（USDC）。**L1 镜像 Rust 端 `domain::bet::pnl`**。
+ *
+ * **公式**：
+ *   - outcome=YES, side=YES: `shares * (1 - price)`
+ *   - outcome=YES, side=NO: `-size_usdc`
+ *   - outcome=NO,  side=YES: `-size_usdc`
+ *   - outcome=NO,  side=NO:  `shares * price`
+ *
+ * @param outcome — 市场 resolve 方向
+ * @param side — 下单方向
+ * @param shares — 持仓股数
+ * @param price — 下单价
+ * @param sizeUsdc — 下单金额（USDC）
+ */
 export function pnl(
   outcome: BetSide,
   side: BetSide,
