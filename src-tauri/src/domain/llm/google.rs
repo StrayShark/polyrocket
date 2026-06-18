@@ -26,9 +26,11 @@ pub struct GoogleClient {
 }
 
 impl GoogleClient {
+    /// 默认 `api_base = https://generativelanguage.googleapis.com/v1beta`。
     pub fn new() -> Self {
         Self { api_base: "https://generativelanguage.googleapis.com/v1beta".into() }
     }
+    /// 自定义 `api_base`（用于 Vertex AI 端点 / 自部署 Gemini 兼容 proxy）。
     pub fn with_base(api_base: impl Into<String>) -> Self { Self { api_base: api_base.into() } }
 }
 
@@ -40,6 +42,13 @@ impl Default for GoogleClient {
 impl LlmClient for GoogleClient {
     fn kind(&self) -> ProviderKind { ProviderKind::Google }
 
+    /// 真实 Gemini call。**业务流程**：
+    ///   1. URL = `{api_base}/models/{model}:generateContent?key={secret}`
+    ///      （**API key 在 query string** —— Google 跟 OpenAI/Anthropic 不同）
+    ///   2. `split_contents` 把 system 提到独立 `systemInstruction` 字段
+    ///   3. assistant role 映射到 Gemini 的 `model` role
+    ///   4. `parse_response` 解 `candidates[0].content.parts[0].text`
+    ///   5. 非 2xx → `classify_status` 归 stable code
     async fn call(
         &self,
         http: &reqwest::Client,
@@ -91,6 +100,13 @@ impl LlmClient for GoogleClient {
     }
 }
 
+/// 从 Gemini `generateContent` 响应 JSON 抽 `text` / `tokens_in` / `tokens_out` / `cost_cents`。
+///
+/// **路径**：
+///   - `candidates[0].content.parts[0].text` —— text
+///   - `usageMetadata.promptTokenCount` / `candidatesTokenCount` —— tokens
+///
+/// **Pub**：`GoogleClient::call` + 未来可能的其他 Gemini-compatible client 共用。
 pub fn parse_response(
     status: u16,
     body_text: &str,
@@ -128,6 +144,14 @@ pub fn parse_response(
     })
 }
 
+/// 把 OpenAI 风格 `Vec<ChatMessage>` 拆成 Gemini 风格 `(system, contents)`。
+///
+/// **差异**（vs `anthropic::split_system`）：
+///   - Gemini role 只有 `user` / `model` —— `assistant` 映射到 `model`
+///   - `parts` 是必填数组，每个 part 至少有 `text` field
+///   - system 走 `systemInstruction.parts[0].text` 而非 `system` 字段
+///
+/// **只取第一个 system message**（同 anthropic 协议）。
 fn split_contents(messages: &[crate::domain::llm::ChatMessage]) -> (Option<String>, Vec<Value>) {
     let mut system = None;
     let mut contents = Vec::new();

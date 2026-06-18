@@ -1,4 +1,8 @@
 //! OpenAI client — native (api.openai.com) and identical wire format.
+//!
+//! OpenAI 官方 API + OpenAI 兼容协议 baseline（DeepSeek / OpenRouter / Azure / 自部署）。
+//! 协议同 chat/completions —— 鉴权 `Authorization: Bearer <key>` + body 走
+//! `domain::llm::common::build_body`。
 
 use crate::domain::llm::{CallError, CallRequest, CostRate, LlmClient, ProviderKind, err};
 use crate::domain::llm::common;
@@ -12,6 +16,7 @@ pub struct OpenAIClient {
 }
 
 impl OpenAIClient {
+    /// 构造一个 OpenAIClient。`api_base` 末尾 `/` 自动 trim。
     pub fn new(api_base: impl Into<String>) -> Self { Self { api_base: api_base.into() } }
 }
 
@@ -19,6 +24,12 @@ impl OpenAIClient {
 impl LlmClient for OpenAIClient {
     fn kind(&self) -> ProviderKind { ProviderKind::Openai }
 
+    /// 真实 LLM call。**业务流程**：
+    ///   1. 构造 URL = `{api_base}/chat/completions`
+    ///   2. `bearer_auth(secret)` 鉴权 + JSON body
+    ///   3. send → 200..300 → `parse_response` 解出 tokens/text/cost
+    ///   4. 非 2xx → `classify_status` 归类到 stable error code
+    ///   5. transport error → `classify_transport` 分 timeout vs network
     async fn call(
         &self,
         http: &reqwest::Client,
@@ -55,6 +66,12 @@ impl LlmClient for OpenAIClient {
     }
 }
 
+/// Transport-level error 分类。**两种 stable code**：
+///   - `err::TIMEOUT` — `is_timeout()` 或 connect 失败且 elapsed > 5s
+///   - `err::NETWORK` — 其他 transport error（DNS / TLS / connection refused）
+///
+/// **5s 启发式**：connect 失败 + elapsed 短 → 可能是 fast-fail (DNS 错误)，
+/// 还是归 NETWORK；connect 失败 + elapsed 长 → 几乎肯定是 connect timeout。
 fn classify_transport(e: &reqwest::Error, elapsed_ms: u64) -> CallError {
     if e.is_timeout() || e.is_connect() && elapsed_ms > 5_000 {
         CallError {
@@ -71,6 +88,9 @@ fn classify_transport(e: &reqwest::Error, elapsed_ms: u64) -> CallError {
     }
 }
 
+/// 截断 body 字符串到 max 字节。**避免把 10MB 错误响应全存进 audit_log**。
+/// **不是字符安全**：byte-level slice 在 UTF-8 边界可能切坏。**接受这点**——
+/// CallError.message 只是用于显示，不参与反序列化。
 fn truncate(s: &str, max: usize) -> &str {
     if s.len() <= max { s } else { &s[..max] }
 }

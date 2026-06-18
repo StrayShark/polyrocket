@@ -1,5 +1,8 @@
 //! Custom OpenAI-compat proxy (OpenRouter, Azure OpenAI, self-hosted).
 //! `provider_kind` = `openai_compat` or `anthropic_compat`.
+//!
+//! 一个 client 走两种协议（chat/completions 或 messages），按 `provider_kind`
+//! 字段 dispatch 到 `call_openai` / `call_anthropic` 私有方法。
 
 use crate::domain::llm::{CallError, CallRequest, CostRate, LlmClient, ProviderKind, err};
 use crate::domain::llm::common;
@@ -19,6 +22,7 @@ pub struct CustomClient {
 }
 
 impl CustomClient {
+    /// 构造一个 OpenAI-compat client（OpenRouter / Azure / 自部署 llama-server）。
     pub fn new_openai_compat(api_base: impl Into<String>, model: impl Into<String>) -> Self {
         Self {
             provider_kind: ProviderKind::OpenaiCompat,
@@ -26,6 +30,7 @@ impl CustomClient {
             model: model.into(),
         }
     }
+    /// 构造一个 Anthropic-compat client（Anthropic gateway / 自部署 Claude 兼容 proxy）。
     pub fn new_anthropic_compat(api_base: impl Into<String>, model: impl Into<String>) -> Self {
         Self {
             provider_kind: ProviderKind::AnthropicCompat,
@@ -39,6 +44,9 @@ impl CustomClient {
 impl LlmClient for CustomClient {
     fn kind(&self) -> ProviderKind { self.provider_kind }
 
+    /// Dispatch 到 `call_openai` / `call_anthropic`。
+    /// **Misconfigured kind**（不是 `OpenaiCompat` / `AnthropicCompat`）→ `err::UNKNOWN`。
+    /// 不 panic（dispatch contract）。
     async fn call(
         &self,
         http: &reqwest::Client,
@@ -59,6 +67,8 @@ impl LlmClient for CustomClient {
 }
 
 impl CustomClient {
+    /// OpenAI-compat call。**业务流程**跟 `OpenAIClient::call` 一样（同样
+    /// `chat/completions` 协议），但走 `CustomClient` 的 `api_base`。
     async fn call_openai(
         &self,
         http: &reqwest::Client,
@@ -89,6 +99,12 @@ impl CustomClient {
         Ok(out)
     }
 
+    /// Anthropic-compat call。**业务流程**：
+    ///   1. URL = `{api_base}/v1/messages`（Anthropic 协议固定 path）
+    ///   2. `x-api-key` header（**不**用 `Authorization: Bearer`）
+    ///   3. `anthropic-version: 2023-06-01` header 必填
+    ///   4. system prompt 走独立 `system` 字段（split via `split_system`）
+    ///   5. 复用 `parse_messages_response`（跟 native Anthropic 同一函数）
     async fn call_anthropic(
         &self,
         http: &reqwest::Client,
@@ -131,6 +147,9 @@ impl CustomClient {
     }
 }
 
+/// 把 OpenAI 风格的 `Vec<ChatMessage>` 拆成 Anthropic 风格的 `(system, messages)`。
+/// **只取第一个 system 消息**（多 system message 取 first 丢弃其余 —— Anthropic
+/// 协议只支持一个 system field）。
 fn split_system(messages: &[crate::domain::llm::ChatMessage]) -> (Option<String>, Vec<Value>) {
     let mut system = None;
     let mut rest = Vec::new();
@@ -144,6 +163,9 @@ fn split_system(messages: &[crate::domain::llm::ChatMessage]) -> (Option<String>
     (system, rest)
 }
 
+/// 截断 body 字符串到 max 字节。**避免把 10MB 错误响应全存进 audit_log**。
+/// 跟 `openai::truncate` 重复（每个 client 文件一个，**不**抽公共 helper，
+/// 因为每个 client 可能有不同截断策略）。
 fn truncate(s: &str, max: usize) -> &str {
     if s.len() <= max { s } else { &s[..max] }
 }

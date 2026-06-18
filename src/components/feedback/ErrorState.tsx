@@ -1,11 +1,25 @@
 import { AlertCircle } from 'lucide-react';
 
+/** `ErrorState` props。
+ *   - `title` — 顶部标题（默认 "Something went wrong"）
+ *   - `message` — 错误详情（`font-mono` 等宽字体显示）
+ *   - `onRetry` — 「Try again」按钮回调（可空）
+ */
 export interface ErrorStateProps {
   title?: string;
   message: string;
   onRetry?: () => void;
 }
 
+/**
+ * `ErrorState` —— 错误状态展示组件。
+ *
+ * **何时用**：query/mutation 失败时，**不**用 EmptyState（不是「无数据」）。
+ *
+ * **`message` 用 font-mono**：让 stack trace / JSON 错误对象排版整齐。
+ *
+ * **`onRetry` 不传** → 不显示「Try again」按钮（错误是终态，比如 404）。
+ */
 export function ErrorState({
   title = 'Something went wrong',
   message,

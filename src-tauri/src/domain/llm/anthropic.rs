@@ -4,6 +4,14 @@
 use crate::domain::llm::{CallError, CallOutcome, CallRequest, CostRate, LlmClient, ProviderKind, err};
 use serde_json::{Value, json};
 
+// Anthropic Messages API 协议的 wire 差异（vs OpenAI）：
+//   - 鉴权：x-api-key header (not Authorization: Bearer)
+//   - 必填：anthropic-version: 2023-06-01
+//   - system prompt 走独立 system 字段（非 messages[0]）
+//   - response: content[0].text + usage.input_tokens/output_tokens
+//   - cache 标记：cache_creation_input_tokens / cache_read_input_tokens
+//   - 计费含 cache read（多 1.1x 或 1.25x）
+
 /// Anthropic Messages API 客户端。Spec: https://docs.anthropic.com/en/api/messages
 ///
 /// **与 OpenAI 的差异**：
@@ -19,9 +27,11 @@ pub struct AnthropicClient {
 }
 
 impl AnthropicClient {
+    /// 默认 `api_base = https://api.anthropic.com`。
     pub fn new() -> Self {
         Self { api_base: "https://api.anthropic.com".into() }
     }
+    /// 自定义 `api_base`（用于 Anthropic gateway / AWS Bedrock / GCP Vertex）。
     pub fn with_base(api_base: impl Into<String>) -> Self { Self { api_base: api_base.into() } }
 }
 
@@ -33,6 +43,12 @@ impl Default for AnthropicClient {
 impl LlmClient for AnthropicClient {
     fn kind(&self) -> ProviderKind { ProviderKind::Anthropic }
 
+    /// 真实 Anthropic call。**业务流程**：
+    ///   1. URL = `{api_base}/v1/messages`（Anthropic 固定 path）
+    ///   2. `split_system` 把 system message 提到独立字段
+    ///   3. `x-api-key` + `anthropic-version: 2023-06-01` headers
+    ///   4. `parse_messages_response` 解 `content[0].text` + `usage.*_tokens`
+    ///   5. 非 2xx → `classify_status` 归 stable code
     async fn call(
         &self,
         http: &reqwest::Client,
@@ -81,6 +97,13 @@ impl LlmClient for AnthropicClient {
     }
 }
 
+/// 从 Anthropic Messages API 响应 JSON 抽 `text` / `tokens_in` / `tokens_out` / `cost_cents`。
+///
+/// **返回**：`CallOutcome.http_status = status`（即使非 2xx 也 OK；调用方决定
+/// 怎么映射到 `CallError`）。
+///
+/// **为什么 pub**：`custom.rs::call_anthropic` 复用这个 fn（CustomClient 的
+/// anthropic_compat variant 用同一 parser）。
 pub fn parse_messages_response(
     status: u16,
     body_text: &str,
@@ -119,6 +142,9 @@ pub fn parse_messages_response(
     })
 }
 
+/// 把 OpenAI 风格 `Vec<ChatMessage>` 拆成 Anthropic 风格 `(system, messages)`。
+/// **只取第一个 system message**。Anthropic 协议只支持 1 个 system field —— 多
+/// system 走 LLM 时取 first 丢弃其余。
 fn split_system(messages: &[crate::domain::llm::ChatMessage]) -> (Option<String>, Vec<Value>) {
     let mut system = None;
     let mut rest = Vec::new();

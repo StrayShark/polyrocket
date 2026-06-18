@@ -12,6 +12,22 @@ import { toast } from '@/stores/toast-store';
 import { fmtDate, fmtUsdc, fmtEdge, fmtPct } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 
+/**
+ * `/brief` 路由 —— Daily Brief 完整列表（v0.3+ spec，跟 Dashboard 上的
+ * mini Brief 卡区分）。
+ *
+ * **数据流**：
+ *   1. mount `dailyBriefGet(8)` 拉 top 8 条
+ *   2. `refetchInterval: 60_000` 每分钟自动 refetch
+ *   3. 「Refresh」按钮 → `dailyBriefRefresh` mutation
+ *   4. 单条「Dismiss」→ `dailyBriefDismiss` mutation
+ *
+ * **状态机**：`loading`（Skeleton）→ `success`（卡片列表） / `error`。
+ *
+ * **vs Dashboard 上的 brief**：
+ *   - Dashboard = 3-4 条 mini 卡（`WelcomeBanner` 旁边）
+ *   - `/brief` = 8 条完整卡 + filter（按 match_score / edge）+ 详情展开
+ */
 export function Brief() {
   const { t } = useT();
   const queryClient = useQueryClient();
