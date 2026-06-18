@@ -435,3 +435,12 @@ describe('Scheduler self-test card (v0.49c)', () => {
     });
   });
 });
+
+describe('Re-run setup card (v0.53b)', () => {
+  it('renders the re-run button', async () => {
+    render(wrap(<Settings />));
+    expect(
+      screen.getByTestId('rerun-setup'),
+    ).toBeInTheDocument();
+  });
+});
