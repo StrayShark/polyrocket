@@ -135,6 +135,27 @@ pub async fn place_signed_order(
     let now = chrono::Utc::now().timestamp_millis();
     let signed = sign_order(&place, now)?;
 
+    // v0.50b — post-only enforcement. For Limit orders
+    // flagged post_only, look up the latest snapshot
+    // (v0.47a) and reject if the limit would cross the
+    // book. When no snapshot exists, post-only is a
+    // silent pass (see domain::bet module docs).
+    if order_type == OrderType::Limit && args.post_only {
+        if let Some(lp) = args.limit_price {
+            let snap =
+                crate::infra::db::price_snapshots::latest_snapshot(&state.db, &args.market_id)
+                    .await?;
+            let snapshot_pair = snap.map(|(bid, ask, _mid, _spread, _captured_at)| (bid, ask));
+            let check = bet::check_post_only(side, lp, snapshot_pair);
+            if matches!(check, bet::PostOnlyCheck::WouldCross) {
+                return Err(crate::AppError::Invalid(format!(
+                    "post-only limit at {lp} would cross the book for market {}",
+                    args.market_id
+                )));
+            }
+        }
+    }
+
     // Also verify the key exists in the OS keyring (best-effort)
     let _ = polymarket::place_signed_order(
         &args.market_id,

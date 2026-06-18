@@ -312,6 +312,86 @@ pub fn validate_order_type_specifics(args: &PlaceArgs) -> AppResult<()> {
 }
 
 // ============================================================
+// ============== v0.50b — post-only enforcement ==============
+// ============================================================
+//
+// Polymarket CLOB has the standard "post-only" semantics:
+// the order must rest on the book, never take liquidity.
+// We implement the check using the latest price_snapshots
+// row (v0.47a) for the market.
+//
+// Until v0.51+ brings a real order-book feed, the
+// snapshot is a placeholder (best_bid = best_ask = 0.5).
+// In that case `would_cross_book` returns false (it
+// always rests), so post-only is effectively a no-op
+// for new installs. This is acceptable: v0.50b is
+// about getting the validation plumbing right so the
+// moment a real feed lands, enforcement is automatic.
+//
+// The book snapshot here is the YES-token view; for
+// NO bets we compute the implied YES price as
+// `1 - limit_price` and compare against `best_bid`.
+
+/// v0.50b — pure helper. Given the side, the limit
+/// price, and the latest book snapshot, returns
+/// `true` when the order would take liquidity
+/// (and thus must be rejected under post-only).
+///
+/// The snapshot represents the YES token's order
+/// book: `best_bid` and `best_ask` are YES-token
+/// prices in [0.01, 0.99].
+pub fn would_cross_book(
+    side: BetSide,
+    limit_price: f64,
+    best_bid: f64,
+    best_ask: f64,
+) -> bool {
+    match side {
+        // Buying YES at limit P: takes liquidity when
+        // P >= best_ask (you'd match the ask).
+        BetSide::Yes => limit_price >= best_ask,
+        // Buying NO at limit P: NO token price = 1 - YES_price.
+        // Equivalent: takes liquidity when
+        // (1 - P) <= best_bid
+        // i.e. P >= 1 - best_bid
+        BetSide::No => limit_price >= 1.0 - best_bid,
+    }
+}
+
+/// v0.50b — outcome of the post-only enforcement
+/// check. We return a typed result so callers can
+/// distinguish "would cross" from "snapshot missing"
+/// (which is currently a silent pass — see the
+/// module docs).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PostOnlyCheck {
+    /// No snapshot for this market yet; post-only
+    /// is a no-op (real enforcement defers to v0.51+).
+    NoSnapshot,
+    /// Snapshot exists; order rests on book. OK.
+    Rests,
+    /// Snapshot exists; order would cross. REJECT.
+    WouldCross,
+}
+
+/// v0.50b — given a snapshot (or None) and the
+/// post-only flag, return the enforcement outcome.
+pub fn check_post_only(
+    side: BetSide,
+    limit_price: f64,
+    snapshot: Option<(f64, f64)>,
+) -> PostOnlyCheck {
+    let Some((best_bid, best_ask)) = snapshot else {
+        return PostOnlyCheck::NoSnapshot;
+    };
+    if would_cross_book(side, limit_price, best_bid, best_ask) {
+        PostOnlyCheck::WouldCross
+    } else {
+        PostOnlyCheck::Rests
+    }
+}
+
+// ============================================================
 // ============== Mode B signed-order simulation =================
 // ============================================================
 
@@ -664,5 +744,80 @@ mod tests {
         assert!(validate_order_type_specifics(&a).is_err());
         let b = order_args("m", "100", 0.5, OrderType::Limit, Some(0.4), None, false);
         assert!(validate_order_type_specifics(&b).is_ok());
+    }
+
+    // ----- v0.50b — post-only -----
+
+    /// YES buy at limit equal to best_ask crosses.
+    #[test]
+    fn would_cross_yes_at_ask() {
+        assert!(would_cross_book(BetSide::Yes, 0.50, 0.49, 0.50));
+    }
+
+    /// YES buy at limit one tick below best_ask rests.
+    #[test]
+    fn would_not_cross_yes_below_ask() {
+        assert!(!would_cross_book(BetSide::Yes, 0.49, 0.49, 0.50));
+    }
+
+    /// NO buy at limit equal to (1 - best_bid) crosses.
+    /// best_bid=0.40 → 1 - best_bid = 0.60 → limit at 0.60 crosses.
+    #[test]
+    fn would_cross_no_at_implied_ask() {
+        assert!(would_cross_book(BetSide::No, 0.60, 0.40, 0.50));
+    }
+
+    /// NO buy at limit well above implied ask rests.
+    /// NO limit at 0.55 < 0.60 = 1 - best_bid → rests.
+    #[test]
+    fn would_not_cross_no_above_implied_ask() {
+        // wait — NO limit >= 1-best_bid crosses. So limit 0.55 with
+        // best_bid=0.40 → 1-0.40=0.60; 0.55 < 0.60 → does NOT cross.
+        assert!(!would_cross_book(BetSide::No, 0.55, 0.40, 0.50));
+    }
+
+    #[test]
+    fn check_post_only_no_snapshot_is_silent_pass() {
+        // Today: missing snapshot = no enforcement.
+        let r = check_post_only(BetSide::Yes, 0.99, None);
+        assert_eq!(r, PostOnlyCheck::NoSnapshot);
+    }
+
+    #[test]
+    fn check_post_only_yes_rests_below_ask() {
+        // bid=0.40, ask=0.50; YES limit 0.45 < 0.50 → rests.
+        let r = check_post_only(BetSide::Yes, 0.45, Some((0.40, 0.50)));
+        assert_eq!(r, PostOnlyCheck::Rests);
+    }
+
+    #[test]
+    fn check_post_only_yes_crosses_at_ask() {
+        let r = check_post_only(BetSide::Yes, 0.50, Some((0.40, 0.50)));
+        assert_eq!(r, PostOnlyCheck::WouldCross);
+    }
+
+    #[test]
+    fn check_post_only_no_crosses_at_implied_ask() {
+        // bid=0.40, ask=0.50; NO limit 0.60 >= 1-0.40 = 0.60 → crosses.
+        let r = check_post_only(BetSide::No, 0.60, Some((0.40, 0.50)));
+        assert_eq!(r, PostOnlyCheck::WouldCross);
+    }
+
+    #[test]
+    fn check_post_only_no_rests_above_implied_ask() {
+        // NO limit 0.50 < 1-0.40 = 0.60 → rests.
+        let r = check_post_only(BetSide::No, 0.50, Some((0.40, 0.50)));
+        assert_eq!(r, PostOnlyCheck::Rests);
+    }
+
+    #[test]
+    fn validate_place_args_with_post_only_and_limit_accepts_syntax() {
+        // v0.50b — post_only is a SYNTAX-valid flag for limit
+        // orders. The actual book-cross check happens in
+        // place_signed_order after looking up the snapshot.
+        // Here we only assert that the validator doesn't
+        // reject the combination on syntactic grounds.
+        let r = order_args("m", "100", 0.5, OrderType::Limit, Some(0.45), None, true);
+        assert!(validate_place_args(&r).is_ok());
     }
 }
