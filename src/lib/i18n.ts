@@ -128,6 +128,7 @@ const en: Dictionary = {
   'markets.filter.active': 'Active only',
   // Signals page (v0.13a)
   'signals.title': 'Active Signals',
+  'signals.trade_button': 'Trade →', // v0.52b
   'signals.col.market': 'Market',
   'signals.col.model': 'Model',
   'signals.col.predicted': 'Predicted',
@@ -885,6 +886,7 @@ const zh: Dictionary = {
   'markets.filter.active': '仅活跃',
   // Signals page (v0.13a)
   'signals.title': '活跃信号',
+  'signals.trade_button': '下单 →', // v0.52b
   'signals.col.market': '市场',
   'signals.col.model': '模型',
   'signals.col.predicted': '预测',

@@ -142,6 +142,27 @@ export function Signals() {
       sortable: true,
       sortValue: (s) => s.computed_at,
     },
+    // v0.52b — Trade button column. Sends the user
+    // to /trade with the market / side / price
+    // pre-filled from the signal. The actual
+    // submission happens on the Trade route, so
+    // the user gets to review the args before
+    // pushing to CLOB.
+    {
+      key: 'trade',
+      header: '',
+      width: '90px',
+      align: 'right',
+      cell: (s) => (
+        <Link
+          to={`/trade?market=${encodeURIComponent(s.market_id)}&side=${s.edge > 0 ? 'YES' : 'NO'}&price=${(s.predicted_prob ?? 0.5).toFixed(4)}`}
+          data-testid={`signal-trade-${s.id}`}
+          className="text-[10px] text-accent hover:underline"
+        >
+          {t('signals.trade_button')}
+        </Link>
+      ),
+    },
   ];
 
   return (
