@@ -1189,6 +1189,59 @@ export const schedulerSelfTestNow = () =>
   invoke<SchedulerSelfTest>('scheduler_self_test_now');
 
 // =================================================================
+// ================== v0.50c — fill analytics ======================
+// =================================================================
+
+/** v0.50c — one bucket in the order-type
+ * breakdown of fill_analytics. */
+export interface OrderTypeBucket {
+  orderType: 'market' | 'limit' | 'stop_loss';
+  count: number;
+  settled: number;
+  won: number;
+  /** Realized PnL in USDC across settled rows in
+   * this bucket. Positive = gains. */
+  realizedPnlUsdc: number;
+}
+
+/** v0.50c — fill analytics summary, returned
+ * by `fillAnalytics`. Aggregates the `bets`
+ * table into a single struct the Dashboard
+ * can show as a "Fill analytics" card.
+ *
+ * Slippage / time-to-fill are NOT in this struct
+ * today — we don't have separate fill timestamps
+ * or fill prices. v0.51+ will add `filled_at` +
+ * `fill_price` columns when the real CLOB feed
+ * lands, and these metrics will be added then. */
+export interface FillAnalytics {
+  totalFills: number;
+  openCount: number;
+  wonCount: number;
+  lostCount: number;
+  cancelledCount: number;
+  /** Average (settled_at - placed_at) in ms.
+   * `null` when no bets have settled yet. */
+  avgTimeToSettlementMs: number | null;
+  /** won / (won + lost + cancelled). 0.0 when
+   * nothing is settled. */
+  winRate: number;
+  /** Realized PnL across settled rows, USDC. */
+  realizedPnlUsdc: string;
+  /** Per-order-type breakdown (3 buckets always
+   * present, even when empty). */
+  byOrderType: OrderTypeBucket[];
+  /** Number of fills that were post_only. */
+  postOnlyCount: number;
+  /** postOnlyCount / totalFills. 0.0 when 0 fills. */
+  postOnlyRate: number;
+}
+
+/** v0.50c — return the fill analytics summary. */
+export const fillAnalytics = () =>
+  invoke<FillAnalytics>('fill_analytics');
+
+// =================================================================
 // ================== v0.28a — auto_promote:finished =================
 // =================================================================
 

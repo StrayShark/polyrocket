@@ -111,6 +111,7 @@ pub fn run() {
             commands::copy::recent_copy_events,
             commands::pnl::dashboard_kpis,
             commands::pnl::paper_pnl_summary,
+            commands::pnl::fill_analytics,
             commands::llm::list_llm_providers,
             commands::llm::upsert_llm_provider,
             commands::llm::llm_analyze,

@@ -85,4 +85,13 @@ impl AppState {
             mirror_paper_mode: Arc::new(Mutex::new(paper_mode)),
         }
     }
+
+    /// v0.50c — test-only constructor. Builds an
+    /// AppState with default auto-promote + paper-mode
+    /// config. Used by cargo tests that need to call
+    /// IPC handlers with a `State<'_, AppState>`.
+    #[cfg(test)]
+    pub fn new_for_test(db: SqlitePool) -> Self {
+        Self::new(db)
+    }
 }

@@ -12,7 +12,7 @@ import {
   BarChart3,
   LineChart as LineChartIcon,
 } from 'lucide-react';
-import { dashboardKpis, listActiveSignals, listBets, paperPnlSummary } from '@/ipc';
+import { dashboardKpis, listActiveSignals, listBets, paperPnlSummary, fillAnalytics } from '@/ipc';
 import { Card } from '@/components/base/Card';
 import { Pill } from '@/components/base/Pill';
 import { Button } from '@/components/base/Button';
@@ -22,7 +22,7 @@ import { BarChart } from '@/components/data/BarChart';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
-import { fmtUsdc, fmtPct, fmtEdge, fmtRelativeTime } from '@/lib/format';
+import { fmtUsdc, fmtPct, fmtEdge, fmtRelativeTime, fmtLatency } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 
 export function Dashboard() {
@@ -40,6 +40,12 @@ export function Dashboard() {
   const paperPnl = useQuery({
     queryKey: ['paper-pnl-summary'],
     queryFn: () => paperPnlSummary(),
+    refetchInterval: 60_000,
+  });
+  // v0.50c — fill analytics (real-mode `bets`).
+  const fillAna = useQuery({
+    queryKey: ['fill-analytics'],
+    queryFn: () => fillAnalytics(),
     refetchInterval: 60_000,
   });
   const signals = useQuery({
@@ -198,6 +204,91 @@ export function Dashboard() {
               hint={t('dashboard.paper.pnl_hint')}
             />
           </div>
+        </Card>
+      )}
+
+      {/* v0.50c — Fill analytics card. Shows the
+          real-mode `bets` table aggregated: status
+          counts, win rate, realized PnL, average
+          time-to-settlement, per-order-type
+          breakdown, post-only rate. Skips when
+          there are no fills yet (avoids an empty
+          dashboard for first-run users). */}
+      {fillAna.data && fillAna.data.totalFills > 0 && (
+        <Card
+          title={t('dashboard.fill_analytics.title')}
+          description={t('dashboard.fill_analytics.desc')}
+        >
+          <div
+            className="grid grid-cols-2 md:grid-cols-4 gap-3"
+            data-testid="fill-analytics-card"
+          >
+            <KpiCard
+              label={t('dashboard.fill_analytics.total')}
+              value={String(fillAna.data.totalFills)}
+              hint={t('dashboard.fill_analytics.open_hint', {
+                n: fillAna.data.openCount,
+              })}
+            />
+            <KpiCard
+              label={t('dashboard.fill_analytics.win_rate')}
+              value={`${(fillAna.data.winRate * 100).toFixed(1)}%`}
+              hint={t('dashboard.fill_analytics.win_rate_hint', {
+                won: fillAna.data.wonCount,
+                lost: fillAna.data.lostCount,
+                cancelled: fillAna.data.cancelledCount,
+              })}
+            />
+            <KpiCard
+              label={t('dashboard.fill_analytics.realized_pnl')}
+              value={`$${fmtUsdc(fillAna.data.realizedPnlUsdc)}`}
+              hint={t('dashboard.fill_analytics.pnl_hint')}
+            />
+            <KpiCard
+              label={t('dashboard.fill_analytics.avg_tts')}
+              value={
+                fillAna.data.avgTimeToSettlementMs == null
+                  ? '—'
+                  : fmtLatency(fillAna.data.avgTimeToSettlementMs)
+              }
+              hint={t('dashboard.fill_analytics.tts_hint')}
+            />
+          </div>
+          {/* v0.50c — order-type breakdown row.
+              Three small tiles, one per order type. */}
+          <div
+            className="mt-3 grid grid-cols-3 gap-2"
+            data-testid="fill-analytics-by-order-type"
+          >
+            {fillAna.data.byOrderType.map((b) => (
+              <div
+                key={b.orderType}
+                className="bg-surface-2 rounded px-2 py-1.5"
+                data-testid={`fill-analytics-bucket-${b.orderType}`}
+              >
+                <div className="text-[10px] text-muted">
+                  {t(`dashboard.fill_analytics.${b.orderType}`)}
+                </div>
+                <div className="text-[12px] font-mono">
+                  {b.count}{' '}
+                  <span className="text-muted">
+                    ({t('dashboard.fill_analytics.bucket_won', {
+                      n: b.won,
+                    })}
+                    )
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+          {fillAna.data.postOnlyCount > 0 && (
+            <div className="mt-2 text-[10px] text-muted">
+              {t('dashboard.fill_analytics.post_only_rate', {
+                n: fillAna.data.postOnlyCount,
+                pct: (fillAna.data.postOnlyRate * 100).toFixed(1),
+              })}
+            </div>
+          )}
         </Card>
       )}
 
