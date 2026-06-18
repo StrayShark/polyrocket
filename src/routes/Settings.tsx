@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings as SettingsIcon, RotateCcw, Save, Database, Bell, Eye, FlaskConical, Trash2, Download, Upload, Activity } from 'lucide-react';
+import { Settings as SettingsIcon, RotateCcw, Save, Database, Bell, Eye, FlaskConical, Trash2, Download, Upload, Copy as CopyIcon, Globe } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/base/Card';
 import { Button } from '@/components/base/Button';
@@ -8,6 +8,7 @@ import { Input } from '@/components/base/Input';
 import { Toggle } from '@/components/base/Toggle';
 import { usePrefsStore } from '@/stores/prefs-store';
 import { toast } from '@/stores/toast-store';
+import { cn } from '@/lib/cn';
 import { useWelcomeStore } from '@/stores/welcome-store';
 import {
   getAuditRetention,
@@ -21,6 +22,12 @@ import {
   getActiveModel, // v0.49b
   schedulerSelfTestNow, // v0.49c
   clobFeedStatus, // v0.51a
+  getStorageInfo, // v0.54b
+  migrateStoragePath, // v0.54b
+  explainModel, // v0.55
+  getProxyConfig, // v0.56
+  setProxyConfig, // v0.56
+  clearProxyConfig, // v0.56
   setMirrorPaperMode,
   getMirrorPaperMode,
   type AuditRetentionView,
@@ -219,6 +226,21 @@ export function Settings() {
           IPC, so it's the same view Rust sees. */}
       <ActiveModelCard />
 
+      {/* v0.55 — model explainability. Lets the
+          user pick a sample (price + age) and see
+          the per-feature contribution to the
+          active model's prediction. Surfaces the
+          SHAP-like decomposition of the 3-feature
+          logistic model. */}
+      <ExplainabilityCard />
+
+      {/* v0.56 — network proxy / Tor support.
+          Configures `POLYROCKET_PROXY` for the
+          shared reqwest::Client + the sidecar
+          child process. Restart required for
+          changes to take effect. */}
+      <NetworkCard />
+
       {/* v0.49c — scheduler self-test. Row of
           green/red dots per loop. Calls
           `schedulerSelfTestNow` IPC which reads
@@ -237,6 +259,13 @@ export function Settings() {
 
       {/* v0.48b — model degradation alert toggle */}
       <DegradationAlertCard />
+
+      {/* v0.54b — storage path migration tool. Lets
+          the user copy polyrocket.db + logs/ to a
+          new path before restart. The "Restart
+          required" flag from getStorageInfo gates
+          the visibility of the migration button. */}
+      <StorageMigrationCard />
     </div>
   );
 }
@@ -701,6 +730,10 @@ function BackupRestoreCard() {
       autoPromoteBrierMargin: prefs.autoPromoteBrierMargin,
       autoPromoteAfterTrain: prefs.autoPromoteAfterTrain,
       autoPromoteNotify: prefs.autoPromoteNotify,
+      autoPromoteSkippedNotify: prefs.autoPromoteSkippedNotify,
+      telemetryEnabled: prefs.telemetryEnabled,
+      mirrorPaperMode: prefs.mirrorPaperMode,
+      degradationAlertNotify: prefs.degradationAlertNotify,
     };
     downloadPrefsAsFile(snapshot);
     toast.success(t('prefs.backup.exported'));
@@ -1474,6 +1507,341 @@ function DegradationAlertCard() {
         />
         <p className="text-[10px] text-muted mt-1 ml-1">
           {t('degradation.hint')}
+        </p>
+      </div>
+    </Card>
+  );
+}
+
+// v0.54b — storage migration tool. Surfaces the
+// "Restart required" state from getStorageInfo
+// and gives the user a one-click "Copy existing
+// data to new path" button. After the migration
+// completes, the next launch already finds the
+// data at the new location (no empty-DB surprise).
+function StorageMigrationCard() {
+  const { t } = useT();
+  const qc = useQueryClient();
+  const info = useQuery({
+    queryKey: ['storage-info'],
+    queryFn: () => getStorageInfo(),
+    staleTime: 0,
+  });
+  const [busy, setBusy] = useState(false);
+  const [overwrite, setOverwrite] = useState(false);
+
+  const onMigrate = useCallback(async () => {
+    if (!info.data) return;
+    setBusy(true);
+    try {
+      const res = await migrateStoragePath(
+        info.data.currentPath,
+        overwrite,
+      );
+      if (res.noop) {
+        toast.info(t('storage.migrate_noop'));
+      } else {
+        toast.success(
+          t('storage.migrate_ok', {
+            files: res.filesCopied,
+            bytes: res.bytesCopied,
+          }),
+        );
+      }
+      qc.invalidateQueries({ queryKey: ['storage-info'] });
+    } catch (e) {
+      toast.error(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [info.data, overwrite, qc, t]);
+
+  // The card is only relevant when the user has
+  // picked a custom path AND the active session
+  // is still on the default path (restart
+  // required). Otherwise there's nothing to
+  // migrate.
+  const visible = info.data?.restartRequired ?? false;
+  if (!visible) return null;
+
+  return (
+    <Card
+      title={t('storage.migrate_title')}
+      description={t('storage.migrate_desc')}
+    >
+      <div className="space-y-3">
+        <div className="text-[11px] text-muted space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-fg">{t('storage.migrate_from')}</span>
+            <code className="font-mono text-[10px]">{info.data?.defaultPath}</code>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-fg">{t('storage.migrate_to')}</span>
+            <code className="font-mono text-[10px]">{info.data?.currentPath}</code>
+          </div>
+        </div>
+        <Toggle
+          data-testid="storage-migrate-overwrite"
+          label={t('storage.migrate_overwrite')}
+          checked={overwrite}
+          onChange={setOverwrite}
+        />
+        <button
+          type="button"
+          onClick={onMigrate}
+          disabled={busy}
+          data-testid="storage-migrate-now"
+          className="h-8 px-3 rounded-md text-[12px] font-medium bg-accent text-bg hover:bg-accent/90 disabled:opacity-50 flex items-center gap-1.5"
+        >
+          <CopyIcon className="w-3.5 h-3.5" />
+          {busy ? t('storage.migrate_busy') : t('storage.migrate_now')}
+        </button>
+        <p className="text-[10px] text-muted">
+          {t('storage.migrate_hint')}
+        </p>
+      </div>
+    </Card>
+  );
+}
+
+// v0.55 — model explainability. Lets the user
+// pick a sample (price + age) and see the
+// per-feature contribution to the active model's
+// prediction. Surfaces the SHAP-like
+// decomposition of the 3-feature logistic model.
+function ExplainabilityCard() {
+  const { t } = useT();
+  const active = useQuery({
+    queryKey: ['active-model'],
+    queryFn: () => getActiveModel(),
+    staleTime: 30_000,
+  });
+  const [price, setPrice] = useState(0.5);
+  const [age, setAge] = useState(24);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<Awaited<
+    ReturnType<typeof explainModel>
+  > | null>(null);
+
+  const onExplain = useCallback(async () => {
+    if (!active.data) return;
+    setBusy(true);
+    try {
+      const r = await explainModel(active.data.modelVersion, {
+        price,
+        market_age_hours: age,
+      });
+      setResult(r);
+    } catch (e) {
+      toast.error(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [active.data, price, age]);
+
+  if (!active.data) return null;
+  return (
+    <Card
+      title={t('explain.title')}
+      description={t('explain.desc')}
+    >
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[10px] text-muted">
+              {t('explain.price_label')}
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              min={0}
+              max={1}
+              value={price}
+              onChange={(e) => setPrice(Number(e.target.value))}
+              data-testid="explain-price-input"
+              className="w-full h-8 px-2.5 rounded-md text-[12px] bg-surface text-fg border border-border focus:outline-none focus:ring-2 focus:ring-accent font-mono"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted">
+              {t('explain.age_label')}
+            </label>
+            <input
+              type="number"
+              step="0.5"
+              min={0}
+              value={age}
+              onChange={(e) => setAge(Number(e.target.value))}
+              data-testid="explain-age-input"
+              className="w-full h-8 px-2.5 rounded-md text-[12px] bg-surface text-fg border border-border focus:outline-none focus:ring-2 focus:ring-accent font-mono"
+            />
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onExplain}
+          disabled={busy}
+          data-testid="explain-run"
+          className="h-8 px-3 rounded-md text-[12px] font-medium bg-accent text-bg hover:bg-accent/90 disabled:opacity-50"
+        >
+          {busy ? t('explain.busy') : t('explain.run')}
+        </button>
+        {result && (
+          <div
+            data-testid="explain-result"
+            className="space-y-1.5 pt-2 border-t border-border"
+          >
+            <div className="text-[11px] text-fg font-medium">
+              {t('explain.prediction', { p: result.prediction?.toFixed(4) ?? '—' })}
+            </div>
+            <div className="space-y-1">
+              {result.features.map((f) => (
+                <div
+                  key={f.feature}
+                  data-testid={`explain-row-${f.feature}`}
+                  className="flex items-center gap-2 text-[10px]"
+                >
+                  <span className="w-32 truncate text-muted">
+                    {f.feature}
+                  </span>
+                  <div className="flex-1 h-3 bg-surface-2 rounded-sm overflow-hidden relative">
+                    {/* Centered bar: positive right, negative left. */}
+                    <div
+                      className={cn(
+                        'absolute top-0 h-full',
+                        f.contribution >= 0
+                          ? 'bg-bull left-1/2'
+                          : 'bg-bear right-1/2',
+                      )}
+                      style={{
+                        width: `${Math.min(50, f.abs_contribution * 200)}%`,
+                      }}
+                    />
+                    <div className="absolute left-1/2 top-0 bottom-0 w-px bg-border" />
+                  </div>
+                  <span
+                    className={cn(
+                      'w-16 text-right font-mono',
+                      f.contribution >= 0 ? 'text-bull' : 'text-bear',
+                    )}
+                  >
+                    {f.contribution >= 0 ? '+' : ''}
+                    {f.contribution.toFixed(4)}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] text-muted pt-1">
+              {t('explain.hint')}
+            </p>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// v0.56 — network proxy / Tor configuration.
+// Lets the user route all outbound HTTP
+// (LLM clients, Polymarket CLOB, sidecar HTTP
+// if any) through a proxy. The two supported
+// schemes are http:// (HTTP CONNECT) and
+// socks5:// (e.g. Tor SOCKS5 on
+// 127.0.0.1:9050). Restart required for
+// changes to take effect (the shared
+// reqwest::Client is built at startup).
+function NetworkCard() {
+  const { t } = useT();
+  const qc = useQueryClient();
+  const cfg = useQuery({
+    queryKey: ['proxy-config'],
+    queryFn: () => getProxyConfig(),
+    staleTime: 0,
+  });
+  const [url, setUrl] = useState('');
+  const [enabled, setEnabled] = useState(false);
+  const [busy, setBusy] = useState(false);
+  // Sync form when the IPC returns.
+  useEffect(() => {
+    if (cfg.data) {
+      setUrl(cfg.data.url ?? '');
+      setEnabled(cfg.data.enabled);
+    }
+  }, [cfg.data]);
+  const onSave = useCallback(async () => {
+    setBusy(true);
+    try {
+      await setProxyConfig(enabled, url.trim() || null);
+      toast.success(t('network.saved'));
+      qc.invalidateQueries({ queryKey: ['proxy-config'] });
+    } catch (e) {
+      toast.error(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [enabled, url, qc, t]);
+  const onClear = useCallback(async () => {
+    setBusy(true);
+    try {
+      await clearProxyConfig();
+      setUrl('');
+      setEnabled(false);
+      toast.success(t('network.cleared'));
+      qc.invalidateQueries({ queryKey: ['proxy-config'] });
+    } catch (e) {
+      toast.error(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [qc, t]);
+  return (
+    <Card
+      title={t('network.title')}
+      description={t('network.desc')}
+    >
+      <div className="space-y-3">
+        <Toggle
+          data-testid="network-proxy-enabled"
+          label={t('network.enabled_label')}
+          checked={enabled}
+          onChange={setEnabled}
+        />
+        <div>
+          <label className="text-[10px] text-muted">
+            {t('network.url_label')}
+          </label>
+          <input
+            type="text"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="socks5://127.0.0.1:9050"
+            data-testid="network-proxy-url"
+            className="w-full h-8 px-2.5 rounded-md text-[12px] bg-surface text-fg border border-border focus:outline-none focus:ring-2 focus:ring-accent font-mono"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={busy}
+            data-testid="network-proxy-save"
+            className="h-8 px-3 rounded-md text-[12px] font-medium bg-accent text-bg hover:bg-accent/90 disabled:opacity-50 flex items-center gap-1.5"
+          >
+            <Globe className="w-3.5 h-3.5" />
+            {busy ? t('network.busy') : t('network.save')}
+          </button>
+          <button
+            type="button"
+            onClick={onClear}
+            disabled={busy}
+            data-testid="network-proxy-clear"
+            className="h-8 px-3 rounded-md text-[12px] font-medium border border-border bg-surface-2 text-fg hover:bg-surface-hover disabled:opacity-50"
+          >
+            {t('network.clear')}
+          </button>
+        </div>
+        <p className="text-[10px] text-muted">
+          {t('network.hint')}
         </p>
       </div>
     </Card>

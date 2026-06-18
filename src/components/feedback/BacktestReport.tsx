@@ -26,7 +26,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { BarChart3, X, Trophy, Skull, Activity, Database } from 'lucide-react';
+import { BarChart3, Trophy, Skull, Activity, Database } from 'lucide-react';
 import { Modal } from '@/components/feedback/Modal';
 import { Button } from '@/components/base/Button';
 import { Skeleton } from '@/components/feedback/Skeleton';
