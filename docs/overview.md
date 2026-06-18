@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.3 · 2026-06-18 (v0.41 — per-promotion reason field)
+> 版本：v2.4 · 2026-06-18 (v0.42 — telemetry + governance + deferred 三件套)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
 
@@ -631,6 +631,7 @@ sequenceDiagram
 | **ModelLab compare integration** | checkboxes in PromoteHistory rows + "Compare (N)" button + historyQuery for modal data | ✅ v0.40b 完成（4 new i18n keys × 2 locales; checkboxes in rows; modal at page level） |
 | **Per-promotion `reason` field (Python)** | "Promoted as best trial" / "Promoted as trial N of M" written to new_entry; archive picks up automatically | ✅ v0.41a 完成（1 new python test; archive_entries_have_correct_shape updated to expect reason） |
 | **Telemetry module (Rust)** | `infra::telemetry::Event` enum (14 variants) + opt-in NDJSON to stderr via `POLYROCKET_TELEMETRY=1`; runtime override via `set_telemetry_enabled` IPC | ✅ v0.42a-c 完成（6 cargo + 3 vitest + 7 i18n keys × 2 locales; wired into 5 scheduler loops + 3 IPCs） |
+| **Overview.md refresh** | IPC 39→83, schedulers 3→5, telemetry sub-module added; v0.32a-v0.42 drift closed | ✅ v0.42d 完成 |
 | **Reason wire mirror (Rust + L1) + hover tooltip** | `PromoteHistoryEntry.reason: Option<String>` (serde-default for pre-v0.41); ⓘ icon with native title in PromoteHistory row | ✅ v0.41b 完成（Rust serde-default; 2 new vitest tests; 1 new i18n key × 2 locales） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
