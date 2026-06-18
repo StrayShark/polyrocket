@@ -175,6 +175,7 @@ pub fn run() {
             commands::sidecar::get_telemetry_enabled,
             commands::telemetry::list_telemetry_logs,
             commands::telemetry::purge_telemetry_logs,
+            commands::active_model::get_active_model,
             commands::sidecar_health::sidecar_health_now,
             commands::sidecar_health::sidecar_health_snapshot,
             commands::scheduler::scheduler_status,

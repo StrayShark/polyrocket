@@ -23,4 +23,5 @@ pub mod scheduler;
 pub mod secrets;
 pub mod signal;
 pub mod telemetry; // v0.49a
+pub mod active_model; // v0.49b
 pub mod wallet;

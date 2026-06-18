@@ -1095,6 +1095,46 @@ export const purgeTelemetryLogs = () =>
   invoke<number>('purge_telemetry_logs');
 
 // =================================================================
+// ================== v0.49b — active model ========================
+// =================================================================
+
+/** v0.49b — single source of truth for "what
+ * model is currently active and what are its
+ * training metrics". The L1 always reads the
+ * active model through this IPC instead of
+ * duplicating the active.json file path logic.
+ *
+ * Returns `null` when no model has been promoted
+ * yet (typical first-run state).
+ *
+ * The `weights` field is reserved for v0.50+,
+ * where the sidecar will start writing the
+ * trained weights into active.json. Today it's
+ * always `null`. */
+export interface ActiveModel {
+  /** e.g. "logistic-train-441c352b" */
+  modelVersion: string;
+  /** Train-time Brier score. `null` when missing. */
+  bestBrier: number | null;
+  /** Hyperparameters of the best trial. */
+  bestParams: Record<string, unknown> | null;
+  /** Wall-clock time of the last promote, ms. */
+  promotedAtMs: number | null;
+  /** v0.50+ — currently always `null`. */
+  weights: number[] | null;
+  /** Absolute path to active.json (for the UI to
+   * show "data lives at ..." for power users). */
+  sourcePath: string;
+}
+
+/** v0.49b — read the active model from disk.
+ * Returns `null` when no model has been promoted
+ * yet (active.json is missing). Returns an error
+ * when active.json exists but is malformed. */
+export const getActiveModel = () =>
+  invoke<ActiveModel | null>('get_active_model');
+
+// =================================================================
 // ================== v0.28a — auto_promote:finished =================
 // =================================================================
 

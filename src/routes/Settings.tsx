@@ -16,6 +16,7 @@ import {
   getTelemetryEnabled,
   listTelemetryLogs, // v0.49a
   purgeTelemetryLogs, // v0.49a
+  getActiveModel, // v0.49b
   setMirrorPaperMode,
   getMirrorPaperMode,
   type AuditRetentionView,
@@ -199,6 +200,13 @@ export function Settings() {
 
       {/* v0.42c — opt-in lifecycle telemetry */}
       <TelemetryCard />
+
+      {/* v0.49b — active model summary card. Shows
+          the current active model's training metrics
+          (version, Brier, mtime) and surfaces the
+          on-disk path. Goes through `getActiveModel`
+          IPC, so it's the same view Rust sees. */}
+      <ActiveModelCard />
 
       {/* v0.44c — paper trading mode toggle */}
       <PaperModeCard />
@@ -962,6 +970,158 @@ function TelemetryLogList({ enabled }: { enabled: boolean }) {
  *  on Settings mount and on every toggle via
  *  `setMirrorPaperMode`.
  */
+
+// ================================================================
+// ============ v0.49b — Active model summary card =================
+// ================================================================
+
+/** v0.49b — read-only card showing what the
+ *  Rust side considers the "current" model.
+ *
+ *  The data comes from `getActiveModel` IPC, which
+ *  reads `<sidecar model dir>/active.json`. This is
+ *  the same view the v0.48a degradation detector
+ *  sees (v0.49b refactored both to share the helper).
+ *
+ *  Pre-first-promote state: `null` is shown with a
+ *  "no model promoted yet" hint.
+ *
+ *  The card is NOT a control — there's no promote
+ *  action here. Promotion happens on the Model Lab
+ *  page; this card is just an at-a-glance summary.
+ */
+function ActiveModelCard() {
+  const { t } = useT();
+  type ModelInfo = {
+    modelVersion: string;
+    bestBrier: number | null;
+    bestParams: Record<string, unknown> | null;
+    promotedAtMs: number | null;
+    weights: number[] | null;
+    sourcePath: string;
+  };
+  const [model, setModel] = useState<ModelInfo | null | undefined>(undefined);
+  const [err, setErr] = useState<string | null>(null);
+
+  const refresh = useCallback(() => {
+    setModel(undefined);
+    getActiveModel()
+      .then((m) => {
+        setModel(m);
+        setErr(null);
+      })
+      .catch((e) => {
+        setErr(String(e));
+        setModel(null);
+      });
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const fmtDate = (ms: number | null) => {
+    if (!ms) return '—';
+    const d = new Date(ms);
+    return d.toISOString().slice(0, 16).replace('T', ' ');
+  };
+
+  return (
+    <Card
+      title={t('active_model.title')}
+      description={t('active_model.desc')}
+    >
+      {model === undefined ? (
+        <p className="text-[10px] text-muted">{t('common.loading')}</p>
+      ) : err ? (
+        <p
+          data-testid="active-model-error"
+          className="text-[10px] text-bear"
+        >
+          {t('active_model.error', { msg: err })}
+        </p>
+      ) : model === null ? (
+        <div className="space-y-2">
+          <p
+            data-testid="active-model-empty"
+            className="text-[10px] text-muted"
+          >
+            {t('active_model.empty')}
+          </p>
+          <button
+            type="button"
+            onClick={refresh}
+            className="text-[10px] text-muted hover:text-fg"
+            data-testid="active-model-refresh"
+          >
+            {t('common.refresh')}
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2" data-testid="active-model-summary">
+          <Row label={t('active_model.version')} value={model.modelVersion} mono />
+          <Row
+            label={t('active_model.brier')}
+            value={
+              model.bestBrier == null
+                ? '—'
+                : model.bestBrier.toFixed(4)
+            }
+          />
+          <Row
+            label={t('active_model.promoted_at')}
+            value={fmtDate(model.promotedAtMs)}
+          />
+          <Row
+            label={t('active_model.source')}
+            value={model.sourcePath}
+            mono
+            truncate
+          />
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={refresh}
+              className="text-[10px] text-muted hover:text-fg"
+              data-testid="active-model-refresh"
+            >
+              {t('common.refresh')}
+            </button>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function Row({
+  label,
+  value,
+  mono,
+  truncate,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  truncate?: boolean;
+}) {
+  return (
+    <div className="flex items-baseline gap-2 text-[11px]">
+      <span className="text-muted shrink-0">{label}</span>
+      <span
+        className={
+          (mono ? 'font-mono ' : '') +
+          (truncate ? 'truncate ' : '') +
+          'text-fg'
+        }
+        title={value}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
 function PaperModeCard() {
   const { t } = useT();
   const enabled = usePrefsStore((s) => s.mirrorPaperMode);

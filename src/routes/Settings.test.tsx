@@ -43,6 +43,8 @@ vi.mock('@/ipc', () => ({
   // v0.49a — telemetry log file retention
   listTelemetryLogs: vi.fn().mockResolvedValue([]),
   purgeTelemetryLogs: vi.fn().mockResolvedValue(0),
+  // v0.49b — active model IPC
+  getActiveModel: vi.fn().mockResolvedValue(null),
   setMirrorPaperMode: vi.fn().mockResolvedValue(true),
   getMirrorPaperMode: vi.fn().mockResolvedValue(false),
 }));
@@ -326,6 +328,48 @@ describe('Backup & restore card (v0.36b)', () => {
     fireEvent.click(toggle);
     await waitFor(() => {
       expect(mockSetPref).toHaveBeenCalledWith('degradationAlertNotify', false);
+    });
+  });
+});
+
+describe('Active model card (v0.49b)', () => {
+  it('renders the empty state when no model is promoted yet', async () => {
+    const { getActiveModel } = await import('@/ipc');
+    (getActiveModel as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    render(wrap(<Settings />));
+    await waitFor(() => {
+      expect(screen.getByTestId('active-model-empty')).toBeInTheDocument();
+    });
+  });
+
+  it('renders the populated summary when a model is active', async () => {
+    const { getActiveModel } = await import('@/ipc');
+    (getActiveModel as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      modelVersion: 'logistic-train-test1234',
+      bestBrier: 0.172,
+      bestParams: { alpha: 0.01 },
+      promotedAtMs: 1740000000000,
+      weights: null,
+      sourcePath: '/tmp/.polyrocket/sidecar/models/active.json',
+    });
+    render(wrap(<Settings />));
+    await waitFor(() => {
+      expect(screen.getByTestId('active-model-summary')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('active-model-summary').textContent).toContain(
+      'logistic-train-test1234',
+    );
+    expect(screen.getByTestId('active-model-summary').textContent).toContain('0.1720');
+  });
+
+  it('renders an error banner when the IPC fails', async () => {
+    const { getActiveModel } = await import('@/ipc');
+    (getActiveModel as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error('disk on fire'),
+    );
+    render(wrap(<Settings />));
+    await waitFor(() => {
+      expect(screen.getByTestId('active-model-error')).toBeInTheDocument();
     });
   });
 });

@@ -544,6 +544,15 @@ const en: Dictionary = {
   'telemetry.purge_old': 'Purge old',
   'telemetry.purged': 'purged {{n}} old session file(s)',
   'telemetry.purge_failed': 'failed to purge old telemetry files',
+  // v0.49b — active model summary
+  'active_model.title': 'Active model',
+  'active_model.desc': 'The model Rust considers currently active. Source: <sidecar model dir>/active.json. Same view the degradation detector sees.',
+  'active_model.empty': 'No model promoted yet. Train a model and promote it from Model Lab.',
+  'active_model.error': 'failed to read active model: {{msg}}',
+  'active_model.version': 'Version:',
+  'active_model.brier': 'Train Brier:',
+  'active_model.promoted_at': 'Promoted at:',
+  'active_model.source': 'Source:',
   // v0.44c — paper trading mode
   'paper_mode.title': 'Paper trading mode',
   'paper_mode.desc': 'Mirror executor writes to paper_fills (no CLOB submission) when ON. Validate your config without risking real money.',
@@ -1224,6 +1233,15 @@ const zh: Dictionary = {
   'telemetry.purge_old': '清理旧文件',
   'telemetry.purged': '已清理 {{n}} 个旧会话文件',
   'telemetry.purge_failed': '清理旧遥测文件失败',
+  // v0.49b — active model summary
+  'active_model.title': '当前模型',
+  'active_model.desc': 'Rust 当前认为处于激活状态的模型。来源：<sidecar model dir>/active.json。与降级检测器看到的是同一份数据。',
+  'active_model.empty': '尚未晋升任何模型。请到模型实验室训练并晋升。',
+  'active_model.error': '读取当前模型失败：{{msg}}',
+  'active_model.version': '版本：',
+  'active_model.brier': '训练 Brier：',
+  'active_model.promoted_at': '晋升时间：',
+  'active_model.source': '来源：',
   // v0.44c — 模拟盘模式
   'paper_mode.title': '模拟盘模式',
   'paper_mode.desc': '开启后,mirror executor 将命中的订单写入 paper_fills 表(不调 CLOB),可用于无风险验证配置。',

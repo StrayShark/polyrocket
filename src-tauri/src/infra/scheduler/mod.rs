@@ -1474,26 +1474,16 @@ async fn compute_live_brier(pool: &SqlitePool, n: i64) -> sqlx::Result<(u64, f64
 }
 
 /// v0.48a — read the active model's train-time
-/// Brier from `active.json` directly. Returns
-/// `None` when the file is missing or has no
-/// `best.brier` field (typical before the first
-/// promote). We use the sidecar's `MODEL_DIR`
-/// env-var override.
+/// Brier from `active.json`. v0.49b refactored this
+/// to call the canonical `commands::active_model`
+/// helper so the disk-read path is in exactly one
+/// place. Returns `None` when active.json is missing
+/// or has no `best.brier` field.
 async fn read_active_train_brier() -> Option<f64> {
-    use std::io::Read;
-    let model_dir = std::env::var("POLYROCKET_SIDECAR_MODEL_DIR")
+    crate::commands::active_model::read_active_model_from_disk()
         .ok()
-        .unwrap_or_else(|| {
-            let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
-            format!("{home}/.polyrocket/sidecar/models")
-        });
-    let path = std::path::PathBuf::from(model_dir).join("active.json");
-    let mut f = std::fs::File::open(path).ok()?;
-    let mut s = String::new();
-    f.read_to_string(&mut s).ok()?;
-    let v: serde_json::Value = serde_json::from_str(&s).ok()?;
-    let brier = v.get("best")?.get("brier")?.as_f64()?;
-    Some(brier)
+        .flatten()
+        .and_then(|am| am.best_brier)
 }
 
 const DEFAULT_DEGRADATION_THRESHOLD: f64 = 0.05; // live Brier + 0.05 = alert
