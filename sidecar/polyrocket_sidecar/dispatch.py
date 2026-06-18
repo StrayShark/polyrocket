@@ -32,6 +32,7 @@ from .train import (
     run_backtest_model,
 )
 from .explainability import run_explainability
+from .shap import run_shap_explainability
 
 
 def ping(_params: dict[str, Any]) -> dict[str, Any]:
@@ -215,6 +216,37 @@ def explain_model(params: dict[str, Any]) -> dict[str, Any]:
     return run_explainability(model_version=model_version, sample=sample)
 
 
+def shap_explain(params: dict[str, Any]) -> dict[str, Any]:
+    """v0.59 — true SHAP values via KernelExplainer.
+
+    Params:
+      - model_version (str, required): e.g.
+          "logistic-train-441c352b".
+      - sample (dict, optional): { price, market_age_hours }.
+
+    Unlike v0.55's exact-decomposition
+    (contribution_i = w_i * x_i * p(1-p)),
+    KernelSHAP satisfies the *efficiency*
+    axiom: φ_0 + Σφ_i = f(x) - E[f(x)]. We
+    surface the efficiency gap as
+    `efficiency_diff` in the response so the
+    L1 can show "the SHAP values sum to the
+    deviation from baseline" as a hint.
+
+    For the 3-feature polyrocket model the
+    cost is 8 coalition evaluations (~100µs).
+    For a tree-based model with M > 5, we'd
+    need a different algorithm (TreeSHAP).
+
+    Returns: see shap.run_shap_explainability.
+    """
+    model_version = params.get("model_version")
+    if not isinstance(model_version, str) or not model_version:
+        raise ValueError("'model_version' must be a non-empty string")
+    sample = params.get("sample")
+    return run_shap_explainability(model_version=model_version, sample=sample)
+
+
 DISPATCH: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "ping": ping,
     "predict": predict,
@@ -226,4 +258,5 @@ DISPATCH: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "promote_all_trials": promote_all_trials,
     "backtest_model": backtest_model,
     "explain_model": explain_model,
+    "shap_explain": shap_explain,
 }

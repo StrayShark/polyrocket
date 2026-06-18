@@ -127,12 +127,19 @@ pub enum SidecarMethod {
     /// v0.55 — per-feature contribution for one sample.
     /// For the 3-feature logistic model this is an
     /// exact decomposition (not a SHAP approximation):
-    /// contribution_i = w_i * x_i * p(1-p) — the
+    /// `contribution_i = w_i * x_i * p(1-p)` — the
     /// actual derivative of the probability w.r.t. the
     /// feature. The L1 renders this as a horizontal
     /// bar chart. For tree-based models, a real SHAP
     /// library would be needed; v0.55+ candidate.
     ExplainModel,
+    /// v0.59 — true SHAP values via KernelExplainer.
+    /// Satisfies the SHAP efficiency axiom:
+    /// `Σφ_i = f(x) - E[f(x)]`. For the 3-feature
+    /// polyrocket model the cost is 8 coalition
+    /// evaluations; for tree-based models with M > 5
+    /// we'd need TreeSHAP. v0.59 candidate.
+    ShapExplain,
 }
 
 impl SidecarMethod {
@@ -148,6 +155,7 @@ impl SidecarMethod {
             SidecarMethod::PromoteAllTrials => "promote_all_trials",
             SidecarMethod::BacktestModel => "backtest_model",
             SidecarMethod::ExplainModel => "explain_model",
+            SidecarMethod::ShapExplain => "shap_explain",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -162,6 +170,7 @@ impl SidecarMethod {
             "promote_all_trials" => Some(SidecarMethod::PromoteAllTrials),
             "backtest_model" => Some(SidecarMethod::BacktestModel),
             "explain_model" => Some(SidecarMethod::ExplainModel),
+            "shap_explain" => Some(SidecarMethod::ShapExplain),
             _ => None,
         }
     }
@@ -954,6 +963,176 @@ pub fn parse_explain_model_response(
     })
 }
 
+// =================================================================
+// v0.59 — SHAP via KernelExplainer
+// =================================================================
+
+/// v0.59 — one feature's SHAP value. Same shape
+/// as ExplainFeature (v0.55) but with
+/// `shap_value` / `abs_shap` instead of
+/// `contribution` / `abs_contribution` to make
+/// the math explicit in the L1.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShapFeature {
+    pub feature: String,
+    pub value: f64,
+    pub weight: f64,
+    /// The SHAP value φ_i. Positive = "moved
+    /// the prediction higher", negative =
+    /// "moved it lower". Satisfies:
+    ///   Σφ_i = f(x) - E[f(x)]
+    /// (the SHAP efficiency axiom).
+    pub shap_value: f64,
+    /// `|shap_value|`. Used for sorting + chart
+    /// bar length.
+    pub abs_shap: f64,
+}
+
+/// v0.59 — wire-format mirror of the Python
+/// sidecar's `shap_explain` response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShapResult {
+    pub ok: bool,
+    pub model_version: String,
+    /// Always "kernel_shap" today; future
+    /// variants (e.g. "tree_shap" for tree-
+    /// based models) can set this differently.
+    pub method: String,
+    pub features: Vec<ShapFeature>,
+    /// The baseline (empty coalition) prediction.
+    /// `None` on error.
+    pub baseline_prediction: Option<f64>,
+    /// The model's prediction for the target
+    /// sample. `None` on error.
+    pub target_prediction: Option<f64>,
+    /// SHAP efficiency gap: `Σφ_i - (f(x) -
+    /// E[f(x)])`. Should be ~0.0 within
+    /// floating-point tolerance; a non-zero
+    /// value means the regression didn't
+    /// converge (e.g. degenerate model).
+    pub efficiency_diff: Option<f64>,
+    pub sample: Option<ExplainSample>,
+    pub message: String,
+}
+
+/// v0.59 — builder for the `shap_explain`
+/// request line. `sample` is optional — when
+/// None, the sidecar uses the default sample
+/// (price=0.5, age=24h).
+pub fn build_shap_explain_request(
+    id: impl Into<String>,
+    model_version: &str,
+    sample: Option<&ExplainSample>,
+) -> String {
+    let mut params = serde_json::json!({
+        "model_version": model_version,
+    });
+    if let Some(s) = sample {
+        params["sample"] = serde_json::to_value(s).unwrap_or(serde_json::Value::Null);
+    }
+    let req = SidecarRequest {
+        id: id.into(),
+        method: SidecarMethod::ShapExplain.as_str().to_string(),
+        params,
+    };
+    serde_json::to_string(&req).unwrap_or_default()
+}
+
+/// v0.59 — parse a sidecar `shap_explain`
+/// response into a typed `ShapResult`. Same
+/// error-tolerance pattern as the v0.55
+/// `parse_explain_model_response`.
+pub fn parse_shap_explain_response(
+    response: &SidecarResponse,
+) -> AppResult<ShapResult> {
+    if !response.ok {
+        let message = response
+            .error
+            .clone()
+            .or_else(|| {
+                response
+                    .result
+                    .as_ref()
+                    .and_then(|r| r.get("message").and_then(|m| m.as_str()).map(String::from))
+            })
+            .unwrap_or_else(|| "unknown error".to_string());
+        return Ok(ShapResult {
+            ok: false,
+            model_version: response
+                .result
+                .as_ref()
+                .and_then(|r| r.get("model_version").and_then(|v| v.as_str()))
+                .unwrap_or("")
+                .to_string(),
+            method: "kernel_shap".to_string(),
+            features: Vec::new(),
+            baseline_prediction: None,
+            target_prediction: None,
+            efficiency_diff: None,
+            sample: None,
+            message,
+        });
+    }
+    let result = response.result.as_ref().ok_or_else(|| {
+        AppError::Internal("shap_explain: missing result".into())
+    })?;
+    let model_version = result
+        .get("model_version")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let method = result
+        .get("method")
+        .and_then(|m| m.as_str())
+        .unwrap_or("kernel_shap")
+        .to_string();
+    let features: Vec<ShapFeature> = result
+        .get("features")
+        .and_then(|f| f.as_array())
+        .map(|arr| {
+            let mut v: Vec<ShapFeature> = arr
+                .iter()
+                .filter_map(|x| serde_json::from_value(x.clone()).ok())
+                .collect();
+            // Sort by abs_shap descending.
+            v.sort_by(|a, b| {
+                b.abs_shap
+                    .partial_cmp(&a.abs_shap)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            v
+        })
+        .unwrap_or_default();
+    let baseline_prediction = result
+        .get("baseline_prediction")
+        .and_then(|p| p.as_f64());
+    let target_prediction = result
+        .get("target_prediction")
+        .and_then(|p| p.as_f64());
+    let efficiency_diff = result
+        .get("efficiency_diff")
+        .and_then(|p| p.as_f64());
+    let sample: Option<ExplainSample> = result
+        .get("sample")
+        .and_then(|s| serde_json::from_value(s.clone()).ok());
+    let message = result
+        .get("message")
+        .and_then(|m| m.as_str())
+        .unwrap_or("ok")
+        .to_string();
+    Ok(ShapResult {
+        ok: true,
+        model_version,
+        method,
+        features,
+        baseline_prediction,
+        target_prediction,
+        efficiency_diff,
+        sample,
+        message,
+    })
+}
+
 /// v0.43a — one entry in the calibration histogram.
 /// The L1 renders this as a small bar chart:
 /// "in this prediction bucket, the actual
@@ -1123,7 +1302,8 @@ mod tests {
                   SidecarMethod::AutoPromoteIfBetter,
                   SidecarMethod::PromoteAllTrials,
                   SidecarMethod::BacktestModel,
-                  SidecarMethod::ExplainModel] {
+                  SidecarMethod::ExplainModel,
+                  SidecarMethod::ShapExplain] {
             assert_eq!(SidecarMethod::parse(m.as_str()), Some(m));
         }
         assert_eq!(SidecarMethod::parse("nope"), None);
@@ -1981,5 +2161,92 @@ mod tests {
         let m = SidecarMethod::parse("explain_model").unwrap();
         assert_eq!(m, SidecarMethod::ExplainModel);
         assert_eq!(m.as_str(), "explain_model");
+    }
+
+    // v0.59 — SHAP request builder
+    #[test]
+    fn build_shap_explain_request_no_sample() {
+        let line = build_shap_explain_request(
+            "shap-1",
+            "logistic-train-abc",
+            None,
+        );
+        let v: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(v["id"], "shap-1");
+        assert_eq!(v["method"], "shap_explain");
+        assert_eq!(v["params"]["model_version"], "logistic-train-abc");
+        assert!(v["params"].get("sample").is_none());
+    }
+
+    #[test]
+    fn build_shap_explain_request_with_sample() {
+        let sample = ExplainSample {
+            price: Some(0.42),
+            market_age_hours: Some(36.0),
+        };
+        let line = build_shap_explain_request(
+            "shap-2",
+            "logistic-train-abc",
+            Some(&sample),
+        );
+        let v: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(v["params"]["sample"]["price"], 0.42);
+    }
+
+    // v0.59 — SHAP response parser
+    #[test]
+    fn parse_shap_response_ok_satisfies_efficiency() {
+        // A well-formed response where the
+        // SHAP values sum to the deviation
+        // (target - baseline). The efficiency
+        // diff should be ~0 within float
+        // tolerance.
+        let resp = SidecarResponse::ok(
+            "shap-1",
+            serde_json::json!({
+                "ok": true,
+                "model_version": "logistic-train-abc",
+                "method": "kernel_shap",
+                "features": [
+                    {"feature": "bias", "value": 1.0, "weight": 0.1, "shap_value": 0.025, "abs_shap": 0.025},
+                    {"feature": "price", "value": 0.5, "weight": 2.4, "shap_value": 0.30, "abs_shap": 0.30},
+                    {"feature": "market_age_hours", "value": 24.0, "weight": -0.02, "shap_value": -0.024, "abs_shap": 0.024},
+                ],
+                "baseline_prediction": 0.5,
+                "target_prediction": 0.801,
+                "efficiency_diff": 0.0,
+                "sample": {"price": 0.5, "market_age_hours": 24.0},
+                "message": "ok",
+            }),
+        );
+        let r = parse_shap_explain_response(&resp).unwrap();
+        assert!(r.ok);
+        assert_eq!(r.model_version, "logistic-train-abc");
+        assert_eq!(r.method, "kernel_shap");
+        assert_eq!(r.features.len(), 3);
+        // Top feature by abs_shap should be
+        // "price" (0.30).
+        assert_eq!(r.features[0].feature, "price");
+        assert!((r.target_prediction.unwrap() - 0.801).abs() < 1e-6);
+    }
+
+    #[test]
+    fn parse_shap_response_err() {
+        let resp = SidecarResponse::err(
+            "shap-1",
+            "model logistic-train-xyz not found",
+        );
+        let r = parse_shap_explain_response(&resp).unwrap();
+        assert!(!r.ok);
+        assert!(r.message.contains("not found"));
+        assert!(r.features.is_empty());
+        assert!(r.target_prediction.is_none());
+    }
+
+    #[test]
+    fn sidecar_method_shap_round_trip() {
+        let m = SidecarMethod::parse("shap_explain").unwrap();
+        assert_eq!(m, SidecarMethod::ShapExplain);
+        assert_eq!(m.as_str(), "shap_explain");
     }
 }

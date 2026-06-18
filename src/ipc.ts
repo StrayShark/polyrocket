@@ -1472,12 +1472,73 @@ export interface ExplainResult {
  * `sample` is optional; when omitted, the
  * sidecar uses a default sample so the user
  * gets a "what would the model say for a
- * typical market" view. */
+  * typical market" view. */
 export const explainModel = (
   model_version: string,
   sample?: ExplainSample,
 ): Promise<ExplainResult> =>
   invoke<ExplainResult>('explain_model', {
+    args: { model_version, sample: sample ?? null },
+  });
+
+// =================================================================
+// ================== v0.59 — KernelSHAP ===========================
+// =================================================================
+
+/** v0.59 — one feature's SHAP value. Same
+ * shape as ExplainFeature (v0.55) but with
+ * `shap_value` / `abs_shap` instead of
+ * `contribution` / `abs_contribution` to make
+ * the SHAP math explicit in the L1. */
+export interface ShapFeature {
+  feature: string;
+  value: number;
+  weight: number;
+  /** The SHAP value φ_i. Positive = "moved the
+   * prediction higher", negative = "moved it
+   * lower". Satisfies:
+   *   Σφ_i = f(x) - E[f(x)]
+   * (the SHAP efficiency axiom). */
+  shap_value: number;
+  /** |shap_value|. Used for sorting + chart
+   * bar length. */
+  abs_shap: number;
+}
+
+/** v0.59 — outcome of `shapExplain`. Includes
+ * the `baseline_prediction` (empty-coalition
+ * value) and `target_prediction` (full
+ * coalition) so the L1 can show "the SHAP
+ * values sum to f(x) - E[f(x)]" as a hint.
+ * `efficiency_diff` is the residual after
+ * fitting; should be ~0 within float
+ * tolerance. */
+export interface ShapResult {
+  ok: boolean;
+  model_version: string;
+  /** Always "kernel_shap" today. Future
+   * variants (e.g. "tree_shap" for tree-based
+   * models) can set this differently. */
+  method: string;
+  features: ShapFeature[];
+  baseline_prediction: number | null;
+  target_prediction: number | null;
+  efficiency_diff: number | null;
+  sample: { price: number; market_age_hours: number } | null;
+  message: string;
+}
+
+/** v0.59 — compute true SHAP values via the
+ * sidecar's KernelExplainer. For the 3-
+ * feature polyrocket model the cost is 8
+ * coalition evaluations (~100µs); for a
+ * tree-based model with M > 5 we'd need
+ * TreeSHAP. v0.59 candidate. */
+export const shapExplain = (
+  model_version: string,
+  sample?: ExplainSample,
+): Promise<ShapResult> =>
+  invoke<ShapResult>('shap_explain', {
     args: { model_version, sample: sample ?? null },
   });
 

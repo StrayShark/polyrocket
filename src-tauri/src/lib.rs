@@ -187,6 +187,7 @@ pub fn run() {
             commands::sidecar::promote_all_trials,
             commands::sidecar::backtest_model,
             commands::sidecar::explain_model, // v0.55
+            commands::sidecar::shap_explain, // v0.59
             commands::sidecar::sidecar_request,
             commands::sidecar::set_auto_promote_config,
             commands::sidecar::get_auto_promote_config,

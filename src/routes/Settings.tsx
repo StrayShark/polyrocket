@@ -25,6 +25,7 @@ import {
   getStorageInfo, // v0.54b
   migrateStoragePath, // v0.54b
   explainModel, // v0.55
+  shapExplain, // v0.59
   getProxyConfig, // v0.56
   setProxyConfig, // v0.56
   clearProxyConfig, // v0.56
@@ -1609,7 +1610,11 @@ function StorageMigrationCard() {
 // per-feature contribution to the active model's
 // prediction. Surfaces the SHAP-like
 // decomposition of the 3-feature logistic model.
-function ExplainabilityCard() {
+// v0.59 — ExplainabilityCard is exported for
+// the dedicated test (src/routes/
+// ExplainabilityCard.test.tsx). It's also
+// used internally by Settings as before.
+export function ExplainabilityCard() {
   const { t } = useT();
   const active = useQuery({
     queryKey: ['active-model'],
@@ -1618,28 +1623,47 @@ function ExplainabilityCard() {
   });
   const [price, setPrice] = useState(0.5);
   const [age, setAge] = useState(24);
+  // v0.59 — toggle between SHAP and the v0.55
+  // exact-decomposition. SHAP is the default
+  // because it satisfies the efficiency axiom
+  // and is what users coming from
+  // shap-library / interpret-ml expect.
+  const [useShap, setUseShap] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<Awaited<
+  const [derivResult, setDerivResult] = useState<Awaited<
     ReturnType<typeof explainModel>
+  > | null>(null);
+  const [shapResult, setShapResult] = useState<Awaited<
+    ReturnType<typeof shapExplain>
   > | null>(null);
 
   const onExplain = useCallback(async () => {
     if (!active.data) return;
     setBusy(true);
     try {
-      const r = await explainModel(active.data.modelVersion, {
-        price,
-        market_age_hours: age,
-      });
-      setResult(r);
+      if (useShap) {
+        const r = await shapExplain(active.data.modelVersion, {
+          price,
+          market_age_hours: age,
+        });
+        setShapResult(r);
+      } else {
+        const r = await explainModel(active.data.modelVersion, {
+          price,
+          market_age_hours: age,
+        });
+        setDerivResult(r);
+      }
     } catch (e) {
       toast.error(String(e));
     } finally {
       setBusy(false);
     }
-  }, [active.data, price, age]);
+  }, [active.data, price, age, useShap]);
 
   if (!active.data) return null;
+  // Pick the active result based on the toggle.
+  const result = useShap ? shapResult : derivResult;
   return (
     <Card
       title={t('explain.title')}
@@ -1677,6 +1701,35 @@ function ExplainabilityCard() {
             />
           </div>
         </div>
+        {/* v0.59 — SHAP vs derivative toggle. */}
+        <div className="flex items-center gap-1 p-0.5 bg-surface-2 rounded-md w-fit">
+          <button
+            type="button"
+            onClick={() => setUseShap(true)}
+            data-testid="explain-method-shap"
+            className={cn(
+              'h-6 px-3 rounded text-[11px] font-medium transition-colors',
+              useShap
+                ? 'bg-accent text-bg'
+                : 'text-muted hover:text-fg',
+            )}
+          >
+            {t('explain.use_shap')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setUseShap(false)}
+            data-testid="explain-method-deriv"
+            className={cn(
+              'h-6 px-3 rounded text-[11px] font-medium transition-colors',
+              !useShap
+                ? 'bg-accent text-bg'
+                : 'text-muted hover:text-fg',
+            )}
+          >
+            {t('explain.use_deriv')}
+          </button>
+        </div>
         <button
           type="button"
           onClick={onExplain}
@@ -1689,48 +1742,99 @@ function ExplainabilityCard() {
         {result && (
           <div
             data-testid="explain-result"
+            data-method={useShap ? 'shap' : 'derivative'}
             className="space-y-1.5 pt-2 border-t border-border"
           >
-            <div className="text-[11px] text-fg font-medium">
-              {t('explain.prediction', { p: result.prediction?.toFixed(4) ?? '—' })}
-            </div>
+            {/* v0.59 — when SHAP, show baseline +
+               target + efficiency diff. The
+               derivative view only shows the
+               prediction. */}
+            {useShap && shapResult && (
+              <div className="text-[10px] text-muted flex items-center gap-3">
+                <span>
+                  {t('explain.method')}: <code className="text-fg">{shapResult.method}</code>
+                </span>
+                <span>
+                  {t('explain.shap_baseline')}:{' '}
+                  <code className="text-fg font-mono">
+                    {shapResult.baseline_prediction?.toFixed(4) ?? '—'}
+                  </code>
+                </span>
+                <span>
+                  {t('explain.prediction', { p: shapResult.target_prediction?.toFixed(4) ?? '—' })}
+                </span>
+              </div>
+            )}
+            {!useShap && derivResult && (
+              <div className="text-[11px] text-fg font-medium">
+                {t('explain.prediction', { p: derivResult.prediction?.toFixed(4) ?? '—' })}
+              </div>
+            )}
             <div className="space-y-1">
-              {result.features.map((f) => (
-                <div
-                  key={f.feature}
-                  data-testid={`explain-row-${f.feature}`}
-                  className="flex items-center gap-2 text-[10px]"
-                >
-                  <span className="w-32 truncate text-muted">
-                    {f.feature}
-                  </span>
-                  <div className="flex-1 h-3 bg-surface-2 rounded-sm overflow-hidden relative">
-                    {/* Centered bar: positive right, negative left. */}
-                    <div
-                      className={cn(
-                        'absolute top-0 h-full',
-                        f.contribution >= 0
-                          ? 'bg-bull left-1/2'
-                          : 'bg-bear right-1/2',
-                      )}
-                      style={{
-                        width: `${Math.min(50, f.abs_contribution * 200)}%`,
-                      }}
-                    />
-                    <div className="absolute left-1/2 top-0 bottom-0 w-px bg-border" />
-                  </div>
-                  <span
-                    className={cn(
-                      'w-16 text-right font-mono',
-                      f.contribution >= 0 ? 'text-bull' : 'text-bear',
-                    )}
+              {result.features.map((f) => {
+                // SHAP features use `shap_value`/
+                // `abs_shap`; derivative features
+                // use `contribution`/`abs_contribution`.
+                // Normalize to a single (value,
+                // abs) pair for rendering.
+                const fAny = f as unknown as {
+                  feature: string;
+                  value: number;
+                  weight: number;
+                  contribution?: number;
+                  abs_contribution?: number;
+                  shap_value?: number;
+                  abs_shap?: number;
+                };
+                const v = fAny.shap_value ?? fAny.contribution ?? 0;
+                const av = fAny.abs_shap ?? fAny.abs_contribution ?? Math.abs(v);
+                return (
+                  <div
+                    key={fAny.feature}
+                    data-testid={`explain-row-${fAny.feature}`}
+                    className="flex items-center gap-2 text-[10px]"
                   >
-                    {f.contribution >= 0 ? '+' : ''}
-                    {f.contribution.toFixed(4)}
-                  </span>
-                </div>
-              ))}
+                    <span className="w-32 truncate text-muted">
+                      {fAny.feature}
+                    </span>
+                    <div className="flex-1 h-3 bg-surface-2 rounded-sm overflow-hidden relative">
+                      {/* Centered bar: positive right, negative left. */}
+                      <div
+                        className={cn(
+                          'absolute top-0 h-full',
+                          v >= 0
+                            ? 'bg-bull left-1/2'
+                            : 'bg-bear right-1/2',
+                        )}
+                        style={{
+                          width: `${Math.min(50, av * 200)}%`,
+                        }}
+                      />
+                      <div className="absolute left-1/2 top-0 bottom-0 w-px bg-border" />
+                    </div>
+                    <span
+                      className={cn(
+                        'w-16 text-right font-mono',
+                        v >= 0 ? 'text-bull' : 'text-bear',
+                      )}
+                    >
+                      {v >= 0 ? '+' : ''}
+                      {v.toFixed(4)}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
+            {/* v0.59 — surface the SHAP efficiency
+                residual so the user can sanity-
+                check the math. */}
+            {useShap && shapResult && (
+              <p className="text-[10px] text-muted pt-1">
+                {t('explain.shap_efficiency', {
+                  diff: shapResult.efficiency_diff?.toFixed(6) ?? '—',
+                })}
+              </p>
+            )}
             <p className="text-[10px] text-muted pt-1">
               {t('explain.hint')}
             </p>

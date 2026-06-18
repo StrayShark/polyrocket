@@ -9,13 +9,14 @@ use crate::AppResult;
 use crate::domain::lab::sidecar::{
     build_auto_promote_if_better_request, build_backtest_model_request, build_explain_model_request,
     build_predict_request, build_promote_all_trials_request, build_promote_request,
-    build_rollback_request, build_train_request, parse_auto_promote_if_better_response,
-    parse_backtest_model_response, parse_explain_model_response, parse_line,
-    parse_list_promote_history_response, parse_promote_all_trials_response,
-    parse_predict_response, parse_promote_response, parse_rollback_response, parse_train_response,
+    build_rollback_request, build_shap_explain_request, build_train_request,
+    parse_auto_promote_if_better_response, parse_backtest_model_response,
+    parse_explain_model_response, parse_line, parse_list_promote_history_response,
+    parse_promote_all_trials_response, parse_predict_response, parse_promote_response,
+    parse_rollback_response, parse_shap_explain_response, parse_train_response,
     AutoPromoteIfBetterResult, BacktestResult, BacktestSample, ExplainResult, ExplainSample,
     Prediction, PromoteAllTrialsResult, PromoteHistoryResult, PromoteResult, RollbackResult,
-    SidecarMethod, SidecarRequest, SidecarResponse, TrainResult, TrainTrial,
+    ShapResult, SidecarMethod, SidecarRequest, SidecarResponse, TrainResult, TrainTrial,
 };
 use crate::domain::lab::train_progress::{
     TrainFinishedEvent, TrainStartedEvent, TrainTrialDto,
@@ -1433,6 +1434,108 @@ pub async fn explain_model(
     }
     parse_explain_model_response(&response).map_err(|e| {
         AppError::Internal(format!("explain decode: {e}"))
+    })
+}
+
+// =================================================================
+// v0.59 — shap_explain IPC (real SHAP via KernelExplainer)
+// =================================================================
+
+/// v0.59 — args for the `shap_explain` IPC. Same
+/// shape as `ExplainModelArgs` (v0.55). The
+/// sidecar returns per-feature SHAP values
+/// that satisfy the efficiency axiom.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ShapExplainArgs {
+    /// The model to explain.
+    pub model_version: String,
+    /// Optional sample: { price, market_age_hours }.
+    #[serde(default)]
+    pub sample: Option<ExplainSample>,
+}
+
+/// v0.59 — compute true SHAP values for one
+/// sample. The result satisfies the SHAP
+/// efficiency axiom: `Σφ_i = f(x) - E[f(x)]`
+/// (the deviation from the baseline
+/// prediction).
+#[tauri::command]
+pub async fn shap_explain(
+    state: State<'_, SidecarState>,
+    args: ShapExplainArgs,
+) -> AppResult<ShapResult> {
+    let job_id = format!(
+        "shap-{}",
+        uuid::Uuid::new_v4()
+            .to_string()
+            .split('-')
+            .next()
+            .unwrap_or("00000000")
+    );
+    let line = build_shap_explain_request(
+        &job_id,
+        &args.model_version,
+        args.sample.as_ref(),
+    );
+
+    if !state.is_running() {
+        return Ok(ShapResult {
+            ok: false,
+            model_version: args.model_version,
+            method: "kernel_shap".to_string(),
+            features: Vec::new(),
+            baseline_prediction: None,
+            target_prediction: None,
+            efficiency_diff: None,
+            sample: None,
+            message: "sidecar not running".into(),
+        });
+    }
+
+    let response_line = {
+        {
+            let mut stdin_guard = state.stdin.lock()
+                .map_err(|e| format!("stdin lock: {e}"))
+                .map_err(AppError::Internal)?;
+            let stdin = stdin_guard.as_mut()
+                .ok_or_else(|| AppError::Internal("stdin not available".into()))?;
+            use std::io::Write;
+            if let Err(e) = writeln!(stdin, "{line}") {
+                return Err(AppError::Internal(format!("shap write: {e}")));
+            }
+            if let Err(e) = stdin.flush() {
+                return Err(AppError::Internal(format!("shap flush: {e}")));
+            }
+        }
+        let mut stdout_guard = state.stdout.lock()
+            .map_err(|e| format!("stdin lock: {e}"))
+            .map_err(AppError::Internal)?;
+        let stdout = stdout_guard.as_mut()
+            .ok_or_else(|| AppError::Internal("stdout not available".into()))?;
+        use std::io::{BufRead, BufReader};
+        let mut reader = BufReader::new(stdout);
+        let mut buf = String::new();
+        if let Err(e) = reader.read_line(&mut buf) {
+            return Err(AppError::Internal(format!("shap read: {e}")));
+        }
+        buf
+    };
+
+    let parsed = parse_line(&response_line).map_err(|e| {
+        AppError::Internal(format!("shap parse: {e}"))
+    })?;
+    let response = match parsed {
+        crate::domain::lab::sidecar::ParseResult::Response(r) => r,
+        _ => return Err(AppError::Internal("shap: not a response".into())),
+    };
+    if response.id != job_id {
+        return Err(AppError::Internal(format!(
+            "shap id mismatch: sent={job_id}, got={}",
+            response.id
+        )));
+    }
+    parse_shap_explain_response(&response).map_err(|e| {
+        AppError::Internal(format!("shap decode: {e}"))
     })
 }
 
