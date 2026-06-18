@@ -23,6 +23,9 @@ pub mod scheduler;
 pub mod secrets;
 pub mod signal;
 pub mod storage; // v0.53a
+pub mod storage_migrate; // v0.54b
+pub mod network; // v0.56
+pub mod dialog; // v0.54a
 pub mod telemetry; // v0.49a
 pub mod active_model; // v0.49b
 pub mod clob; // v0.51a

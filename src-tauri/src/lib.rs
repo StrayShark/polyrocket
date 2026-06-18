@@ -37,10 +37,26 @@ pub fn run() {
     // POLYROCKET_KEYRING_ONLY=0.
     platform::env::maybe_load_dev_env();
 
+    // v0.56 — load the network proxy from
+    // `network_proxy.json` (if present) into
+    // `POLYROCKET_PROXY` so the shared HTTP
+    // client picks it up. We do this BEFORE
+    // building the http client in `setup` so
+    // the env var is in scope when
+    // `new_http_client()` runs.
+    //
+    // We can't use `app.path()` here (the
+    // AppHandle is only available inside
+    // `setup`), so we read the config via the
+    // JSON file path (which the Tauri docs
+    // promise is stable).
+    load_proxy_from_json_into_env();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .setup(|app| {
             let app_handle = app.handle().clone();
@@ -169,6 +185,7 @@ pub fn run() {
             commands::sidecar::auto_promote_if_better,
             commands::sidecar::promote_all_trials,
             commands::sidecar::backtest_model,
+            commands::sidecar::explain_model, // v0.55
             commands::sidecar::sidecar_request,
             commands::sidecar::set_auto_promote_config,
             commands::sidecar::get_auto_promote_config,
@@ -184,6 +201,16 @@ pub fn run() {
             commands::storage::get_storage_info,
             commands::storage::set_storage_path,
             commands::storage::reset_storage_path,
+            // v0.54b — storage migration tool
+            commands::storage_migrate::migrate_storage_path,
+            // v0.56 — network proxy / Tor support
+            commands::network::get_proxy_config,
+            commands::network::set_proxy_config,
+            commands::network::clear_proxy_config,
+            commands::network::read_proxy_config_file,
+            // v0.54a — tauri-plugin-dialog wrappers
+            commands::dialog::pick_directory,
+            commands::dialog::pick_file,
             commands::sidecar_health::sidecar_health_now,
             commands::sidecar_health::sidecar_health_snapshot,
             commands::scheduler::scheduler_status,
@@ -200,4 +227,51 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running polyrocket");
+}
+
+/// v0.56 — read `network_proxy.json` from the
+/// OS-default app_data_dir and set
+/// `POLYROCKET_PROXY` from it. Best-effort: if
+/// the file is missing or malformed, we leave
+/// the env var untouched.
+///
+/// The file path is
+/// `<app_data_dir>/network_proxy.json` where
+/// `<app_data_dir>` follows Tauri's platform
+/// convention (macOS: `~/Library/Application
+/// Support/com.polyrocket.app/`). We use
+/// `dirs_next` to resolve the data dir without
+/// an AppHandle.
+fn load_proxy_from_json_into_env() {
+    if std::env::var("POLYROCKET_PROXY").is_ok() {
+        // Already set (e.g. dev workflow or
+        // shell). Don't override.
+        return;
+    }
+    let Some(app_dir) = platform::paths::default_app_data_dir() else {
+        return;
+    };
+    let file = app_dir.join("network_proxy.json");
+    if !file.exists() {
+        return;
+    }
+    let Ok(raw) = std::fs::read_to_string(&file) else {
+        return;
+    };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        return;
+    };
+    if let Some(url) = v.get("url").and_then(|u| u.as_str()) {
+        if !url.is_empty() {
+            // SAFETY: setting an env var is
+            // thread-safe; multiple threads might
+            // race to set the same var, but
+            // they all set the same value (the
+            // JSON file is the source of truth).
+            std::env::set_var("POLYROCKET_PROXY", url);
+            tracing::info!(
+                "loaded proxy from network_proxy.json: {url}"
+            );
+        }
+    }
 }

@@ -118,6 +118,14 @@ export const recentCopyEvents = (targetId?: string, limit = 50) =>
   invoke<CopyEvent[]>('recent_copy_events', { targetId, limit });
 
 // ---------------------------------------------------------------- Mirror (M5 executor)
+import type {
+  EnqueueMirrorArgs,
+  ListMirrorsArgs,
+  MirrorRow,
+  MirrorQueueStats,
+  RunMirrorPassArgs,
+  ExecutorPassResult,
+} from '@/types/mirror';
 export const enqueueMirror = (args: EnqueueMirrorArgs) =>
   invoke<MirrorRow>('enqueue_mirror', { args });
 export const listMirrors = (args: ListMirrorsArgs = {}) =>
@@ -1372,6 +1380,180 @@ export const setStoragePath = (path: string) =>
  * Next launch falls back to the OS default. */
 export const resetStoragePath = () =>
   invoke<void>('reset_storage_path');
+
+// =================================================================
+// ================== v0.56 — network proxy / Tor =================
+// =================================================================
+
+/** v0.56 — proxy configuration as the user
+ * sees it. `enabled` is a separate boolean so
+ * the user can disable the proxy without
+ * clearing the URL (faster toggle on/off). */
+export interface ProxyConfig {
+  enabled: boolean;
+  url: string | null;
+  scheme: 'http' | 'socks5' | null;
+  restartRequired: boolean;
+}
+
+/** v0.56 — return the current proxy
+ * configuration. The L1 uses this to render
+ * the Settings → Network card. */
+export const getProxyConfig = () =>
+  invoke<ProxyConfig>('get_proxy_config');
+
+/** v0.56 — write the proxy configuration. The
+ * change takes effect on next launch (active
+ * session's HTTP client is already built). The
+ * L1 surfaces a "Restart required" banner after
+ * this returns. */
+export const setProxyConfig = (
+  enabled: boolean,
+  url: string | null,
+): Promise<ProxyConfig> =>
+  invoke<ProxyConfig>('set_proxy_config', {
+    args: { enabled, url: url ?? null },
+  });
+
+/** v0.56 — clear the proxy entirely (URL +
+ * enabled flag). Next launch uses direct
+ * outbound HTTP. */
+export const clearProxyConfig = () =>
+  invoke<void>('clear_proxy_config');
+
+/** v0.56 — read the proxy URL from the
+ * `network_proxy.json` file (the source of
+ * truth at startup). Useful for the L1's
+ * "Restart required" hint + sanity check. */
+export const readProxyConfigFile = () =>
+  invoke<string | null>('read_proxy_config_file');
+
+// =================================================================
+// ================== v0.55 — model explainability =================
+// =================================================================
+
+/** v0.55 — input sample for an explainability
+ * query. Both fields are optional; omitting
+ * both gives a default sample (price=0.5, age=24h). */
+export interface ExplainSample {
+  /** The market price, 0..1. */
+  price?: number;
+  /** The market age in hours, >=0. */
+  market_age_hours?: number;
+}
+
+/** v0.55 — one feature's contribution to a
+ * single prediction. The L1 renders this as a
+ * horizontal bar chart. */
+export interface ExplainFeature {
+  feature: string;
+  value: number;
+  weight: number;
+  /** Contribution to (p - 0.5). Positive =
+   * "moved the prediction higher", negative =
+   * "moved it lower". */
+  contribution: number;
+  abs_contribution: number;
+}
+
+/** v0.55 — outcome of `explainModel`. The
+ * `features` array is sorted by
+ * `abs_contribution` descending. */
+export interface ExplainResult {
+  ok: boolean;
+  model_version: string;
+  features: ExplainFeature[];
+  prediction: number | null;
+  sample: { price: number; market_age_hours: number } | null;
+  message: string;
+}
+
+/** v0.55 — args for `explainModel`. The
+ * `sample` is optional; when omitted, the
+ * sidecar uses a default sample so the user
+ * gets a "what would the model say for a
+ * typical market" view. */
+export const explainModel = (
+  model_version: string,
+  sample?: ExplainSample,
+): Promise<ExplainResult> =>
+  invoke<ExplainResult>('explain_model', {
+    args: { model_version, sample: sample ?? null },
+  });
+
+// =================================================================
+// ================== v0.54b — storage migration ===================
+// =================================================================
+
+/** v0.54b — outcome of `migrateStoragePath`. The
+ * L1 uses `noop` to skip the "data migrated"
+ * toast (when the source had nothing to copy,
+ * e.g. clean install on a new path). */
+export interface MigrateStoragePathResult {
+  from: string;
+  to: string;
+  filesCopied: number;
+  bytesCopied: number;
+  overwritten: boolean;
+  noop: boolean;
+}
+
+/** v0.54b — copy `polyrocket.db` + `logs/` from
+ * the source (currently-active path) to `dest`.
+ * The dest must be the path the user just set via
+ * `setStoragePath` (or the OS default when they
+ * called `resetStoragePath`).
+ *
+ * Idempotency: a second call with the same args
+ * is a no-op (returns `noop: true`).
+ *
+ * Throws AppError::Invalid when:
+ *   - dest is not absolute / doesn't exist / isn't
+ *     a directory / isn't writable
+ *   - dest is non-empty AND overwrite=false
+ *
+ * For large DBs this can take a few seconds.
+ * The L1 should call it from a background
+ * mutation so the UI doesn't freeze. */
+export const migrateStoragePath = (
+  dest: string,
+  overwrite = false,
+): Promise<MigrateStoragePathResult> =>
+  invoke<MigrateStoragePathResult>('migrate_storage_path', {
+    args: { dest, overwrite },
+  });
+
+// =================================================================
+// ================== v0.54a — tauri-plugin-dialog =================
+// =================================================================
+
+/** v0.54a — open a native directory picker. Returns
+ * the absolute path the user picked, or `null` if
+ * they cancelled. Wraps the `dialog:open` plugin
+ * command — used by the Welcome → Storage step's
+ * "Browse..." button so the user doesn't have to
+ * type a full path. */
+export const pickDirectory = (): Promise<string | null> =>
+  invoke<string | null>('pick_directory');
+
+/** v0.54a — open a native file picker. Used by the
+ * LLM management page to import API keys from a
+ * `.env`-shaped file, and by the wallet manager to
+ * import a wallet JSON. `filters` is optional; when
+ * omitted the user sees all files. Returns the
+ * absolute path the user picked, or `null` if
+ * they cancelled. */
+export interface FileFilter {
+  name: string;
+  extensions: string[];
+}
+export const pickFile = (
+  filters: FileFilter[] = [],
+  multiple = false,
+): Promise<string | null | string[]> =>
+  invoke<string | null | string[]>('pick_file', {
+    args: { filters, multiple },
+  });
 
 // =================================================================
 // ================== v0.51c — CLOB submit ========================

@@ -1,22 +1,29 @@
-// v0.53b — StorageStep (Step 2 of 6).
+// v0.54a — StorageStep (Step 2 of 6).
 //
 // Pick default or custom path. v0.53a wires the
 // 3 IPCs (getStorageInfo, setStoragePath,
-// resetStoragePath). The custom path uses a text
-// input (v0.53 doesn't introduce tauri-plugin-dialog;
-// v0.54+ adds the Browse... button).
+// resetStoragePath). v0.54a adds a native
+// directory picker via tauri-plugin-dialog so
+// the user doesn't have to type the full path.
 
 import { useEffect, useState, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getStorageInfo,
   setStoragePath,
   resetStoragePath,
+  pickDirectory,
   type StorageInfo,
 } from '@/ipc';
 import { useWelcomeStore } from '@/stores/welcome-store';
 import { useT } from '@/lib/i18n';
-import { HardDrive, RotateCcw, CheckCircle2, AlertTriangle } from 'lucide-react';
+import {
+  HardDrive,
+  RotateCcw,
+  CheckCircle2,
+  AlertTriangle,
+  FolderSearch,
+} from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { toast } from '@/stores/toast-store';
 
@@ -104,14 +111,33 @@ export function StorageStep({
         >
           {mode === 'custom' && (
             <div className="space-y-2">
-              <input
-                type="text"
-                value={customPath}
-                onChange={(e) => setCustomPath(e.target.value)}
-                placeholder={t('welcome.storage_path_placeholder')}
-                data-testid="welcome-storage-path-input"
-                className="w-full h-8 px-2.5 rounded-md text-[12px] bg-surface text-fg border border-border focus:outline-none focus:ring-2 focus:ring-accent font-mono"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={customPath}
+                  onChange={(e) => setCustomPath(e.target.value)}
+                  placeholder={t('welcome.storage_path_placeholder')}
+                  data-testid="welcome-storage-path-input"
+                  className="flex-1 h-8 px-2.5 rounded-md text-[12px] bg-surface text-fg border border-border focus:outline-none focus:ring-2 focus:ring-accent font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    try {
+                      const picked = await pickDirectory();
+                      if (picked) setCustomPath(picked);
+                    } catch (err) {
+                      toast.error(String(err));
+                    }
+                  }}
+                  data-testid="welcome-storage-browse"
+                  className="h-8 px-3 rounded-md text-[12px] font-medium border border-border bg-surface-2 text-fg hover:bg-surface-hover flex items-center gap-1.5"
+                >
+                  <FolderSearch className="w-3.5 h-3.5" />
+                  {t('welcome.storage_browse')}
+                </button>
+              </div>
               {info.data && (
                 <StorageStatus info={info.data} />
               )}
@@ -179,7 +205,15 @@ function ModeCard({
 }) {
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       data-testid={testid}
       className={cn(
         'rounded-md border p-3 cursor-pointer transition-colors',
