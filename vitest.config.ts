@@ -12,11 +12,22 @@ export default defineConfig({
     setupFiles: ['./src/test-setup.ts'],
     // v0.60b — coverage gate. Vitest exits
     // non-zero when any of the thresholds
-    // below the cutoff. We start with the
-    // current actual numbers (48% stmts /
-    // 48% lines) and plan to ratchet up
-    // as we fill in the routes + business
-    // components.
+    // below the cutoff. We ratchet up by
+    // ~1% per sub-version as we fill in
+    // routes + business components.
+    //
+    // v0.62a.2: 64/57/52/64 (504 tests)
+    // v0.63a:   65/58/55/65 (504 tests) — 7 new
+    //           test files, 13 new tests
+    //           covering Copy / Welcome /
+    //           MarketDetail / LlmMgmt /
+    //           LlmPerf / Trade routes +
+    //           extra LlmMgmt edge cases.
+    //           Brief test also fixed to
+    //           target the Re-score CTA
+    //           (the right one calls the
+    //           IPC; Refresh just refetches
+    //           the React Query cache).
     //
     // We exclude pure-presentation files
     // (BarChart, Sparkline, KpiCard, etc.)
@@ -44,10 +55,10 @@ export default defineConfig({
         '**/*.unused',
       ],
       thresholds: {
-        statements: 64,
-        branches: 57,
-        functions: 52,
-        lines: 64,
+        statements: 65,
+        branches: 58,
+        functions: 55,
+        lines: 65,
       },
     },
   },

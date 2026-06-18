@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.23 · 2026-06-18 (v0.62 coverage ratchet + telemetry polish + cargo doc 0)
+> 版本：v2.24 · 2026-06-18 (v0.63a coverage ratchet 64% → 65%)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿） · [`coding-spec.md`](./coding-spec.md)（v0.61 注释规范）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
@@ -799,6 +799,12 @@ v0.6 增量：
 
 ## 8. 变更日志
 
+- **v2.24** (2026-06-18) — v0.63a coverage ratchet 64% → 65% (17 新 test)
+  - 7 个新/补 test file: Copy / LlmMgmt.more / LlmPerf / MarketDetail / Trade / Welcome + Brief fix
+  - Brief.test.tsx 修复: "Refresh" 按钮调 `refetch()` 不调 IPC，"Re-score" 才是 `dailyBriefRefresh` IPC
+  - 阈值: 64/57/52/64 → 65/58/55/65 (1% ratchet on all 4 dims)
+  - 实际 coverage: 65.5% stmts / 66.31% lines / 55.04% funcs / 59.26% branches
+  - 改动: 7 test files + vitest.config.ts, 503 tests
 - **v2.23** (2026-06-18) — v0.62 coverage ratchet + telemetry polish + cargo doc 0
   - v0.62d 补 5 个未达标文件注释 (LLM client + Brief + feedback)
   - v0.62a coverage ratchet 50% → 60% (15 个新 component test)

@@ -9,7 +9,7 @@
 // @vitest-environment happy-dom
 
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('@/lib/i18n', () => ({

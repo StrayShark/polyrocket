@@ -53,3 +53,6 @@ src-tauri/.cargo/
 
 # snapshot script temp file
 docs/.seed.html
+
+# vitest coverage HTML report (v0.60b)
+coverage/
