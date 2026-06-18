@@ -93,6 +93,9 @@ jobs:
       - name: vitest
         run: pnpm test --run
 
+      - name: vitest coverage gate
+        run: pnpm test:coverage
+
   # ============================================================
   # Rust cargo tests.
   # ============================================================
