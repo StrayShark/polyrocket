@@ -276,6 +276,28 @@ mod tests {
             tx_hash TEXT,
             notes TEXT
         )",
+        // v0.44 — paper_fills table. Mirror of `bets` minus
+        // the `tx_hash` (paper doesn't sign anything). The
+        // executor writes here when
+        // `ExecutorConfig.paper_mode = true`. The schema is
+        // a strict superset of the bet fields used for
+        // audit, with an explicit `mirror_id` link so the
+        // L1 can show "this fill would have come from this
+        // copy_target event". v0.44 doesn't auto-settle
+        // paper fills against resolutions — the user runs
+        // the backtest engine (v0.43) to compare paper vs
+        // live. Future v0.45+ could add a settlement
+        // reconciler that uses the markets table.
+        "CREATE TABLE IF NOT EXISTS paper_fills (
+            id TEXT PRIMARY KEY,
+            mirror_id TEXT NOT NULL,
+            market_id TEXT NOT NULL,
+            side TEXT NOT NULL,
+            size TEXT NOT NULL,
+            price REAL NOT NULL,
+            placed_at INTEGER NOT NULL,
+            notes TEXT
+        )",
         "CREATE TABLE copy_targets (
             id TEXT PRIMARY KEY,
             address TEXT NOT NULL UNIQUE,

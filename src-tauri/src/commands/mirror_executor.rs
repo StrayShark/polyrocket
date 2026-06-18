@@ -215,7 +215,10 @@ pub async fn run_pass_impl(
         .await?;
     }
 
-    // 5. Apply picks — submit as Mode B bets
+    // 5. Apply picks — submit as Mode B bets, OR as
+    // paper fills if paper_mode is on. The decision
+    // logic (what to pick, what to reject) is
+    // unchanged; only the write path differs.
     for id in &result.picked {
         let order = orders.iter().find(|o| &o.id == id).cloned();
         let Some(o) = order else { continue };
@@ -235,6 +238,61 @@ pub async fn run_pass_impl(
                 continue;
             }
         };
+
+        if cfg.paper_mode {
+            // v0.44 — paper mode. Skip signing
+            // entirely; just write a paper_fills
+            // row and mark the mirror as paper-
+            // submitted. The fill is real (size,
+            // price, market_id, side) but the user
+            // didn't actually trade. The mirror is
+            // also marked `paper_submitted` (not
+            // `submitted`) so the L1 can filter.
+            let paper_id = uuid::Uuid::new_v4().to_string();
+            sqlx::query(
+                "INSERT INTO paper_fills
+                    (id, mirror_id, market_id, side, size, price, placed_at, notes)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            )
+            .bind(&paper_id)
+            .bind(&o.id)
+            .bind(&o.market_id)
+            .bind(&o.side)
+            .bind(&o.size)
+            .bind(0.5)
+            .bind(now)
+            .bind("paper mode — no CLOB submission")
+            .execute(&state.db)
+            .await?;
+
+            sqlx::query(
+                "UPDATE copy_mirror_queue
+                 SET status = 'paper_submitted', submitted_at = ?, bet_id = ?
+                 WHERE id = ?",
+            )
+            .bind(now)
+            .bind(&paper_id)
+            .bind(&o.id)
+            .execute(&state.db)
+            .await?;
+
+            sqlx::query(
+                "INSERT INTO audit_log (actor, action, target, payload, result)
+                 VALUES ('system', 'mirror.paper_submit', ?, ?, 'ok')",
+            )
+            .bind(&o.id)
+            .bind(serde_json::json!({
+                "paper_id": paper_id,
+                "market_id": o.market_id,
+                "size": o.size,
+                "side": o.side,
+                "note": "paper mode — fill not submitted to CLOB",
+            }))
+            .execute(&state.db)
+            .await?;
+            continue;
+        }
+
         let place = crate::domain::bet::PlaceArgs {
             market_id: o.market_id.clone(),
             side,

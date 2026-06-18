@@ -31,6 +31,21 @@ pub struct ExecutorConfig {
     /// Don't submit mirrors for markets closing in less than this many
     /// hours (too risky to settle).
     pub min_horizon_hours: i64,
+    /// v0.44a — paper mode. When true, picked
+    /// mirrors go to the `paper_fills` table
+    /// instead of `bets`, and the CLOB signing
+    /// step is skipped. The decision logic
+    /// (what to pick, what to reject) is
+    /// unchanged — paper mode only changes the
+    /// write path. This lets the user validate
+    /// their config (sizing, exposure caps,
+    /// frequency) without risking real money.
+    ///
+    /// Default false (live mode). Runtime
+    /// override via `set_mirror_executor_paper_mode`
+    /// IPC; env-var default via
+    /// `POLYROCKET_MIRROR_PAPER_MODE=1`.
+    pub paper_mode: bool,
 }
 
 impl Default for ExecutorConfig {
@@ -40,6 +55,7 @@ impl Default for ExecutorConfig {
             max_per_cycle: 1,
             min_size_usdc: 5.0,
             min_horizon_hours: 1,
+            paper_mode: false,
         }
     }
 }
@@ -62,11 +78,16 @@ impl ExecutorConfig {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(1);
+        let paper_mode = std::env::var("POLYROCKET_MIRROR_PAPER_MODE")
+            .ok()
+            .map(|s| s == "1" || s.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
         Self {
             max_total_exposure_usdc: max_total,
             max_per_cycle,
             min_size_usdc: min_size,
             min_horizon_hours: min_horizon,
+            paper_mode,
         }
     }
 }

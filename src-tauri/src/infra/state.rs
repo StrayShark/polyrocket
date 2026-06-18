@@ -58,15 +58,31 @@ pub struct AppState {
     /// Wrapped in `Arc<Mutex<...>>` so multiple Tauri
     /// commands can read/write without `&mut AppState`.
     pub auto_promote: Arc<Mutex<AutoPromoteConfig>>,
+    /// v0.44 — mirror paper mode override
+    /// (in-memory). Wrapped in `Arc<Mutex<...>>` like
+    /// auto_promote so multiple commands can read
+    /// the current paper_mode without `&mut AppState`.
+    /// The scheduler reads this on every tick; the
+    /// `set_mirror_paper_mode` IPC writes it.
+    pub mirror_paper_mode: Arc<Mutex<bool>>,
 }
 
 impl AppState {
     /// v0.28a — construct a new `AppState` with the given
     /// pool and default auto-promote config.
+    /// v0.44 — also seeds `mirror_paper_mode` from the
+    /// env-var default (`POLYROCKET_MIRROR_PAPER_MODE`)
+    /// so the first scheduler tick sees the user's
+    /// intended state.
     pub fn new(db: SqlitePool) -> Self {
+        let paper_mode = std::env::var("POLYROCKET_MIRROR_PAPER_MODE")
+            .ok()
+            .map(|s| s == "1" || s.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
         Self {
             db,
             auto_promote: Arc::new(Mutex::new(AutoPromoteConfig::default())),
+            mirror_paper_mode: Arc::new(Mutex::new(paper_mode)),
         }
     }
 }
