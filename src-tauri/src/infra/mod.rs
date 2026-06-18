@@ -23,6 +23,7 @@ pub mod error;
 pub mod http;
 pub mod scheduler;
 pub mod state;
+pub mod telemetry;
 
 // Re-exports for ergonomic `crate::infra::AppError` etc. without
 // requiring callers to know the sub-module layout.

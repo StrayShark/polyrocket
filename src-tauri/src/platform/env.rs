@@ -180,6 +180,15 @@ pub fn env_i32(name: &str, default: i32) -> i32 {
 pub fn env_duration_secs(name: &str, default_secs: u64) -> Duration {
     Duration::from_secs(env_u64(name, default_secs))
 }
+/// v0.42a — string env var. Returns `None` if unset OR
+/// set-but-empty. The other typed helpers also use
+/// `var().ok().and_then(parse)` and silently treat
+/// unparseable as "use default"; for telemetry we
+/// need the raw "1" / "true" string match, so this
+/// returns the raw `Option<String>`.
+pub fn env_str(name: &str) -> Option<String> {
+    env::var(name).ok().filter(|s| !s.is_empty())
+}
 
 // ============================================================
 // Tests
