@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.8 · 2026-06-18 (v0.46 — backtest auto-populate)
+> 版本：v2.9 · 2026-06-18 (v0.47 — price_snapshots)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
 
@@ -635,7 +635,8 @@ sequenceDiagram
 | **Backtest engine (v0.43a–d)** | New `backtest_model` sidecar method (9 total) + Rust IPC + BacktestReport component. Replays a saved model against a JSON list of (price, age, outcome) samples; returns Brier mean, calibration buckets, top winners/losers | ✅ v0.43 完成（7 python + 5 cargo + 6 vitest + 12 i18n keys × 2 locales） |
 | **Paper trading mode (v0.44a–d)** | `ExecutorConfig.paper_mode` + new `paper_fills` table + 3 new IPCs + Settings toggle + Copy page [PAPER] banner. The mirror executor writes picked orders to paper_fills (no CLOB submission) when paper mode is on; decision logic unchanged | ✅ v0.44 完成（1 cargo + 2 vitest + 1 i18n key × 2 locales; 11 UiPrefs fields; 4 sub-versions） |
 | **Paper fills reconciliation (v0.45a–c)** | 6th scheduler loop joins paper_fills with markets.resolved; computes won/lost + PnL; idempotent schema migration. Dashboard surfaces paper-pnl-card with total fills, win rate, realized PnL | ✅ v0.45 完成（1 cargo + 7 i18n keys × 2 locales; 4 new paper_fills columns） |
-| **Backtest auto-populate (v0.46a–b)** | `list_resolved_markets_for_backtest` IPC + BacktestReport \"Pull from resolved markets\" button + limit input. v0.46 has a degenerate proxy (price=0.5, age=24h) until price history is stored | ✅ v0.46 完成（1 cargo + 1 vitest + 5 i18n keys × 2 locales; documented limitation） |
+| **Backtest auto-populate (v0.46a–b)** | `list_resolved_markets_for_backtest` IPC + BacktestReport "Pull from resolved markets" button + limit input. v0.46 has a degenerate proxy (price=0.5, age=24h) until price history is stored | ✅ v0.46 完成（1 cargo + 1 vitest + 5 i18n keys × 2 locales; documented limitation） |
+| **Price snapshots (v0.47a–b)** | New `price_snapshots` table; sync_markets records placeholder snapshots (0.5); backtest IPC joins latest snapshot per market via correlated subquery. v0.50+ will replace placeholder with real order-book feed | ✅ v0.47 完成（2 cargo + 1 i18n key × 2 locales updated; price_snapshots module + ensure_price_snapshots migration） |
 | **Reason wire mirror (Rust + L1) + hover tooltip** | `PromoteHistoryEntry.reason: Option<String>` (serde-default for pre-v0.41); ⓘ icon with native title in PromoteHistory row | ✅ v0.41b 完成（Rust serde-default; 2 new vitest tests; 1 new i18n key × 2 locales） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
