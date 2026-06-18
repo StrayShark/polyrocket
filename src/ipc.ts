@@ -806,6 +806,115 @@ export const promoteAllTrials = () =>
   invoke<PromoteAllTrialsResult>('promote_all_trials', { args: {} });
 
 // =================================================================
+// ==================== v0.43 — backtest_model ====================
+// =================================================================
+
+/** v0.43 — one backtest sample. The L1 builds this
+ * list from the markets DB (resolved markets only)
+ * and passes it through. */
+export interface BacktestSample {
+  /** The market price at predict-time (0..1). */
+  price: number;
+  /** How many hours since the market opened at
+   * predict-time. The model's `w2` weights age. */
+  market_age_hours: number;
+  /** Resolution outcome (0 = NO, 1 = YES). */
+  outcome: number;
+  /** Optional human-readable label (e.g. the
+   * market question). Surfaced in the top
+   * winners/losers list. Empty string is fine. */
+  label?: string;
+}
+
+/** v0.43 — one entry in the calibration histogram.
+ * The L1 renders this as a small bar chart:
+ * "in this prediction bucket, the actual
+ * resolution rate was X (vs predicted Y)". */
+export interface BacktestCalibrationBucket {
+  /** Human-readable bucket label, e.g. "[0.4, 0.6)". */
+  bucket: string;
+  /** Mean predicted probability in this bucket.
+   * `null` when the bucket is empty. */
+  predicted_avg: number | null;
+  /** Actual resolution rate in this bucket.
+   * `null` when the bucket is empty. */
+  actual_rate: number | null;
+  /** Number of samples in this bucket. */
+  count: number;
+}
+
+/** v0.43 — one entry in the top winners / top
+ * losers list. Includes enough context to render
+ * a tooltip on hover. */
+export interface BacktestTopSample {
+  /** Echoed from the input `label`. */
+  label: string;
+  /** Per-sample Brier. */
+  brier: number;
+  /** The model's prediction. */
+  predicted: number;
+  /** The actual outcome. */
+  outcome: number;
+}
+
+/** v0.43 — wire-format mirror of the Python
+ * sidecar's `backtest_model` response. */
+export interface BacktestResult {
+  /** `true` on success; `false` for unknown
+   * model / empty samples / all-malformed /
+   * missing weights. */
+  ok: boolean;
+  /** Echoed from the request. */
+  model_version: string;
+  /** Number of samples that passed validation
+   * and contributed to Brier. */
+  sample_count: number;
+  /** Mean squared error of predictions vs
+   * outcomes. `null` when `ok=false`. */
+  brier_mean: number | null;
+  /** Per-sample Brier scores, in input order.
+   * Useful for client-side histograms. */
+  brier_breakdown: number[];
+  /** 5 calibration buckets in [0, 1]. */
+  calibration: BacktestCalibrationBucket[];
+  /** 3 lowest-Brier samples (best predictions). */
+  top_winners: BacktestTopSample[];
+  /** 3 highest-Brier samples (worst predictions),
+   * reversed (worst first). */
+  top_losers: BacktestTopSample[];
+  /** Human-readable status / error message. */
+  message: string | null;
+}
+
+/** v0.43 — args for the `backtestModel` IPC. */
+export interface BacktestModelArgs {
+  /** The model to backtest, e.g.
+   * "logistic-train-441c352b". Looked up in
+   * `archive.jsonl` first, then `active.json`. */
+  model_version: string;
+  /** The list of (price, market_age_hours, outcome)
+   * samples to replay the model against. */
+  samples: BacktestSample[];
+}
+
+/** v0.43 — replay a saved model against a list of
+ * (price, market_age_hours, outcome) samples and
+ * return Brier + calibration + per-sample
+ * predictions. Closes the v0.17-v0.41 model
+ * lifecycle gap: there's no way to ask "how
+ * would this model have done on real
+ * resolutions" without this.
+ *
+ * The sidecar is pure (no IO beyond reading the
+ * model file), so per-call cost is O(samples) —
+ * fast for hundreds of samples, slow for
+ * millions. The L1 should pre-filter to a
+ * reasonable time window.
+ */
+export const backtestModel = (args: BacktestModelArgs) =>
+  invoke<BacktestResult>('backtest_model', { args });
+
+// =================================================================
 // ==================== v0.28a — auto_promote_config =================
 // =================================================================
 

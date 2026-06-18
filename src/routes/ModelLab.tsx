@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FlaskConical, GitBranch, Play, CheckCircle2, XCircle, Clock, Sparkles, ArrowUpCircle, Archive, GitCompare } from 'lucide-react';
+import { FlaskConical, GitBranch, Play, CheckCircle2, XCircle, Clock, Sparkles, ArrowUpCircle, Archive, GitCompare, BarChart3 } from 'lucide-react';
 import {
   llmPerformance,
   sidecarPredict,
@@ -19,6 +19,7 @@ import {
 } from '@/ipc';
 import { PromoteHistoryArchive } from '@/components/feedback/PromoteHistoryArchive';
 import { ModelComparison } from '@/components/feedback/ModelComparison';
+import { BacktestReport } from '@/components/feedback/BacktestReport';
 import { Card } from '@/components/base/Card';
 import { Pill } from '@/components/base/Pill';
 import { KpiCard } from '@/components/data/KpiCard';
@@ -90,6 +91,10 @@ export function ModelLab() {
   // job_ids. We limit to 3 selected; if the user
   // selects a 4th, the oldest is dropped.
   const [selectedForCompare, setSelectedForCompare] = useState<Set<string>>(new Set());
+  // v0.43c — single-select for backtest. The backtest
+  // is per-model: pick one entry, click "Backtest",
+  // the modal opens with that model_version pre-filled.
+  const [backtestTarget, setBacktestTarget] = useState<string | null>(null);
   const expectedTrainRef = useRef<boolean>(false);
   useEffect(() => {
     let cancelled = false;
@@ -704,6 +709,18 @@ export function ModelLab() {
           return map;
         })()}
         weightsLoading={weightsQuery.isLoading}
+      />
+
+      {/* v0.43c — backtest modal. Opens when the
+          user clicks the "Backtest" button (visible
+          when exactly one entry is selected in
+          PromoteHistory). The target job_id is
+          looked up against the in-memory history
+          inside the modal. */}
+      <BacktestReport
+        open={backtestTarget !== null}
+        onClose={() => setBacktestTarget(null)}
+        targetJobId={backtestTarget}
       />
 
       <Card title={t('modellab.sm.title')} description={t('modellab.sm.desc')}>
