@@ -18,7 +18,10 @@ import { Analysis } from '@/routes/Analysis';
 import { LlmPerf } from '@/routes/LlmPerf';
 import { LlmMgmt } from '@/routes/LlmMgmt';
 import { Brief } from '@/routes/Brief';
-import { Onboarding as _Onboarding } from '@/routes/Onboarding'; // v0.57a — kept for type-only re-export; route removed
+// v0.57a — /onboarding route removed (replaced
+// by /welcome in v0.53b). The old Onboarding.tsx
+// is kept as .unused for archeology but is no
+// longer imported anywhere.
 import { Welcome } from '@/routes/Welcome';
 import { Audit } from '@/routes/Audit';
 import { Notifications } from '@/routes/Notifications';
