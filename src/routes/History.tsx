@@ -171,6 +171,77 @@ export function History() {
           <span className="text-muted">—</span>
         ),
     },
+    // v0.52c — Order type column. Shows
+    // market / limit / stop_loss with a colored
+    // pill. Post-only rows show a small badge.
+    {
+      key: 'order_type',
+      header: 'Type',
+      width: '110px',
+      cell: (b) => (
+        <div className="flex items-center gap-1">
+          <Pill
+            kind={
+              b.order_type === 'limit'
+                ? 'accent'
+                : b.order_type === 'stop_loss'
+                  ? 'warn'
+                  : 'muted'
+            }
+          >
+            {b.order_type === 'stop_loss'
+              ? 'stop-loss'
+              : b.order_type}
+          </Pill>
+          {b.post_only && (
+            <span
+              data-testid={`bet-post-only-${b.id}`}
+              className="text-[9px] text-muted"
+              title="post-only"
+            >
+              PO
+            </span>
+          )}
+        </div>
+      ),
+      sortable: true,
+      sortValue: (b) => b.order_type,
+    },
+    // v0.52c — Fill column. Shows fill_price vs
+    // price when both are non-null; otherwise
+    // shows '—' for pre-v0.51b rows. Slippage is
+    // computed inline.
+    {
+      key: 'fill',
+      header: 'Fill',
+      width: '110px',
+      align: 'right',
+      cell: (b) => {
+        if (b.fill_price == null) return <span className="text-muted">—</span>;
+        const slip = b.fill_price - b.price;
+        const slipPct = (slip / b.price) * 100;
+        const cls =
+          Math.abs(slipPct) < 0.01
+            ? 'text-muted'
+            : slipPct > 0
+              ? 'text-bear'
+              : 'text-bull';
+        return (
+          <span className={'font-mono ' + cls}>
+            {b.fill_price.toFixed(4)}
+            {b.partial && (
+              <span
+                data-testid={`bet-partial-${b.id}`}
+                className="ml-1 text-[9px] text-warn"
+                title="partial fill"
+              >
+                ⚠
+              </span>
+            )}
+          </span>
+        );
+      },
+    },
   ];
 
   return (
