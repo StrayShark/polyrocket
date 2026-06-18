@@ -1,0 +1,51 @@
+# v0.42e — L1↔Tauri guard CI
+#
+# Runs the project's own check-l1-tauri.mjs
+# (v0.32a, dual-direction) on every PR. The guard
+# enforces:
+#  - every #[tauri::command] in src-tauri/src/commands/
+#    has a corresponding `export const foo = ...` wrapper
+#    in src/ipc.ts
+#  - every L1 wrapper points to a real Rust command
+#  - the L1 wire-format types match the Rust DTO shapes
+#    (structurally, by field name; full type-equality is
+#    out of scope)
+#
+# The guard is a pure Node script, no Tauri build, no
+# Playwright. It runs in <2s and is cheap to put in CI.
+#
+# Why now: v0.32a added the script, but it wasn't
+# wired into GitHub Actions — it only ran locally
+# (if at all). Drift between the L1 surface and
+# the Rust IPC surface would not be caught by CI.
+# This workflow closes that gap.
+
+name: L1↔Tauri guard
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'src-tauri/src/commands/**'
+      - 'src/ipc.ts'
+      - 'scripts/check-l1-tauri.mjs'
+      - 'scripts/check-l1-tauri.test.mjs'
+      - '.github/workflows/l1-tauri-guard.yml'
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run L1↔Tauri guard
+        run: |
+          node scripts/check-l1-tauri.mjs
+        # The script exits 0 on clean, 1 on drift.
+        # Default behavior is exactly what we want:
+        # fail the CI job if the guard fails.
