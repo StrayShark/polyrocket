@@ -18,6 +18,7 @@ use crate::domain::llm::{
 };
 use crate::infra::state::AppState;
 use once_cell::sync::OnceCell;
+use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use std::sync::Arc;
@@ -452,9 +453,47 @@ pub async fn llm_stats_decision(
 // =================================================================
 
 // Process-wide shared HTTP client (connection pool reused across calls).
-static HTTP: OnceCell<reqwest::Client> = OnceCell::new();
-fn http_client() -> &'static reqwest::Client {
-    HTTP.get_or_init(crate::domain::llm::new_http_client)
+//
+// v0.60a — was OnceCell<reqwest::Client>; changed
+// to ArcSwap<reqwest::Client> so we can hot-swap
+// the client when the user changes the network
+// proxy (v0.56 set_proxy_config IPC). The
+// `http_client()` helper returns a clonable
+// Arc on every call; the swap is atomic.
+//
+// Why not a Mutex<Option<reqwest::Client>>?
+// Holding a Mutex across an async await would
+// block other clients waiting on the swap. We
+// use arc-swap's `load()` which is a relaxed
+// atomic load (no lock contention on the hot
+// path) and `store()` for the swap.
+use arc_swap::ArcSwap;
+static HTTP: OnceCell<ArcSwap<reqwest::Client>> = OnceCell::new();
+
+fn http_client() -> std::sync::Arc<reqwest::Client> {
+    let cell = HTTP.get_or_init(|| {
+        ArcSwap::from_pointee(crate::domain::llm::new_http_client())
+    });
+    cell.load().clone()
+}
+
+/// v0.60a — replace the inner HTTP client with
+/// a freshly-built one. Used by the proxy
+/// hot-swap path: when the user changes
+/// `network.proxy.url`, we rebuild the client
+/// with the new proxy and atomically swap.
+///
+/// After this call, all subsequent calls to
+/// `http_client()` return a client with the
+/// new proxy settings. The old client's
+/// connection pool is dropped (Rust auto-cleanup
+/// on the old Arc when refcount → 0).
+pub fn replace_http_client() {
+    let cell = HTTP.get_or_init(|| {
+        ArcSwap::from_pointee(crate::domain::llm::new_http_client())
+    });
+    let new_client = std::sync::Arc::new(crate::domain::llm::new_http_client());
+    cell.store(new_client);
 }
 
 /// Pick a client implementation for a provider_kind.
@@ -769,7 +808,7 @@ pub async fn llm_analyze(
             let req = build_market_analysis_request(&p_clone.default_model, &ctx_clone);
             let outcome = crate::domain::llm::dispatch(
                 client.as_ref(),
-                http_client(),
+                &http_client(),
                 &keys,
                 &req, cost, policy,
                 &p_clone.id,
@@ -1080,4 +1119,35 @@ pub async fn llm_list_analyses(
         });
     }
     Ok(out)
+}
+#[cfg(test)]
+mod http_client_tests {
+    use super::*;
+
+    #[test]
+    fn http_client_returns_arc_with_valid_client() {
+        // v0.60a — http_client() returns an Arc
+        // wrapping a valid reqwest::Client.
+        // Two consecutive calls should return
+        // Arcs that point to the same inner
+        // client (Arc::ptr_eq).
+        let a = http_client();
+        let b = http_client();
+        assert!(std::sync::Arc::ptr_eq(&a, &b));
+    }
+
+    #[test]
+    fn replace_http_client_swaps_inner() {
+        // v0.60a — after replace_http_client(),
+        // the next http_client() call returns
+        // a different Arc (the swap is
+        // observable).
+        let before = http_client();
+        replace_http_client();
+        let after = http_client();
+        assert!(!std::sync::Arc::ptr_eq(&before, &after));
+        // The Arc refcount drops to 0 here,
+        // dropping the old client. Rust
+        // auto-cleanup.
+    }
 }

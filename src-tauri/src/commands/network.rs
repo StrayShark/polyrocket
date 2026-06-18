@@ -116,6 +116,13 @@ pub struct SetProxyConfigArgs {
 /// session's HTTP client is already built).
 /// The L1 surfaces a "Restart required" banner
 /// after this returns.
+///
+/// v0.60a — no longer requires a restart. The
+/// HTTP client is rebuilt atomically via
+/// `commands::llm::replace_http_client()`. We
+/// still write the JSON file (for the next
+/// launch's pre-pool read), but the in-memory
+/// client picks up the new proxy immediately.
 #[tauri::command]
 pub async fn set_proxy_config(
     state: State<'_, AppState>,
@@ -185,11 +192,40 @@ pub async fn set_proxy_config(
     ))
     .execute(&state.db)
     .await;
+    // v0.60a — hot-swap the shared HTTP client
+    // so the new proxy takes effect
+    // immediately. We set POLYROCKET_PROXY
+    // first (so the factory reads the new
+    // value), then rebuild.
+    //
+    // SAFETY: setting an env var is
+    // thread-safe; the concurrent read in
+    // `new_http_client` is rare (we only
+    // call it on init + on hot-swap). The
+    // worst case is a brief window where
+    // a parallel `http_client()` could read
+    // the new env var before we call
+    // `replace_http_client()`, but the read
+    // only happens at the first call (the
+    // OnceCell was already populated in
+    // lib.rs::run()).
+    if args.enabled {
+        if let Some(u) = url {
+            // SAFETY: see above.
+            std::env::set_var("POLYROCKET_PROXY", u);
+        } else {
+            std::env::remove_var("POLYROCKET_PROXY");
+        }
+    } else {
+        std::env::remove_var("POLYROCKET_PROXY");
+    }
+    crate::commands::llm::replace_http_client();
+    // No longer requires a restart.
     Ok(ProxyConfig {
         enabled: args.enabled,
         url: url.map(String::from),
         scheme: url.and_then(|u| derive_scheme(&u)),
-        restart_required: true,
+        restart_required: false,
     })
 }
 
