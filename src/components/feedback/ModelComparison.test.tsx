@@ -99,4 +99,40 @@ describe('ModelComparison (v0.40b)', () => {
     expect(cols[0]).toHaveAttribute('data-best', 'false'); // null brier
     expect(cols[1]).toHaveAttribute('data-best', 'true'); // 0.18
   });
+
+  // v0.42e-3 — weights from the archive
+  it('shows weights (w0, w1, w2) when weightsByJobId has a match', () => {
+    const weights = new Map<string, { w0: number; w1: number; w2: number }>();
+    weights.set('a', { w0: -0.5, w1: 2.0, w2: 0.4 });
+    render(
+      <ModelComparison
+        open
+        onClose={() => {}}
+        entries={[E1, E2]}
+        weightsByJobId={weights}
+      />,
+    );
+    const weightSections = screen.getAllByTestId('model-comparison-weights');
+    expect(weightSections).toHaveLength(2);
+    // First entry (job_id='a') has weights
+    expect(weightSections[0].textContent).toContain('w0=-0.500');
+    expect(weightSections[0].textContent).toContain('w1=2.000');
+    expect(weightSections[0].textContent).toContain('w2=0.400');
+    // Second entry (job_id='b') has no weights — fallback text
+    expect(weightSections[1].textContent).toContain('compare.weights_missing');
+  });
+
+  it('shows loading hint when weightsLoading=true and no match', () => {
+    render(
+      <ModelComparison
+        open
+        onClose={() => {}}
+        entries={[E1, E2]}
+        weightsByJobId={new Map()}
+        weightsLoading
+      />,
+    );
+    const weightSections = screen.getAllByTestId('model-comparison-weights');
+    expect(weightSections[0].textContent).toContain('compare.weights_loading');
+  });
 });

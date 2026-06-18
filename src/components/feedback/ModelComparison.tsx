@@ -7,7 +7,8 @@
  *   - promoted_at (relative)
  *   - best_brier (colored)
  *   - trial badge (best / trial N)
- *   - weights (w0, w1, w2)
+ *   - best_params (lr, reg) — from in-memory history
+ *   - weights (w0, w1, w2) — v0.42e-3, from archive
  *
  * The user selects entries in the PromoteHistory
  * panel (via checkboxes), then clicks "Compare
@@ -19,6 +20,15 @@
  * convention as the live Brier badge in
  * PromoteHistory (green < 0.15, yellow 0.15-0.20,
  * red > 0.20).
+ *
+ * v0.42e-3 — the parent passes a `weightsByJobId`
+ * map (sourced from the sidecar's archive.jsonl
+ * via listPromoteHistoryArchive). The map is keyed
+ * by job_id; entries without a match (typically
+ * because they haven't fallen off the 20-cap yet
+ * and don't have an archive entry) show
+ * "(no weights)" with a small spinner while the
+ * archive query is in-flight.
  */
 import { Trophy, X } from 'lucide-react';
 import { Modal } from '@/components/feedback/Modal';
@@ -34,6 +44,14 @@ interface ModelComparisonProps {
   /** The 2-3 entries to compare. The caller is
    *  responsible for limiting to 2-3. */
   entries: PromoteHistoryEntry[];
+  /** v0.42e-3 — per-entry weights (w0, w1, w2) from
+   * the archive. Optional; missing entries show
+   * "(no weights)" or a loading state. */
+  weightsByJobId?: Map<string, { w0: number; w1: number; w2: number }>;
+  /** v0.42e-3 — true while the archive query is
+   * in-flight. When true and an entry has no
+   * weights yet, show a small spinner. */
+  weightsLoading?: boolean;
 }
 
 function brierColor(brier: number | null): 'bull' | 'warn' | 'bear' | 'muted' {
@@ -47,6 +65,8 @@ export function ModelComparison({
   open,
   onClose,
   entries,
+  weightsByJobId,
+  weightsLoading,
 }: ModelComparisonProps) {
   const { t } = useT();
   // Find the entry with the lowest Brier (best).
@@ -149,6 +169,42 @@ export function ModelComparison({
                     (no params; pre-v0.18 entry)
                   </div>
                 )}
+                {/* v0.42e-3 — weights (w0, w1, w2) from
+                    the archive. Sourced via
+                    listPromoteHistoryArchive with a
+                    job_ids whitelist (parent passes
+                    the result). Missing entries are
+                    in-memory ones that haven't
+                    fallen off the 20-cap yet — they
+                    don't have an archive row, so
+                    there's no weight to show. */}
+                <div
+                  className="text-[10px] text-muted border-t border-border/40 pt-1 mt-1"
+                  data-testid="model-comparison-weights"
+                  data-job-id={e.job_id}
+                >
+                  <div className="uppercase tracking-wide text-[9px] text-muted mb-0.5">
+                    {t('compare.weights_title')}
+                  </div>
+                  {weightsByJobId?.has(e.job_id) ? (
+                    (() => {
+                      const w = weightsByJobId.get(e.job_id)!;
+                      return (
+                        <div className="font-mono text-fg text-[10px]">
+                          w0={w.w0.toFixed(3)} · w1={w.w1.toFixed(3)} · w2={w.w2.toFixed(3)}
+                        </div>
+                      );
+                    })()
+                  ) : weightsLoading ? (
+                    <div className="text-[9px] text-muted italic">
+                      {t('compare.weights_loading')}
+                    </div>
+                  ) : (
+                    <div className="text-[9px] text-muted italic">
+                      {t('compare.weights_missing')}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           );

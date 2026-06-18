@@ -14,6 +14,7 @@ import {
   sendNotification,
   requestNotificationPermission,
   listPromoteHistory,
+  listPromoteHistoryArchive,
   type TrainStartedEvent,
 } from '@/ipc';
 import { PromoteHistoryArchive } from '@/components/feedback/PromoteHistoryArchive';
@@ -145,6 +146,24 @@ export function ModelLab() {
     queryFn: () => listPromoteHistory(),
     staleTime: 30_000,
     enabled: compareOpen,
+  });
+  // v0.42e-3 — fetch weights for the 2-3 selected
+  // entries from the archive. The in-memory history
+  // has best_params (lr, reg) but NOT weights (w0,
+  // w1, w2) — those only live in the sidecar's
+  // archive.jsonl. We pull just the selected
+  // job_ids (whitelist filter on the Rust side)
+  // so the call is bounded even with a large
+  // archive.
+  const weightsQuery = useQuery({
+    queryKey: ['promote-history-archive-weights', [...selectedForCompare].sort()],
+    queryFn: () =>
+      listPromoteHistoryArchive({
+        job_ids: [...selectedForCompare],
+        limit: 100,
+      }),
+    staleTime: 30_000,
+    enabled: compareOpen && selectedForCompare.size > 0,
   });
   useEffect(() => {
     let cancelled = false;
@@ -666,6 +685,25 @@ export function ModelLab() {
           const reversed = [...allEntries].reverse();
           return reversed.filter((e) => selectedForCompare.has(e.job_id));
         })()}
+        // v0.42e-3 — pass the archive-weights map so
+        // the modal can show w0/w1/w2 alongside the
+        // best_params it already shows. The map is
+        // keyed by job_id; entries without an archive
+        // match fall back to "(no weights)" — typical
+        // for in-memory entries that haven't fallen
+        // off the 20-cap yet, but those also won't
+        // have weights until they DO fall off.
+        weightsByJobId={(() => {
+          const map = new Map<
+            string,
+            { w0: number; w1: number; w2: number }
+          >();
+          for (const e of weightsQuery.data?.entries ?? []) {
+            if (e.weights) map.set(e.job_id, e.weights);
+          }
+          return map;
+        })()}
+        weightsLoading={weightsQuery.isLoading}
       />
 
       <Card title={t('modellab.sm.title')} description={t('modellab.sm.desc')}>

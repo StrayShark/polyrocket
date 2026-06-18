@@ -494,9 +494,15 @@ const en: Dictionary = {
   // v0.40a — multi-model comparison modal
   'compare.title': 'Compare models',
   'compare.best': 'best',
-  'compare.lowest_brier': 'Lowest Brier',
-  'compare.hint': 'Select 2-3 entries in the history panel to compare their Brier and params.',
+  'compare.lowest_brier': 'lowest Brier',
+  'compare.hint': 'Select 2-3 entries in the history panel to compare.',
   'compare.button': 'Compare ({{count}})',
+  // v0.42e-3 — weights (w0, w1, w2) section in
+  // the comparison modal. Sourced from the
+  // sidecar's archive.jsonl.
+  'compare.weights_title': 'weights (archive)',
+  'compare.weights_loading': 'loading…',
+  'compare.weights_missing': '(no archive entry yet — in-memory only)',
   // v0.39b — auto-promote OS notification
   'auto_promote.notify.label': 'Desktop notification on auto-promote',
   'auto_promote.notify.desc': 'When ON, a real OS notification (macOS Notification Center / Windows toast) fires when a background auto-promote completes. The in-app toast always fires regardless.',
@@ -1119,6 +1125,10 @@ const zh: Dictionary = {
   'compare.lowest_brier': '最低 Brier',
   'compare.hint': '在历史面板中选择 2-3 条记录以对比它们的 Brier 和参数。',
   'compare.button': '对比 ({{count}})',
+  // v0.42e-3 — 权重对比
+  'compare.weights_title': '权重 (归档)',
+  'compare.weights_loading': '加载中…',
+  'compare.weights_missing': '(尚无归档记录)',
   // v0.39b — auto-promote OS notification
   'auto_promote.notify.label': '自动晋升时发送桌面通知',
   'auto_promote.notify.desc': '开启后，后台自动晋升完成时会发送真实系统通知（macOS 通知中心 / Windows 通知）。应用内 Toast 始终会显示。',

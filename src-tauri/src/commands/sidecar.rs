@@ -1271,6 +1271,15 @@ pub struct ListPromoteHistoryArchiveArgs {
     pub offset: Option<usize>,
     /// Pagination limit. Default 100 (capped at 1000).
     pub limit: Option<usize>,
+    /// v0.42e-3 — optional whitelist of job_ids. When
+    /// supplied, the result only includes entries whose
+    /// `job_id` is in this set. Used by the
+    /// `ModelComparison` component to fetch weights for
+    /// the 2-3 selected entries without pulling the
+    /// whole archive. Empty array = no entries; missing
+    /// = no filter (return all).
+    #[serde(default)]
+    pub job_ids: Option<Vec<String>>,
 }
 
 /// v0.33b — wire-format mirror of the Python sidecar's
@@ -1347,6 +1356,11 @@ pub async fn list_promote_history_archive(
     let to_ms = args.to_ms.unwrap_or(i64::MAX);
     let offset = args.offset.unwrap_or(0);
     let limit = args.limit.unwrap_or(100).min(1000);
+    // v0.42e-3 — build a HashSet for O(1) lookup if
+    // the caller passed a job_ids whitelist. None =
+    // no filter (return all matching time range).
+    let job_ids_filter: Option<std::collections::HashSet<String>> =
+        args.job_ids.as_ref().map(|v| v.iter().cloned().collect());
 
     let file = match std::fs::File::open(&archive_path) {
         Ok(f) => f,
@@ -1378,9 +1392,18 @@ pub async fn list_promote_history_archive(
             Ok(e) => e,
             Err(_) => continue, // skip malformed lines silently
         };
-        if entry.promoted_at_ms >= from_ms && entry.promoted_at_ms <= to_ms {
-            all.push(entry);
+        if entry.promoted_at_ms < from_ms || entry.promoted_at_ms > to_ms {
+            continue;
         }
+        // v0.42e-3 — apply the job_ids whitelist if set.
+        // Empty whitelist returns no entries; missing =
+        // no filter.
+        if let Some(set) = &job_ids_filter {
+            if !set.contains(&entry.job_id) {
+                continue;
+            }
+        }
+        all.push(entry);
     }
     // Newest first
     all.sort_by(|a, b| b.promoted_at_ms.cmp(&a.promoted_at_ms));
@@ -1781,6 +1804,7 @@ mod tests {
             to_ms: None,
             offset: None,
             limit: None,
+            job_ids: None,
         })
         .await
         .unwrap();
@@ -1812,6 +1836,7 @@ mod tests {
             to_ms: None,
             offset: None,
             limit: None,
+            job_ids: None,
         })
         .await
         .unwrap();
@@ -1851,6 +1876,7 @@ mod tests {
             to_ms: None,
             offset: Some(10),
             limit: Some(5),
+            job_ids: None,
         })
         .await
         .unwrap();
@@ -1881,6 +1907,7 @@ mod tests {
             to_ms: Some(1_700_000_007_000),
             offset: None,
             limit: None,
+            job_ids: None,
         })
         .await
         .unwrap();
@@ -1888,6 +1915,99 @@ mod tests {
         // 5 entries match: i=3,4,5,6,7
         assert_eq!(r.total, 5);
         assert_eq!(r.entries.len(), 5);
+
+        std::env::remove_var("POLYROCKET_SIDECAR_MODEL_DIR");
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[tokio::test]
+    async fn archive_filters_by_job_ids() {
+        // v0.42e-3 — whitelist filter on job_ids.
+        // The ModelComparison modal uses this to
+        // pull weights for the 2-3 selected
+        // entries without fetching the whole
+        // archive.
+        let tmp = std::env::temp_dir().join(format!(
+            "polyrocket_test_archive_jobids_{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        write_test_archive(&tmp.join("archive.jsonl"), 10);
+        std::env::set_var("POLYROCKET_SIDECAR_MODEL_DIR", &tmp);
+
+        // Whitelist: train-00000002, train-00000005,
+        // train-00000008 (the helper writes
+        // job_id="train-{:08x}" so i=2 → 00000002).
+        let r = list_promote_history_archive(ListPromoteHistoryArchiveArgs {
+            from_ms: None,
+            to_ms: None,
+            offset: None,
+            limit: None,
+            job_ids: Some(vec![
+                "train-00000002".into(),
+                "train-00000005".into(),
+                "train-00000008".into(),
+            ]),
+        })
+        .await
+        .unwrap();
+        assert!(r.ok);
+        // total counts entries BEFORE pagination
+        assert_eq!(r.total, 3);
+        assert_eq!(r.entries.len(), 3);
+        let ids: std::collections::HashSet<String> =
+            r.entries.iter().map(|e| e.job_id.clone()).collect();
+        assert!(ids.contains("train-00000002"));
+        assert!(ids.contains("train-00000005"));
+        assert!(ids.contains("train-00000008"));
+
+        // Empty whitelist → 0 entries
+        let r2 = list_promote_history_archive(ListPromoteHistoryArchiveArgs {
+            from_ms: None,
+            to_ms: None,
+            offset: None,
+            limit: None,
+            job_ids: Some(vec![]),
+        })
+        .await
+        .unwrap();
+        assert_eq!(r2.total, 0);
+        assert_eq!(r2.entries.len(), 0);
+
+        // Whitelist that matches nothing → 0 entries
+        let r3 = list_promote_history_archive(ListPromoteHistoryArchiveArgs {
+            from_ms: None,
+            to_ms: None,
+            offset: None,
+            limit: None,
+            job_ids: Some(vec!["train-00000999".into()]),
+        })
+        .await
+        .unwrap();
+        assert_eq!(r3.total, 0);
+        assert_eq!(r3.entries.len(), 0);
+
+        // Whitelist combined with from_ms — both
+        // filters must apply
+        let r4 = list_promote_history_archive(ListPromoteHistoryArchiveArgs {
+            from_ms: Some(1_700_000_006_000),
+            to_ms: None,
+            offset: None,
+            limit: None,
+            job_ids: Some(vec![
+                "train-00000002".into(),
+                "train-00000005".into(),
+                "train-00000008".into(),
+            ]),
+        })
+        .await
+        .unwrap();
+        // Only train-00000008 survives (i=5 is at
+        // 1_700_000_005_000 which is below the
+        // from_ms)
+        assert_eq!(r4.total, 1);
+        assert_eq!(r4.entries[0].job_id, "train-00000008");
 
         std::env::remove_var("POLYROCKET_SIDECAR_MODEL_DIR");
         let _ = std::fs::remove_dir_all(&tmp);

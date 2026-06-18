@@ -579,6 +579,14 @@ export interface ListPromoteHistoryArchiveArgs {
   offset?: number;
   /** Pagination limit. Default 100, capped at 1000. */
   limit?: number;
+  /** v0.42e-3 — optional whitelist of job_ids. When
+   * supplied, only entries with matching `job_id`
+   * are returned. Used by the `ModelComparison`
+   * component to fetch weights for the 2-3
+   * selected entries without pulling the whole
+   * archive. Empty array → no entries; missing
+   * → no filter. */
+  job_ids?: string[];
 }
 
 /** v0.33b — wire-format mirror of the Python sidecar's
