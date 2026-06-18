@@ -1,6 +1,6 @@
 # polyrocket — UI 设计规范 (UID)
 
-> 版本：v2.1 · 2026-06-16
+> 版本：v2.2 · 2026-06-18 (v0.54 Browse + v0.55 explain + v0.56 network + v0.57 file pickers)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（数据来源） · [`polyrocket-flows.md`](./polyrocket-flows.md)（交互流程） · [`polyrocket-llm-analysis.md`](./polyrocket-llm-analysis.md)（M10） · [`polyrocket-llm-management.md`](./polyrocket-llm-management.md)（M11）
 > 设计基线：Cursor IDE（dark / light） + 配色变体（matrix）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异

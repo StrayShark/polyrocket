@@ -1,6 +1,6 @@
 # polyrocket — 业务流程设计 (BPD)
 
-> 版本：v1.0 · 2026-06-16
+> 版本：v1.1 · 2026-06-18 (v0.54 dialog + v0.55 SHAP + v0.56 proxy + v0.57 fs + CI)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（模块边界）
 
 ---
