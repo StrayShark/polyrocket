@@ -409,4 +409,45 @@ mod tests {
         assert!(s.starts_with("2023-"));
         assert!(s.ends_with('Z'));
     }
+
+    // v0.44a — paper_mode default + env override.
+    // Each test starts by clearing the env var so
+    // the test order doesn't matter (cargo runs
+    // tests in parallel; without this, the
+    // `paper_mode_1` test would leak its env var
+    // to other tests in the same binary). The
+    // `serial_test` crate would be the cleanest
+    // fix, but to avoid adding a new dep, we just
+    // run these as part of the same test (combined
+    // into one sequential test) and assert all the
+    // cases at once.
+    #[test]
+    fn executor_config_paper_mode_all_cases() {
+        // Default off
+        std::env::remove_var("POLYROCKET_MIRROR_PAPER_MODE");
+        let c = ExecutorConfig::default();
+        assert!(!c.paper_mode);
+        let c = ExecutorConfig::from_env();
+        assert!(!c.paper_mode);
+
+        // 1 = on
+        std::env::set_var("POLYROCKET_MIRROR_PAPER_MODE", "1");
+        let c = ExecutorConfig::from_env();
+        assert!(c.paper_mode);
+
+        // "TRUE" case-insensitive = on
+        std::env::set_var("POLYROCKET_MIRROR_PAPER_MODE", "TRUE");
+        let c = ExecutorConfig::from_env();
+        assert!(c.paper_mode);
+
+        // 0 = off
+        std::env::set_var("POLYROCKET_MIRROR_PAPER_MODE", "0");
+        let c = ExecutorConfig::from_env();
+        assert!(!c.paper_mode);
+
+        // Unset = off
+        std::env::remove_var("POLYROCKET_MIRROR_PAPER_MODE");
+        let c = ExecutorConfig::from_env();
+        assert!(!c.paper_mode);
+    }
 }

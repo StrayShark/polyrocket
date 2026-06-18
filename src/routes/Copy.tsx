@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { Plus, Copy as CopyIcon, RefreshCw, Eye, EyeOff, ExternalLink } from 'lucide-react';
-import { listCopyTargets, addCopyTarget, recentCopyEvents } from '@/ipc';
+import { Plus, Copy as CopyIcon, RefreshCw, Eye, EyeOff, ExternalLink, FlaskConical } from 'lucide-react';
+import { listCopyTargets, addCopyTarget, recentCopyEvents, listPaperFills, getMirrorPaperMode } from '@/ipc';
 import { Card } from '@/components/base/Card';
 import { Pill } from '@/components/base/Pill';
 import { Button } from '@/components/base/Button';
@@ -28,8 +28,24 @@ export function Copy() {
   });
 
   const { data: events } = useQuery({
-    queryKey: ['copy-events', undefined, 50],
+    queryKey: ['copy-events'],
     queryFn: () => recentCopyEvents(undefined, 50),
+    staleTime: 30_000,
+  });
+
+  // v0.44c — paper-mode banner. Show [PAPER] at the
+  // top of the Copy page when the user has paper
+  // mode enabled, so they don't accidentally
+  // believe live trades are happening. Also fetch
+  // the paper_fills count for a quick stat.
+  const { data: paperMode } = useQuery({
+    queryKey: ['mirror-paper-mode'],
+    queryFn: () => getMirrorPaperMode(),
+    staleTime: 30_000,
+  });
+  const { data: paperFills } = useQuery({
+    queryKey: ['mirror-paper-fills'],
+    queryFn: () => listPaperFills({ limit: 50 }),
     staleTime: 30_000,
   });
 
@@ -59,6 +75,30 @@ export function Copy() {
           </div>
         </div>
       </Card>
+
+      {/* v0.44c — paper mode banner. Renders only
+          when paper mode is on. Surfaces the count
+          of paper_fills accumulated so far so the
+          user can see "yes, the system is
+          capturing my hypothetical trades". */}
+      {paperMode && (
+        <div
+          className="rounded-md border border-accent/40 bg-accent/5 p-2.5 flex items-center gap-2"
+          data-testid="copy-paper-mode-banner"
+        >
+          <FlaskConical className="w-4 h-4 text-accent shrink-0" />
+          <div className="flex-1 text-[12px]">
+            <span className="font-semibold uppercase tracking-wide text-accent">
+              [PAPER]
+            </span>
+            <span className="text-fg ml-2">
+              {t('copy.paper_mode_banner', {
+                n: paperFills?.length ?? 0,
+              })}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Auto-trigger mirror panel — derived client-side from L3 should_mirror() */}
       <Card

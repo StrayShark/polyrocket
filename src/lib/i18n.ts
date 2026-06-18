@@ -539,6 +539,8 @@ const en: Dictionary = {
   'paper_mode.hint': 'When ON, picked mirrors go to the `paper_fills` table instead of `bets`, and the CLOB signing step is skipped. The decision logic (sizing, exposure caps, frequency) is unchanged. Mirrors are marked `paper_submitted`. Default OFF.',
   'paper_mode.pushed': 'paper mode enabled',
   'paper_mode.push_failed': 'failed to update paper mode',
+  // v0.44c — copy page banner
+  'copy.paper_mode_banner': 'paper mode — {{n}} hypothetical fills captured',
   'promote.archive.empty_title': 'No archive yet',
   'promote.archive.empty_desc': 'The archive is created automatically when the in-memory 20-entry cap is exceeded. Promote 21+ models to start archiving.',
   'promote.archive.no_entries': '0 entries',
@@ -1190,6 +1192,8 @@ const zh: Dictionary = {
   'paper_mode.hint': '开启后,命中的 mirror 订单写入 `paper_fills` 表而非 `bets`,并跳过 CLOB 签名步骤。决策逻辑不变(仓位、风控、频率)。Mirror 状态标记为 `paper_submitted`。默认关闭。',
   'paper_mode.pushed': '模拟盘已开启',
   'paper_mode.push_failed': '模拟盘状态更新失败',
+  // v0.44c — 复制页横幅
+  'copy.paper_mode_banner': '模拟盘模式 — 已捕获 {{n}} 笔虚拟成交',
   'promote.archive.empty_title': '暂无归档',
   'promote.archive.empty_desc': '当内存中 20 条记录超过上限时，归档会自动创建。晋升 21+ 个模型即可开始归档。',
   'promote.archive.no_entries': '0 条记录',
