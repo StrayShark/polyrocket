@@ -56,6 +56,9 @@ jobs:
       - name: Layer rules
         run: node scripts/check-layers.mjs
 
+      - name: 3-theme contrast (WCAG AA)
+        run: node scripts/check-theme-contrast.mjs
+
       # v0.42a — doc-sync. Stages any files in
       # src/ or src-tauri/ and verifies a
       # matching docs/ change exists in the
