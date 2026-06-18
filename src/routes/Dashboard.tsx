@@ -289,6 +289,61 @@ export function Dashboard() {
               })}
             </div>
           )}
+          {/* v0.51b — slippage + time-to-fill + partial.
+              All three are NULL until v0.51+ wires real
+              CLOB execution (today the deterministic stub
+              fills them with the user's exact values, so
+              slippage = 0 and ttf = 0ms). The tiles still
+              render so the layout is stable; the values
+              show as '—'. */}
+          <div
+            className="mt-3 grid grid-cols-3 gap-2"
+            data-testid="fill-analytics-v51b"
+          >
+            <div
+              className="bg-surface-2 rounded px-2 py-1.5"
+              data-testid="fill-analytics-avg-slippage"
+            >
+              <div className="text-[10px] text-muted">
+                {t('dashboard.fill_analytics.avg_slippage')}
+              </div>
+              <div className="text-[12px] font-mono">
+                {fillAna.data.avgSlippage == null
+                  ? '—'
+                  : fillAna.data.avgSlippage.toFixed(4)}
+              </div>
+              <div className="text-[9px] text-muted">
+                {t('dashboard.fill_analytics.slippage_hint')}
+              </div>
+            </div>
+            <div
+              className="bg-surface-2 rounded px-2 py-1.5"
+              data-testid="fill-analytics-avg-ttf"
+            >
+              <div className="text-[10px] text-muted">
+                {t('dashboard.fill_analytics.avg_ttf')}
+              </div>
+              <div className="text-[12px] font-mono">
+                {fillAna.data.avgTimeToFillMs == null
+                  ? '—'
+                  : fmtLatency(fillAna.data.avgTimeToFillMs)}
+              </div>
+              <div className="text-[9px] text-muted">
+                {t('dashboard.fill_analytics.ttf_hint')}
+              </div>
+            </div>
+            <div
+              className="bg-surface-2 rounded px-2 py-1.5"
+              data-testid="fill-analytics-partial-rate"
+            >
+              <div className="text-[10px] text-muted">
+                {t('dashboard.fill_analytics.partial_rate', {
+                  n: fillAna.data.partialFillCount,
+                  pct: (fillAna.data.partialFillRate * 100).toFixed(1),
+                })}
+              </div>
+            </div>
+          </div>
         </Card>
       )}
 

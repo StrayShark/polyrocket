@@ -1204,16 +1204,14 @@ export interface OrderTypeBucket {
   realizedPnlUsdc: number;
 }
 
-/** v0.50c — fill analytics summary, returned
- * by `fillAnalytics`. Aggregates the `bets`
- * table into a single struct the Dashboard
- * can show as a "Fill analytics" card.
+/** v0.50c + v0.51b — fill analytics summary, returned
+ * by `fillAnalytics`. Aggregates the `bets` table.
  *
- * Slippage / time-to-fill are NOT in this struct
- * today — we don't have separate fill timestamps
- * or fill prices. v0.51+ will add `filled_at` +
- * `fill_price` columns when the real CLOB feed
- * lands, and these metrics will be added then. */
+ * v0.51b adds slippage + time-to-fill + partial-fill
+ * metrics. For the v0.5d deterministic stub these
+ * are 0 / 0ms / 0 (since fill_price = price and
+ * filled_at = placed_at by construction). v0.51+ wires
+ * the real CLOB and these reflect actual execution. */
 export interface FillAnalytics {
   totalFills: number;
   openCount: number;
@@ -1235,6 +1233,17 @@ export interface FillAnalytics {
   postOnlyCount: number;
   /** postOnlyCount / totalFills. 0.0 when 0 fills. */
   postOnlyRate: number;
+  /** v0.51b — average |fill_price - price| across
+   * filled rows. `null` when no rows have a
+   * fill_price (pre-v0.51b DB). */
+  avgSlippage: number | null;
+  /** v0.51b — average (filled_at - placed_at) in
+   * ms. `null` when no rows have a filled_at. */
+  avgTimeToFillMs: number | null;
+  /** v0.51b — count of partial fills. */
+  partialFillCount: number;
+  /** v0.51b — partialFillCount / totalFills. 0.0 when 0. */
+  partialFillRate: number;
 }
 
 /** v0.50c — return the fill analytics summary. */

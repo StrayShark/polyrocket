@@ -2,8 +2,14 @@
 //!
 //! v0.50a — adds the order-type columns (order_type,
 //! limit_price, stop_price, post_only) to the `bets`
-//! table for pre-v0.50 databases. The `paper_fills`
-//! table gets the same additions in `paper_fills.rs`.
+//! table for pre-v0.50 databases.
+//!
+//! v0.51b — adds the fill columns (filled_at,
+//! fill_price, fill_size, partial) for when real
+//! CLOB execution lands. Today (v0.51a) we don't
+//! have real execution yet — the deterministic stub
+//! in v0.5d populates filled_at = placed_at and
+//! fill_price = price, so slippage = 0 by construction.
 //!
 //! SQLite does not support `ALTER TABLE ... ADD COLUMN
 //! IF NOT EXISTS`, so we use the `PRAGMA table_info`
@@ -12,18 +18,23 @@
 
 use sqlx::SqlitePool;
 
-/// v0.50a — ensure `bets` has the order-type
-/// columns. Adds 4 columns:
-///   - order_type   TEXT     (default 'market')
-///   - limit_price  REAL     (nullable)
-///   - stop_price   REAL     (nullable)
-///   - post_only    INTEGER  (default 0)
+/// v0.50a + v0.51b — ensure `bets` has the order-type
+/// AND fill columns. Adds 8 columns total:
+///   v0.50a:
+///     - order_type   TEXT     (default 'market')
+///     - limit_price  REAL     (nullable)
+///     - stop_price   REAL     (nullable)
+///     - post_only    INTEGER  (default 0)
+///   v0.51b:
+///     - filled_at    INTEGER  (nullable)
+///     - fill_price   REAL     (nullable)
+///     - fill_size    TEXT     (nullable — string for
+///       back-compat with the existing `size` column)
+///     - partial      INTEGER  (default 0; 1 if the
+///       order was partially filled — v0.51+)
 ///
-/// Pre-v0.50 bets (those without these fields) get
-/// the default values: order_type='market',
-/// limit_price=NULL, stop_price=NULL, post_only=0.
-/// Existing bet rows are not retroactively re-typed
-/// — the L1 surfaces them as "market" implicitly.
+/// Pre-v0.50/v0.51 bets get the default values.
+/// Existing bet rows are not retroactively re-typed.
 pub async fn ensure_bets_columns(pool: &SqlitePool) -> sqlx::Result<()> {
     let existing: Vec<(i64, String, String, i64, Option<String>, i64)> =
         sqlx::query_as("PRAGMA table_info(bets)")
@@ -34,6 +45,7 @@ pub async fn ensure_bets_columns(pool: &SqlitePool) -> sqlx::Result<()> {
         .map(|(_, name, _, _, _, _)| name)
         .collect();
 
+    // v0.50a — order-type columns
     if !names.contains("order_type") {
         sqlx::query("ALTER TABLE bets ADD COLUMN order_type TEXT NOT NULL DEFAULT 'market'")
             .execute(pool)
@@ -51,6 +63,28 @@ pub async fn ensure_bets_columns(pool: &SqlitePool) -> sqlx::Result<()> {
     }
     if !names.contains("post_only") {
         sqlx::query("ALTER TABLE bets ADD COLUMN post_only INTEGER NOT NULL DEFAULT 0")
+            .execute(pool)
+            .await?;
+    }
+
+    // v0.51b — fill columns
+    if !names.contains("filled_at") {
+        sqlx::query("ALTER TABLE bets ADD COLUMN filled_at INTEGER")
+            .execute(pool)
+            .await?;
+    }
+    if !names.contains("fill_price") {
+        sqlx::query("ALTER TABLE bets ADD COLUMN fill_price REAL")
+            .execute(pool)
+            .await?;
+    }
+    if !names.contains("fill_size") {
+        sqlx::query("ALTER TABLE bets ADD COLUMN fill_size TEXT")
+            .execute(pool)
+            .await?;
+    }
+    if !names.contains("partial") {
+        sqlx::query("ALTER TABLE bets ADD COLUMN partial INTEGER NOT NULL DEFAULT 0")
             .execute(pool)
             .await?;
     }

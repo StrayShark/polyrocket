@@ -154,29 +154,20 @@ pub async fn paper_pnl_summary(
 // ============== v0.50c — fill analytics =========================
 // =================================================================
 
-/// v0.50c — fill analytics summary. Aggregates
+/// v0.50c + v0.51b — fill analytics summary. Aggregates
 /// the `bets` table into a struct the L1 Dashboard
 /// can show as a "Fill analytics" card.
 ///
-/// Today (no real CLOB execution) we only count
-/// what we know from the local record:
-///   - status distribution (open / won / lost /
-///     cancelled)
-///   - order_type breakdown (market / limit /
-///     stop_loss, added in v0.50a)
-///   - post_only share
-///   - avg time-to-settlement (settled_at -
-///     placed_at) for settled rows
-///   - total realized PnL (sum of `pnl` across
-///     settled rows)
-///   - win rate (won / settled)
-///
-/// "Slippage" and "time-to-fill" are intentionally
-/// not in the struct: without a separate fill
-/// timestamp from the CLOB, we can't measure them.
-/// When v0.51+ wires the real CLOB, we'll add a
-/// `filled_at` column + fill_price column and
-/// surface those here.
+/// v0.51b adds slippage and time-to-fill:
+///   - avg_slippage = mean(|fill_price - price|) over
+///     filled rows where fill_price is non-null.
+///     For the v0.5d deterministic stub (where
+///     fill_price = price) this is 0 by construction;
+///     when v0.51+ wires the real CLOB it'll reflect
+///     actual slip.
+///   - avg_time_to_fill_ms = mean(filled_at - placed_at)
+///     over filled rows. Same story.
+///   - partial_fill_count / partial_fill_rate.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FillAnalytics {
     pub total_fills: i64,
@@ -202,6 +193,19 @@ pub struct FillAnalytics {
     /// Share of fills that were post_only. 0.0
     /// when total_fills == 0.
     pub post_only_rate: f64,
+    /// v0.51b — average |fill_price - price| across
+    /// filled rows. None when no rows have a
+    /// fill_price (i.e. pre-v0.51b database).
+    pub avg_slippage: Option<f64>,
+    /// v0.51b — average (filled_at - placed_at) in
+    /// ms. None when no rows have a filled_at.
+    pub avg_time_to_fill_ms: Option<f64>,
+    /// v0.51b — count of partial fills (fill_size
+    /// present and < shares).
+    pub partial_fill_count: i64,
+    /// v0.51b — share of fills that were partial.
+    /// 0.0 when total_fills == 0.
+    pub partial_fill_rate: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -320,6 +324,32 @@ pub async fn fill_analytics(state: State<'_, AppState>) -> AppResult<FillAnalyti
         0.0
     };
 
+    // v0.51b — slippage and time-to-fill. Both
+    // queries skip rows where the fill columns are
+    // NULL (pre-v0.51b database).
+    let avg_slippage: Option<f64> = sqlx::query_scalar(
+        "SELECT AVG(ABS(fill_price - price)) FROM bets
+         WHERE fill_price IS NOT NULL",
+    )
+    .fetch_one(&state.db)
+    .await?;
+    let avg_time_to_fill_ms: Option<f64> = sqlx::query_scalar(
+        "SELECT AVG(filled_at - placed_at) FROM bets
+         WHERE filled_at IS NOT NULL",
+    )
+    .fetch_one(&state.db)
+    .await?;
+    let partial_fill_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM bets WHERE partial = 1",
+    )
+    .fetch_one(&state.db)
+    .await?;
+    let partial_fill_rate = if total > 0 {
+        partial_fill_count as f64 / total as f64
+    } else {
+        0.0
+    };
+
     Ok(FillAnalytics {
         total_fills: total,
         open_count,
@@ -332,6 +362,10 @@ pub async fn fill_analytics(state: State<'_, AppState>) -> AppResult<FillAnalyti
         by_order_type,
         post_only_count,
         post_only_rate,
+        avg_slippage,
+        avg_time_to_fill_ms,
+        partial_fill_count,
+        partial_fill_rate,
     })
 }
 

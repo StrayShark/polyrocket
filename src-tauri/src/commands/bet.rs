@@ -41,6 +41,27 @@ pub struct BetDto {
     pub stop_price: Option<f64>,
     #[serde(default)]
     pub post_only: bool,
+    /// v0.51b — when the order was actually filled
+    /// (vs `placed_at` which is when the user submitted).
+    /// For the v0.5d deterministic stub and pre-v0.51b
+    /// rows, this is `None` and slippage is reported as
+    /// 0 by the analytics IPC. v0.51+ populates this
+    /// from the real CLOB response.
+    #[serde(default)]
+    pub filled_at: Option<i64>,
+    /// v0.51b — actual fill price. May differ from
+    /// `price` (the user's expectation) — that's
+    /// slippage. None pre-v0.51b.
+    #[serde(default)]
+    pub fill_price: Option<f64>,
+    /// v0.51b — actual fill size in shares. May
+    /// differ from `shares` (the desired fill) when
+    /// the order was partial. None pre-v0.51b.
+    #[serde(default)]
+    pub fill_size: Option<String>,
+    /// v0.51b — true when fill_size < shares.
+    #[serde(default)]
+    pub partial: bool,
 }
 
 fn default_order_type() -> String {
@@ -169,16 +190,28 @@ pub async fn place_signed_order(
     let id = Uuid::new_v4().to_string();
     let shares = signed.shares;
 
-    // v0.50a — INSERT now includes the order-type columns.
-    // The idempotent ALTER TABLE in infra::db::bets_columns
-    // has already added them by the time we get here.
+    // v0.51b — fill columns. In the v0.5d deterministic
+    // stub we treat the order as filled immediately at
+    // the user's price (slippage = 0). When v0.51+ brings
+    // real CLOB execution, this section is replaced with
+    // the actual fill response.
+    let filled_at = signed.signed_at_ms;
+    let fill_price = args.price;
+    let fill_size = shares.clone();
+    let partial = false;
+
+    // v0.50a + v0.51b — INSERT now includes the
+    // order-type AND fill columns. The idempotent
+    // ALTER TABLE in infra::db::bets_columns has
+    // already added them by the time we get here.
     sqlx::query(
         "INSERT INTO bets (
             id, wallet_id, market_id, signal_id, mode, side,
             size, price, shares, placed_at, status, tx_hash,
-            order_type, limit_price, stop_price, post_only
+            order_type, limit_price, stop_price, post_only,
+            filled_at, fill_price, fill_size, partial
          )
-         VALUES (?, ?, ?, ?, 'B_signed', ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?)",
+         VALUES (?, ?, ?, ?, 'B_signed', ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&args.wallet_id)
@@ -194,6 +227,10 @@ pub async fn place_signed_order(
     .bind(args.limit_price)
     .bind(args.stop_price)
     .bind(if args.post_only { 1_i64 } else { 0_i64 })
+    .bind(filled_at)
+    .bind(fill_price)
+    .bind(&fill_size)
+    .bind(if partial { 1_i64 } else { 0_i64 })
     .execute(&state.db)
     .await?;
 
@@ -233,6 +270,10 @@ pub async fn place_signed_order(
         limit_price: args.limit_price,
         stop_price: args.stop_price,
         post_only: args.post_only,
+        filled_at: Some(filled_at),
+        fill_price: Some(fill_price),
+        fill_size: Some(fill_size),
+        partial,
     })
 }
 
@@ -249,12 +290,15 @@ pub async fn list_bets(
     args: ListBetsArgs,
 ) -> AppResult<Vec<BetDto>> {
     let limit = args.limit.unwrap_or(100);
-    // v0.50a — include the order-type columns. Pre-v0.50
-    // rows will have NULL for limit_price / stop_price and
-    // 0 for post_only; sqlx deserializes them via #[serde(default)].
+    // v0.50a + v0.51b — include the order-type AND fill
+    // columns. Pre-v0.50 / pre-v0.51b rows will have NULL
+    // for limit_price / stop_price / filled_at / fill_price
+    // / fill_size and 0 for post_only / partial; sqlx
+    // deserializes them via #[serde(default)].
     let rows = sqlx::query_as::<_, BetDto>(
         "SELECT id, wallet_id, market_id, signal_id, mode, side, size, price, shares, placed_at, settled_at, pnl, status, tx_hash, notes,
-                order_type, limit_price, stop_price, post_only
+                order_type, limit_price, stop_price, post_only,
+                filled_at, fill_price, fill_size, partial
          FROM bets ORDER BY placed_at DESC LIMIT ?",
     )
     .bind(limit)
