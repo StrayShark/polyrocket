@@ -29,14 +29,14 @@ graph TB
     subgraph P["Presentation Layer (L1)"]
         direction TB
         P1[React 18 + Vite + Tailwind]
-        P2[18 routes · 32 components]
+        P2[19 routes · 17 feedback components]
         P3[Zustand stores · hooks · IPC client]
     end
 
     subgraph A["Application Layer (L2)"]
         direction TB
-        A1[commands/ — 39 IPC handlers]
-        A2[state — AppState]
+        A1[commands/ — 83 IPC handlers]
+        A2[state — AppState + AutoPromoteConfig]
         A3[scheduler — manual triggers]
     end
 
@@ -53,7 +53,8 @@ graph TB
         I1[db — SQLite pool + settings]
         I2[http — reqwest shared client]
         I3[error — AppError + AppResult]
-        I4[scheduler — 3 tokio loops]
+        I4[scheduler — 5 tokio loops]
+        I5[telemetry — opt-in NDJSON (v0.42a)]
     end
 
     subgraph PL["Platform Layer (L5)"]
@@ -129,7 +130,7 @@ L1 → L2 → L3 → L4 → L5
 | `http` | `infra/http/mod.rs` | 共享 `reqwest::Client`（连接池） | `new_http_client()` (process-singleton via `OnceCell`) |
 | `error` | `infra/error.rs` | 统一 `AppError` + `AppResult<T>` | `AppError::Invalid`, `AppError::Auth`, `AppError::Internal`, `AppError::NotFound` |
 | `state` | `infra/state.rs` | Tauri managed state（db pool + scheduler handle） | `AppState { db: SqlitePool }` |
-| `scheduler` | `infra/scheduler.rs` | 3 个 tokio loop（health probe / daily brief / anomaly detect） | `start(pool, http) -> SchedulerHandle` |
+| `scheduler` | `infra/scheduler.rs` | 5 个 tokio loop（health probe / daily brief / anomaly detect / mirror executor / audit purge + sidecar health probe） | `start(pool, http) -> SchedulerHandle` |
 
 **关键不变量**：
 - 所有 SQL 都走 `sqlx::query` / `sqlx::query_as`，**不**直接用 `rusqlite`
@@ -516,7 +517,7 @@ sequenceDiagram
 | 层 | 路径 | 状态 |
 |---|---|---|
 | L5 platform | `src-tauri/src/platform/{keyring,env,paths}/` | ✅ v0.3a 完成 |
-| L4 infra | `src-tauri/src/infra/{error,state,http,db,scheduler}/` | ✅ v0.3b 完成 |
+| L4 infra | `src-tauri/src/infra/{error,state,http,db,scheduler,telemetry}/` | ✅ v0.3b 完成 (telemetry v0.42a) |
 | L3 domain | `src-tauri/src/domain/{llm,polymarket,consensus,signal,bet,copy,pnl,lab,wallet}/` | ✅ v0.3c + v0.4 真实现 |
 | L2 application | `src-tauri/src/commands/` (13 个文件) | ✅ v0.3d + v0.4 audit 模块 |
 | L1 presentation | `src/` (18 routes × 13 components × 5 stores) | ✅ v0.4 真 React |
@@ -629,6 +630,7 @@ sequenceDiagram
 | **ModelComparison component** | Modal showing 2-3 entries side-by-side, "lowest Brier" highlighted | ✅ v0.40a 完成（5 component tests; shows Brier + best_params; max 3 selected） |
 | **ModelLab compare integration** | checkboxes in PromoteHistory rows + "Compare (N)" button + historyQuery for modal data | ✅ v0.40b 完成（4 new i18n keys × 2 locales; checkboxes in rows; modal at page level） |
 | **Per-promotion `reason` field (Python)** | "Promoted as best trial" / "Promoted as trial N of M" written to new_entry; archive picks up automatically | ✅ v0.41a 完成（1 new python test; archive_entries_have_correct_shape updated to expect reason） |
+| **Telemetry module (Rust)** | `infra::telemetry::Event` enum (14 variants) + opt-in NDJSON to stderr via `POLYROCKET_TELEMETRY=1`; runtime override via `set_telemetry_enabled` IPC | ✅ v0.42a-c 完成（6 cargo + 3 vitest + 7 i18n keys × 2 locales; wired into 5 scheduler loops + 3 IPCs） |
 | **Reason wire mirror (Rust + L1) + hover tooltip** | `PromoteHistoryEntry.reason: Option<String>` (serde-default for pre-v0.41); ⓘ icon with native title in PromoteHistory row | ✅ v0.41b 完成（Rust serde-default; 2 new vitest tests; 1 new i18n key × 2 locales） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
