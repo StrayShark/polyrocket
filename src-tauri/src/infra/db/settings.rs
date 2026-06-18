@@ -20,7 +20,9 @@
 
 use sqlx::SqlitePool;
 
-/// Create the side-table if it doesn't exist. Idempotent.
+/// 创建 `_polyrocket_settings` 表。**幂等**（IF NOT EXISTS）。
+///
+/// **调用方**：`init_pool()` 在 startup 调一次。后续不再调。
 pub async fn ensure_table(pool: &SqlitePool) -> sqlx::Result<()> {
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS _polyrocket_settings (
@@ -34,7 +36,10 @@ pub async fn ensure_table(pool: &SqlitePool) -> sqlx::Result<()> {
     Ok(())
 }
 
-/// Upsert a string value.
+/// Upsert 一个字符串值。**总是** touch `updated_at = unixepoch() * 1000`。
+///
+/// **业务流程**：L1 Settings 改任何 Rust 端可见的设置（如 `polymarket.host`、
+/// `chain_id`）→ IPC 调到 `set`，写完立刻可读。
 pub async fn set(pool: &SqlitePool, k: &str, v: &str) -> sqlx::Result<()> {
     sqlx::query(
         "INSERT INTO _polyrocket_settings (k, v) VALUES (?, ?)
@@ -47,7 +52,7 @@ pub async fn set(pool: &SqlitePool, k: &str, v: &str) -> sqlx::Result<()> {
     Ok(())
 }
 
-/// Read a string value (or None if key is missing).
+/// 读一个字符串值。**不存在**返回 `None`，**值存在但 parse 失败**也返回原始字符串。
 pub async fn get(pool: &SqlitePool, k: &str) -> sqlx::Result<Option<String>> {
     let v: Option<String> = sqlx::query_scalar(
         "SELECT v FROM _polyrocket_settings WHERE k = ?",
@@ -59,6 +64,7 @@ pub async fn get(pool: &SqlitePool, k: &str) -> sqlx::Result<Option<String>> {
 }
 
 /// Read a string value, returning `default` if missing.
+/// 读字符串，缺失时返回 `default`（无字符串 clone 的 borrow 形式）。
 pub async fn get_or(pool: &SqlitePool, k: &str, default: &str) -> sqlx::Result<String> {
     Ok(get(pool, k).await?.unwrap_or_else(|| default.to_string()))
 }

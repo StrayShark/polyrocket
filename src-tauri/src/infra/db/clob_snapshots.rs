@@ -93,6 +93,10 @@ pub async fn record_clob_snapshot(
 /// price DESC (best bid first); asks by price ASC
 /// (best ask first). Returns None when no snapshots
 /// exist.
+/// 拉某个 market 的最新一次 CLOB 快照（一个 `captured_at` 下的所有 bid+ask rows）。
+///
+/// **返回**：`Vec<ClobLevel>` —— bid/ask 都按 price 排序。空 Vec 表示该 market
+/// 从未记录过快照。
 pub async fn latest_clob_snapshot(
     pool: &SqlitePool,
     market_id: &str,
@@ -154,6 +158,9 @@ pub struct ClobSnapshot {
 /// Number of distinct snapshots per market (most
 /// recent first). Used by the L1 to show "we have
 /// N snapshots for market X".
+/// 统计某个 market 的 CLOB 快照总条数（rows 数量，不是 distinct `captured_at` 数）。
+///
+/// **用途**：L1 「History → Order Book」展示 + retention 决策。
 pub async fn snapshot_count(
     pool: &SqlitePool,
     market_id: &str,
@@ -172,6 +179,12 @@ pub async fn snapshot_count(
 /// Default retention is 7 days (vs 30 for
 /// `price_snapshots`) — clob_snapshots are much
 /// larger per row (10-30 vs 1 per market).
+/// 删除某个 market 超过 `keep` 条数的历史快照。返回删除行数。
+///
+/// **策略**：保留最近 `keep` 条（按 `captured_at` DESC 排序），删剩下的。
+/// 这是 LRU 风格的截断，不按时间窗口 —— 因为不同 market 的 CLOB 活跃度差很多。
+///
+/// **调用方**：手动 + 未来 scheduler（按 v0.51a+ 的存储策略决定）。
 pub async fn purge_old(
     pool: &SqlitePool,
     retention_ms: i64,

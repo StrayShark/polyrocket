@@ -17,6 +17,19 @@ use tauri::{AppHandle, Manager};
 /// - `foreign_keys = ON`      — enforce FK constraints (off by default in SQLite)
 ///
 /// Also creates the `_polyrocket_settings` side-table (see [`super::settings`]).
+/// v0.53a — 构造 SQLite pool + 跑 PRAGMA + 调所有 `ensure_*_columns` / `ensure_*_table`。
+///
+/// **业务流程**：
+///   1. `db_path(app)` 解析实际 DB 路径（用户可在 Settings 自定义）
+///   2. `SqlitePoolOptions::new().max_connections(8).connect(url)`
+///   3. 跑 `PRAGMA journal_mode=WAL`、`foreign_keys=ON`、`busy_timeout=5000`
+///   4. 调所有 `ensure_*` 创建表 + 索引
+///   5. 调 `apply_seed` 检查是否是首次启动
+///
+/// **调用方**：`lib.rs::run()` 在 `setup` hook 里调一次。结果塞进 `AppState.db`。
+///
+/// **错误**：DB 文件权限错 / 磁盘满 / schema 创建失败 → 返回 `AppError::Db`，
+/// Tauri setup 阶段会 panic 阻止 app 启动（用户看到错误对话框）。
 pub async fn init_pool(app: &AppHandle) -> AppResult<SqlitePool> {
     // v0.53a — resolve_db_path checks
     // `storage_path.json` first. If absent or invalid,
@@ -73,6 +86,11 @@ pub async fn init_pool(app: &AppHandle) -> AppResult<SqlitePool> {
 
 /// Migration helper for the mirror queue (v0.6a M5 auto-execution).
 /// Called by `init_pool` so first launch after upgrade creates the table.
+/// v0.20a — 创建 `copy_mirror_queue` 表（copy-trading mirror 队列）。**幂等**。
+///
+/// **表用途**：每条 row 代表一次 mirror executor 要处理的 mirror 事件。
+/// v0.20a 起 mirror 不再走内存队列 —— 写 DB 后由 `run_mirror_executor_loop` 消费，
+/// 保证重启后不丢。
 pub async fn ensure_copy_mirror_queue(pool: &SqlitePool) -> sqlx::Result<()> {
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS copy_mirror_queue (
@@ -104,6 +122,11 @@ pub async fn ensure_copy_mirror_queue(pool: &SqlitePool) -> sqlx::Result<()> {
 
 /// v0.47a — ensure the price_snapshots table +
 /// its market/recent index exist. Idempotent.
+/// v0.47a — 创建 `price_snapshots` 表（每个 market 每次 sweep 一行）。**幂等**。
+///
+/// **表用途**：存最近一次 sweep 的 (best_bid, best_ask, mid_price, spread)，
+/// 给 L1 Dashboard + backtest join 用。**不**存 order book depth（那是
+/// `clob_snapshots` 的活）。
 pub async fn ensure_price_snapshots(pool: &SqlitePool) -> sqlx::Result<()> {
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS price_snapshots (
@@ -134,6 +157,10 @@ pub async fn ensure_price_snapshots(pool: &SqlitePool) -> sqlx::Result<()> {
 /// (one row per price level per side per timestamp),
 /// as opposed to `price_snapshots` (one row per
 /// market per timestamp with a single bid/ask pair).
+/// v0.51a — 创建 `clob_snapshots` 表（每个 market 每次 snapshot 多行）。**幂等**。
+///
+/// **表用途**：存 full order book ladder。v0.51a+ 给需要 depth 推理的功能用
+///（post-only 检查、partial fill 模拟、book 演变可视化）。
 pub async fn ensure_clob_snapshots(pool: &SqlitePool) -> sqlx::Result<()> {
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS clob_snapshots (

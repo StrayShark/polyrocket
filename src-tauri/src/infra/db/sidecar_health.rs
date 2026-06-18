@@ -15,6 +15,9 @@ use sqlx::SqlitePool;
 /// 24h in ms — how long we keep probe rows.
 const RETAIN_MS: i64 = 24 * 3_600_000;
 
+/// v0.10d — 创建 `sidecar_health` 表 + 索引。**幂等**（IF NOT EXISTS）。
+///
+/// **调用方**：`init_pool()` 在 startup 调一次。后续不再调。
 pub async fn ensure_table(pool: &SqlitePool) -> AppResult<()> {
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS sidecar_health (
@@ -36,6 +39,10 @@ pub async fn ensure_table(pool: &SqlitePool) -> AppResult<()> {
     Ok(())
 }
 
+/// 写一行 sidecar 探测结果。**每次 sidecar 启动/ping/崩溃 都会调一次**。
+///
+/// **业务流程**：`run_sidecar_health_loop` 每 30s 调一次，按结果填 `kind`/`latency_ms`/`error`。
+/// 配合 `purge_old` 形成 24h 滚动 ring buffer。
 pub async fn record_probe(
     pool: &SqlitePool,
     at_ms: i64,
@@ -56,6 +63,10 @@ pub async fn record_probe(
     Ok(())
 }
 
+/// 拉最近 200 条探测记录 → 转成 `SidecarHealthSnapshot` 供 L1 Settings 渲染。
+///
+/// **为什么 LIMIT 200**：L1 只展示「最近几次 + 趋势」；200 条 ≈ 100 分钟数据，
+/// 够画 1-2 张图。
 pub async fn recent(pool: &SqlitePool) -> AppResult<SidecarHealthSnapshot> {
     let rows: Vec<(i64, String, Option<i64>, Option<String>)> = sqlx::query_as(
         "SELECT at_ms, kind, latency_ms, error
@@ -77,6 +88,9 @@ pub async fn recent(pool: &SqlitePool) -> AppResult<SidecarHealthSnapshot> {
     Ok(SidecarHealthSnapshot::from_rows(&mapped))
 }
 
+/// 删除 24h 之前的探测记录。返回删除行数。
+///
+/// **调用方**：`run_sidecar_health_loop` 每小时调一次（不调每个 tick，避免重复写）。
 pub async fn purge_old(pool: &SqlitePool, now_ms: i64) -> AppResult<usize> {
     let n: usize = sqlx::query("DELETE FROM sidecar_health WHERE at_ms < ?")
         .bind(now_ms - RETAIN_MS)

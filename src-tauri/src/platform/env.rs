@@ -168,15 +168,21 @@ fn sync_env_to_keyring(pairs: &[(String, String)]) {
 // 3. Typed env helpers (used by infra/scheduler.rs)
 // ============================================================
 
+/// 读 env var → u64。**缺失或解析失败** → 返回 `default`。
+///
+/// **调用方**：scheduler (`SchedulerConfig::from_env`) 用这个读 `POLYROCKET_*_MIN/SEC`。
 pub fn env_u64(name: &str, default: u64) -> u64 {
     env::var(name).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
 }
+/// 读 env var → u32。**缺失或解析失败** → 返回 `default`。
 pub fn env_u32(name: &str, default: u32) -> u32 {
     env::var(name).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
 }
+/// 读 env var → i32。**缺失或解析失败** → 返回 `default`（包括负数）。
 pub fn env_i32(name: &str, default: i32) -> i32 {
     env::var(name).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
 }
+/// 读 env var → `Duration`（秒为单位）。**缺失或解析失败** → `default_secs`。
 pub fn env_duration_secs(name: &str, default_secs: u64) -> Duration {
     Duration::from_secs(env_u64(name, default_secs))
 }

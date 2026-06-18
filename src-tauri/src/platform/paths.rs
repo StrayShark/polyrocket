@@ -82,11 +82,18 @@ pub fn default_app_data_dir() -> Option<PathBuf> {
 }
 
 /// Path to `polyrocket.db` (does NOT touch the file — pure path computation).
+/// 解析默认 DB 路径：`<app_data_dir>/polyrocket.db`。
+///
+/// **不**考虑 `storage_path.json`（用户自定义路径走 `resolve_db_path`）。
+/// 这个 fn 是「最后兜底」+ 测试用。
 pub fn db_path(app: &AppHandle) -> crate::AppResult<PathBuf> {
     Ok(app_data_dir(app)?.join("polyrocket.db"))
 }
 
 /// Path to the app log directory (created if missing).
+/// 解析默认日志目录：`<app_data_dir>/logs/`。**自动创建**（如果不存在）。
+///
+/// **不**考虑 `storage_path.json` —— 用 `resolve_log_dir` 走自定义路径。
 pub fn log_dir(app: &AppHandle) -> crate::AppResult<PathBuf> {
     let dir = app_data_dir(app)?.join("logs");
     std::fs::create_dir_all(&dir)?;
@@ -173,8 +180,14 @@ pub fn resolve_log_dir(app: &AppHandle) -> crate::AppResult<PathBuf> {
 /// Build the SQLx connection URL for a given db path.
 /// `mode=rwc` opens for read+write and creates if missing.
 ///
+/// Build the SQLx connection URL for a given db path.
+/// `mode=rwc` opens for read+write and creates if missing.
+///
 /// The path is run through [`url_path_encode`] to handle spaces, unicode,
 /// and other characters that the SQLx URL parser would otherwise choke on.
+///
+/// **为什么不直接用 `path` 字符串**：SQLx 要求 `sqlite://` 协议头 + `mode=rwc` 标记
+///（read+write+create）。少了 `mode` 会让首次启动时 DB 不存在而 connection 失败。
 pub fn sqlite_url(path: &Path) -> String {
     format!("sqlite://{}?mode=rwc", url_path_encode(&path.to_string_lossy()))
 }
