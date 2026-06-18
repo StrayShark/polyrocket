@@ -125,6 +125,17 @@ export function ModelLab() {
   // toggling the flag mid-session takes effect on the
   // next mount).
   const autoPromoteNotify = usePrefsStore((s) => s.autoPromoteNotify);
+  // v0.42e-2 — opt-in OS notification for the
+  // "skipped" branch. Default false (most users
+  // don't want "your training didn't improve
+  // anything" pings every train). When ON, the
+  // listener sends an OS notification on
+  // `promoted === false` events with the
+  // sidecar's "reason" (e.g. "candidate not
+  // better than active").
+  const autoPromoteSkippedNotify = usePrefsStore(
+    (s) => s.autoPromoteSkippedNotify,
+  );
   // v0.40b — the comparison modal needs the full
   // history data. We use a separate useQuery with
   // the same key as the PromoteHistory panel, so
@@ -176,6 +187,20 @@ export function ModelLab() {
         // the normal case where the candidate wasn't
         // better. Only show info-level toast for visibility.
         toast.info(t('auto_promote.toast.auto_skipped'), e.message);
+        // v0.42e-2 — opt-in OS notification for the
+        // skipped branch. Off by default (most
+        // users don't want a "no improvement"
+        // ping every train). When ON, mirror the
+        // promoted-path OS notification flow.
+        if (autoPromoteSkippedNotify) {
+          sendNotification(
+            'auto_promote',
+            t('auto_promote.toast.auto_skipped'),
+            e.message || t('auto_promote.toast.auto_skipped_body'),
+          ).catch(() => {
+            // best-effort
+          });
+        }
       }
     });
     return () => {

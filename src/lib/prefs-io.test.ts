@@ -26,6 +26,7 @@ const FULL_PREFS: UiPrefs = {
   autoPromoteBrierMargin: 0.01,
   autoPromoteAfterTrain: true,
   autoPromoteNotify: false,
+  autoPromoteSkippedNotify: true,
   telemetryEnabled: true,
 };
 
@@ -38,7 +39,7 @@ describe('prefs-io (v0.36a)', () => {
       expect(typeof parsed.exported_at_ms).toBe('number');
       expect(parsed.prefs).toEqual(FULL_PREFS);
     });
-    it('includes all 9 UiPrefs fields', () => {
+    it('includes all 10 UiPrefs fields', () => {
       const json = exportPrefsToString(FULL_PREFS);
       const parsed = JSON.parse(json);
       expect(Object.keys(parsed.prefs).sort()).toEqual(
@@ -47,6 +48,7 @@ describe('prefs-io (v0.36a)', () => {
           'autoPromoteAfterTrain',
           'autoPromoteBrierMargin',
           'autoPromoteNotify',
+          'autoPromoteSkippedNotify',
           'copyTradingEnabled',
           'defaultAllocationCapUsdc',
           'defaultMinEdgePct',
@@ -73,6 +75,7 @@ describe('prefs-io (v0.36a)', () => {
         autoPromoteBrierMargin: 0.005,
         autoPromoteAfterTrain: false,
         autoPromoteNotify: true,
+        autoPromoteSkippedNotify: false,
         telemetryEnabled: false,
       };
       const json = exportPrefsToString(defaults);

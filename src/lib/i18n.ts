@@ -501,6 +501,8 @@ const en: Dictionary = {
   'auto_promote.notify.label': 'Desktop notification on auto-promote',
   'auto_promote.notify.desc': 'When ON, a real OS notification (macOS Notification Center / Windows toast) fires when a background auto-promote completes. The in-app toast always fires regardless.',
   'auto_promote.toast.auto_promoted_body': 'A new model was auto-promoted',
+  // v0.42e-2 — skipped auto-promote OS notification body
+  'auto_promote.toast.auto_skipped_body': 'No improvement over the active model',
   // v0.42c — opt-in lifecycle telemetry
   'telemetry.title': 'Telemetry',
   'telemetry.desc': 'Opt-in machine-parseable lifecycle events. Default OFF.',
@@ -1120,7 +1122,12 @@ const zh: Dictionary = {
   // v0.39b — auto-promote OS notification
   'auto_promote.notify.label': '自动晋升时发送桌面通知',
   'auto_promote.notify.desc': '开启后，后台自动晋升完成时会发送真实系统通知（macOS 通知中心 / Windows 通知）。应用内 Toast 始终会显示。',
+  // v0.42e-2 — 跳过自动晋升的桌面通知
+  'auto_promote.notify_skipped.label': '跳过自动晋升时发送桌面通知',
+  'auto_promote.notify_skipped.desc': '开启后，当后台自动晋升未实际晋升（例如 "candidate not better than active"）时也会发送真实系统通知。默认关闭 —— 大多数用户不需要每次训练都收到"没有改进"提示。',
   'auto_promote.toast.auto_promoted_body': '新模型已自动晋升',
+  // v0.42e-2 — 已跳过自动晋升
+  'auto_promote.toast.auto_skipped_body': '未超过当前模型',
   // v0.42c — 遥测开关
   'telemetry.title': '遥测',
   'telemetry.desc': '可选的机器可解析生命周期事件。默认关闭。',

@@ -264,4 +264,24 @@ describe('Backup & restore card (v0.36b)', () => {
       expect(getTelemetryEnabled).toHaveBeenCalled();
     });
   });
+
+  // v0.42e-2 — opt-in OS notification for the
+  // skipped auto-promote branch.
+  it('renders the auto-promote-notify-skipped toggle', async () => {
+    render(wrap(<Settings />));
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('auto-promote-notify-skipped-toggle'),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('toggling auto-promote-notify-skipped updates the prefs store', async () => {
+    render(wrap(<Settings />));
+    const toggle = await screen.findByTestId('auto-promote-notify-skipped-toggle');
+    fireEvent.click(toggle);
+    await waitFor(() => {
+      expect(mockSetPref).toHaveBeenCalledWith('autoPromoteSkippedNotify', true);
+    });
+  });
 });

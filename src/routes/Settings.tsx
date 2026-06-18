@@ -448,6 +448,14 @@ function AutoPromoteCard() {
   const margin = usePrefsStore((s) => s.autoPromoteBrierMargin);
   const afterTrain = usePrefsStore((s) => s.autoPromoteAfterTrain);
   const notifyOnAutoPromote = usePrefsStore((s) => s.autoPromoteNotify);
+  // v0.42e-2 — opt-in OS notification for the
+  // "skipped" branch (i.e. the candidate wasn't
+  // better than the active model). Most users
+  // don't want this — it's the common case —
+  // so default is off.
+  const notifyOnAutoPromoteSkipped = usePrefsStore(
+    (s) => s.autoPromoteSkippedNotify,
+  );
   const setPref = usePrefsStore((s) => s.setPref);
   const [value, setValue] = useState<number>(margin);
   const [saved, setSaved] = useState(false);
@@ -480,6 +488,12 @@ function AutoPromoteCard() {
   // know about it).
   const onNotifyToggle = (next: boolean) => {
     setPref('autoPromoteNotify', next);
+  };
+
+  // v0.42e-2 — opt-in OS notification on the
+  // "skipped" branch. Off by default.
+  const onNotifySkippedToggle = (next: boolean) => {
+    setPref('autoPromoteSkippedNotify', next);
   };
 
   const onSave = () => {
@@ -527,6 +541,21 @@ function AutoPromoteCard() {
           />
           <p className="text-[10px] text-muted mt-1 ml-1">
             {t('auto_promote.notify.desc')}
+          </p>
+        </div>
+        {/* v0.42e-2 — opt-in OS notification for the
+            "skipped" branch. Off by default. Sits
+            below the main notify toggle so the two
+            are visually grouped. */}
+        <div>
+          <Toggle
+            data-testid="auto-promote-notify-skipped-toggle"
+            label={t('auto_promote.notify_skipped.label')}
+            checked={notifyOnAutoPromoteSkipped}
+            onChange={onNotifySkippedToggle}
+          />
+          <p className="text-[10px] text-muted mt-1 ml-1">
+            {t('auto_promote.notify_skipped.desc')}
           </p>
         </div>
         <NumberField

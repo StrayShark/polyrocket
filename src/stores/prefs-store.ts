@@ -33,6 +33,19 @@ export interface UiPrefs {
    * wants the OS notification when a background
    * action completes). */
   autoPromoteNotify: boolean;
+  /** v0.42e-2 — also notify on skipped auto-promote
+   * runs. The skipped path is the common case
+   * (most training runs don't improve by the
+   * configured Brier margin), so this is OFF by
+   * default — most users don't want a "your
+   * training didn't improve anything" OS
+   * notification every time they hit Train.
+   *
+   * When ON, the L1 sends an OS notification on
+   * `auto_promote:finished` events where
+   * `promoted === false` (e.g. "candidate not
+   * better than active"). Default false. */
+  autoPromoteSkippedNotify: boolean;
   /** v0.42c — opt-in lifecycle telemetry. When true,
    * every Rust lifecycle event (train started /
    * completed / failed, promote completed, scheduler
@@ -59,6 +72,7 @@ const DEFAULT: UiPrefs = {
   autoPromoteBrierMargin: 0.005,
   autoPromoteAfterTrain: false,
   autoPromoteNotify: true,
+  autoPromoteSkippedNotify: false,
   telemetryEnabled: false,
 };
 

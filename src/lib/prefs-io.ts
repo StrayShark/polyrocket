@@ -41,8 +41,8 @@ export interface PrefsExport {
   version: number;
   /** v0.36a — when the export was created (unix millis). */
   exported_at_ms: number;
-  /** v0.36a — the actual prefs. All 8 UiPrefs fields
-   *  (was 7 until v0.42c added telemetryEnabled). */
+  /** v0.36a — the actual prefs. All 10 UiPrefs fields
+   *  (was 8 until v0.42e-2 added autoPromoteSkippedNotify). */
   prefs: UiPrefs;
 }
 
@@ -59,6 +59,7 @@ const PREF_DEFAULTS: UiPrefs = {
   autoPromoteBrierMargin: 0.005,
   autoPromoteAfterTrain: false,
   autoPromoteNotify: true,
+  autoPromoteSkippedNotify: false,
   telemetryEnabled: false,
 };
 
@@ -186,6 +187,16 @@ export function parsePrefsFromString(json: string): UiPrefs {
       throw new Error('Invalid export: telemetryEnabled must be a boolean');
     }
     result.telemetryEnabled = v;
+  }
+  // v0.42e-2 — autoPromoteSkippedNotify. New in
+  // v0.42; old exports don't have it (forward-
+  // compat: defaults to false).
+  if ('autoPromoteSkippedNotify' in rawPrefs) {
+    const v = rawPrefs.autoPromoteSkippedNotify;
+    if (typeof v !== 'boolean') {
+      throw new Error('Invalid export: autoPromoteSkippedNotify must be a boolean');
+    }
+    result.autoPromoteSkippedNotify = v;
   }
   return result;
 }
