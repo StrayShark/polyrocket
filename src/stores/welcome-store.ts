@@ -11,6 +11,12 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 const STORAGE_KEY = 'polyrocket.welcome';
 const LEGACY_KEY = 'polyrocket.onboarding';
 
+/** Welcome flow 6 步。**顺序固定**（WELCOME_STEPS 数组）—— L1 「/welcome」路由按
+ * 这个顺序渲染 StepProgress 进度条。
+ *
+ * **v0.53a spec**：「storage」替代了 v0.13 的「wallet」（wallet 现在是 polymarket
+ * 步骤里的 sub-section）。
+ */
 export type WelcomeStep =
   | 'welcome'
   | 'storage'
@@ -111,6 +117,14 @@ function migrateLegacy(): void {
   }
 }
 
+/** Welcome zustand store。**持久化** 到 `localStorage['polyrocket.welcome']`。
+ *
+ * **`migrateLegacy()`**：第一次 store 初始化时把旧的 `polyrocket.onboarding`
+ * 数据迁移过来。**lazy on first read** —— 不在 app boot 时强跑，避免阻塞。
+ *
+ * **5 个 sub-configured flags**：Dashboard banner 用这些判断「用户是否还没配
+ * 完」，决定 nag 强度。
+ */
 export const useWelcomeStore = create<WelcomeState>()(
   persist(
     (set) => ({

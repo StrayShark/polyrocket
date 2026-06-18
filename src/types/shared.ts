@@ -53,6 +53,12 @@ export interface PaperPnlSummary {
   paper_mode_enabled: boolean;
 }
 
+/** v0.3+ Daily Brief 单条记录。L1 Dashboard 卡片 + 列表用。
+ *
+ * **数据来源**：`daily_briefs` JOIN `markets` LEFT JOIN `signals` LEFT JOIN
+ * `llm_analyses`。
+ * **`dismissed` 含义**：24h 内 dismissed 才算 true（过期 dismiss 自动恢复）。
+ */
 export interface DailyBriefEntry {
   market_id: string;
   market_question: string;
@@ -94,6 +100,12 @@ export interface SetBriefPrefsArgs {
   categories?: string[];
 }
 
+/** v0.49c+ scheduler 状态。L1 「Settings → Scheduler」卡片用。
+ *
+ * **字段**：
+ *   - 4 个 env var 配置（interval / hour / tz / window）
+ *   - `next_brief_run_at_unix_ms` — 下次 daily_brief cron 触发时间
+ */
 export interface SchedulerStatus {
   health_probe_interval_sec: number;
   daily_brief_hour_utc: number;
@@ -109,6 +121,14 @@ export interface SchedulerTriggerResult {
   error: string | null;
 }
 
+/** v0.45b+ L1 用的「secret 状态」DTO。
+ *
+ * **`llm_keys` / `wallet_pk` 是计数**（不是 list）—— 0 = 该类 secret 都没配置。
+ * **`pm_api` / `pm_passphrase` / `pm_secret` 是 bool** —— true = keyring 有。
+ *
+ * **跟 Rust `SecretsStatus` 的差异**：L1 这版只关心「够不够用来跑」，不关心每个
+ * key 的 alias / label。L1 「Settings → Secrets」红绿灯用。
+ */
 export interface SecretsStatus {
   llm_keys: number;
   pm_api: boolean;

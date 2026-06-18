@@ -2,6 +2,12 @@ import { create } from 'zustand';
 import { sendNotification } from '@/ipc';
 import { usePrefsStore } from './prefs-store';
 
+/** Toast 4 种 kind。决定颜色 + 默认 ttl + 是否弹 OS 通知。
+ *   - `'info'` — 蓝色 4s
+ *   - `'success'` — 绿色 4s
+ *   - `'warning'` — 黄色 6s（额外弹 OS 通知）
+ *   - `'error'` — 红色 manual close（额外弹 OS 通知）
+ */
 export type ToastKind = 'info' | 'success' | 'warning' | 'error';
 
 export interface Toast {
@@ -22,6 +28,15 @@ interface ToastState {
   clear: () => void;
 }
 
+/** Toast zustand store。**不持久化**（toast 是 transient 状态）。
+ *
+ * **`push()` 业务流程**：
+ *   1. 生成 id（`t_${ts}_${rand}`）
+ *   2. 推入 toasts 数组
+ *   3. 如果 `systemNotify: true` 且 prefs enabled → 调 `sendNotification` IPC
+ *   4. 如果 `ttl > 0` → setTimeout 到时自动 dismiss
+ *   5. 返回 id（给调用方 dismiss）
+ */
 export const useToastStore = create<ToastState>((set) => ({
   toasts: [],
   push: (t) => {
