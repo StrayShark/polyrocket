@@ -1,19 +1,26 @@
 """Method dispatch table for the sidecar.
 
-Method names are LOWERCASE to match the Rust `SidecarMethod::as_str`:
-  - "ping"                    (Rust: SidecarMethod::Ping)
-  - "predict"                 (Rust: SidecarMethod::Predict)
-  - "train_job"               (Rust: SidecarMethod::TrainJob)
-  - "promote_model"           (Rust: SidecarMethod::PromoteModel)
-  - "list_promote_history"    (Rust: SidecarMethod::ListPromoteHistory)  [v0.19a]
-  - "rollback_model"          (Rust: SidecarMethod::RollbackModel)        [v0.20a]
-  - "auto_promote_if_better"  (Rust: SidecarMethod::AutoPromoteIfBetter)  [v0.23a]
-  - "promote_all_trials"      (Rust: SidecarMethod::PromoteAllTrials)      [v0.25a]
+**Method names are LOWERCASE** to match the Rust `SidecarMethod::as_str`:
+  - `"ping"`                    (Rust: SidecarMethod::Ping)
+  - `"predict"`                 (Rust: SidecarMethod::Predict)
+  - `"train_job"`               (Rust: SidecarMethod::TrainJob)
+  - `"promote_model"`           (Rust: SidecarMethod::PromoteModel)
+  - `"list_promote_history"`    (Rust: SidecarMethod::ListPromoteHistory)  [v0.19a]
+  - `"rollback_model"`          (Rust: SidecarMethod::RollbackModel)        [v0.20a]
+  - `"auto_promote_if_better"`  (Rust: SidecarMethod::AutoPromoteIfBetter)  [v0.23a]
+  - `"promote_all_trials"`      (Rust: SidecarMethod::PromoteAllTrials)      [v0.25a]
+  - `"backtest_model"`          (Rust: SidecarMethod::BacktestModel)        [v0.43a]
+  - `"explain_model"`           (Rust: SidecarMethod::ExplainModel)          [v0.55]
+  - `"shap_explain"`            (Rust: SidecarMethod::ShapExplain)           [v0.59]
 
-If you add a method here, you MUST also:
-  1. Add it to `SidecarMethod` enum in domain::lab::sidecar
+**If you add a method here, you MUST also**:
+  1. Add it to `SidecarMethod` enum in `domain::lab::sidecar`
   2. Add a match arm in `SidecarMethod::as_str`
-  3. Add a test in tests/test_sidecar.py::test_all_methods_registered
+  3. Add a test in `tests/test_sidecar.py::test_all_methods_registered`
+  4. Update the module-level list in `docs/coding-spec.md` (sidecar protocols section)
+
+**`DISPATCH` dict** at the bottom maps method name → handler. `__main__.py` looks up
+`DISPATCH.get(req.method)` and returns `ERR_METHOD_NOT_FOUND` if missing.
 """
 
 from __future__ import annotations
@@ -36,6 +43,11 @@ from .shap import run_shap_explainability
 
 
 def ping(_params: dict[str, Any]) -> dict[str, Any]:
+    """Health check. **No params**. Returns `{ pong: True, ts_ms: int }`.
+
+    **调用方**：`commands::sidecar::sidecar_health_now`（IPC `sidecar_health_now`）
+    每 30s 调一次（`run_sidecar_health_loop` scheduler）。
+    """
     return {"pong": True, "ts_ms": int(time.time() * 1000)}
 
 
@@ -172,18 +184,17 @@ def backtest_model(params: dict[str, Any]) -> dict[str, Any]:
     (price, market_age_hours, outcome) samples and
     return Brier + calibration + per-sample predictions.
 
-    Params:
-      - model_version (str, required): e.g.
-          "logistic-train-441c352b". Looked up in
-          archive.jsonl first, then active.json.
-      - samples (list, required): each item is a dict
-          with price (0..1), market_age_hours (≥0),
-          outcome (0 or 1), and optional label.
+    **Params**:
+      - `model_version` (str, required): e.g. `"logistic-train-441c352b"`. Looked up
+        in `archive.jsonl` first, then `active.json`.
+      - `samples` (list, required): each item is a dict with `price` (0..1),
+        `market_age_hours` (≥0), `outcome` (0 or 1), and optional `label`.
 
-    The L1 is expected to pull resolved markets from
-    the markets DB and convert them to the sample
-    shape. The sidecar stays pure (no IO beyond
-    reading the model file).
+    **调用方**：L1 「ModelLab → Backtest」表单提交后 → `sidecar_backtest_model` IPC →
+    这个 fn。
+
+    **Sidecar 保持纯**：除了读 model 文件，**不**做 IO。`samples` 由 L1 从
+    `markets` 表的 resolved market 转换而来。
     """
     model_version = params.get("model_version")
     if not isinstance(model_version, str):
@@ -195,6 +206,19 @@ def backtest_model(params: dict[str, Any]) -> dict[str, Any]:
 
 
 def explain_model(params: dict[str, Any]) -> dict[str, Any]:
+    """v0.55 — per-feature contribution for one sample（**exact-decomposition**）。
+
+    **Params**:
+      - `model_version` (str, required): e.g. `"logistic-train-441c352b"`.
+      - `sample` (dict, optional): `{ price, market_age_hours }`。
+        缺省 → 默认 sample (price=0.5, age=24h) — 「model 对 typical market 的看法」。
+
+    **vs `shap_explain` (v0.59)**：exact-decomposition 公式 `c_i = w_i * x_i * p(1-p)`，
+    对线性模型是精确的但**不**满足 SHAP efficiency axiom。`shap_explain` 走
+    KernelExplainer，满足 `Σφ_i = f(x) - E[f(x)]`（多 100µs/次）。
+
+    **Returns**：见 `explainability.run_explainability`。
+    """
     """v0.55 — per-feature contribution for one sample.
 
     Params:
@@ -217,6 +241,20 @@ def explain_model(params: dict[str, Any]) -> dict[str, Any]:
 
 
 def shap_explain(params: dict[str, Any]) -> dict[str, Any]:
+    """v0.59 — **真 SHAP values** via KernelExplainer。
+
+    **Params**:
+      - `model_version` (str, required)
+      - `sample` (dict, optional)
+
+    **vs `explain_model` (v0.55)**：v0.55 用 exact-decomposition，公式快但
+    **不**满足 SHAP efficiency axiom。KernelSHAP 满足 `Σφ_i = f(x) - E[f(x)]`。
+    Response 多一个 `efficiency_diff` 字段，让 L1 可以显示「SHAP 值正好
+    等于 prediction - baseline」作为 sanity check hint。
+
+    **Cost**：3-feature polyrocket 模型 = 8 次 coalition 评估（~100µs）。
+    M=10 时升到 1024 次，所以 M > 5 就要换 TreeSHAP（v0.63+ candidate）。
+    """
     """v0.59 — true SHAP values via KernelExplainer.
 
     Params:

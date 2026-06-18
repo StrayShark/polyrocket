@@ -202,7 +202,7 @@ class DispatchTests(unittest.TestCase):
     def test_all_methods_registered(self) -> None:
         # If a method is added on the Rust side without registering here, this
         # catches it. Mirror the set in `SidecarMethod` enum on Rust.
-        expected = {"ping", "predict", "train_job", "promote_model", "list_promote_history", "rollback_model", "auto_promote_if_better", "promote_all_trials", "backtest_model"}
+        expected = {"ping", "predict", "train_job", "promote_model", "list_promote_history", "rollback_model", "auto_promote_if_better", "promote_all_trials", "backtest_model", "explain_model", "shap_explain"}
         self.assertEqual(set(DISPATCH.keys()), expected)
 
     def test_ping_returns_pong(self) -> None:
