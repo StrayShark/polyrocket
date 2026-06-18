@@ -18,7 +18,7 @@ import type {
 } from '@/types/wallet';
 import type { Market, ListMarketsArgs } from '@/types/market';
 import type { Signal, ListSignalsArgs } from '@/types/signal';
-import type { Bet, PaperFill, PlaceJumpArgs, PlaceSignedArgs, ListBetsArgs } from '@/types/bet';
+import type { Bet, PaperFill, PlaceJumpArgs, PlaceSignedArgs, ListBetsArgs, ValidateOrderArgsArgs } from '@/types/bet';
 import type {
   LlmProvider,
   LlmProviderKey,
@@ -98,6 +98,15 @@ export const placeJumpLink = (args: PlaceJumpArgs) =>
   invoke<string>('place_jump_link', { args });
 export const placeSignedOrder = (args: PlaceSignedArgs) =>
   invoke<Bet>('place_signed_order', { args });
+
+/** v0.50a — pure validation IPC. The L1 calls this
+ * before `placeSignedOrder` for instant feedback
+ * (e.g. "limit orders require limit_price") without
+ * the round-trip to the DB. Returns the parsed size
+ * on success; throws on validation failure. */
+export const validateOrderArgs = (args: ValidateOrderArgsArgs) =>
+  invoke<number>('validate_order_args', { args });
+
 export const listBets = (args: ListBetsArgs = {}) =>
   invoke<Bet[]>('list_bets', { args });
 

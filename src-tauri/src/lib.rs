@@ -105,6 +105,7 @@ pub fn run() {
             commands::bet::place_jump_link,
             commands::bet::place_signed_order,
             commands::bet::list_bets,
+            commands::bet::validate_order_args,
             commands::copy::list_copy_targets,
             commands::copy::add_copy_target,
             commands::copy::recent_copy_events,

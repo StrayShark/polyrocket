@@ -5,7 +5,7 @@
 //! Depends on L3 `domain::polymarket` for jump URL + signed-order stub,
 //! L4 `infra::state::AppState` for the SQLite pool.
 
-use crate::domain::bet::{sign_order, BetSide, PlaceArgs};
+use crate::domain::bet::{self, sign_order, BetSide, OrderType, PlaceArgs};
 use crate::domain::polymarket;
 use crate::infra::state::AppState;
 use crate::AppResult;
@@ -31,6 +31,20 @@ pub struct BetDto {
     pub status: String,
     pub tx_hash: Option<String>,
     pub notes: Option<String>,
+    /// v0.50a — order type. Pre-v0.50 rows are treated
+    /// as "market" (the migration's default).
+    #[serde(default = "default_order_type")]
+    pub order_type: String,
+    #[serde(default)]
+    pub limit_price: Option<f64>,
+    #[serde(default)]
+    pub stop_price: Option<f64>,
+    #[serde(default)]
+    pub post_only: bool,
+}
+
+fn default_order_type() -> String {
+    "market".to_string()
 }
 
 #[derive(Debug, Deserialize)]
@@ -61,6 +75,19 @@ pub struct PlaceSignedArgs {
     pub signal_id: Option<i64>,
     /// Alias of the key stored in OS keyring (e.g. "primary", "trade-1")
     pub key_alias: String,
+    /// v0.50a — order type. Defaults to "market" when
+    /// omitted (back-compat for pre-v0.50 L1 call sites).
+    #[serde(default)]
+    pub order_type: Option<String>,
+    /// v0.50a — limit price (Limit / StopLoss orders only).
+    #[serde(default)]
+    pub limit_price: Option<f64>,
+    /// v0.50a — stop price (StopLoss orders only).
+    #[serde(default)]
+    pub stop_price: Option<f64>,
+    /// v0.50b — post-only flag (Limit orders only).
+    #[serde(default)]
+    pub post_only: bool,
 }
 
 /// Mode B: signed order via OS keyring.
@@ -68,6 +95,15 @@ pub struct PlaceSignedArgs {
 /// v0.5d: Uses `domain::bet::sign_order()` which validates the args,
 /// derives a deterministic pseudo `tx_hash`, and computes shares.
 /// When `rs-clob-client` lands, replace the body of `sign_order`.
+///
+/// v0.50a: Extended to accept `order_type`, `limit_price`,
+/// `stop_price`, `post_only`. The pure validation is in
+/// `validate_order_type_specifics`. The new fields are
+/// persisted to `bets` (order_type, limit_price, stop_price,
+/// post_only columns). For Limit orders, the recorded
+/// `bets.price` stays as the user's "reference" price
+/// (kept for analytics), with `limit_price` recording
+/// the actual limit level.
 #[tauri::command]
 pub async fn place_signed_order(
     state: State<'_, AppState>,
@@ -77,12 +113,24 @@ pub async fn place_signed_order(
     let side = BetSide::parse(&args.side).map_err(|e| {
         crate::AppError::Invalid(format!("invalid side: {e}"))
     })?;
+    // v0.50a — parse order_type (default Market for
+    // back-compat with pre-v0.50 L1 callers).
+    let order_type = match &args.order_type {
+        Some(s) => bet::OrderType::parse(s).map_err(|e| {
+            crate::AppError::Invalid(format!("invalid order_type: {e}"))
+        })?,
+        None => bet::OrderType::Market,
+    };
     let place = PlaceArgs {
         market_id: args.market_id.clone(),
         side,
         size_usdc: args.size.clone(),
         price: args.price,
         key_alias: Some(args.key_alias.clone()),
+        order_type,
+        limit_price: args.limit_price,
+        stop_price: args.stop_price,
+        post_only: args.post_only,
     };
     let now = chrono::Utc::now().timestamp_millis();
     let signed = sign_order(&place, now)?;
@@ -100,9 +148,16 @@ pub async fn place_signed_order(
     let id = Uuid::new_v4().to_string();
     let shares = signed.shares;
 
+    // v0.50a — INSERT now includes the order-type columns.
+    // The idempotent ALTER TABLE in infra::db::bets_columns
+    // has already added them by the time we get here.
     sqlx::query(
-        "INSERT INTO bets (id, wallet_id, market_id, signal_id, mode, side, size, price, shares, placed_at, status, tx_hash)
-         VALUES (?, ?, ?, ?, 'B_signed', ?, ?, ?, ?, ?, 'open', ?)",
+        "INSERT INTO bets (
+            id, wallet_id, market_id, signal_id, mode, side,
+            size, price, shares, placed_at, status, tx_hash,
+            order_type, limit_price, stop_price, post_only
+         )
+         VALUES (?, ?, ?, ?, 'B_signed', ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&args.wallet_id)
@@ -114,6 +169,10 @@ pub async fn place_signed_order(
     .bind(&shares)
     .bind(signed.signed_at_ms)
     .bind(&signed.tx_hash)
+    .bind(order_type.as_str())
+    .bind(args.limit_price)
+    .bind(args.stop_price)
+    .bind(if args.post_only { 1_i64 } else { 0_i64 })
     .execute(&state.db)
     .await?;
 
@@ -121,7 +180,15 @@ pub async fn place_signed_order(
         "INSERT INTO audit_log (actor, action, target, payload, result) VALUES ('user', 'bet.place', ?, ?, 'ok')",
     )
     .bind(&args.market_id)
-    .bind(serde_json::json!({"mode": "B", "size": args.size, "price": args.price}))
+    .bind(serde_json::json!({
+        "mode": "B",
+        "size": args.size,
+        "price": args.price,
+        "order_type": order_type.as_str(),
+        "limit_price": args.limit_price,
+        "stop_price": args.stop_price,
+        "post_only": args.post_only,
+    }))
     .execute(&state.db)
     .await?;
 
@@ -141,6 +208,10 @@ pub async fn place_signed_order(
         status: "open".into(),
         tx_hash: Some(signed.tx_hash.clone()),
         notes: None,
+        order_type: order_type.as_str().to_string(),
+        limit_price: args.limit_price,
+        stop_price: args.stop_price,
+        post_only: args.post_only,
     })
 }
 
@@ -157,12 +228,66 @@ pub async fn list_bets(
     args: ListBetsArgs,
 ) -> AppResult<Vec<BetDto>> {
     let limit = args.limit.unwrap_or(100);
+    // v0.50a — include the order-type columns. Pre-v0.50
+    // rows will have NULL for limit_price / stop_price and
+    // 0 for post_only; sqlx deserializes them via #[serde(default)].
     let rows = sqlx::query_as::<_, BetDto>(
-        "SELECT id, wallet_id, market_id, signal_id, mode, side, size, price, shares, placed_at, settled_at, pnl, status, tx_hash, notes
+        "SELECT id, wallet_id, market_id, signal_id, mode, side, size, price, shares, placed_at, settled_at, pnl, status, tx_hash, notes,
+                order_type, limit_price, stop_price, post_only
          FROM bets ORDER BY placed_at DESC LIMIT ?",
     )
     .bind(limit)
     .fetch_all(&state.db)
     .await?;
     Ok(rows)
+}
+
+// =================================================================
+// ============== v0.50a — order args validation IPC =============
+// =================================================================
+
+#[derive(Debug, Deserialize)]
+pub struct ValidateOrderArgsArgs {
+    pub market_id: String,
+    pub side: String,
+    pub size: String,
+    pub price: f64,
+    pub order_type: Option<String>,
+    pub limit_price: Option<f64>,
+    pub stop_price: Option<f64>,
+    pub post_only: bool,
+}
+
+/// v0.50a — pure validation IPC. The L1 calls this
+/// before invoking `placeSignedOrder` so the user
+/// gets instant feedback (e.g. "limit orders
+/// require limit_price") without a round-trip
+/// to the DB.
+///
+/// Returns the parsed size on success; returns
+/// `AppError::Invalid` (which serializes to a
+/// string) on failure.
+#[tauri::command]
+pub fn validate_order_args(args: ValidateOrderArgsArgs) -> AppResult<f64> {
+    let side = BetSide::parse(&args.side).map_err(|e| {
+        crate::AppError::Invalid(format!("invalid side: {e}"))
+    })?;
+    let order_type = match &args.order_type {
+        Some(s) => OrderType::parse(s).map_err(|e| {
+            crate::AppError::Invalid(format!("invalid order_type: {e}"))
+        })?,
+        None => OrderType::Market,
+    };
+    let place = PlaceArgs {
+        market_id: args.market_id,
+        side,
+        size_usdc: args.size,
+        price: args.price,
+        key_alias: Some("validate_only".into()), // dummy for the validator
+        order_type,
+        limit_price: args.limit_price,
+        stop_price: args.stop_price,
+        post_only: args.post_only,
+    };
+    bet::validate_place_args(&place)
 }

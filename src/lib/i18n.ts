@@ -559,6 +559,15 @@ const en: Dictionary = {
   'scheduler.all_healthy': 'all loops healthy',
   'scheduler.some_unhealthy': 'one or more loops unhealthy',
   'scheduler.never': 'never',
+  // v0.50a — order types
+  'order_type.market': 'Market',
+  'order_type.limit': 'Limit',
+  'order_type.stop_loss': 'Stop-loss',
+  'order_type.requires_limit_price': 'Limit orders require a limit price.',
+  'order_type.requires_stop_price': 'Stop-loss orders require a stop price.',
+  'order_type.invalid_for_market': 'Market orders cannot have limit_price or stop_price.',
+  'order_type.post_only_limit_only': 'Post-only is only valid for limit orders.',
+  'order_type.invalid_order_type': 'Unknown order type: {{name}}',
   // v0.44c — paper trading mode
   'paper_mode.title': 'Paper trading mode',
   'paper_mode.desc': 'Mirror executor writes to paper_fills (no CLOB submission) when ON. Validate your config without risking real money.',
@@ -1254,6 +1263,15 @@ const zh: Dictionary = {
   'scheduler.all_healthy': '全部循环健康',
   'scheduler.some_unhealthy': '部分循环异常',
   'scheduler.never': '未启动',
+  // v0.50a — order types
+  'order_type.market': '市价单',
+  'order_type.limit': '限价单',
+  'order_type.stop_loss': '止损单',
+  'order_type.requires_limit_price': '限价单需要填写限价。',
+  'order_type.requires_stop_price': '止损单需要填写止损价。',
+  'order_type.invalid_for_market': '市价单不能带限价或止损价。',
+  'order_type.post_only_limit_only': '只挂单（post-only）仅对限价单有效。',
+  'order_type.invalid_order_type': '未知订单类型：{{name}}',
   // v0.44c — 模拟盘模式
   'paper_mode.title': '模拟盘模式',
   'paper_mode.desc': '开启后,mirror executor 将命中的订单写入 paper_fills 表(不调 CLOB),可用于无风险验证配置。',

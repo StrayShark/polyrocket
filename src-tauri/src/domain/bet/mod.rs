@@ -88,6 +88,53 @@ impl BetSide {
 }
 
 // ============================================================
+// ============== v0.50a — Order type ==========================
+// ============================================================
+//
+// Polymarket supports Market (immediate execution
+// at best available price) and Limit (only fill at
+// `limit_price` or better). For v0.50 we also add
+// StopLoss (trigger when market crosses `stop_price`)
+// as a UX primitive — the underlying CLOB call is
+// still a Limit order placed when the trigger fires.
+//
+// PostOnly (v0.50b) is a flag, not a type, on Limit
+// orders: the order must rest on the book, never
+// take liquidity.
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum OrderType {
+    /// Fill at best available price. `limit_price` is ignored.
+    #[default]
+    Market,
+    /// Rest on the book; only fill at `limit_price` or better.
+    Limit,
+    /// Trigger when market crosses `stop_price`, then submit
+    /// as a Limit at `limit_price` (default = stop_price).
+    /// Today this is captured in the order record but the
+    /// actual trigger is v0.51+ (requires real CLOB feed).
+    StopLoss,
+}
+
+impl OrderType {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            OrderType::Market => "market",
+            OrderType::Limit => "limit",
+            OrderType::StopLoss => "stop_loss",
+        }
+    }
+    pub fn parse(s: &str) -> AppResult<Self> {
+        match s.to_lowercase().as_str() {
+            "market" => Ok(OrderType::Market),
+            "limit" => Ok(OrderType::Limit),
+            "stop_loss" | "stoploss" | "stop-loss" => Ok(OrderType::StopLoss),
+            _ => Err(AppError::Invalid(format!("unknown order type: {s}"))),
+        }
+    }
+}
+
+// ============================================================
 // ============== PnL math (pure) ==============================
 // ============================================================
 
@@ -151,8 +198,30 @@ pub struct PlaceArgs {
     pub market_id: String,
     pub side: BetSide,
     pub size_usdc: String,
+    /// The "reference" price — what the user thinks the share
+    /// is worth right now. For Market orders this is unused;
+    /// for Limit orders it must equal `limit_price` (we store
+    /// the user's "expectation" in `price` for analytics); for
+    /// StopLoss it is the entry price the user wants.
     pub price: f64,
     pub key_alias: Option<String>,
+    /// v0.50a — order type. Default = Market (back-compat).
+    #[serde(default)]
+    pub order_type: OrderType,
+    /// v0.50a — for Limit orders: only fill at this price or
+    /// better. Required when `order_type = Limit`. Optional
+    /// for StopLoss (defaults to `stop_price`).
+    #[serde(default)]
+    pub limit_price: Option<f64>,
+    /// v0.50a — for StopLoss orders: trigger when market
+    /// crosses this price (in the direction opposite to the
+    /// desired position). Required when `order_type = StopLoss`.
+    #[serde(default)]
+    pub stop_price: Option<f64>,
+    /// v0.50b — for Limit orders: must rest on book, never
+    /// take liquidity. Ignored for Market and StopLoss.
+    #[serde(default)]
+    pub post_only: bool,
 }
 
 /// Validate a `place_*` args payload. Returns parsed size on success.
@@ -180,7 +249,66 @@ pub fn validate_place_args(args: &PlaceArgs) -> AppResult<f64> {
             "size_usdc {size} > max {MAX_BET_SIZE_USDC}"
         )));
     }
+    // v0.50a — order-type-specific validation.
+    validate_order_type_specifics(args)?;
     Ok(size)
+}
+
+/// v0.50a — additional validation that depends only on the
+/// order type fields. Split out so the L1 can call it
+/// independently for "preflight" checks before submitting.
+pub fn validate_order_type_specifics(args: &PlaceArgs) -> AppResult<()> {
+    match args.order_type {
+        OrderType::Market => {
+            if args.limit_price.is_some() || args.stop_price.is_some() {
+                return Err(AppError::Invalid(
+                    "market orders must not include limit_price or stop_price".into(),
+                ));
+            }
+        }
+        OrderType::Limit => {
+            let lp = args.limit_price.ok_or_else(|| {
+                AppError::Invalid("limit orders require limit_price".into())
+            })?;
+            if !lp.is_finite() || !(MIN_PRICE..=MAX_PRICE).contains(&lp) {
+                return Err(AppError::Invalid(format!(
+                    "limit_price {} out of [{}, {}]",
+                    lp, MIN_PRICE, MAX_PRICE
+                )));
+            }
+            if args.stop_price.is_some() {
+                return Err(AppError::Invalid(
+                    "limit orders must not include stop_price (use StopLoss)".into(),
+                ));
+            }
+        }
+        OrderType::StopLoss => {
+            let sp = args.stop_price.ok_or_else(|| {
+                AppError::Invalid("stop_loss orders require stop_price".into())
+            })?;
+            if !sp.is_finite() || !(MIN_PRICE..=MAX_PRICE).contains(&sp) {
+                return Err(AppError::Invalid(format!(
+                    "stop_price {} out of [{}, {}]",
+                    sp, MIN_PRICE, MAX_PRICE
+                )));
+            }
+            // StopLoss trigger direction:
+            //   YES bet → trigger when price RISES to stop_price
+            //     (you want to cap loss if market moves against you,
+            //     so stop_price should be > price)
+            //   NO bet  → trigger when price FALLS to stop_price
+            //     (stop_price should be < price)
+            // We don't ENFORCE the relationship (v0.50a is just
+            // capturing intent) but we record it.
+            let _ = args.limit_price.unwrap_or(sp); // default = stop_price
+        }
+    }
+    if args.post_only && args.order_type != OrderType::Limit {
+        return Err(AppError::Invalid(
+            "post_only is only valid for limit orders".into(),
+        ));
+    }
+    Ok(())
 }
 
 // ============================================================
@@ -313,6 +441,10 @@ mod tests {
             size_usdc: size.into(),
             price,
             key_alias: key.map(String::from),
+            order_type: OrderType::Market,
+            limit_price: None,
+            stop_price: None,
+            post_only: false,
         }
     }
 
@@ -374,5 +506,163 @@ mod tests {
         let r = sign_order(&args("m1", "100", 0.4, Some("k")), 0).unwrap();
         // shares = 100 / 0.4 = 250
         assert_eq!(r.shares, "250");
+    }
+
+    // ----- v0.50a — OrderType -----
+
+    fn order_args(
+        market: &str,
+        size: &str,
+        price: f64,
+        order_type: OrderType,
+        limit_price: Option<f64>,
+        stop_price: Option<f64>,
+        post_only: bool,
+    ) -> PlaceArgs {
+        PlaceArgs {
+            market_id: market.into(),
+            side: BetSide::Yes,
+            size_usdc: size.into(),
+            price,
+            key_alias: Some("primary".into()),
+            order_type,
+            limit_price,
+            stop_price,
+            post_only,
+        }
+    }
+
+    #[test]
+    fn order_type_round_trip() {
+        for t in [OrderType::Market, OrderType::Limit, OrderType::StopLoss] {
+            assert_eq!(OrderType::parse(t.as_str()).unwrap(), t);
+        }
+    }
+
+    #[test]
+    fn order_type_default_is_market() {
+        assert_eq!(OrderType::default(), OrderType::Market);
+    }
+
+    #[test]
+    fn order_type_rejects_unknown() {
+        assert!(OrderType::parse("stop").is_err());
+        assert!(OrderType::parse("").is_err());
+    }
+
+    #[test]
+    fn market_order_rejects_limit_price() {
+        let r = validate_place_args(&order_args(
+            "m", "100", 0.5,
+            OrderType::Market, Some(0.4), None, false,
+        ));
+        assert!(r.is_err(), "market + limit_price should be invalid: {r:?}");
+    }
+
+    #[test]
+    fn market_order_rejects_stop_price() {
+        let r = validate_place_args(&order_args(
+            "m", "100", 0.5,
+            OrderType::Market, None, Some(0.7), false,
+        ));
+        assert!(r.is_err(), "market + stop_price should be invalid: {r:?}");
+    }
+
+    #[test]
+    fn limit_order_requires_limit_price() {
+        let r = validate_place_args(&order_args(
+            "m", "100", 0.5,
+            OrderType::Limit, None, None, false,
+        ));
+        assert!(r.is_err());
+        assert!(format!("{r:?}").contains("limit_price"));
+    }
+
+    #[test]
+    fn limit_order_accepts_valid_limit_price() {
+        let r = validate_place_args(&order_args(
+            "m", "100", 0.5,
+            OrderType::Limit, Some(0.45), None, false,
+        ));
+        assert!(r.is_ok(), "got: {r:?}");
+    }
+
+    #[test]
+    fn limit_order_rejects_out_of_range_limit_price() {
+        let r = validate_place_args(&order_args(
+            "m", "100", 0.5,
+            OrderType::Limit, Some(1.5), None, false,
+        ));
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn limit_order_rejects_stop_price() {
+        let r = validate_place_args(&order_args(
+            "m", "100", 0.5,
+            OrderType::Limit, Some(0.4), Some(0.7), false,
+        ));
+        assert!(r.is_err(), "limit + stop_price should be invalid: {r:?}");
+    }
+
+    #[test]
+    fn stop_loss_requires_stop_price() {
+        let r = validate_place_args(&order_args(
+            "m", "100", 0.5,
+            OrderType::StopLoss, None, None, false,
+        ));
+        assert!(r.is_err());
+        assert!(format!("{r:?}").contains("stop_price"));
+    }
+
+    #[test]
+    fn stop_loss_accepts_with_stop_and_limit() {
+        let r = validate_place_args(&order_args(
+            "m", "100", 0.5,
+            OrderType::StopLoss, Some(0.45), Some(0.6), false,
+        ));
+        assert!(r.is_ok(), "got: {r:?}");
+    }
+
+    #[test]
+    fn stop_loss_defaults_limit_to_stop_when_only_stop_given() {
+        let r = validate_place_args(&order_args(
+            "m", "100", 0.5,
+            OrderType::StopLoss, None, Some(0.6), false,
+        ));
+        assert!(r.is_ok(), "got: {r:?}");
+    }
+
+    #[test]
+    fn post_only_only_valid_for_limit() {
+        // post_only on Market -> error
+        let r = validate_place_args(&order_args(
+            "m", "100", 0.5,
+            OrderType::Market, None, None, true,
+        ));
+        assert!(r.is_err(), "post_only + market should be invalid");
+        // post_only on StopLoss -> error
+        let r = validate_place_args(&order_args(
+            "m", "100", 0.5,
+            OrderType::StopLoss, None, Some(0.6), true,
+        ));
+        assert!(r.is_err(), "post_only + stop_loss should be invalid");
+        // post_only on Limit -> ok
+        let r = validate_place_args(&order_args(
+            "m", "100", 0.5,
+            OrderType::Limit, Some(0.45), None, true,
+        ));
+        assert!(r.is_ok(), "got: {r:?}");
+    }
+
+    #[test]
+    fn validate_order_type_specifics_is_pure_helper() {
+        // The split-out helper should reject the same
+        // things as the integrated validate_place_args
+        // for order-type-specific fields.
+        let a = order_args("m", "100", 0.5, OrderType::Limit, None, None, false);
+        assert!(validate_order_type_specifics(&a).is_err());
+        let b = order_args("m", "100", 0.5, OrderType::Limit, Some(0.4), None, false);
+        assert!(validate_order_type_specifics(&b).is_ok());
     }
 }

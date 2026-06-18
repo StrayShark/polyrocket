@@ -400,6 +400,10 @@ pub async fn run_pass_impl(
             size_usdc: o.size.clone(),
             price: 0.5, // mirror uses mid for v0.6; v0.7 will resolve best_ask
             key_alias: Some(key_alias.clone()),
+            order_type: crate::domain::bet::OrderType::Market, // v0.50a — mirrors always Market
+            limit_price: None,
+            stop_price: None,
+            post_only: false,
         };
         let signed = sign_order(&place, now).map_err(|e| {
             AppError::Internal(format!("sign_order: {e}"))

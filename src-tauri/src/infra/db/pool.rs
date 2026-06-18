@@ -40,6 +40,10 @@ pub async fn init_pool(app: &AppHandle) -> AppResult<SqlitePool> {
     // ADD COLUMN. We use the `PRAGMA table_info` check
     // pattern instead.
     super::paper_fills::ensure_paper_fills_columns(&pool).await?;
+    // v0.50a — bets order-type columns (order_type,
+    // limit_price, stop_price, post_only). Same
+    // idempotent pattern.
+    super::bets_columns::ensure_bets_columns(&pool).await?;
 
     // v0.8a — first-run demo data seeder.
     // Idempotent: if the DB is already populated (e.g. user has used

@@ -5,6 +5,11 @@
 //! table for pre-v0.45 databases that have rows in
 //! the original v0.44 schema.
 //!
+//! v0.50a — adds the order-type columns (order_type,
+//! limit_price, stop_price, post_only) to the
+//! paper_fills table for pre-v0.50 databases. These
+//! mirror the `bets` table additions in commands::bet.
+//!
 //! SQLite does not support `ALTER TABLE ... ADD COLUMN
 //! IF NOT EXISTS`, so we use the `PRAGMA table_info`
 //! pattern: query the column names, ADD COLUMN only
@@ -18,6 +23,12 @@ use sqlx::SqlitePool;
 ///   - resolved_outcome TEXT
 ///   - won              INTEGER
 ///   - pnl_usdc         TEXT
+///
+/// v0.50a — also adds the order-type columns:
+///   - order_type   TEXT     (default 'market')
+///   - limit_price  REAL     (nullable)
+///   - stop_price   REAL     (nullable)
+///   - post_only    INTEGER  (default 0)
 pub async fn ensure_paper_fills_columns(pool: &SqlitePool) -> sqlx::Result<()> {
     // SQLite stores columns in sqlite_master. The
     // table_info pragma gives us the column list.
@@ -51,6 +62,28 @@ pub async fn ensure_paper_fills_columns(pool: &SqlitePool) -> sqlx::Result<()> {
     }
     if !names.contains("pnl_usdc") {
         sqlx::query("ALTER TABLE paper_fills ADD COLUMN pnl_usdc TEXT")
+            .execute(pool)
+            .await?;
+    }
+
+    // v0.50a — order-type columns.
+    if !names.contains("order_type") {
+        sqlx::query("ALTER TABLE paper_fills ADD COLUMN order_type TEXT NOT NULL DEFAULT 'market'")
+            .execute(pool)
+            .await?;
+    }
+    if !names.contains("limit_price") {
+        sqlx::query("ALTER TABLE paper_fills ADD COLUMN limit_price REAL")
+            .execute(pool)
+            .await?;
+    }
+    if !names.contains("stop_price") {
+        sqlx::query("ALTER TABLE paper_fills ADD COLUMN stop_price REAL")
+            .execute(pool)
+            .await?;
+    }
+    if !names.contains("post_only") {
+        sqlx::query("ALTER TABLE paper_fills ADD COLUMN post_only INTEGER NOT NULL DEFAULT 0")
             .execute(pool)
             .await?;
     }
