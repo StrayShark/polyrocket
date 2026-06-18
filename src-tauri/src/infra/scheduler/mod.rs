@@ -106,8 +106,14 @@ pub fn record_tick(loop_name: &'static str) {
     }
 }
 
+/// 单个调度 loop 的健康状态快照。L1 Settings 页的 self-test 卡片用这个渲染
+/// 绿/红点 + 上次 tick 时间。
+///
+/// **来源**：`self_test()` 读全局 `LOOP_LAST_TICK` 原子计数器 + 当前时间。
+/// **不**做任何 IO —— 这是 self-test，期望 cheap to call。
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct LoopStatus {
+    /// loop 名字。稳定的 `&'static str`（如 `"health_probe"`）—— L1 verbatim 显示。
     pub name: &'static str,
     /// Unix-ms of the most recent tick. 0 = never
     /// ticked (still in its initial sleep).
@@ -120,6 +126,12 @@ pub struct LoopStatus {
     pub healthy: bool,
 }
 
+/// 8 个调度 loop 的 self-test 快照。`all_healthy = true` 当且仅当每个 loop 都在
+/// `3 * expected_interval` 之内 tick 过。
+///
+/// **IPC 调用**：`commands::scheduler::scheduler_self_test_now` 调用 `self_test()`
+/// 并把 `SchedulerSelfTest` 序列化给 L1。L1 Settings 页用 `loops[]` 渲染列表，
+/// `all_healthy` 渲染顶部状态条。
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct SchedulerSelfTest {
     /// Unix-seconds when this process started.
@@ -134,6 +146,12 @@ pub struct SchedulerSelfTest {
 /// Run the self-test. Cheap: just reads atomic
 /// counters, no IO. Returns a snapshot that the
 /// L1 Settings card renders.
+///
+/// **预期 cadence**：每 `expected_interval` tick 一次，self-test 阈值是 `3 * interval`。
+/// 也就是说，允许最多 3 次 sleep 失败后才标 unhealthy（容忍偶发的 GC pause / IO stall）。
+///
+/// **为什么不直接读文件 / DB**：loop 自己的状态都在 `OnceLock<HashMap<..., AtomicU64>>` 里，
+/// atomic load 是 O(1) lock-free。如果改成查 DB 反而要拿连接，违背 self-test 的本意。
 pub fn self_test() -> SchedulerSelfTest {
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -196,17 +214,38 @@ const DEFAULT_BRIEF_TZ_OFFSET_MIN: i32 = 0;
 const DEFAULT_ANOMALY_WINDOW_MIN: u64 = 60;
 const DEFAULT_MIRROR_TICK_SEC: u64 = 30;
 
+/// 调度 loop 的可调参数（cadence + tz 等）。所有字段都从 env var 读，默认值
+/// 在 `DEFAULT_*` 常量里。
+///
+/// **新增字段**：v0.6a 加 `mirror_tick`。每次加新 loop 时记得：
+///   1. 在 `SchedulerConfig` 加字段
+///   2. 在 `from_env` 读 env
+///   3. 在 `loop_registry` 加 loop_name
+///   4. 在 `self_test` 的 `expected_ms` 表加 (name, interval)
 #[derive(Clone)]
 pub struct SchedulerConfig {
+    /// health_probe loop 间隔。默认 5 min。
     pub health_probe_interval: Duration,
+    /// daily_brief 触发的 UTC 小时（0-23）。默认 0（UTC 午夜）。
     pub daily_brief_hour_utc: u32,
+    /// 用户时区相对 UTC 的偏移（分钟）。默认 0。
     pub daily_brief_tz_offset_min: i32,
+    /// anomaly 检测窗口。默认 60 min。
     pub anomaly_window: Duration,
-    /// v0.6a — mirror executor tick interval
+    /// v0.6a — mirror executor tick interval。默认 30s。
     pub mirror_tick: Duration,
 }
 
 impl SchedulerConfig {
+    /// 从 env vars 构造 `SchedulerConfig`。**不**做参数校验（负数 duration、>23 hour 等
+    /// 会原样传给 loop，由 loop 自己 ignore / panic）。
+    ///
+    /// **env-var list**（全部可选）：
+    ///   - `POLYROCKET_HEALTH_PROBE_INTERVAL_MIN`  (u64, default 5)
+    ///   - `POLYROCKET_DAILY_BRIEF_HOUR_UTC`        (u32, default 0)
+    ///   - `POLYROCKET_DAILY_BRIEF_TZ_OFFSET_MIN`   (i32, default 0)
+    ///   - `POLYROCKET_ANOMALY_WINDOW_MIN`          (u64, default 60)
+    ///   - `POLYROCKET_MIRROR_TICK_SEC`             (u64, default 30)
     pub fn from_env() -> Self {
         Self {
             health_probe_interval: Duration::from_secs(
@@ -227,18 +266,35 @@ impl SchedulerConfig {
     }
 }
 
+/// 调用方持有的 handle，用于在测试中通知 loop 退出。
+///
+/// **生产用途**：`lib.rs::run()` 不保留 handle —— 进程退出时 loop 一起死。
+/// **测试用途**：`tests::scheduler_test` 创建 handle，调 `shutdown()`，等所有 loop 退出。
 pub struct SchedulerHandle {
+    /// tokio `Notify` —— `shutdown()` 触发一次 notify，所有 loop 在 `select!` 里退出。
     pub shutdown: Arc<Notify>,
 }
 
 impl SchedulerHandle {
+    /// 通知所有调度 loop 退出。**幂等**：多次调用安全（`Notify::notify_waiters` 不累积）。
     pub fn shutdown(&self) {
         self.shutdown.notify_waiters();
     }
 }
 
-/// Start all background schedulers. Returns a handle the caller can
-/// use to signal shutdown (currently only for tests).
+/// 启动所有后台调度 loop。8 个 `tokio::spawn` 任务：health_probe / daily_brief /
+/// anomaly / mirror_executor / audit_purge / sidecar_health / paper_fills_reconcile /
+/// degradation_check。
+///
+/// **调用方**：`lib.rs::run()` 在 `setup` hook 里调一次。返回的 `SchedulerHandle`
+/// 在生产里直接 drop（loop 跑进程级），在测试里用来收尾。
+///
+/// **错误恢复**：每个 loop 内部 `select!` 监听 `shutdown` 信号。DB / HTTP 错误被
+/// catch + log，不 panic（`tracing::error!` 而非 `?`），所以一个 loop 死了不会拖垮
+/// 其他 loop。`run_*_now` 是手动触发（IPC），那部分错误才回传。
+///
+/// **资源**：`pool` 和 `http` 都 clone 出去（内部 Arc，cheap）。loop 不持有
+/// `AppState`（避免循环依赖）。
 pub fn start(pool: SqlitePool, http: reqwest::Client) -> SchedulerHandle {
     let cfg = SchedulerConfig::from_env();
     let shutdown = Arc::new(Notify::new());
@@ -953,13 +1009,18 @@ async fn detect_anomalies(pool: &SqlitePool, window: Duration) -> sqlx::Result<(
 // ============== Public helpers (used by tests) ==================
 // =================================================================
 
-/// Run a single daily-brief job synchronously. Useful for tests and
-/// manual triggers (already exposed via IPC).
+/// 同步触发一次 daily-brief 计算。跳过 cron timing 逻辑，直接调 `run_daily_brief_once`。
+///
+/// **IPC 调用**：`commands::scheduler::run_daily_brief_now`。
+/// **测试用途**：`scheduler_test::daily_brief_now_works` 跳过 24h sleep 直接验证。
 pub async fn run_daily_brief_now(pool: &SqlitePool) -> sqlx::Result<()> {
     run_daily_brief_once(pool).await
 }
 
-/// Run a single health-probe sweep synchronously. Useful for tests.
+/// 同步触发一次 health-probe sweep。跳过 5 min tick，直接跑 `run_health_probe_once`。
+///
+/// **IPC 调用**：`commands::scheduler::run_health_probe_now`。
+/// **测试用途**：`scheduler_test::health_probe_now_works` 验证 sweep 不会 panic。
 pub async fn run_health_probe_now(pool: &SqlitePool, http: &reqwest::Client) -> sqlx::Result<()> {
     probe_all_providers(pool, http).await
 }
@@ -1062,8 +1123,10 @@ async fn run_audit_purge_loop(
     }
 }
 
-/// Run a single audit-purge sweep synchronously. Useful for tests +
-/// the IPC `purge_audit_log_now` trigger.
+/// 同步触发一次 audit-purge sweep。跳过 24h cron tick，直接跑 `run_audit_purge_once`。
+///
+/// **IPC 调用**：`commands::audit::purge_audit_log_now`。
+/// **返回值**：本次清理的行数。L1 拿这个数字展示「已清理 N 条」toast。
 pub async fn run_audit_purge_now(pool: &SqlitePool) -> sqlx::Result<usize> {
     run_audit_purge_once(pool).await
 }
@@ -1174,8 +1237,10 @@ async fn run_sidecar_health_loop(
     }
 }
 
-/// Run a single sidecar-health probe synchronously. Useful for tests
-/// + the IPC `sidecar_health_now` trigger.
+/// 同步触发一次 sidecar-health 探测。跳过 30s tick，直接 ping 侧车 + 写 `sidecar_health` 行。
+///
+/// **IPC 调用**：`commands::sidecar::sidecar_health_now`。
+/// **测试用途**：跑 pipeline 测试时手动触发。
 pub async fn run_sidecar_health_now(pool: &SqlitePool) -> sqlx::Result<()> {
     run_sidecar_health_once(pool).await
 }
@@ -1264,9 +1329,14 @@ async fn reconcile_paper_fills_once(pool: &SqlitePool) -> sqlx::Result<usize> {
     Ok(count)
 }
 
-/// v0.45a — public helper for the
-/// `reconcile_paper_fills_now` IPC. Returns the
-/// number of paper_fills settled in this pass.
+/// v0.45a — 同步触发一次 paper_fills reconciliation sweep。跳过 5 min tick，
+/// 直接调 `reconcile_paper_fills_once`。
+///
+/// **业务流程**：扫所有 `paper_fills WHERE settled = 0`，查对应 `markets.outcome`，
+/// 标记 `settled = 1` + 算 `pnl` + 写 audit_log。
+///
+/// **IPC 调用**：`commands::paper::reconcile_paper_fills_now`。
+/// **返回值**：本次 settle 的 paper_fills 数。
 pub async fn run_paper_fills_reconcile_now(pool: &SqlitePool) -> sqlx::Result<usize> {
     reconcile_paper_fills_once(pool).await
 }
@@ -1677,9 +1747,14 @@ async fn run_degradation_check_once(pool: &SqlitePool) -> sqlx::Result<()> {
     Ok(())
 }
 
-/// v0.48a — public helper for the
-/// `run_degradation_check_now` IPC. Useful for
-/// tests and the L1 "Check now" button.
+/// v0.48a — 同步触发一次 model degradation check。跳过 1h tick，直接
+/// `run_degradation_check_once`。
+///
+/// **业务流程**：拉最近 24h 已 settle 的 paper_fills → 跑 FALLBACK model 预测 →
+/// 算 Brier → 与阈值比 → 触发 `DegradationAlert` telemetry event → L1 收到事件弹 OS 通知。
+///
+/// **IPC 调用**：`commands::degradation::run_degradation_check_now`。
+/// **L1 入口**：Settings → Models → 「Check now」按钮。
 pub async fn run_degradation_check_now(pool: &SqlitePool) -> sqlx::Result<()> {
     run_degradation_check_once(pool).await
 }

@@ -19,26 +19,23 @@
 use sqlx::SqlitePool;
 use std::sync::{Arc, Mutex};
 
-/// v0.28a — runtime config for "auto-promote after train".
+/// v0.28a — runtime config for "auto-promote after train"。
 ///
-/// Stored in `AppState`, set via `setAutoPromoteConfig` IPC.
-/// Defaults: enabled = false, brier_margin = 0.005.
+/// **存储位置**：放在 `AppState`（内存），通过 `setAutoPromoteConfig` IPC 写入。
+/// **默认值**：`enabled = false`，`brier_margin = 0.005`。
 ///
-/// Why a separate config from the L1 zustand store?
-/// The L1 store is for UI prefs; the Rust side needs the
-/// same values at IPC time (inside `train_job`). The L1
-/// pushes the values to Rust on mount of the Settings page,
-/// so the two stay in sync within one session. If the L1
-/// never mounts Settings, Rust uses the defaults — the
-/// "Promote if better" button is unaffected.
+/// **为什么不直接读 L1 zustand store**：L1 store 是 UI 偏好，但 Rust 端在 `train_job`
+/// 里需要这些值。L1 在 Settings 页 mount 时把值推到 Rust，两边在单次 session 内保持同步。
+/// 如果 L1 从未 mount 过 Settings 页，Rust 端用默认值 —— "Promote if better" 按钮
+/// 不受影响（因为 L1 没 mount 也意味着用户没启用该功能）。
 #[derive(Debug, Clone)]
 pub struct AutoPromoteConfig {
-    /// If true, `train_job` spawns an auto-promote worker
-    /// after the sidecar returns a successful train.
+    /// 如果为 true，`train_job` 在侧车返回成功 train 后 spawn 一个 auto-promote worker。
+    /// 业务流程：train 完 → 写 `model_versions` → 跑 `auto_promote_if_better` →
+    /// 如果新模型 Brier 更低且 margin 达标 → 标 `is_active = true`。
     pub enabled: bool,
-    /// Brier margin passed to `auto_promote_if_better`.
-    /// Smaller = stricter (only promote if new model is
-    /// noticeably better). Default 0.005.
+    /// Brier margin 传给 `auto_promote_if_better`。越小越严格（只有新模型显著更好才提升）。
+    /// 默认 0.005。L1 暴露一个 input 框让用户调整。
     pub brier_margin: f64,
 }
 
@@ -51,29 +48,38 @@ impl Default for AutoPromoteConfig {
     }
 }
 
+/// 跨所有 Tauri command 共享的应用状态。`#[derive(Clone)]` 让 `State<'_, AppState>`
+/// 可以被多个 handler 共享（内部 SqlitePool 是 `Arc`，Mutex 也是 `Arc`）。
+///
+/// **字段生命周期**：
+///   - `db` — SqlitePool 在 `lib.rs::run()` 里 build 一次，进程级共享
+///   - `auto_promote` — 内存态，每个 session 重置（重启时回到 default）
+///   - `mirror_paper_mode` — 内存态，从 `POLYROCKET_MIRROR_PAPER_MODE` env 读初始值
+///
+/// **为什么用 `Arc<Mutex<...>>` 包**：Tauri 的 `State` 只提供 `&AppState`（不可变借用），
+/// 但 `setAutoPromoteConfig` / `set_mirror_paper_mode` 需要修改内部状态。包成
+/// `Arc<Mutex<T>>` 让多个 command 可以同时持有引用 + 写。
 #[derive(Clone)]
 pub struct AppState {
+    /// 全应用共享的 SQLite 连接池。所有 DB 操作（domain / commands / scheduler）
+    /// 都通过这个 pool 拿连接。Pool 内部有 `Arc`，clone 是 cheap 的。
     pub db: SqlitePool,
-    /// v0.28a — auto-promote config (in-memory).
-    /// Wrapped in `Arc<Mutex<...>>` so multiple Tauri
-    /// commands can read/write without `&mut AppState`.
+    /// v0.28a — auto-promote config (内存态)。
+    /// `Arc<Mutex<...>>` 让多个 Tauri command 可以读写而**不**需要 `&mut AppState`。
     pub auto_promote: Arc<Mutex<AutoPromoteConfig>>,
-    /// v0.44 — mirror paper mode override
-    /// (in-memory). Wrapped in `Arc<Mutex<...>>` like
-    /// auto_promote so multiple commands can read
-    /// the current paper_mode without `&mut AppState`.
-    /// The scheduler reads this on every tick; the
-    /// `set_mirror_paper_mode` IPC writes it.
+    /// v0.44 — mirror paper mode override (内存态)。
+    /// 同样 `Arc<Mutex<...>>` 包装。Scheduler 每个 tick 读当前值；`set_mirror_paper_mode`
+    /// IPC 写入。重启时从 `POLYROCKET_MIRROR_PAPER_MODE` env 读初始值，让首屏
+    /// 就看到用户预期的状态（避免误以为 mirror 跑在 live 上）。
     pub mirror_paper_mode: Arc<Mutex<bool>>,
 }
 
 impl AppState {
-    /// v0.28a — construct a new `AppState` with the given
-    /// pool and default auto-promote config.
-    /// v0.44 — also seeds `mirror_paper_mode` from the
-    /// env-var default (`POLYROCKET_MIRROR_PAPER_MODE`)
-    /// so the first scheduler tick sees the user's
-    /// intended state.
+    /// v0.28a — 用给定 pool + 默认 auto-promote config 构造新的 `AppState`。
+    /// v0.44 — 同时从 env var `POLYROCKET_MIRROR_PAPER_MODE` 读 `mirror_paper_mode` 初值，
+    /// 让 scheduler 第一个 tick 就看到用户预期的状态。
+    ///
+    /// **调用方**：`lib.rs::run()` 在 `setup` hook 里 build pool 后调一次。
     pub fn new(db: SqlitePool) -> Self {
         let paper_mode = std::env::var("POLYROCKET_MIRROR_PAPER_MODE")
             .ok()
@@ -86,9 +92,8 @@ impl AppState {
         }
     }
 
-    /// v0.50c — test-only constructor. Builds an
-    /// AppState with default auto-promote + paper-mode
-    /// config.
+    /// v0.50c — 仅测试用的构造器。Build 一个 default auto-promote + paper-mode 的 AppState。
+    /// 加 `#[cfg(test)]` 确保不进生产 binary。
     #[cfg(test)]
     pub fn new_for_test(db: SqlitePool) -> Self {
         Self::new(db)

@@ -62,8 +62,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 static ENABLED: AtomicBool = AtomicBool::new(false);
 static INITIALIZED: AtomicBool = AtomicBool::new(false);
 
-/// Initialise from env. Idempotent — safe to call from
-/// multiple setup paths; only the first call has effect.
+/// 从 env 读 `POLYROCKET_TELEMETRY` 并设置全局开关。**幂等** —— 多次调用安全，
+/// 只有第一次有效果（`INITIALIZED` swap 一次）。
+///
+/// **调用方**：`lib.rs::run()` 在 startup 调一次。后续 L1 IPC (`set_telemetry_enabled`)
+/// 通过 `set_enabled()` 改值。
 pub fn init_from_env() {
     if INITIALIZED.swap(true, Ordering::SeqCst) {
         return;
@@ -76,11 +79,14 @@ pub fn init_from_env() {
 
 /// True if telemetry is on for this process. Cheap atomic
 /// load — call from hot paths if needed.
+///
+/// **为什么用 `Relaxed` 序**：开关的设置是 idempotent + 后写覆盖前写，不需要 happens-before
+/// 关系。`Relaxed` load 在 x86 是 free，ARM 上是普通 ldr。
 pub fn is_enabled() -> bool {
     ENABLED.load(Ordering::Relaxed)
 }
 
-/// Test-only: override the enabled flag.
+/// Test-only: override the enabled flag. `#[cfg(test)]` 防止进生产 binary。
 #[cfg(test)]
 pub fn set_enabled_for_test(v: bool) {
     ENABLED.store(v, Ordering::SeqCst);
@@ -92,6 +98,9 @@ pub fn set_enabled_for_test(v: bool) {
 /// the pref in Settings. Does NOT touch the
 /// `INITIALIZED` flag, so a later `init_from_env` call
 /// would still be a no-op (idempotent).
+///
+/// **为什么不 mutate `INITIALIZED`**：L1 toggle 是用户意图，应该持续生效；如果后续
+/// 重新 `init_from_env` 会覆盖用户选择，所以这里**不**改 `INITIALIZED`。
 pub fn set_enabled(v: bool) {
     ENABLED.store(v, Ordering::SeqCst);
 }
@@ -117,7 +126,13 @@ static LOG_DIR: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
 /// Set the log directory for the FileSink. Called once at
 /// startup, after `app_data_dir` is reachable. Idempotent —
 /// only the first call has effect. Creates the directory
-/// if missing.
+/// 设置 telemetry 文件日志目录。**只第一次调用生效**（幂等），后续调用 no-op。
+///
+/// **业务流程**：`lib.rs::run()` 在 startup 调一次，传 `<app_data_dir>/logs/telemetry/`。
+/// 该目录会被 `create_dir_all` 创建（如果不存在）。
+///
+/// **不重置已有目录**：如果 polyrocket 重启，已存在的 session 文件会保留，由
+/// `retention_days()` 自动清理过期文件。
 pub fn set_log_dir(dir: PathBuf) -> std::io::Result<()> {
     let mut slot = LOG_DIR.lock().expect("LOG_DIR lock poisoned");
     if slot.is_some() {
@@ -139,6 +154,11 @@ pub fn retention_days() -> u64 {
 /// `list_telemetry_logs` so the Settings card can show
 /// the on-disk file inventory.
 #[derive(Debug, Clone, Serialize)]
+/// 单个 telemetry session 文件的元数据。L1 「Settings → Telemetry」用这个列表
+/// 展示历史 session。
+///
+/// **来源**：`list_telemetry_logs()` 读 `<log_dir>/` 下的 `session-*.jsonl` 文件
+/// + 它们的 mtime。
 pub struct TelemetryLogInfo {
     /// File name only, e.g. `session-1740000000.jsonl`.
     pub name: String,
@@ -291,6 +311,25 @@ fn append_to_file(line: &str) {
 /// All telemetry events. Add variants here as new lifecycle
 /// hooks appear; the wire format (NDJSON) is stable because
 /// the `Serialize` impl is auto-derived.
+/// polyrocket 发出的所有 telemetry 事件类型。serde tag = `"name"`（snake_case 命名）。
+///
+/// **当前事件列表**：
+///   - `SchedulerTick` — 调度 loop tick 一次
+///   - `TrainCompleted` — train job 成功完成
+///   - `PromoteCompleted` — model promotion 完成
+///   - `AutoPromoteTriggered` / `AutoPromoteSkipped` — auto-promote 决策
+///   - `AnomalyDetected` — anomaly 探测发现异常
+///   - `SidecarStarted` / `SidecarCrashed` — 侧车生命周期
+///   - `AuditPurged` — 审计日志清理
+///   - `MirrorPassCompleted` / `MirrorQueueDepth` — mirror 队列状态
+///   - `DegradationAlert` — 模型退化警告
+///   - `MirrorExecutorSlept` — mirror executor 跳过无任务
+///
+/// **wire 格式**：`{"name": "train_completed", "fields": {...}, "ts_ms": ...}`
+/// （`ts_ms` 由 `emit()` 自动加，事件本身不携带时间戳）。
+///
+/// **加新事件**：在 enum 加 variant → 在 `emit()` 不需要改（自动 serde）→
+/// 在 L1 `useTelemetry` 订阅（如果需要展示）。
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "name", rename_all = "snake_case")]
 pub enum Event {
@@ -440,8 +479,20 @@ pub enum Event {
 /// On the enabled path, serializes to NDJSON and writes
 /// one line to stderr AND (v0.49a) appends the same line
 /// to the per-session JSONL file. Failure to write is
-/// silent (best-effort; we never want telemetry to crash
-/// the app).
+/// 发送一个 telemetry 事件。**完全 best-effort**：序列化失败 / 写盘失败 / disabled → 静默返回。
+///
+/// **业务流程**：
+///   1. 如果 `!is_enabled()` → 直接返回（cheap atomic load）
+///   2. `serde_json::to_string(&event)` —— 失败就 return
+///   3. stderr sink —— 永远（开了就开）
+///   4. file sink —— 写一行 NDJSON 到 current session file
+///
+/// **为什么不 panic / log error**：telemetry 是观察性工具，不能影响主流程。卡死的话
+/// 用 `polyrocket 2> telemetry.log` 抓 stderr 看为什么 emit 不工作。
+///
+/// **添加调用方**：`use crate::infra::telemetry; telemetry::emit(Event::X { ... });`
+/// —— L2 (commands) 和 L4 (scheduler) 都直接调；L3 (domain) 通过 `&self` 参数传入
+/// 间接触发（domain 不能依赖 L4）。
 pub fn emit(event: Event) {
     if !is_enabled() {
         return;

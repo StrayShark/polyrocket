@@ -32,11 +32,20 @@
 
 use std::time::Duration;
 
-/// Build a long-lived HTTP client. Caller is expected to keep this
-/// for the process lifetime.
+/// 构建一个进程级共享的 `reqwest::Client`。调用方应**持有**这个 client 至整个进程生命周期。
 ///
-/// Pool size 8 per host covers our 5 LLM providers + 2 Polymarket
-/// endpoints (gamma + CLOB) + 1 spare for transient bursts.
+/// **调用方**：
+///   - `lib.rs::run()` 在 startup 调一次，把 client 包到 `ArcSwap` 里
+///   - L3 LLM 客户端 + 调度器 + 未来的 HTTP 命令都从 `http_client()` 取
+///
+/// **池大小**：每个 host 8 个空闲连接。覆盖 5 个 LLM provider + 2 个 Polymarket
+/// endpoint (gamma + CLOB) + 1 个 transient burst 备用。
+///
+/// **超时**：连接超时 10s。不设全局 `timeout()` —— 长任务（5-feature KernelSHAP
+/// in 6h iter）需要更长 timeout，由调用方在 `RequestBuilder` 上单独设。
+///
+/// **Proxy**：读取 `POLYROCKET_PROXY` 环境变量。v0.60a 起支持 hot-swap —— `set_proxy_config`
+/// IPC 写 env var + 调 `replace_http_client()` 原子替换 ArcSwap 里的 client。
 pub fn new_http_client() -> reqwest::Client {
     let mut builder = reqwest::Client::builder()
         .user_agent(concat!("polyrocket/", env!("CARGO_PKG_VERSION")))
