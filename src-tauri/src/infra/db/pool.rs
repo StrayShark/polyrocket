@@ -33,6 +33,9 @@ pub async fn init_pool(app: &AppHandle) -> AppResult<SqlitePool> {
     super::settings::ensure_table(&pool).await?;
     ensure_copy_mirror_queue(&pool).await?;
     ensure_price_snapshots(&pool).await?;
+    // v0.51a — clob_snapshots table (real order
+    // book per market per timestamp). Idempotent.
+    ensure_clob_snapshots(&pool).await?;
     // v0.45a — paper_fills settlement columns. Idempotent:
     // ALTER TABLE ADD COLUMN is a no-op if the column
     // already exists when wrapped in the IF NOT EXISTS
@@ -111,6 +114,35 @@ pub async fn ensure_price_snapshots(pool: &SqlitePool) -> sqlx::Result<()> {
     sqlx::query(
         "CREATE INDEX IF NOT EXISTS price_snapshots_market_recent_idx
          ON price_snapshots(market_id, captured_at DESC)",
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// v0.51a — ensure the `clob_snapshots` table +
+/// its market/recent index exist. Idempotent.
+///
+/// `clob_snapshots` is the FULL order-book record
+/// (one row per price level per side per timestamp),
+/// as opposed to `price_snapshots` (one row per
+/// market per timestamp with a single bid/ask pair).
+pub async fn ensure_clob_snapshots(pool: &SqlitePool) -> sqlx::Result<()> {
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS clob_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            market_id TEXT NOT NULL,
+            captured_at INTEGER NOT NULL,
+            side TEXT NOT NULL,
+            price REAL NOT NULL,
+            size REAL NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS clob_snapshots_market_recent_idx
+         ON clob_snapshots(market_id, captured_at DESC)",
     )
     .execute(pool)
     .await?;

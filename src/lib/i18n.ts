@@ -568,6 +568,15 @@ const en: Dictionary = {
   'order_type.invalid_for_market': 'Market orders cannot have limit_price or stop_price.',
   'order_type.post_only_limit_only': 'Post-only is only valid for limit orders.',
   'order_type.invalid_order_type': 'Unknown order type: {{name}}',
+  // v0.51a — CLOB feed status
+  'clob.title': 'CLOB feed',
+  'clob.desc': 'Real-time order-book data from Polymarket. v0.51a only — the live WebSocket listener lands in a later v0.51+. Without credentials the L1 falls back to v0.47a price_snapshots.',
+  'clob.not_configured': 'not configured',
+  'clob.configured': 'credentials present (feed not yet wired)',
+  'clob.connected': 'connected',
+  'clob.snapshots_count': '{{n}} snapshot(s) across {{markets}} market(s)',
+  'clob.record_snapshot': 'Record snapshot',
+  'clob.recorded': 'recorded {{n}} level(s)',
   // v0.44c — paper trading mode
   'paper_mode.title': 'Paper trading mode',
   'paper_mode.desc': 'Mirror executor writes to paper_fills (no CLOB submission) when ON. Validate your config without risking real money.',
@@ -1288,6 +1297,15 @@ const zh: Dictionary = {
   'order_type.invalid_for_market': '市价单不能带限价或止损价。',
   'order_type.post_only_limit_only': '只挂单（post-only）仅对限价单有效。',
   'order_type.invalid_order_type': '未知订单类型：{{name}}',
+  // v0.51a — CLOB feed status
+  'clob.title': 'CLOB 行情源',
+  'clob.desc': 'Polymarket 实时订单簿数据。v0.51a 阶段 — 真正的 WebSocket 监听在 v0.51+。无凭据时 L1 回退到 v0.47a price_snapshots。',
+  'clob.not_configured': '未配置',
+  'clob.configured': '已配置凭据（feed 尚未接线）',
+  'clob.connected': '已连接',
+  'clob.snapshots_count': '{{markets}} 个市场累计 {{n}} 个快照',
+  'clob.record_snapshot': '记录快照',
+  'clob.recorded': '已记录 {{n}} 档行情',
   // v0.44c — 模拟盘模式
   'paper_mode.title': '模拟盘模式',
   'paper_mode.desc': '开启后,mirror executor 将命中的订单写入 paper_fills 表(不调 CLOB),可用于无风险验证配置。',

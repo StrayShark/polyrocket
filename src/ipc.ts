@@ -1242,6 +1242,72 @@ export const fillAnalytics = () =>
   invoke<FillAnalytics>('fill_analytics');
 
 // =================================================================
+// ================== v0.51a — CLOB snapshots =====================
+// =================================================================
+
+/** v0.51a — one snapshot of the full order book
+ * for a market. `bids` is sorted DESC by price
+ * (best bid first); `asks` is sorted ASC (best ask
+ * first). Each tuple is `[price, size]`. */
+export interface ClobSnapshot {
+  marketId: string;
+  capturedAt: number;
+  /** `[price, size]` tuples, sorted DESC by price. */
+  bids: Array<[number, number]>;
+  /** `[price, size]` tuples, sorted ASC by price. */
+  asks: Array<[number, number]>;
+}
+
+/** v0.51a — current CLOB feed status.
+ *
+ * Returns "not_configured" when the env vars
+ * `POLYROCKET_CLOB_API_KEY` /
+ * `POLYROCKET_CLOB_API_SECRET` /
+ * `POLYROCKET_CLOB_API_PASSPHRASE` aren't all set.
+ *
+ * Returns "configured" when credentials are present
+ * but the actual WebSocket listener isn't yet wired
+ * (v0.51+).
+ *
+ * The L1 falls back to v0.47a `price_snapshots`
+ * when state is "not_configured". */
+export interface ClobFeedStatus {
+  state: 'not_configured' | 'configured' | 'connected';
+  /** Distinct (market_id, captured_at) pairs in the
+   * table. Counts each "snapshot" once even though
+   * it has many rows (one per price level). */
+  totalSnapshots: number;
+  /** Number of distinct markets with at least one
+   * snapshot. */
+  marketsWithSnapshots: number;
+}
+
+/** v0.51a — return the current CLOB feed status. */
+export const clobFeedStatus = () =>
+  invoke<ClobFeedStatus>('clob_feed_status');
+
+/** v0.51a — args for `recordClobSnapshotNow`.
+ * Bids and asks are `[price, size]` tuples. */
+export interface RecordClobSnapshotArgs {
+  marketId: string;
+  capturedAt: number;
+  bids: Array<[number, number]>;
+  asks: Array<[number, number]>;
+}
+
+/** v0.51a — manual one-shot insert. Records one
+ * snapshot and returns the number of rows
+ * (bids.length + asks.length). */
+export const recordClobSnapshotNow = (args: RecordClobSnapshotArgs) =>
+  invoke<number>('record_clob_snapshot_now', { args });
+
+/** v0.51a — return the most recent snapshot for
+ * a market. Returns `null` when the market has
+ * no snapshots. */
+export const latestClobSnapshot = (marketId: string) =>
+  invoke<ClobSnapshot | null>('latest_clob_snapshot', { marketId });
+
+// =================================================================
 // ================== v0.28a — auto_promote:finished =================
 // =================================================================
 

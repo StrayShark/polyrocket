@@ -52,6 +52,12 @@ vi.mock('@/ipc', () => ({
     allHealthy: true,
     loops: [],
   }),
+  // v0.51a — CLOB feed
+  clobFeedStatus: vi.fn().mockResolvedValue({
+    state: 'not_configured',
+    totalSnapshots: 0,
+    marketsWithSnapshots: 0,
+  }),
   setMirrorPaperMode: vi.fn().mockResolvedValue(true),
   getMirrorPaperMode: vi.fn().mockResolvedValue(false),
 }));

@@ -18,6 +18,7 @@ import {
   purgeTelemetryLogs, // v0.49a
   getActiveModel, // v0.49b
   schedulerSelfTestNow, // v0.49c
+  clobFeedStatus, // v0.51a
   setMirrorPaperMode,
   getMirrorPaperMode,
   type AuditRetentionView,
@@ -214,6 +215,13 @@ export function Settings() {
           `schedulerSelfTestNow` IPC which reads
           the per-loop atomic last-tick counters. */}
       <SchedulerSelfTestCard />
+
+      {/* v0.51a — CLOB feed status. Reads env
+          var credentials + DB row counts; shows
+          whether the real CLOB feed is
+          configured and how many snapshots are
+          cached locally. */}
+      <ClobFeedCard />
 
       {/* v0.44c — paper trading mode toggle */}
       <PaperModeCard />
@@ -981,6 +989,91 @@ function TelemetryLogList({ enabled }: { enabled: boolean }) {
 // ================================================================
 // ============ v0.49b — Active model summary card =================
 // ================================================================
+
+/** v0.51a — CLOB feed status card. Shows whether
+ *  the real order-book feed is configured
+ *  (POLYROCKET_CLOB_API_KEY + SECRET + PASSPHRASE
+ *  env vars) and how many snapshots are cached
+ *  locally. The live WebSocket listener lands
+ *  in v0.51+; v0.51a only lays down the schema +
+ *  IPCs + this card.
+ */
+function ClobFeedCard() {
+  const { t } = useT();
+  type Status = {
+    state: 'not_configured' | 'configured' | 'connected';
+    totalSnapshots: number;
+    marketsWithSnapshots: number;
+  };
+  const [status, setStatus] = useState<Status | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const refresh = useCallback(() => {
+    clobFeedStatus()
+      .then((s) => {
+        setStatus(s);
+        setErr(null);
+      })
+      .catch((e) => setErr(String(e)));
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return (
+    <Card
+      title={t('clob.title')}
+      description={t('clob.desc')}
+    >
+      <div className="space-y-2" data-testid="clob-feed-card">
+        {err ? (
+          <p
+            data-testid="clob-feed-error"
+            className="text-[10px] text-bear"
+          >
+            {err}
+          </p>
+        ) : !status ? (
+          <p className="text-[10px] text-muted">{t('common.loading')}</p>
+        ) : (
+          <>
+            <div className="flex items-baseline gap-2">
+              <span
+                data-testid="clob-feed-state"
+                className={
+                  'text-[11px] ' +
+                  (status.state === 'connected'
+                    ? 'text-bull'
+                    : status.state === 'configured'
+                      ? 'text-warn'
+                      : 'text-muted')
+                }
+              >
+                ● {t(`clob.${status.state}`)}
+              </span>
+              <span className="text-[10px] text-muted">
+                {t('clob.snapshots_count', {
+                  n: status.totalSnapshots,
+                  markets: status.marketsWithSnapshots,
+                })}
+              </span>
+            </div>
+          </>
+        )}
+        <button
+          type="button"
+          onClick={refresh}
+          className="text-[10px] text-muted hover:text-fg"
+          data-testid="clob-feed-refresh"
+        >
+          {t('common.refresh')}
+        </button>
+      </div>
+    </Card>
+  );
+}
+
 
 /** v0.49c — scheduler self-test. Reads the
  *  process-global atomic counters in

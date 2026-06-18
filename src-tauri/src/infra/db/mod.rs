@@ -16,6 +16,7 @@
 
 pub mod audit;
 pub mod bets_columns; // v0.50a
+pub mod clob_snapshots; // v0.51a
 pub mod paper_fills;
 pub mod pool;
 pub mod price_snapshots;
