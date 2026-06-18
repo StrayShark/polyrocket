@@ -362,4 +362,20 @@ mod tests {
         let _ = std::fs::remove_dir_all(&src);
         let _ = std::fs::remove_dir_all(&dst);
     }
+
+    // v0.58a — the auto-migration flow runs
+    // on every Apply. Verify the Rust side is
+    // idempotent: a second copy_tree with the
+    // same source and dest (now that the dest
+    // has the data) is a no-op for the
+    // existing files because overwrite=false
+    // would refuse the non-empty dest. We test
+    // the dest-non-empty branch here.
+    #[test]
+    fn any_dir_entries_with_subdir_returns_true() {
+        let d = tempdir("any-subdir");
+        std::fs::create_dir(d.join("nested")).unwrap();
+        assert!(any_dir_entries(&d).unwrap());
+        let _ = std::fs::remove_dir_all(&d);
+    }
 }

@@ -41,6 +41,14 @@ vi.mock('@/ipc', () => ({
   setStoragePath: vi.fn(),
   resetStoragePath: vi.fn(),
   pickDirectory: vi.fn(),
+  migrateStoragePath: vi.fn().mockResolvedValue({
+    from: '/tmp/db/polyrocket.db',
+    to: '/Volumes/external/polyrocket',
+    filesCopied: 3,
+    bytesCopied: 12345,
+    overwritten: false,
+    noop: false,
+  }),
   llmKeyUpsert: vi.fn(),
   llmKeySetSecret: vi.fn(),
   llmTestConnectivity: vi.fn(),
@@ -217,6 +225,46 @@ describe('StorageStep (v0.54c)', () => {
     await waitFor(() => {
       expect(ipc.setStoragePath).toHaveBeenCalledWith(
         '/Volumes/external/polyrocket-v2',
+      );
+    });
+  });
+
+  it('Apply on custom mode auto-runs migrateStoragePath (v0.58a)', async () => {
+    // v0.58a — the Storage step now auto-migrates
+    // any existing data to the new path, so the
+    // user doesn't have to click "Copy existing
+    // data" in Settings separately.
+    vi.mocked(ipc.getStorageInfo).mockResolvedValue({
+      defaultPath: '/tmp/db/polyrocket.db',
+      currentPath: '/Volumes/external/polyrocket',
+      isCustom: true,
+      exists: true,
+      writable: true,
+      freeBytes: null,
+      restartRequired: true,
+    });
+    vi.mocked(ipc.setStoragePath).mockResolvedValue(undefined);
+    const welcome = makeWelcomeStore();
+    render(wrap(<StorageStep welcome={welcome} />));
+    const input = (await waitFor(
+      () =>
+        screen.getByTestId('welcome-storage-path-input') as HTMLInputElement,
+    )) as HTMLInputElement;
+    fireEvent.change(input, {
+      target: { value: '/Volumes/external/polyrocket-v3' },
+    });
+    fireEvent.click(screen.getByTestId('welcome-storage-apply'));
+    await waitFor(() => {
+      expect(ipc.setStoragePath).toHaveBeenCalledWith(
+        '/Volumes/external/polyrocket-v3',
+      );
+    });
+    // The migrate call should follow setStoragePath
+    // with the same path + overwrite=false.
+    await waitFor(() => {
+      expect(ipc.migrateStoragePath).toHaveBeenCalledWith(
+        '/Volumes/external/polyrocket-v3',
+        false,
       );
     });
   });

@@ -13,6 +13,7 @@ import {
   setStoragePath,
   resetStoragePath,
   pickDirectory,
+  migrateStoragePath,
   type StorageInfo,
 } from '@/ipc';
 import { useWelcomeStore } from '@/stores/welcome-store';
@@ -70,6 +71,41 @@ export function StorageStep({
           return;
         }
         await setStoragePath(customPath.trim());
+        // v0.58a — auto-migrate any existing data
+        // from the OS default to the new path.
+        // The user no longer has to click "Copy
+        // existing data" in Settings — we run
+        // it for them as part of the Apply flow.
+        //
+        // Idempotency: the IPC's `noop: true`
+        // path covers clean installs (no source
+        // data), and a second call is a noop.
+        try {
+          const r = await migrateStoragePath(
+            customPath.trim(),
+            false, // don't overwrite by default
+          );
+          if (r.noop) {
+            // Clean install — no source data to
+            // copy. The next launch will create
+            // a fresh DB at the new path.
+            toast.info(t('storage.migrate_noop'));
+          } else {
+            toast.success(
+              t('storage.migrate_ok', {
+                files: r.filesCopied,
+                bytes: r.bytesCopied,
+              }),
+            );
+          }
+        } catch (e) {
+          // Migration failed (permission denied,
+          // disk full, etc.) — the path is set
+          // but the data isn't copied. The user
+          // sees the error toast and can retry
+          // from Settings → StorageMigrationCard.
+          toast.error(t('storage.migrate_failed', { err: String(e) }));
+        }
         welcome.setConfigured('storagePath', true);
         toast.success(
           t('welcome.storage_set_ok'),
