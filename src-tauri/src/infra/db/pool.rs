@@ -32,6 +32,13 @@ pub async fn init_pool(app: &AppHandle) -> AppResult<SqlitePool> {
 
     super::settings::ensure_table(&pool).await?;
     ensure_copy_mirror_queue(&pool).await?;
+    // v0.45a — paper_fills settlement columns. Idempotent:
+    // ALTER TABLE ADD COLUMN is a no-op if the column
+    // already exists when wrapped in the IF NOT EXISTS
+    // guard, BUT sqlite doesn't support IF NOT EXISTS on
+    // ADD COLUMN. We use the `PRAGMA table_info` check
+    // pattern instead.
+    super::paper_fills::ensure_paper_fills_columns(&pool).await?;
 
     // v0.8a — first-run demo data seeder.
     // Idempotent: if the DB is already populated (e.g. user has used

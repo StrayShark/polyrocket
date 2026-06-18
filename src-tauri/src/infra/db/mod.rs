@@ -15,6 +15,7 @@
 //! internal use (boot, IPC commands that mutate prefs).
 
 pub mod audit;
+pub mod paper_fills;
 pub mod pool;
 pub mod seed;
 pub mod settings;

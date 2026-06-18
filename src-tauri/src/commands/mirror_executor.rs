@@ -200,7 +200,9 @@ pub async fn get_mirror_paper_mode(
 
 /// v0.44c — wire-format mirror of a single
 /// `paper_fills` row. Used by `list_paper_fills`
-/// below.
+/// below. v0.45 — added 4 settlement fields
+/// (settled_at, resolved_outcome, won, pnl_usdc).
+/// All Option — pre-v0.45 fills don't have them.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct PaperFillDto {
     pub id: String,
@@ -211,6 +213,14 @@ pub struct PaperFillDto {
     pub price: f64,
     pub placed_at: i64,
     pub notes: Option<String>,
+    pub settled_at: Option<i64>,
+    pub resolved_outcome: Option<String>,
+    /// `1` = won (side matched outcome), `0` = lost,
+    /// `None` = not yet settled. Wire-format bool
+    /// would be more L1-friendly but Option<i64>
+    /// matches the DB schema exactly.
+    pub won: Option<i64>,
+    pub pnl_usdc: Option<String>,
 }
 
 /// v0.44c — args for `list_paper_fills`. Same
@@ -231,7 +241,8 @@ pub async fn list_paper_fills(
 ) -> AppResult<Vec<PaperFillDto>> {
     let limit = args.limit.unwrap_or(100);
     let rows = sqlx::query_as::<_, PaperFillDto>(
-        "SELECT id, mirror_id, market_id, side, size, price, placed_at, notes
+        "SELECT id, mirror_id, market_id, side, size, price, placed_at, notes,
+                settled_at, resolved_outcome, won, pnl_usdc
          FROM paper_fills ORDER BY placed_at DESC LIMIT ?",
     )
     .bind(limit)

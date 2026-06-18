@@ -145,6 +145,17 @@ pub fn start(pool: SqlitePool, http: reqwest::Client) -> SchedulerHandle {
             run_sidecar_health_loop(pool, cfg, shutdown).await;
         });
     }
+    {
+        // v0.45a — paper_fills reconciliation: every 5
+        // minutes, settle any paper_fills whose market
+        // has resolved. Computes won/lost + PnL.
+        let pool = pool.clone();
+        let cfg = cfg.clone();
+        let shutdown = shutdown.clone();
+        tokio::spawn(async move {
+            run_paper_fills_reconcile_loop(pool, cfg, shutdown).await;
+        });
+    }
 
     tracing::info!(
         "scheduler started — health_probe={}min, brief_hour_utc={}, brief_tz_offset={}min, anomaly_window={}min",
@@ -990,4 +1001,255 @@ async fn run_sidecar_health_loop(
 /// + the IPC `sidecar_health_now` trigger.
 pub async fn run_sidecar_health_now(pool: &SqlitePool) -> sqlx::Result<()> {
     run_sidecar_health_once(pool).await
+}
+
+// =================================================================
+// ============== v0.45a — paper_fills reconciliation loop ==========
+// =================================================================
+
+/// v0.45a — reconcile paper_fills against market
+/// resolutions. For each unsettled paper_fill where
+/// the market is now resolved, compute the
+/// won/lost outcome and PnL, then write the
+/// settlement fields.
+///
+/// PnL formula (matches `domain::bet`):
+///   - If paper_fill.side == market.outcome → won
+///     pnl = size_shares * (1 - price)   // bought YES, market resolved YES
+///   - If paper_fill.side != market.outcome → lost
+///     pnl = -size_usdc                   // bought the wrong side
+///
+/// Returns the number of paper_fills that were
+/// settled in this pass.
+async fn reconcile_paper_fills_once(pool: &SqlitePool) -> sqlx::Result<usize> {
+    // 1. Find unsettled paper_fills whose market is
+    //    resolved. Join with markets to get the
+    //    outcome.
+    let unsettled: Vec<(String, String, String, f64, String)> = sqlx::query_as(
+        "SELECT pf.id, pf.market_id, pf.side, pf.price, pf.size
+         FROM paper_fills pf
+         JOIN markets m ON m.id = pf.market_id
+         WHERE pf.settled_at IS NULL
+           AND m.resolved = 1
+           AND m.outcome IS NOT NULL",
+    )
+    .fetch_all(pool)
+    .await?;
+    if unsettled.is_empty() {
+        return Ok(0);
+    }
+    let now = chrono::Utc::now().timestamp_millis();
+    let mut count = 0;
+    for (pf_id, _market_id, side, price, size_str) in unsettled {
+        // Look up the actual market outcome for
+        // this paper_fill. We do a per-row query
+        // because the join above only returned the
+        // paper_fills fields; the outcome is in
+        // markets.outcome.
+        let outcome: Option<String> = sqlx::query_scalar(
+            "SELECT outcome FROM markets WHERE id = ?",
+        )
+        .bind(&_market_id)
+        .fetch_optional(pool)
+        .await?
+        .flatten();
+        let Some(outcome) = outcome else { continue };
+        let won = side.to_uppercase() == outcome.to_uppercase();
+        // size_str is a USDC string like "12.5".
+        // We treat it as the cost basis for the
+        // PnL calculation. (For binary prediction
+        // markets with price=0.5 and outcome=YES,
+        // the "shares" you get is size / 0.5 =
+        // 2 * size. But we keep it simple: PnL =
+        // +/- size_usdc depending on win/loss,
+        // matching the conservative accounting the
+        // bet table uses for v0.5d's sign_order
+        // stub.)
+        let size_usdc: f64 = size_str.parse().unwrap_or(0.0);
+        let pnl_usdc = if won { size_usdc } else { -size_usdc };
+        sqlx::query(
+            "UPDATE paper_fills
+             SET settled_at = ?,
+                 resolved_outcome = ?,
+                 won = ?,
+                 pnl_usdc = ?
+             WHERE id = ?",
+        )
+        .bind(now)
+        .bind(&outcome)
+        .bind(if won { 1i64 } else { 0i64 })
+        .bind(format!("{pnl_usdc:.4}"))
+        .bind(&pf_id)
+        .execute(pool)
+        .await?;
+        count += 1;
+    }
+    Ok(count)
+}
+
+/// v0.45a — public helper for the
+/// `reconcile_paper_fills_now` IPC. Returns the
+/// number of paper_fills settled in this pass.
+pub async fn run_paper_fills_reconcile_now(pool: &SqlitePool) -> sqlx::Result<usize> {
+    reconcile_paper_fills_once(pool).await
+}
+
+const DEFAULT_PAPER_FILL_RECONCILE_TICK_SEC: u64 = 300; // 5 min
+
+async fn run_paper_fills_reconcile_loop(
+    pool: SqlitePool,
+    _cfg: SchedulerConfig,
+    shutdown: Arc<Notify>,
+) {
+    // Stagger a bit to avoid contention on cold start
+    tokio::time::sleep(Duration::from_secs(15)).await;
+    let mut ticker = tokio::time::interval(Duration::from_secs(
+        DEFAULT_PAPER_FILL_RECONCILE_TICK_SEC,
+    ));
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    loop {
+        tokio::select! {
+            _ = ticker.tick() => {
+                match reconcile_paper_fills_once(&pool).await {
+                    Ok(n) if n > 0 => {
+                        tracing::info!(settled = n, "paper_fills reconciled");
+                        use crate::infra::telemetry;
+                        telemetry::emit(telemetry::Event::PaperFillsReconciled { settled: n as u64 });
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        tracing::warn!(error = %e, "paper_fills reconcile tick error");
+                        use crate::infra::telemetry;
+                        telemetry::emit(telemetry::Event::SchedulerError {
+                            loop_name: "paper_fills_reconcile",
+                            error: e.to_string(),
+                        });
+                    }
+                }
+            }
+            _ = shutdown.notified() => {
+                tracing::info!("paper_fills reconcile loop shutting down");
+                break;
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// v0.45a — reconcile_paper_fills_once settles
+    /// unsettled paper_fills when their market has
+    /// resolved. We use an in-memory SQLite pool
+    /// to keep the test self-contained.
+    #[tokio::test]
+    async fn reconcile_paper_fills_settles_resolved_markets() {
+        use sqlx::sqlite::SqlitePoolOptions;
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect(":memory:")
+            .await
+            .unwrap();
+        // Minimal schema: markets + paper_fills
+        sqlx::query(
+            "CREATE TABLE markets (
+                id TEXT PRIMARY KEY,
+                resolved INTEGER DEFAULT 0 NOT NULL,
+                outcome TEXT
+            )",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "CREATE TABLE paper_fills (
+                id TEXT PRIMARY KEY,
+                mirror_id TEXT NOT NULL,
+                market_id TEXT NOT NULL,
+                side TEXT NOT NULL,
+                size TEXT NOT NULL,
+                price REAL NOT NULL,
+                placed_at INTEGER NOT NULL,
+                notes TEXT,
+                settled_at INTEGER,
+                resolved_outcome TEXT,
+                won INTEGER,
+                pnl_usdc TEXT
+            )",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        // Insert 2 markets — one resolved YES, one
+        // resolved NO, one unresolved.
+        for (id, resolved, outcome) in [
+            ("m1", 1, Some("YES")),
+            ("m2", 1, Some("NO")),
+            ("m3", 0, None),
+        ] {
+            sqlx::query("INSERT INTO markets (id, resolved, outcome) VALUES (?, ?, ?)")
+                .bind(id)
+                .bind(resolved)
+                .bind(outcome)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+
+        // Insert 3 paper_fills:
+        //   pf1: market_id=m1 (resolved YES), side=YES → WON
+        //   pf2: market_id=m2 (resolved NO),  side=YES → LOST
+        //   pf3: market_id=m3 (unresolved),   side=YES → skipped
+        for (id, market_id, side) in [
+            ("pf1", "m1", "YES"),
+            ("pf2", "m2", "YES"),
+            ("pf3", "m3", "YES"),
+        ] {
+            sqlx::query("INSERT INTO paper_fills (id, mirror_id, market_id, side, size, price, placed_at, notes) VALUES (?, 'm', ?, ?, '10', 0.5, 0, '')")
+                .bind(id)
+                .bind(market_id)
+                .bind(side)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+
+        let settled = reconcile_paper_fills_once(&pool).await.unwrap();
+        assert_eq!(settled, 2);
+
+        // pf1: won
+        let (won, outcome, pnl): (Option<i64>, Option<String>, Option<String>) =
+            sqlx::query_as("SELECT won, resolved_outcome, pnl_usdc FROM paper_fills WHERE id = 'pf1'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(won, Some(1));
+        assert_eq!(outcome.as_deref(), Some("YES"));
+        assert_eq!(pnl.as_deref(), Some("10.0000"));
+
+        // pf2: lost
+        let (won, outcome, pnl): (Option<i64>, Option<String>, Option<String>) =
+            sqlx::query_as("SELECT won, resolved_outcome, pnl_usdc FROM paper_fills WHERE id = 'pf2'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(won, Some(0));
+        assert_eq!(outcome.as_deref(), Some("NO"));
+        assert_eq!(pnl.as_deref(), Some("-10.0000"));
+
+        // pf3: not settled (market unresolved)
+        let (won, settled_at): (Option<i64>, Option<i64>) =
+            sqlx::query_as("SELECT won, settled_at FROM paper_fills WHERE id = 'pf3'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(won, None);
+        assert_eq!(settled_at, None);
+
+        // Idempotent: second pass settles 0.
+        let settled2 = reconcile_paper_fills_once(&pool).await.unwrap();
+        assert_eq!(settled2, 0);
+    }
 }

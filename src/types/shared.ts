@@ -38,6 +38,21 @@ export interface DashboardKpis {
   open_positions: number;
 }
 
+// v0.45b — paper trading PnL summary. Shown on
+// Dashboard as a separate card only when paper
+// mode is enabled. Settled fills = paper_fills
+// whose market has resolved; total_fills
+// includes both settled and pending.
+export interface PaperPnlSummary {
+  total_fills: number;
+  settled_fills: number;
+  won_fills: number;
+  lost_fills: number;
+  win_rate: number;
+  realized_pnl_usdc: string;
+  paper_mode_enabled: boolean;
+}
+
 export interface DailyBriefEntry {
   market_id: string;
   market_question: string;

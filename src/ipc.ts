@@ -39,6 +39,7 @@ import type {
   CopyEvent,
   AddCopyTargetArgs,
   DashboardKpis,
+  PaperPnlSummary,
   DailyBriefEntry,
   BriefRefreshResult,
   SetBriefPrefsArgs,
@@ -97,6 +98,9 @@ export const listPaperFills = (args: { limit?: number } = {}) =>
 
 // ---------------------------------------------------------------- PnL (M6)
 export const dashboardKpis = () => invoke<DashboardKpis>('dashboard_kpis');
+// v0.45b — paper trading PnL summary (settled fills only)
+export const paperPnlSummary = () =>
+  invoke<PaperPnlSummary>('paper_pnl_summary');
 
 // ---------------------------------------------------------------- LLM Analysis (M10)
 export const listLlmProviders = () => invoke<LlmProvider[]>('list_llm_providers');

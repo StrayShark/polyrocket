@@ -77,6 +77,7 @@ pub fn run() {
             commands::copy::add_copy_target,
             commands::copy::recent_copy_events,
             commands::pnl::dashboard_kpis,
+            commands::pnl::paper_pnl_summary,
             commands::llm::list_llm_providers,
             commands::llm::upsert_llm_provider,
             commands::llm::llm_analyze,

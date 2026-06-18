@@ -541,6 +541,15 @@ const en: Dictionary = {
   'paper_mode.push_failed': 'failed to update paper mode',
   // v0.44c — copy page banner
   'copy.paper_mode_banner': 'paper mode — {{n}} hypothetical fills captured',
+  // v0.45c — dashboard paper PnL card
+  'dashboard.paper.title': 'Paper trading PnL',
+  'dashboard.paper.desc': 'What would have happened if your mirrors were placed as live bets.',
+  'dashboard.paper.total_fills': 'Total fills',
+  'dashboard.paper.settled_hint': '{{n}} settled',
+  'dashboard.paper.win_rate': 'Win rate',
+  'dashboard.paper.win_rate_hint': '{{won}} won / {{lost}} lost',
+  'dashboard.paper.realized_pnl': 'Realized PnL',
+  'dashboard.paper.pnl_hint': 'sum across settled paper_fills',
   'promote.archive.empty_title': 'No archive yet',
   'promote.archive.empty_desc': 'The archive is created automatically when the in-memory 20-entry cap is exceeded. Promote 21+ models to start archiving.',
   'promote.archive.no_entries': '0 entries',
@@ -1194,6 +1203,15 @@ const zh: Dictionary = {
   'paper_mode.push_failed': '模拟盘状态更新失败',
   // v0.44c — 复制页横幅
   'copy.paper_mode_banner': '模拟盘模式 — 已捕获 {{n}} 笔虚拟成交',
+  // v0.45c — 仪表盘模拟盘卡片
+  'dashboard.paper.title': '模拟盘 PnL',
+  'dashboard.paper.desc': '如果你的 mirror 被真实下单,会发生什么。',
+  'dashboard.paper.total_fills': '总成交',
+  'dashboard.paper.settled_hint': '{{n}} 已结算',
+  'dashboard.paper.win_rate': '胜率',
+  'dashboard.paper.win_rate_hint': '{{won}} 胜 / {{lost}} 负',
+  'dashboard.paper.realized_pnl': '已实现 PnL',
+  'dashboard.paper.pnl_hint': '已结算 paper_fills 累计',
   'promote.archive.empty_title': '暂无归档',
   'promote.archive.empty_desc': '当内存中 20 条记录超过上限时，归档会自动创建。晋升 21+ 个模型即可开始归档。',
   'promote.archive.no_entries': '0 条记录',

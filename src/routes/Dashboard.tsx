@@ -12,7 +12,7 @@ import {
   BarChart3,
   LineChart as LineChartIcon,
 } from 'lucide-react';
-import { dashboardKpis, listActiveSignals, listBets } from '@/ipc';
+import { dashboardKpis, listActiveSignals, listBets, paperPnlSummary } from '@/ipc';
 import { Card } from '@/components/base/Card';
 import { Pill } from '@/components/base/Pill';
 import { Button } from '@/components/base/Button';
@@ -31,6 +31,16 @@ export function Dashboard() {
     queryKey: ['kpis'],
     queryFn: () => dashboardKpis(),
     refetchInterval: 30_000,
+  });
+  // v0.45c — paper trading PnL summary. Disabled
+  // by default; only fetches when paper mode is
+  // enabled. We check the `paper_mode_enabled`
+  // field of the response to decide whether to
+  // show the card.
+  const paperPnl = useQuery({
+    queryKey: ['paper-pnl-summary'],
+    queryFn: () => paperPnlSummary(),
+    refetchInterval: 60_000,
   });
   const signals = useQuery({
     queryKey: ['signals', 'active', { limit: 50 }],
@@ -152,6 +162,44 @@ export function Dashboard() {
           }
         />
       </div>
+
+      {/* v0.45c — Paper PnL card. Renders only when
+          paper mode is enabled AND there is at least
+          one paper_fill. Shows settled wins/losses
+          + realized PnL. The "what would have
+          happened" signal for the user. */}
+      {paperPnl.data?.paper_mode_enabled && (
+        <Card
+          title={t('dashboard.paper.title')}
+          description={t('dashboard.paper.desc')}
+        >
+          <div
+            className="grid grid-cols-2 md:grid-cols-4 gap-3"
+            data-testid="paper-pnl-card"
+          >
+            <KpiCard
+              label={t('dashboard.paper.total_fills')}
+              value={String(paperPnl.data?.total_fills ?? 0)}
+              hint={t('dashboard.paper.settled_hint', {
+                n: paperPnl.data?.settled_fills ?? 0,
+              })}
+            />
+            <KpiCard
+              label={t('dashboard.paper.win_rate')}
+              value={`${((paperPnl.data?.win_rate ?? 0) * 100).toFixed(1)}%`}
+              hint={t('dashboard.paper.win_rate_hint', {
+                won: paperPnl.data?.won_fills ?? 0,
+                lost: paperPnl.data?.lost_fills ?? 0,
+              })}
+            />
+            <KpiCard
+              label={t('dashboard.paper.realized_pnl')}
+              value={`$${fmtUsdc(paperPnl.data?.realized_pnl_usdc)}`}
+              hint={t('dashboard.paper.pnl_hint')}
+            />
+          </div>
+        </Card>
+      )}
 
       {/* Charts row: equity curve + calibration */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

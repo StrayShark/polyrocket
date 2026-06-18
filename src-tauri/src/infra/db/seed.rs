@@ -283,11 +283,18 @@ mod tests {
         // a strict superset of the bet fields used for
         // audit, with an explicit `mirror_id` link so the
         // L1 can show "this fill would have come from this
-        // copy_target event". v0.44 doesn't auto-settle
-        // paper fills against resolutions — the user runs
-        // the backtest engine (v0.43) to compare paper vs
-        // live. Future v0.45+ could add a settlement
-        // reconciler that uses the markets table.
+        // copy_target event".
+        //
+        // v0.45a — added settlement columns:
+        //   settled_at    — when we reconciled against
+        //                   markets.resolved
+        //   resolved_outcome — 'YES' | 'NO' | NULL
+        //   won           — 1 if side matched outcome, 0
+        //                   otherwise, NULL if not settled
+        //   pnl_usdc      — settled PnL in USDC (NULL if
+        //                   not settled)
+        // The reconciler (v0.45a) updates these fields when
+        // a market becomes resolved.
         "CREATE TABLE IF NOT EXISTS paper_fills (
             id TEXT PRIMARY KEY,
             mirror_id TEXT NOT NULL,
@@ -296,7 +303,11 @@ mod tests {
             size TEXT NOT NULL,
             price REAL NOT NULL,
             placed_at INTEGER NOT NULL,
-            notes TEXT
+            notes TEXT,
+            settled_at INTEGER,
+            resolved_outcome TEXT,
+            won INTEGER,
+            pnl_usdc TEXT
         )",
         "CREATE TABLE copy_targets (
             id TEXT PRIMARY KEY,

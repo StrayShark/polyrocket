@@ -193,6 +193,13 @@ pub enum Event {
         rows: u64,
         retention_days: u64,
     },
+    /// v0.45a — paper_fills reconciliation pass
+    /// settled N paper_fills (i.e. they hit markets
+    /// that became resolved between the previous
+    /// tick and this one).
+    PaperFillsReconciled {
+        settled: u64,
+    },
 }
 
 /// Emit a single event. No-op if `!is_enabled()`.
