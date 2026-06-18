@@ -7,13 +7,14 @@
 use crate::AppError;
 use crate::AppResult;
 use crate::domain::lab::sidecar::{
-    build_auto_promote_if_better_request, build_predict_request, build_promote_all_trials_request,
-    build_promote_request, build_rollback_request, build_train_request,
-    parse_auto_promote_if_better_response, parse_line, parse_list_promote_history_response,
-    parse_promote_all_trials_response, parse_predict_response, parse_promote_response,
-    parse_rollback_response, parse_train_response, AutoPromoteIfBetterResult, Prediction,
-    PromoteAllTrialsResult, PromoteHistoryResult, PromoteResult, RollbackResult, SidecarMethod,
-    SidecarRequest, SidecarResponse, TrainResult, TrainTrial,
+    build_auto_promote_if_better_request, build_backtest_model_request, build_predict_request,
+    build_promote_all_trials_request, build_promote_request, build_rollback_request,
+    build_train_request, parse_auto_promote_if_better_response, parse_backtest_model_response,
+    parse_line, parse_list_promote_history_response, parse_promote_all_trials_response,
+    parse_predict_response, parse_promote_response, parse_rollback_response, parse_train_response,
+    AutoPromoteIfBetterResult, BacktestResult, BacktestSample, Prediction, PromoteAllTrialsResult,
+    PromoteHistoryResult, PromoteResult, RollbackResult, SidecarMethod, SidecarRequest,
+    SidecarResponse, TrainResult, TrainTrial,
 };
 use crate::domain::lab::train_progress::{
     TrainFinishedEvent, TrainStartedEvent, TrainTrialDto,
@@ -1191,6 +1192,121 @@ pub async fn promote_all_trials(
     }
     parse_promote_all_trials_response(&response).map_err(|e| {
         AppError::Internal(format!("promote_all decode: {e}"))
+    })
+}
+
+// =================================================================
+// ============== v0.43b — backtest_model IPC =======================
+// =================================================================
+
+/// v0.43b — args for the `backtest_model` IPC. The L1
+/// pulls resolved markets from the markets DB, converts
+/// each to a `BacktestSample`, and passes them in.
+/// Returns a `BacktestResult` with Brier + calibration
+/// + top winners/losers.
+///
+/// The sidecar is pure (no IO beyond reading the model
+/// file), so the per-call cost is `O(samples)` — fast
+/// for hundreds of samples, slow for millions. The
+/// L1 should pre-filter to a reasonable time window.
+#[derive(Debug, Clone, Deserialize)]
+pub struct BacktestModelArgs {
+    /// The model to backtest, e.g.
+    /// "logistic-train-441c352b". Looked up in
+    /// `archive.jsonl` first, then `active.json`.
+    pub model_version: String,
+    /// The list of (price, market_age_hours, outcome)
+    /// samples to replay the model against. Each
+    /// sample may also include a `label` for the
+    /// top winners/losers display.
+    pub samples: Vec<BacktestSample>,
+}
+
+/// v0.43b — replay a saved model against a list of
+/// (price, market_age_hours, outcome) samples and
+/// return Brier + calibration + per-sample
+/// predictions. Closes the v0.17-v0.41 model
+/// lifecycle gap: there's no way to ask
+/// "how would this model have done on real
+/// resolutions" without this.
+///
+/// The IPC's job is just protocol plumbing —
+/// stdin/stdout lock + parse + return. The
+/// prediction + Brier math lives in the Python
+/// sidecar (v0.43a).
+#[tauri::command]
+pub async fn backtest_model(
+    state: State<'_, SidecarState>,
+    args: BacktestModelArgs,
+) -> AppResult<BacktestResult> {
+    let job_id = format!(
+        "backtest-{}",
+        uuid::Uuid::new_v4()
+            .to_string()
+            .split('-')
+            .next()
+            .unwrap_or("00000000")
+    );
+    let line = build_backtest_model_request(&job_id, &args.model_version, &args.samples);
+
+    if !state.is_running() {
+        return Ok(BacktestResult {
+            ok: false,
+            model_version: args.model_version,
+            sample_count: 0,
+            brier_mean: None,
+            brier_breakdown: Vec::new(),
+            calibration: Vec::new(),
+            top_winners: Vec::new(),
+            top_losers: Vec::new(),
+            message: Some("sidecar not running".into()),
+        });
+    }
+
+    let response_line = {
+        {
+            let mut stdin_guard = state.stdin.lock()
+                .map_err(|e| format!("stdin lock: {e}"))
+                .map_err(AppError::Internal)?;
+            let stdin = stdin_guard.as_mut()
+                .ok_or_else(|| AppError::Internal("stdin not available".into()))?;
+            use std::io::Write;
+            if let Err(e) = writeln!(stdin, "{line}") {
+                return Err(AppError::Internal(format!("backtest write: {e}")));
+            }
+            if let Err(e) = stdin.flush() {
+                return Err(AppError::Internal(format!("backtest flush: {e}")));
+            }
+        }
+        let mut stdout_guard = state.stdout.lock()
+            .map_err(|e| format!("stdin lock: {e}"))
+            .map_err(AppError::Internal)?;
+        let stdout = stdout_guard.as_mut()
+            .ok_or_else(|| AppError::Internal("stdout not available".into()))?;
+        use std::io::{BufRead, BufReader};
+        let mut reader = BufReader::new(stdout);
+        let mut buf = String::new();
+        if let Err(e) = reader.read_line(&mut buf) {
+            return Err(AppError::Internal(format!("backtest read: {e}")));
+        }
+        buf
+    };
+
+    let parsed = parse_line(&response_line).map_err(|e| {
+        AppError::Internal(format!("backtest parse: {e}"))
+    })?;
+    let response = match parsed {
+        crate::domain::lab::sidecar::ParseResult::Response(r) => r,
+        _ => return Err(AppError::Internal("backtest: not a response".into())),
+    };
+    if response.id != job_id {
+        return Err(AppError::Internal(format!(
+            "backtest id mismatch: sent={job_id}, got={}",
+            response.id
+        )));
+    }
+    parse_backtest_model_response(&response).map_err(|e| {
+        AppError::Internal(format!("backtest decode: {e}"))
     })
 }
 

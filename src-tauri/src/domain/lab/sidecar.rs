@@ -113,6 +113,16 @@ pub enum SidecarMethod {
     /// For A/B comparison: the user can see all 4 in
     /// the history and pick the winner via Rollback.
     PromoteAllTrials,
+    /// v0.43a — replay a saved model against a list of
+    /// (price, market_age_hours, outcome) samples and
+    /// return Brier + calibration + per-sample
+    /// predictions. Closes the v0.17-v0.41 lifecycle
+    /// gap: there's no way to ask "how would this
+    /// model have done on real resolutions" without
+    /// this. Pure (no IO beyond reading the model
+    /// file); the L1 is expected to pull resolved
+    /// markets from the markets DB.
+    BacktestModel,
 }
 
 impl SidecarMethod {
@@ -126,6 +136,7 @@ impl SidecarMethod {
             SidecarMethod::RollbackModel => "rollback_model",
             SidecarMethod::AutoPromoteIfBetter => "auto_promote_if_better",
             SidecarMethod::PromoteAllTrials => "promote_all_trials",
+            SidecarMethod::BacktestModel => "backtest_model",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -138,6 +149,7 @@ impl SidecarMethod {
             "rollback_model" => Some(SidecarMethod::RollbackModel),
             "auto_promote_if_better" => Some(SidecarMethod::AutoPromoteIfBetter),
             "promote_all_trials" => Some(SidecarMethod::PromoteAllTrials),
+            "backtest_model" => Some(SidecarMethod::BacktestModel),
             _ => None,
         }
     }
@@ -722,6 +734,118 @@ pub fn build_promote_all_trials_request(id: impl Into<String>) -> String {
     serde_json::to_string(&req).unwrap_or_default()
 }
 
+/// v0.43a — one sample in a backtest. The L1 builds
+/// this list from the markets DB (resolved markets
+/// only) and passes it through. We keep the type
+/// here so the wire format and the Rust types stay
+/// in sync.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BacktestSample {
+    /// The market price at predict-time (0..1).
+    pub price: f64,
+    /// How many hours since the market opened at
+    /// predict-time. The model's `w2` weights age.
+    pub market_age_hours: f64,
+    /// Resolution outcome (0 = NO, 1 = YES).
+    pub outcome: f64,
+    /// Optional human-readable label, surfaced
+    /// in the top winners/losers list (e.g. the
+    /// market question). Empty string is fine.
+    #[serde(default)]
+    pub label: String,
+}
+
+/// Build a `backtest_model` request. v0.43a. Pure
+/// function — the samples are passed through
+/// verbatim; the sidecar does the prediction
+/// + Brier computation.
+pub fn build_backtest_model_request(
+    id: impl Into<String>,
+    model_version: &str,
+    samples: &[BacktestSample],
+) -> String {
+    let req = SidecarRequest {
+        id: id.into(),
+        method: SidecarMethod::BacktestModel.as_str().to_string(),
+        params: serde_json::json!({
+            "model_version": model_version,
+            "samples": samples,
+        }),
+    };
+    serde_json::to_string(&req).unwrap_or_default()
+}
+
+/// v0.43a — one entry in the calibration histogram.
+/// The L1 renders this as a small bar chart:
+/// "in this prediction bucket, the actual
+/// resolution rate was X (vs predicted Y)".
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BacktestCalibrationBucket {
+    /// Human-readable bucket label, e.g. "[0.4, 0.6)".
+    pub bucket: String,
+    /// Mean predicted probability in this bucket.
+    /// `None` when the bucket is empty.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub predicted_avg: Option<f64>,
+    /// Actual resolution rate in this bucket.
+    /// `None` when the bucket is empty.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actual_rate: Option<f64>,
+    /// Number of samples in this bucket.
+    pub count: usize,
+}
+
+/// v0.43a — one entry in the top winners / top
+/// losers list. Includes enough context to render
+/// a tooltip on hover.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BacktestTopSample {
+    /// Echoed from the input `label`.
+    pub label: String,
+    /// Per-sample Brier.
+    pub brier: f64,
+    /// The model's prediction.
+    pub predicted: f64,
+    /// The actual outcome.
+    pub outcome: f64,
+}
+
+/// v0.43a — wire-format mirror of the Python
+/// sidecar's `backtest_model` response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BacktestResult {
+    /// `true` on success; `false` for unknown
+    /// model / empty samples / all-malformed /
+    /// missing weights.
+    pub ok: bool,
+    /// Echoed from the request.
+    pub model_version: String,
+    /// Number of samples that passed validation
+    /// and contributed to Brier.
+    pub sample_count: usize,
+    /// Mean squared error of predictions vs
+    /// outcomes. `None` when `ok=false`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub brier_mean: Option<f64>,
+    /// Per-sample Brier scores, in input order.
+    /// Useful for client-side histograms.
+    #[serde(default)]
+    pub brier_breakdown: Vec<f64>,
+    /// 5 calibration buckets in [0, 1].
+    #[serde(default)]
+    pub calibration: Vec<BacktestCalibrationBucket>,
+    /// 3 lowest-Brier samples (best predictions).
+    #[serde(default)]
+    pub top_winners: Vec<BacktestTopSample>,
+    /// 3 highest-Brier samples (worst predictions),
+    /// reversed (worst first).
+    #[serde(default)]
+    pub top_losers: Vec<BacktestTopSample>,
+    /// Human-readable status / error message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}
+
 /// Wire-format mirror of one per-trial promote result
 /// inside the `results` list. v0.25a.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -754,6 +878,24 @@ pub struct PromoteAllTrialsResult {
     /// Overall error message (e.g. "no candidate"). None
     /// if all promotes succeeded.
     pub message: Option<String>,
+}
+
+/// Parse a `backtest_model` response into a
+/// `BacktestResult`. Returns Err if the response
+/// is `ok=false` at the envelope level. The
+/// `BacktestResult.ok` field reflects the
+/// application-level success (model found, samples
+/// valid) which is independent of the
+/// envelope-level `ok`.
+pub fn parse_backtest_model_response(
+    resp: &SidecarResponse,
+) -> Result<BacktestResult, String> {
+    if !resp.ok {
+        return Err(resp.error.clone().unwrap_or_else(|| "unknown error".into()));
+    }
+    let v = resp.result.clone().unwrap_or(Value::Null);
+    serde_json::from_value::<BacktestResult>(v)
+        .map_err(|e| format!("backtest decode: {e}"))
 }
 
 /// Parse a `promote_all_trials` response into a
@@ -1469,5 +1611,113 @@ mod tests {
         let resp = SidecarResponse::ok("r1", serde_json::json!({"other": 1}));
         let r = parse_predict_response(&resp);
         assert!(r.is_err());
+    }
+
+    // v0.43b — backtest request builder
+    #[test]
+    fn build_backtest_model_request_basic() {
+        let samples = vec![
+            BacktestSample {
+                price: 0.5,
+                market_age_hours: 24.0,
+                outcome: 1.0,
+                label: "m1".into(),
+            },
+            BacktestSample {
+                price: 0.3,
+                market_age_hours: 48.0,
+                outcome: 0.0,
+                label: "".into(),
+            },
+        ];
+        let line = build_backtest_model_request(
+            "backtest-1",
+            "logistic-train-abc",
+            &samples,
+        );
+        let v: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(v["id"], "backtest-1");
+        assert_eq!(v["method"], "backtest_model");
+        assert_eq!(v["params"]["model_version"], "logistic-train-abc");
+        let arr = v["params"]["samples"].as_array().unwrap();
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0]["price"], 0.5);
+        assert_eq!(arr[0]["label"], "m1");
+        assert_eq!(arr[1]["label"], "");
+    }
+
+    // v0.43b — backtest response parser
+    #[test]
+    fn parse_backtest_response_ok() {
+        let resp = SidecarResponse::ok(
+            "backtest-1",
+            serde_json::json!({
+                "ok": true,
+                "model_version": "logistic-train-abc",
+                "sample_count": 3,
+                "brier_mean": 0.18,
+                "brier_breakdown": [0.1, 0.25, 0.05],
+                "calibration": [
+                    {"bucket": "[0.0, 0.2)", "predicted_avg": 0.1, "actual_rate": 0.0, "count": 1},
+                    {"bucket": "[0.8, 1.0)", "predicted_avg": 0.9, "actual_rate": 1.0, "count": 2},
+                ],
+                "top_winners": [
+                    {"label": "best", "brier": 0.05, "predicted": 0.95, "outcome": 1.0},
+                ],
+                "top_losers": [
+                    {"label": "worst", "brier": 0.5, "predicted": 0.0, "outcome": 1.0},
+                ],
+                "message": null,
+            }),
+        );
+        let r = parse_backtest_model_response(&resp).unwrap();
+        assert!(r.ok);
+        assert_eq!(r.model_version, "logistic-train-abc");
+        assert_eq!(r.sample_count, 3);
+        assert_eq!(r.brier_mean, Some(0.18));
+        assert_eq!(r.brier_breakdown.len(), 3);
+        assert_eq!(r.calibration.len(), 2);
+        assert_eq!(r.top_winners.len(), 1);
+        assert_eq!(r.top_losers[0].label, "worst");
+    }
+
+    #[test]
+    fn parse_backtest_response_app_level_error() {
+        // Envelope ok=true but application ok=false
+        // (model not found). The parser should still
+        // succeed; the L1 checks `result.ok`.
+        let resp = SidecarResponse::ok(
+            "backtest-1",
+            serde_json::json!({
+                "ok": false,
+                "model_version": "logistic-missing",
+                "sample_count": 0,
+                "brier_breakdown": [],
+                "calibration": [],
+                "top_winners": [],
+                "top_losers": [],
+                "message": "model 'logistic-missing' not found in archive or active",
+            }),
+        );
+        let r = parse_backtest_model_response(&resp).unwrap();
+        assert!(!r.ok);
+        assert_eq!(r.sample_count, 0);
+        assert!(r.message.as_ref().unwrap().contains("not found"));
+    }
+
+    #[test]
+    fn parse_backtest_envelope_error() {
+        // Envelope-level ok=false (transport error)
+        let resp = SidecarResponse::err("backtest-1", "sidecar not running");
+        assert!(parse_backtest_model_response(&resp).is_err());
+    }
+
+    #[test]
+    fn sidecar_method_backtest_round_trip() {
+        // The "backtest_model" string must round-trip
+        // through the SidecarMethod enum.
+        let m = SidecarMethod::parse("backtest_model").unwrap();
+        assert_eq!(m, SidecarMethod::BacktestModel);
+        assert_eq!(m.as_str(), "backtest_model");
     }
 }
