@@ -929,8 +929,11 @@ function TelemetryCard() {
  *  off, because the file might still be there from a
  *  previous session (the log dir is created on first
  *  emit; before that the list is empty).
+ *
+ *  v0.62c — exported so tests can render it in
+ *  isolation. Default: `enabled=true`.
  */
-function TelemetryLogList({ enabled }: { enabled: boolean }) {
+export function TelemetryLogList({ enabled = true }: { enabled?: boolean }) {
   const { t } = useT();
   const [logs, setLogs] = useState<
     Array<{
@@ -980,6 +983,13 @@ function TelemetryLogList({ enabled }: { enabled: boolean }) {
     return d.toISOString().slice(0, 16).replace('T', ' ');
   };
 
+  // v0.62c — total size + count summary at the top
+  // of the list. Helps the user gauge how much disk
+  // telemetry is using without scrolling through the
+  // full list.
+  const totalBytes = logs.reduce((s, l) => s + l.sizeBytes, 0);
+  const currentCount = logs.filter((l) => l.isCurrent).length;
+
   return (
     <div className="border-t border-border pt-2 space-y-2">
       <div className="flex items-center justify-between">
@@ -1005,6 +1015,18 @@ function TelemetryLogList({ enabled }: { enabled: boolean }) {
             {t('telemetry.purge_old')}
           </button>
         </div>
+      </div>
+      {/* v0.62c — disk usage summary. The user can
+          see at a glance how much telemetry is on
+          disk without scrolling. */}
+      <div
+        className="text-[10px] text-muted"
+        data-testid="telemetry-logs-summary"
+      >
+        {logs.length} session{logs.length === 1 ? '' : 's'}
+        {currentCount > 0 ? ` (${currentCount} current)` : ''}
+        {' · '}
+        {fmtBytes(totalBytes)} total
       </div>
       {logs.length === 0 ? (
         <p className="text-[10px] text-muted">
