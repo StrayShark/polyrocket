@@ -27,6 +27,10 @@ use uuid::Uuid;
 
 // ---------- DTOs ----------
 
+/// LLM provider metadata DTO。L1 「Settings → LLM Providers」表格用。
+///
+/// **`enabled`**：false 的 provider 在 `llm_analyze` fan-out 时被跳过。
+/// **`key_alias` / `api_base`**：标识 + endpoint。**不**包含 secret。
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct LlmProviderDto {
     pub id: String,
@@ -99,6 +103,11 @@ pub struct LlmPerformanceRow {
 
 // ---------- Commands ----------
 
+/// IPC: `list_llm_providers` —— 拉所有 provider 配置。
+///
+/// **跟 `llm_provider_list`（`commands/llm_mgmt.rs`）的区别**：这个 DTO 字段少
+/// 一些（不含 health / quota / rate_limit），更轻量。L1 「Analysis Result」页面用。
+/// L1 「Settings」用 `llm_mgmt` 的版本（含 health）。
 #[tauri::command]
 pub async fn list_llm_providers(state: State<'_, AppState>) -> AppResult<Vec<LlmProviderDto>> {
     let rows = sqlx::query_as::<_, LlmProviderDto>(
@@ -110,6 +119,10 @@ pub async fn list_llm_providers(state: State<'_, AppState>) -> AppResult<Vec<Llm
     Ok(rows)
 }
 
+/// IPC: `upsert_llm_provider` —— 增改一个 LLM provider。
+///
+/// **`provider.id` 必填**（UUID）。已存在则覆盖，不存在则 insert。
+/// **不**写 secret（用 `llm_key_upsert`）。
 #[tauri::command]
 pub async fn upsert_llm_provider(
     state: State<'_, AppState>,
@@ -145,6 +158,11 @@ pub async fn upsert_llm_provider(
 
 
 /// Aggregate per-provider performance (win rate / Brier / cost).
+/// IPC: `llm_performance` —— 按 provider 聚合 performance 指标。
+///
+/// **JOIN**：`llm_recommendations` ↔ `bets`（看推荐方向 vs 实际市场结果）。
+/// **`n_evaluated`**：outcome 已知的推荐数（市场 resolve 后）。
+/// **`brier`**：mean (predicted - actual)²，越低越好。
 #[tauri::command]
 pub async fn llm_performance(
     state: State<'_, AppState>,
@@ -204,6 +222,14 @@ pub struct RecordDecisionArgs {
     pub context_snapshot: Option<String>, // JSON
 }
 
+/// IPC: `record_llm_decision` —— 用户接受/拒绝一条 LLM 推荐时调用。
+///
+/// **业务流程**：
+///   1. UPSERT `llm_recommendations.user_decision` (accepted/rejected)
+///   2. 如果 accepted → 写一条 `bets` 行（占位 + 关联到 recommendation）
+///   3. audit_log 写 `llm.decision.recorded` 事件
+///
+/// **状态机**：`pending` → `accepted` / `rejected`（不能回退）。
 #[tauri::command]
 pub async fn record_llm_decision(
     state: State<'_, AppState>,
@@ -248,6 +274,10 @@ pub struct StatsArgs {
     pub window_days: Option<i64>,
 }
 
+/// IPC: `llm_stats_heatmap` —— (provider × 时间) 热度图数据。
+///
+/// **用途**：L1 「LLM Performance」页面热力图：x=小时, y=provider, 颜色=calls。
+/// **`StatsArgs.window_days`**：聚合窗口，默认 7。
 #[tauri::command]
 pub async fn llm_stats_heatmap(
     state: State<'_, AppState>,
@@ -310,6 +340,10 @@ pub struct LlmStatsScatterPoint {
     pub avg_pnl: f64,
 }
 
+/// IPC: `llm_stats_scatter` —— (cost, Brier) 散点。
+///
+/// **每个点**：一次 LLM analysis (5 providers avg)。x=总 cost，y=Brier。
+/// **用途**：选「便宜 + 准」的 provider。
 #[tauri::command]
 pub async fn llm_stats_scatter(
     state: State<'_, AppState>,
@@ -358,6 +392,9 @@ pub struct LlmStatsTimeseriesPoint {
     pub brier: f64,
 }
 
+/// IPC: `llm_stats_timeseries` —— daily calls / cost / Brier 时序。
+///
+/// **每点 = 1 天**。L1 「Settings → LLM」折线图用。
 #[tauri::command]
 pub async fn llm_stats_timeseries(
     state: State<'_, AppState>,
@@ -405,6 +442,10 @@ pub struct LlmDecisionStats {
     pub avg_pnl: f64,
 }
 
+/// IPC: `llm_stats_decision` —— 用户接受/拒绝率统计。
+///
+/// **`n_recommendations`** / **`n_accepted`** / **`n_rejected`** / **`n_pending`**。
+/// **`avg_acceptance_latency_ms`**：用户从看到推荐到 accept 的平均时间。
 #[tauri::command]
 pub async fn llm_stats_decision(
     state: State<'_, AppState>,
@@ -470,6 +511,11 @@ pub async fn llm_stats_decision(
 use arc_swap::ArcSwap;
 static HTTP: OnceCell<ArcSwap<reqwest::Client>> = OnceCell::new();
 
+/// 取当前共享的 HTTP client。每次返回 `Arc::clone` —— cheap。
+///
+/// **v0.60a 改用 `ArcSwap`**：原来 `OnceCell<reqwest::Client>`，但 proxy 切换要
+/// 替换 client。`ArcSwap` 提供 lock-free atomic load + store。
+/// `Mutex<Option<Client>>` 会卡 await 跨线程，arc-swap 是 hot-path 友好的方案。
 fn http_client() -> std::sync::Arc<reqwest::Client> {
     let cell = HTTP.get_or_init(|| {
         ArcSwap::from_pointee(crate::domain::llm::new_http_client())
@@ -488,6 +534,15 @@ fn http_client() -> std::sync::Arc<reqwest::Client> {
 /// new proxy settings. The old client's
 /// connection pool is dropped (Rust auto-cleanup
 /// on the old Arc when refcount → 0).
+/// 重建并原子替换全局 `ArcSwap<reqwest::Client>`。v0.60a proxy hot-swap 入口。
+///
+/// **调用方**：`commands/network.rs::set_proxy_config`：
+///   1. 写 `POLYROCKET_PROXY` env var
+///   2. 调 `replace_http_client()` → 旧 client 引用计数 → 0 时被 drop
+///   3. 后续 LLM call 拿新 client（带新 proxy）
+///
+/// **in-flight requests**：可能还在用旧 client（无法中断 in-flight `.await`）。
+/// **race-free**：atomic store，新 client 立即可见。
 pub fn replace_http_client() {
     let cell = HTTP.get_or_init(|| {
         ArcSwap::from_pointee(crate::domain::llm::new_http_client())
@@ -721,6 +776,19 @@ fn kind_for_provider_id(id: &str) -> ProviderKind {
 // ---------- the real llm_analyze (v0.2) ----------
 
 #[tauri::command]
+/// IPC: `llm_analyze` —— fan-out 分析一个 market 到 N 个 LLM provider。
+///
+/// **业务流程**（300+ 行核心逻辑）：
+///   1. 拉 market 上下文（question, category, end_date, signals）
+///   2. 拉 peer views（其他 provider 的旧分析，用于 cross-reference）
+///   3. 并发调 N 个 provider（`futures::future::join_all`）
+///   4. 收所有 recommendation → 算 consensus (weighted median)
+///   5. 写 `llm_analyses` + `llm_recommendations` 行
+///   6. emit `consensus:done` 事件给 L1
+///
+/// **`provider_ids: None`**：用所有 enabled provider。
+/// **`signal_id`**：关联到当前触发的 signal（用于 ROI 追踪）。
+/// **`triggered_by`**：`"user:<id>"` / `"auto:signal_refresh"` —— 用于区分人工 / 自动。
 pub async fn llm_analyze(
     state: State<'_, AppState>,
     app: AppHandle,
@@ -1039,6 +1107,12 @@ pub async fn llm_analyze(
 // ---------- new IPC: get one recommendation by id ----------
 
 #[tauri::command]
+/// IPC: `llm_get_recommendation` —— 拉单条 recommendation 详情。
+///
+/// **返回**：`LlmRecommendationDto`（provider name / predicted_prob / side /
+/// confidence / latency / tokens / cost / parse_ok / parse_error）。
+///
+/// **用途**：L1 「Analysis Result」卡片点击展开时调用。
 pub async fn llm_get_recommendation(
     state: State<'_, AppState>,
     rec_id: i64,
@@ -1073,6 +1147,10 @@ pub struct ListAnalysesArgs {
 }
 
 #[tauri::command]
+/// IPC: `llm_list_analyses` —— 按 market_id 拉所有 analysis 历史。
+///
+/// **排序**：`requested_at DESC`。
+/// **`limit` 默认 50**：避免一次拉太多。
 pub async fn llm_list_analyses(
     state: State<'_, AppState>,
     args: ListAnalysesArgs,
