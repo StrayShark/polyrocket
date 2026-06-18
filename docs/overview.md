@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.10 · 2026-06-18 (v0.48 — model degradation detector)
+> 版本：v2.11 · 2026-06-18 (v0.49 — telemetry retention + active model IPC + scheduler self-test)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
 
@@ -638,6 +638,9 @@ sequenceDiagram
 | **Backtest auto-populate (v0.46a–b)** | `list_resolved_markets_for_backtest` IPC + BacktestReport "Pull from resolved markets" button + limit input. v0.46 has a degenerate proxy (price=0.5, age=24h) until price history is stored | ✅ v0.46 完成（1 cargo + 1 vitest + 5 i18n keys × 2 locales; documented limitation） |
 | **Price snapshots (v0.47a–b)** | New `price_snapshots` table; sync_markets records placeholder snapshots (0.5); backtest IPC joins latest snapshot per market via correlated subquery. v0.50+ will replace placeholder with real order-book feed | ✅ v0.47 完成（2 cargo + 1 i18n key × 2 locales updated; price_snapshots module + ensure_price_snapshots migration） |
 | **Model degradation detector (v0.48a–b)** | 7th scheduler loop runs hourly; computes live Brier of FALLBACK model on resolved markets; emits telemetry with `alert=true` when drift > 0.05. L1 Settings toggle for OS notification | ✅ v0.48 完成（3 cargo + 2 vitest + 4 i18n keys × 2 locales; 7th scheduler loop; 12 UiPrefs fields） |
+| **Telemetry file retention (v0.49a)** | Per-session JSONL file under `<app_data_dir>/logs/telemetry/session-<start_unix>.jsonl`; 14-day retention sweep on startup; L1 Settings card shows inventory + manual purge | ✅ v0.49a 完成（3 cargo + 0 vitest + 6 i18n keys × 2 locales; +2 IPCs） |
+| **Active model single-source IPC (v0.49b)** | New `get_active_model` IPC; L1 Settings card shows version / train Brier / promoted at / source path. v0.48a degradation detector refactored to use the same helper | ✅ v0.49b 完成（4 cargo + 3 vitest + 8 i18n keys × 2 locales; +1 IPC） |
+| **Scheduler self-test on boot (v0.49c)** | Each of 8 loops records last-tick into process-global atomic; new `scheduler_self_test_now` IPC returns per-loop healthy flag (age ≤ 3x interval); L1 Settings card renders green/red/yellow dots, auto-polls 30s | ✅ v0.49c 完成（4 cargo + 2 vitest + 5 i18n keys × 2 locales; +1 IPC） |
 | **Reason wire mirror (Rust + L1) + hover tooltip** | `PromoteHistoryEntry.reason: Option<String>` (serde-default for pre-v0.41); ⓘ icon with native title in PromoteHistory row | ✅ v0.41b 完成（Rust serde-default; 2 new vitest tests; 1 new i18n key × 2 locales） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
