@@ -13,6 +13,15 @@ use crate::AppError;
 use crate::AppResult;
 use serde::{Deserialize, Serialize};
 
+/// 下单模式。Mode A 是 jump-link（用户去 Polymarket UI 签），Mode B 是用 OS keyring
+/// 里的私钥直接签订单（自动化）。
+///
+/// **业务流程**：
+///   - Mode A: build_jump_link → L1 拿到 URL，用户在浏览器完成
+///   - Mode B: sign_order → 用 private key 在 Rust 端签 → 调 CLOB
+///
+/// **为什么两套**：Polymarket 的真实 CLOB 订单必须 EOA 签 keyring，但 demo / 早期
+/// 阶段用户没有 wallet 或不想给 polyrocket 私钥，jump-link 是过渡方案。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BetMode {
     /// Mode A: jump-link only. User signs on Polymarket UI.
@@ -37,6 +46,13 @@ impl BetMode {
     }
 }
 
+/// 单笔 bet 的状态机。`Open` → ( `Won` | `Lost` | `Cancelled` )。
+///
+/// **`Open` 含义**：已下单但市场还没 resolve，PnL 仍是 0。
+/// **`Won` / `Lost`**：市场 resolve 后由 `reconcile_paper_fills` 标记。
+/// **`Cancelled`**：用户手动取消或 RPC 失败。
+///
+/// **invariant**：`bets.status = 'open'` 的行表示「还有悬念」，PnL 计算时排除。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BetStatus {
     Open,
@@ -65,6 +81,10 @@ impl BetStatus {
     }
 }
 
+/// 下单方向。YES 买「事件发生」token，NO 买「事件不发生」token。
+///
+/// **PnL 对称性**：YES token 在 market resolve = YES 时付 $1（NO 0），
+/// NO token 反之。`pnl()` 把两边统一到一个公式里。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BetSide {
     Yes,
@@ -102,6 +122,14 @@ impl BetSide {
 // orders: the order must rest on the book, never
 // take liquidity.
 
+/// 订单类型。Market 立即成交（best available price），Limit 必须挂在 book 上等撮合，
+/// StopLoss 是「触发后转 Limit」的模式。
+///
+/// **PostOnly 是什么**：一个 `bool` flag 不是 order type，挂在 Limit 上 —— 表示
+/// 「必须挂单，绝不立刻吃单」（做市友好）。`check_post_only` 验证。
+///
+/// **StopLoss 当前状态**：DB 字段已存，但真实 trigger 逻辑待 v0.51+（需要 CLOB feed
+/// 检测价格穿越）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum OrderType {
     /// Fill at best available price. `limit_price` is ignored.

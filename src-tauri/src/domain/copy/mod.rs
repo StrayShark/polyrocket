@@ -11,6 +11,12 @@ use crate::AppError;
 use crate::AppResult;
 use serde::{Deserialize, Serialize};
 
+/// 一个被跟踪的「目标地址」（whale / trader）。`enabled = false` 时 `should_mirror`
+/// 会跳过它。
+///
+/// **关键字段**：
+///   - `min_edge` — model 算出的 edge 必须 ≥ 这个值才 mirror（过滤掉低确信度信号）
+///   - `allocation_cap` — 单次 mirror 的最大 USDC（避免跟着 whale 把仓位下大）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CopyTarget {
     pub id: String,
@@ -22,6 +28,11 @@ pub struct CopyTarget {
     pub created_at: i64,
 }
 
+/// 检测到的一次「目标地址成交」事件。Polymarket 链上 / 中心化 CLOB 数据源会
+/// push 这种事件到 `copy_events` 表。
+///
+/// **dedup 字段**：`tx_hash` 唯一标识一次链上成交。同一个 tx 可能匹配多个
+/// `copy_target`（多人跟同一个 whale），所以不是 unique on tx_hash。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CopyEvent {
     pub id: i64,
@@ -92,6 +103,14 @@ pub fn should_mirror(
     })
 }
 
+/// `should_mirror` 的返回值。`flip = true` 表示 model 跟 whale 方向相反 —— 这种情况下
+/// executor 仍然会下 mirror（按 model 自己的判断），但 L1 可以选择让用户在 Settings
+/// 里关掉 "follow whale when disagreeing"。
+///
+/// **字段**：
+///   - `side` — "YES" / "NO"（跟 model edge 方向一致）
+///   - `size` — 已被 `allocation_cap` 截断后的 USDC
+///   - `flip` — true if fill_side 与 model side 不一致
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MirrorDecision {
     pub side: String,    // "YES" or "NO"
@@ -181,6 +200,14 @@ pub fn build_mirror(
     }
 }
 
+/// 一个 mirror 订单的完整状态对象。`id = mir_{tx_hash}_{market_id}` 是 dedup key
+/// —— 同一个 (whale_tx, market) 只 mirror 一次。
+///
+/// **生命周期**：`Pending` → executor pick up → `Submitted` → 等待 on-chain 确认
+/// → `Filled`（成功）或 `Rejected`（失败）/ `Expired`（市场关闭前没填）。
+///
+/// **`flipped = true` 的语义**：model 跟 whale 方向相反但仍然 mirror；这条订单
+/// 的 audit log 会有 `flip = true` 标记，方便事后分析 model 的独立判断质量。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MirrorOrder {
     pub id: String,
@@ -197,7 +224,10 @@ pub struct MirrorOrder {
     pub bet_id: Option<String>,
 }
 
-/// Stats over a set of mirror orders (for the L1 mirror panel).
+/// Mirror 订单的统计聚合。L1 「Mirror」面板顶部用这个显示「Pending: 3, Filled: 12, Rejected: 2」。
+///
+/// **调用方**：`commands::mirror::list_mirrors` 调 `mirror_stats(orders)` 把 stats
+/// 跟 `orders: Vec<MirrorOrder>` 一起返回。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MirrorStats {
     pub n_total: usize,

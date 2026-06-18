@@ -44,7 +44,15 @@ pub use prompts::{
 
 // ---------- public types ----------
 
-/// Provider kind, mirroring `llm_providers.provider_kind` in SQLite.
+/// Provider 类型枚举。镜像 SQLite `llm_providers.provider_kind` 列的字符串值
+/// （`"openai"` / `"anthropic"` / ...）。
+///
+/// **如何新增 provider**：
+///   1. 在这个 enum 加 variant
+///   2. 在 `as_str` / `parse` 加映射
+///   3. 写新 client（`anthropic.rs` 风格）
+///   4. 在 L1 `AddProviderModal` 暴露
+///   5. 在 `LlmClient` trait impl 列表注册
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ProviderKind {
     Openai,
@@ -92,7 +100,14 @@ impl ChatMessage {
     pub fn user(s: impl Into<String>) -> Self { Self { role: "user".into(), content: s.into() } }
 }
 
-/// Caller-supplied parameters for one LLM call.
+/// 调用方提供的一次 LLM 调用参数。所有 client 都接受这个 shape（不需知道 provider
+/// 是 OpenAI / Anthropic / Google）。
+///
+/// **构造方式**：用 `CallRequest::new(model).system(s).user(s).max_tokens(n)` 链式 API
+/// 替代直接构造 4-5 个字段。
+///
+/// **`response_format_json = true`**：让 OpenAI / Gemini 走 JSON mode。
+/// Anthropic 没有原生 JSON mode —— Anthropic client 走 system prompt 强约束。
 #[derive(Debug, Clone)]
 pub struct CallRequest {
     pub model: String,
@@ -121,7 +136,11 @@ impl CallRequest {
     pub fn json_mode(mut self) -> Self { self.response_format_json = true; self }
 }
 
-/// Caller-supplied pricing for cost accounting. Cost is recorded per call.
+/// 单价（cents / 1k tokens）。**调用方**（`commands::llm_mgmt`）按 provider
+/// + model 填。`compute()` 直接算钱。
+///
+/// **为什么按 1k token**：跟 OpenAI / Anthropic / Google 的定价单位一致。
+/// **为什么 cents 不是美元**：避免浮点误差积累（cents 是整数）。
 #[derive(Debug, Clone, Copy)]
 pub struct CostRate {
     pub per_1k_in_cents: f64,
@@ -139,8 +158,14 @@ impl CostRate {
     }
 }
 
-/// Standard error code strings — written to `llm_call_logs.error_code`
-/// and surfaced to the frontend. Stable across versions.
+/// 8 个 stable LLM error codes。所有 client 的错误都归类到这 8 类之一，序列化到
+/// `llm_call_logs.error_code` 字段，给 L1 展示 + 跨版本稳定。
+///
+/// **为什么不直接用 HTTP status**：401 跟 403 业务上不同（key 过期 vs 权限不够），
+/// 但都在 4xx 范围。stable code 让 L1 可以基于 `error_code = 'auth'` 弹「更新 key」
+/// toast，而不靠 fuzzy match HTTP 状态码。
+///
+/// **新增 code**：在 enum 加常量 → 在所有 client 的 `classify_status` 加映射。
 pub mod err {
     pub const AUTH: &str = "auth";
     pub const RATE_LIMIT: &str = "rate_limit";
@@ -152,10 +177,13 @@ pub mod err {
     pub const UNKNOWN: &str = "unknown";
 }
 
-/// Result of one LLM HTTP call. `Ok(_)` means the request reached the
-/// provider, was authenticated, and returned 2xx. Even Ok can carry
-/// `parse_ok=false` if the model output didn't match the expected
-/// JSON shape — `parsed` is the "best effort" extracted value.
+/// 单次 LLM HTTP 调用的结果。`Ok(_)` 表示 request 到 provider + 鉴权 + 2xx 响应。
+///
+/// **为什么 `parse_ok = false` 也算 Ok**：HTTP 200 拿到响应但 JSON 不合法时，
+/// 仍可能想用 `text` 字段（用户可以手抄）。`parsed` 是 best-effort 提取的 JSON。
+///
+/// **`cost_cents` 单位**：cents / 1k tokens。0.5 = 半个 cent。
+/// **`latency_ms`**：从发请求到拿到完整响应的总时间（含 TLS + DNS + 上行 + 处理）。
 #[derive(Debug, Clone)]
 pub struct CallOutcome {
     pub http_status: u16,
@@ -191,7 +219,16 @@ impl std::error::Error for CallError {}
 
 pub type CallResult = Result<CallOutcome, CallError>;
 
-/// Trait every provider implements.
+/// 所有 LLM provider 必须实现的 trait。5 个 client（OpenAI / Anthropic / Google /
+/// DeepSeek / Custom）+ 2 个 compat（OpenAI 兼容 / Anthropic 兼容）都实现。
+///
+/// **`Send + Sync`**：让 `dispatch()` 跨 await 持有 client 引用（dispatch 是 async）。
+///
+/// **`call()` 契约**：
+///   - 必设 per-request timeout
+///   - HTTP 错误归类到 `err::*` stable codes
+///   - 2xx 返回 `CallOutcome` 含 tokens + text
+///   - **绝不 panic**（dispatch 假设 call 总是返回 `CallResult`）
 #[async_trait::async_trait]
 pub trait LlmClient: Send + Sync {
     fn kind(&self) -> ProviderKind;

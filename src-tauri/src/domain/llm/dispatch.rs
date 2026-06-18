@@ -13,6 +13,12 @@ use crate::platform::keyring;
 use crate::domain::llm::{CallError, CallRequest, CostRate, LlmClient, err};
 use std::time::Duration;
 
+/// 一个 LLM API key 的引用。`keyring_alias` 是 OS keyring 里的 entry 名（不是 raw
+/// secret 本身）—— secret 通过 `keyring::get_key(keyring_alias)` 取。
+///
+/// **`id` vs `alias`**：`id` 是 DB `llm_provider_keys.id`（UUID），`alias` 是用户
+/// 起的名字（如 "prod-1" / "backup"）。`keyring_alias` 是 keyring entry 名，
+/// 跟 alias 不一定相同（v0.45 起分离）。
 #[derive(Debug, Clone)]
 pub struct KeyHandle {
     pub id: String,           // DB row id
@@ -20,6 +26,11 @@ pub struct KeyHandle {
     pub keyring_alias: String,// keyring entry name
 }
 
+/// 重试策略。`max_attempts` 是**总尝试次数**（跨 key 轮转也算 attempt），不是
+/// per-key。
+///
+/// **`base_delay` 800ms / `max_delay` 8s 是默认值**：适合大多数 LLM call。
+/// 长分析（kernel SHAP 解释）可以由 provider 配置覆盖。
 #[derive(Debug, Clone, Copy)]
 pub struct RetryPolicy {
     pub max_attempts: u32,    // total attempts across keys (1 = no retry)
@@ -103,6 +114,14 @@ impl CallLog {
     }
 }
 
+/// 一次 `dispatch()` 的完整结果。`outcome` 是 LLM 返回值；`key_used` / `attempts` /
+/// `log` 是 dispatch 自己的 metadata。
+///
+/// **`key_used = None` + `Ok(_)`** 永远不发生（key 至少要有一个才能成功）。
+/// `key_used = None` + `Err(_)` 表示「所有 key 都试过都失败」。
+///
+/// **`log` 永远是 Some**：dispatch 负责把最后一次 attempt 的 metadata + 整体成功
+/// 标志写进 `llm_call_logs`。
 pub struct DispatchOutcome {
     pub outcome: Result<crate::domain::llm::CallOutcome, CallError>,
     pub key_used: Option<KeyHandle>,
