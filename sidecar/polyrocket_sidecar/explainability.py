@@ -102,11 +102,19 @@ def run_explainability(
         age = float(sample.get("market_age_hours", 24.0))
     except (TypeError, ValueError):
         return _err(model_version, "price / market_age_hours must be numbers")
+    # v0.55 — domain validation. Polymarket prices are
+    # always in [0, 1] and age is hours since open. We
+    # reject anything outside that to keep the model
+    # input sane (the 3-feature model would extrapolate
+    # wildly otherwise).
     if not (0.0 <= price <= 1.0):
         return _err(model_version, "price must be in [0, 1]")
     if age < 0:
         return _err(model_version, "market_age_hours must be >= 0")
 
+    # v0.55 — load the trained weights. We look in
+    # archive.jsonl first (so old / rolled-back models
+    # can still be explained) then fall back to active.
     model = _load_model_by_version(model_version)
     if model is None:
         return _err(
@@ -133,10 +141,15 @@ def run_explainability(
         )
 
     # Build feature vector + logit + probability.
+    # x[0] is the bias (always 1.0). w[0] is the
+    # intercept — together they shift the logit
+    # before the sigmoid.
     x = [1.0, price, age]
     w = [w0, w1, w2]
     z = sum(wi * xi for wi, xi in zip(w, x))
-    # Numerically stable sigmoid.
+    # Numerically stable sigmoid. The two-branch form
+    # avoids overflow when z is large negative (e^-z
+    # would be huge) or large positive (e^z same).
     if z >= 0:
         p = 1.0 / (1.0 + pow(2.718281828459045, -z))
     else:

@@ -142,6 +142,9 @@ def auto_promote_if_better(params: dict[str, Any]) -> dict[str, Any]:
         a specific trial; same as promote_model)
     """
     brier_margin = params.get("brier_margin", 0.005)
+    # v0.23a — guard against bad params up front so
+    # the L1 gets a clear "skipped" reason instead of
+    # an opaque error from run_auto_promote_if_better.
     if not isinstance(brier_margin, (int, float)) or brier_margin < 0:
         return {
             "promoted": False,
@@ -155,6 +158,9 @@ def auto_promote_if_better(params: dict[str, Any]) -> dict[str, Any]:
             "message": None,
         }
     trial_index = params.get("trial_index")
+    # v0.23a — trial_index is optional. None means
+    # "use the best trial", 0..n-1 means "use that
+    # specific trial" (same semantics as promote_model).
     if trial_index is not None and not isinstance(trial_index, int):
         return {
             "promoted": False,

@@ -2,12 +2,20 @@
 
 > Local-first Polymarket analysis desktop client (Tauri 2 + React 18 + SQLite + Python sidecar).
 
+[![coverage](https://img.shields.io/badge/vitest%20cov-67%25%20stmts-brightgreen)](./vitest.config.ts)
+[![density](https://img.shields.io/badge/comment%20density-5%2F5%20PASS-brightgreen)](./scripts/check-comment-density.mjs)
+[![rustdoc](https://img.shields.io/badge/rustdoc-0%20warnings-brightgreen)](./src-tauri)
+[![sidecar](https://img.shields.io/badge/sidecar-11%20methods-blue)](./sidecar/polyrocket_sidecar/dispatch.py)
+[![ipc](https://img.shields.io/badge/ipc-111%20commands-blue)](./src-tauri/src/commands)
+
 | | |
 |---|---|
 | Bundle id | `com.polyrocket.app` |
 | Stack | Tauri 2 · React 18 · TypeScript · Rust · SQLite · Python (sidecar) |
-| Test totals | **208 cargo + 176 vitest + 44 Python = 428/428** |
-| Status | v0.12 — predict model_version, i18n landing, async sidecar, ModelLab pill |
+| Test totals | **319 cargo + 522 vitest + 85 Python = 926/926** |
+| Coverage gate | vitest 67.4% stmts / 63.9% branches / 56.6% funcs / 68.3% lines (`vitest.config.ts`) |
+| Comment density | 5/5 PASS (`scripts/check-comment-density.mjs`) |
+| Status | v0.63b — coverage ratchet 64%→67% (PnL/Wallets/Copy +19 tests) + density 7/7 py + README badges |
 
 ## What it does
 

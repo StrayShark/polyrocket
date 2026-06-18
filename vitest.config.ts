@@ -28,6 +28,16 @@ export default defineConfig({
     //           (the right one calls the
     //           IPC; Refresh just refetches
     //           the React Query cache).
+    // v0.63b:   67/63/56/68 (504 tests) — 3
+    //           high-coverage route tests
+    //           (PnL 25%→75%, Wallets
+    //           14%→75%, Copy 25%→80%),
+    //           +18 tests total.  Big
+    //           jump on branches (+4.6%)
+    //           because all 3 routes are
+    //           pure-render / pure-form
+    //           patterns with many
+    //           branch-rich UI states.
     //
     // We exclude pure-presentation files
     // (BarChart, Sparkline, KpiCard, etc.)
@@ -55,10 +65,10 @@ export default defineConfig({
         '**/*.unused',
       ],
       thresholds: {
-        statements: 65,
-        branches: 58,
-        functions: 55,
-        lines: 65,
+        statements: 67,
+        branches: 63,
+        functions: 56,
+        lines: 68,
       },
     },
   },

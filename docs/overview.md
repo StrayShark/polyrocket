@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.24 · 2026-06-18 (v0.63a coverage ratchet 64% → 65%)
+> 版本：v2.25 · 2026-06-18 (v0.63b coverage ratchet 65% → 67% + density 7/7 + README badges)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿） · [`coding-spec.md`](./coding-spec.md)（v0.61 注释规范）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
@@ -799,6 +799,13 @@ v0.6 增量：
 
 ## 8. 变更日志
 
+- **v2.25** (2026-06-18) — v0.63b coverage ratchet 65% → 67% + density 7/7 + README badges
+  - v0.63b.1 升 3 个 route test (PnL +8, Wallets +7, Copy +7) — routes coverage 25%/14%/25% → ~75%
+  - v0.63b.2 dispatch.py + explainability.py 补 inline 注释, py-sidecar 5/7→7/7
+  - v0.63c README 加 5 个 shields.io badge (coverage / density / rustdoc / sidecar / ipc) + 更新 test totals
+  - 阈值: 65/58/55/65 → 67/63/56/68 (全 +2%)
+  - 实际 coverage: 67.4% stmts / 68.3% lines / 56.6% funcs / 63.9% branches
+  - 改动: 3 NEW test files + 2 py files + README + vitest.config, 522 tests
 - **v2.24** (2026-06-18) — v0.63a coverage ratchet 64% → 65% (17 新 test)
   - 7 个新/补 test file: Copy / LlmMgmt.more / LlmPerf / MarketDetail / Trade / Welcome + Brief fix
   - Brief.test.tsx 修复: "Refresh" 按钮调 `refetch()` 不调 IPC，"Re-score" 才是 `dailyBriefRefresh` IPC
