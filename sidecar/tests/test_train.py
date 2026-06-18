@@ -19,7 +19,7 @@ ROOT = HERE.parent
 sys.path.insert(0, str(ROOT))
 
 import polyrocket_sidecar.train as train
-from polyrocket_sidecar.train import run_train_job, run_promote_model
+from polyrocket_sidecar.train import run_train_job, run_promote_model, run_backtest_model
 
 
 class TrainJobTests(unittest.TestCase):
@@ -539,6 +539,167 @@ class TestPromoteHistoryArchive(unittest.TestCase):
         )
         # Weights has the 3 expected keys
         self.assertEqual(set(archived["weights"].keys()), {"w0", "w1", "w2"})
+
+
+# =================================================================
+# ============== v0.43a — backtest_model tests ====================
+# =================================================================
+
+
+class BacktestModelTests(unittest.TestCase):
+    """v0.43a — replay a saved model against a list of
+    (price, age, outcome) samples and return Brier +
+    calibration + per-sample predictions.
+
+    These tests don't go through the full train +
+    promote workflow — they write a synthetic
+    `archive.jsonl` directly with known weights
+    and assert that the backtest produces the
+    expected Brier.
+    """
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self._env = os.environ.get("POLYROCKET_SIDECAR_MODEL_DIR")
+        os.environ["POLYROCKET_SIDECAR_MODEL_DIR"] = self.tmp.name
+        train.MODEL_DIR = Path(self.tmp.name)
+        train.CANDIDATE_FILE = train.MODEL_DIR / "candidate.json"
+        train.ACTIVE_FILE = train.MODEL_DIR / "active.json"
+        self.archive_path = train.MODEL_DIR / "archive.jsonl"
+
+    def tearDown(self) -> None:
+        if self._env is None:
+            os.environ.pop("POLYROCKET_SIDECAR_MODEL_DIR", None)
+        else:
+            os.environ["POLYROCKET_SIDECAR_MODEL_DIR"] = self._env
+        self.tmp.cleanup()
+
+    def _write_archive_entry(self, model_version: str, weights: dict[str, float]) -> None:
+        self.archive_path.parent.mkdir(parents=True, exist_ok=True)
+        entry = {
+            "job_id": "train-test",
+            "model_version": model_version,
+            "promoted_at_ms": 1_700_000_000_000,
+            "best_brier": 0.18,
+            "best_params": {"lr": 0.01, "reg": 0.001},
+            "weights": weights,
+            "trial_index": None,
+            "reason": "Promoted as best trial",
+            "archived_at_ms": 1_700_000_000_000,
+        }
+        with self.archive_path.open("w") as f:
+            f.write(json.dumps(entry) + "\n")
+
+    def test_backtest_finds_model_in_archive(self) -> None:
+        # Predictable weights: w0=0, w1=0, w2=0 → sigmoid(0) = 0.5
+        # (always predict 0.5 regardless of inputs)
+        self._write_archive_entry("logistic-test", {"w0": 0.0, "w1": 0.0, "w2": 0.0})
+        out = run_backtest_model(
+            model_version="logistic-test",
+            samples=[
+                {"price": 0.3, "market_age_hours": 24.0, "outcome": 0.0, "label": "m1"},
+                {"price": 0.7, "market_age_hours": 24.0, "outcome": 1.0, "label": "m2"},
+                {"price": 0.5, "market_age_hours": 24.0, "outcome": 0.5, "label": "m3"},
+            ],
+        )
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["model_version"], "logistic-test")
+        self.assertEqual(out["sample_count"], 3)
+        # Brier mean = ((0.5-0)² + (0.5-1)² + (0.5-0.5)²) / 3 = (0.25 + 0.25 + 0) / 3 = 0.1666...
+        self.assertAlmostEqual(out["brier_mean"], (0.25 + 0.25 + 0.0) / 3.0, places=4)
+        # Calibration: all 3 fall in the [0.4, 0.6) bucket
+        self.assertEqual(len(out["calibration"]), 5)
+        non_empty = [b for b in out["calibration"] if b["count"] > 0]
+        self.assertEqual(len(non_empty), 1)
+        self.assertEqual(non_empty[0]["count"], 3)
+
+    def test_backtest_finds_model_in_active(self) -> None:
+        # Write directly to active.json (not archive)
+        self.archive_path.parent.mkdir(parents=True, exist_ok=True)
+        active = {
+            "model_version": "logistic-active",
+            "weights": {"w0": 0.0, "w1": 0.0, "w2": 0.0},
+            "best": {"brier": 0.18},
+        }
+        with self.archive_path.with_name("active.json").open("w") as f:
+            json.dump(active, f)
+        out = run_backtest_model(
+            model_version="logistic-active",
+            samples=[{"price": 0.5, "market_age_hours": 24.0, "outcome": 0.0}],
+        )
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["sample_count"], 1)
+
+    def test_backtest_returns_error_for_missing_model(self) -> None:
+        out = run_backtest_model(
+            model_version="logistic-does-not-exist",
+            samples=[{"price": 0.5, "market_age_hours": 24.0, "outcome": 1.0}],
+        )
+        self.assertFalse(out["ok"])
+        self.assertIn("not found", out["message"])
+
+    def test_backtest_returns_error_for_empty_samples(self) -> None:
+        self._write_archive_entry("logistic-test", {"w0": 0.0, "w1": 0.0, "w2": 0.0})
+        out = run_backtest_model(model_version="logistic-test", samples=[])
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["sample_count"], 0)
+        self.assertIn("no samples", out["message"])
+
+    def test_backtest_skips_malformed_samples(self) -> None:
+        self._write_archive_entry("logistic-test", {"w0": 0.0, "w1": 0.0, "w2": 0.0})
+        out = run_backtest_model(
+            model_version="logistic-test",
+            samples=[
+                {"price": 0.5, "market_age_hours": 24.0, "outcome": 1.0},  # valid
+                {"price": "not a number", "market_age_hours": 24.0, "outcome": 0.0},  # bad
+                {"market_age_hours": 24.0, "outcome": 0.0},  # missing price
+                {"price": 0.5, "market_age_hours": 24.0, "outcome": 2.0},  # out of range
+            ],
+        )
+        self.assertTrue(out["ok"])
+        # Only the first sample is valid
+        self.assertEqual(out["sample_count"], 1)
+
+    def test_backtest_top_winners_and_losers(self) -> None:
+        self._write_archive_entry("logistic-test", {"w0": 0.0, "w1": 0.0, "w2": 0.0})
+        # All predict 0.5; outcomes 0 → 0.25 brier, outcomes 1 → 0.25 brier
+        # outcomes 0.5 → 0 brier
+        out = run_backtest_model(
+            model_version="logistic-test",
+            samples=[
+                {"price": 0.5, "market_age_hours": 24.0, "outcome": 0.5, "label": "perfect"},
+                {"price": 0.5, "market_age_hours": 24.0, "outcome": 0.5, "label": "perfect2"},
+                {"price": 0.5, "market_age_hours": 24.0, "outcome": 0.5, "label": "perfect3"},
+                {"price": 0.5, "market_age_hours": 24.0, "outcome": 0.0, "label": "wrong"},
+            ],
+        )
+        self.assertTrue(out["ok"])
+        # Top winners: 3 perfect (lowest brier = 0)
+        self.assertEqual(len(out["top_winners"]), 3)
+        for w in out["top_winners"]:
+            self.assertAlmostEqual(w["brier"], 0.0, places=6)
+        # Top losers: cap at 3, but in this small
+        # sample set, the last 3 (sorted by brier
+        # ascending) are [perfect, perfect, wrong]
+        # reversed → [wrong, perfect, perfect]. The
+        # worst is at index 0; the duplicates are
+        # acceptable for a small sample set.
+        self.assertEqual(len(out["top_losers"]), 3)
+        self.assertEqual(out["top_losers"][0]["label"], "wrong")
+        self.assertAlmostEqual(out["top_losers"][0]["brier"], 0.25, places=4)
+
+    def test_backtest_top_losers_caps_at_sample_size(self) -> None:
+        # v0.43a — when samples < 3, top_losers
+        # gracefully degrades. With 1 sample, both
+        # winners and losers have 1 entry.
+        self._write_archive_entry("logistic-test", {"w0": 0.0, "w1": 0.0, "w2": 0.0})
+        out = run_backtest_model(
+            model_version="logistic-test",
+            samples=[{"price": 0.5, "market_age_hours": 24.0, "outcome": 0.0, "label": "only"}],
+        )
+        self.assertTrue(out["ok"])
+        self.assertEqual(len(out["top_winners"]), 1)
+        self.assertEqual(len(out["top_losers"]), 1)
 
 
 if __name__ == "__main__":

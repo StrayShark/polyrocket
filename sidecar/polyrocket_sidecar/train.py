@@ -866,3 +866,258 @@ def run_promote_all_trials() -> dict[str, Any]:
         "count": len(results),
         "message": None if all_ok else "one or more trial promotes failed",
     }
+
+
+# =================================================================
+# ============== v0.43a — backtest_model ===========================
+# =================================================================
+
+
+def _load_model_by_version(model_version: str) -> dict[str, Any] | None:
+    """Look up a model by `model_version` (e.g.
+    "logistic-train-441c352b"). Returns the parsed
+    JSON if found, None otherwise.
+
+    Search order:
+      1. The archive.jsonl (most reliable — every
+         promotion is appended, even if active.json
+         gets rolled back or corrupted)
+      2. The current active.json (if model_version
+         matches the active one — fast path)
+    """
+    import json
+
+    # 1. Archive first — most reliable.
+    archive_path = MODEL_DIR / "archive.jsonl"
+    if archive_path.exists():
+        try:
+            with archive_path.open() as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if entry.get("model_version") == model_version:
+                        return entry
+        except OSError:
+            pass
+
+    # 2. Active fallback — cheap, and might catch
+    # the current model even if the archive is empty.
+    if ACTIVE_FILE.exists():
+        try:
+            with ACTIVE_FILE.open() as f:
+                data = json.load(f)
+            if data.get("model_version") == model_version:
+                return data
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    return None
+
+
+def _predict_with_weights(weights: dict[str, float], price: float, market_age_hours: float) -> float:
+    """Single-sample prediction using the supplied
+    weights (w0, w1, w2). Mirrors `predict_logic` in
+    predict.py but takes the weights as a parameter
+    so we can backtest any historical model.
+    """
+    import math
+    z = weights["w0"] + weights["w1"] * (1.0 - price) + weights["w2"] * (market_age_hours / 168.0)
+    if z >= 0.0:
+        return 1.0 / (1.0 + math.exp(-z))
+    ez = math.exp(z)
+    return ez / (1.0 + ez)
+
+
+def run_backtest_model(
+    *,
+    model_version: str,
+    samples: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """v0.43a — replay a saved model against a list
+    of (price, market_age_hours, outcome) tuples and
+    return Brier + calibration + per-sample predictions.
+
+    This is the missing piece: the v0.17-v0.41 model
+    lifecycle lets you train / promote / roll back, but
+    there's no way to ask "how would this model have
+    done on the markets I actually traded on?". This
+    method closes that gap.
+
+    Args:
+      model_version: the model to backtest, e.g.
+        "logistic-train-441c352b". Looked up in
+        archive.jsonl first, then active.json.
+      samples: a list of dicts, each with:
+        - "price"          (float, 0..1, the price
+                            you'd have seen)
+        - "market_age_hours" (float, ≥0)
+        - "outcome"        (float, 0 or 1, the
+                            resolution outcome)
+        - "label"          (str, optional, e.g. the
+                            market question, surfaced
+                            in the "top winners/losers"
+                            list)
+
+    Returns:
+      - ok: bool
+      - model_version: the requested model (echoed)
+      - sample_count: int
+      - brier_mean: float (mean squared error of
+        predictions vs outcomes)
+      - brier_breakdown: list of per-sample brier
+        scores (for the calibration histogram)
+      - calibration: list of {bucket, predicted_avg,
+        actual_rate, count} — 5 buckets in [0, 1]
+      - top_winners: 3 samples with the lowest brier
+        (best predictions)
+      - top_losers: 3 samples with the highest brier
+        (worst predictions)
+      - message: human-readable status / error
+    """
+    import time
+
+    started = time.time()
+    model = _load_model_by_version(model_version)
+    if model is None:
+        return {
+            "ok": False,
+            "model_version": model_version,
+            "sample_count": 0,
+            "brier_mean": None,
+            "brier_breakdown": [],
+            "calibration": [],
+            "top_winners": [],
+            "top_losers": [],
+            "message": f"model {model_version!r} not found in archive or active",
+        }
+    weights = model.get("weights")
+    if not isinstance(weights, dict) or not all(k in weights for k in ("w0", "w1", "w2")):
+        return {
+            "ok": False,
+            "model_version": model_version,
+            "sample_count": 0,
+            "brier_mean": None,
+            "brier_breakdown": [],
+            "calibration": [],
+            "top_winners": [],
+            "top_losers": [],
+            "message": f"model {model_version!r} has no w0/w1/w2 weights",
+        }
+
+    if not samples:
+        return {
+            "ok": False,
+            "model_version": model_version,
+            "sample_count": 0,
+            "brier_mean": None,
+            "brier_breakdown": [],
+            "calibration": [],
+            "top_winners": [],
+            "top_losers": [],
+            "message": "no samples provided",
+        }
+
+    # Per-sample predictions + brier
+    per_sample: list[dict[str, Any]] = []
+    brier_total = 0.0
+    for s in samples:
+        try:
+            price = float(s["price"])
+            age = float(s["market_age_hours"])
+            outcome = float(s["outcome"])
+        except (KeyError, TypeError, ValueError):
+            # Skip malformed samples silently — the
+            # caller passed garbage; we don't crash.
+            continue
+        if not (0.0 <= outcome <= 1.0):
+            continue
+        pred = _predict_with_weights(weights, price, age)
+        brier = (pred - outcome) ** 2
+        brier_total += brier
+        per_sample.append({
+            "label": s.get("label", ""),
+            "price": price,
+            "market_age_hours": age,
+            "outcome": outcome,
+            "predicted": pred,
+            "brier": brier,
+        })
+
+    if not per_sample:
+        return {
+            "ok": False,
+            "model_version": model_version,
+            "sample_count": 0,
+            "brier_mean": None,
+            "brier_breakdown": [],
+            "calibration": [],
+            "top_winners": [],
+            "top_losers": [],
+            "message": "all samples were malformed (missing price/age/outcome)",
+        }
+
+    brier_mean = brier_total / len(per_sample)
+    brier_breakdown = [s["brier"] for s in per_sample]
+
+    # Calibration: bucket predicted into 5 bins
+    # [0, 0.2), [0.2, 0.4), ..., [0.8, 1.0]
+    buckets = [[] for _ in range(5)]
+    for s in per_sample:
+        idx = min(int(s["predicted"] * 5), 4)
+        buckets[idx].append(s)
+    calibration = []
+    for i, bucket in enumerate(buckets):
+        lo = i * 0.2
+        hi = (i + 1) * 0.2
+        if not bucket:
+            calibration.append({
+                "bucket": f"[{lo:.1f}, {hi:.1f})",
+                "predicted_avg": None,
+                "actual_rate": None,
+                "count": 0,
+            })
+            continue
+        predicted_avg = sum(s["predicted"] for s in bucket) / len(bucket)
+        actual_rate = sum(s["outcome"] for s in bucket) / len(bucket)
+        calibration.append({
+            "bucket": f"[{lo:.1f}, {hi:.1f})",
+            "predicted_avg": predicted_avg,
+            "actual_rate": actual_rate,
+            "count": len(bucket),
+        })
+
+    # Top winners / losers — sort by brier, take 3 each
+    sorted_by_brier = sorted(per_sample, key=lambda s: s["brier"])
+    top_winners = sorted_by_brier[:3]
+    # Losers: take the last 3, but never more than
+    # the number of samples we have. With <3
+    # samples, this gracefully degrades to whatever
+    # we have.
+    n = min(3, len(sorted_by_brier))
+    top_losers = sorted_by_brier[-n:][::-1]  # worst first
+
+    return {
+        "ok": True,
+        "model_version": model_version,
+        "sample_count": len(per_sample),
+        "brier_mean": brier_mean,
+        "brier_breakdown": brier_breakdown,
+        "calibration": calibration,
+        "top_winners": [
+            {"label": s["label"], "brier": s["brier"],
+             "predicted": s["predicted"], "outcome": s["outcome"]}
+            for s in top_winners
+        ],
+        "top_losers": [
+            {"label": s["label"], "brier": s["brier"],
+             "predicted": s["predicted"], "outcome": s["outcome"]}
+            for s in top_losers
+        ],
+        "message": None,
+        "duration_ms": int((time.time() - started) * 1000),
+    }

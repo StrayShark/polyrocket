@@ -29,6 +29,7 @@ from .train import (
     run_rollback_model,
     run_auto_promote_if_better,
     run_promote_all_trials,
+    run_backtest_model,
 )
 
 
@@ -164,6 +165,33 @@ def promote_all_trials(_params: dict[str, Any]) -> dict[str, Any]:
     return run_promote_all_trials()
 
 
+def backtest_model(params: dict[str, Any]) -> dict[str, Any]:
+    """v0.43a — replay a saved model against a list of
+    (price, market_age_hours, outcome) samples and
+    return Brier + calibration + per-sample predictions.
+
+    Params:
+      - model_version (str, required): e.g.
+          "logistic-train-441c352b". Looked up in
+          archive.jsonl first, then active.json.
+      - samples (list, required): each item is a dict
+          with price (0..1), market_age_hours (≥0),
+          outcome (0 or 1), and optional label.
+
+    The L1 is expected to pull resolved markets from
+    the markets DB and convert them to the sample
+    shape. The sidecar stays pure (no IO beyond
+    reading the model file).
+    """
+    model_version = params.get("model_version")
+    if not isinstance(model_version, str):
+        raise ValueError("'model_version' must be a string")
+    samples = params.get("samples", [])
+    if not isinstance(samples, list):
+        raise ValueError("'samples' must be a list")
+    return run_backtest_model(model_version=model_version, samples=samples)
+
+
 DISPATCH: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "ping": ping,
     "predict": predict,
@@ -173,4 +201,5 @@ DISPATCH: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "rollback_model": rollback_model,
     "auto_promote_if_better": auto_promote_if_better,
     "promote_all_trials": promote_all_trials,
+    "backtest_model": backtest_model,
 }
