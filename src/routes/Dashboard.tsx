@@ -22,6 +22,7 @@ import { BarChart } from '@/components/data/BarChart';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
+import { WelcomeBanner } from '@/components/feedback/WelcomeBanner';
 import { fmtUsdc, fmtPct, fmtEdge, fmtRelativeTime, fmtLatency } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 
@@ -125,6 +126,13 @@ export function Dashboard() {
 
   return (
     <div className="space-y-4">
+      {/* v0.53b — Setup-incomplete banner. Renders
+          only when the user has unfinished
+          configuration (no LLM / no PM / no wallet).
+          The "Complete" button navigates to /welcome
+          where the user picks up at the last
+          unfinished step. */}
+      <WelcomeBanner />
       {/* Top KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiCard

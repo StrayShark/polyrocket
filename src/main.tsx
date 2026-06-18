@@ -19,6 +19,7 @@ import { LlmPerf } from '@/routes/LlmPerf';
 import { LlmMgmt } from '@/routes/LlmMgmt';
 import { Brief } from '@/routes/Brief';
 import { Onboarding } from '@/routes/Onboarding';
+import { Welcome } from '@/routes/Welcome';
 import { Audit } from '@/routes/Audit';
 import { Notifications } from '@/routes/Notifications';
 import { Help } from '@/routes/Help';
@@ -59,6 +60,7 @@ const router = createBrowserRouter([
       { path: 'llm-mgmt', element: <LlmMgmt /> },
       { path: 'brief', element: <Brief /> },
       { path: 'onboarding', element: <Onboarding /> },
+      { path: 'welcome', element: <Welcome /> },
       { path: 'audit', element: <Audit /> },
       { path: 'notifications', element: <Notifications /> },
       { path: 'help', element: <Help /> },

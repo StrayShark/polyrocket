@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Settings as SettingsIcon, RotateCcw, Save, Database, Bell, Eye, FlaskConical, Trash2, Download, Upload, Activity } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/base/Card';
@@ -7,6 +8,7 @@ import { Input } from '@/components/base/Input';
 import { Toggle } from '@/components/base/Toggle';
 import { usePrefsStore } from '@/stores/prefs-store';
 import { toast } from '@/stores/toast-store';
+import { useWelcomeStore } from '@/stores/welcome-store';
 import {
   getAuditRetention,
   setAuditRetention,
@@ -199,6 +201,13 @@ export function Settings() {
 
       {/* v0.36b — export/import of UI prefs */}
       <BackupRestoreCard />
+
+      {/* v0.53b — re-run setup. Lets the user
+          revisit /welcome at any time to finish
+          or reconfigure. Useful when secrets were
+          rotated or the user wants to switch
+          storage path. */}
+      <RerunSetupCard />
 
       {/* v0.42c — opt-in lifecycle telemetry */}
       <TelemetryCard />
@@ -637,6 +646,42 @@ function AutoPromoteCard() {
  *  failure, an error toast with the message is
  *  shown.
  */
+function RerunSetupCard() {
+  const { t } = useT();
+  const navigate = useNavigate();
+  const reset = useWelcomeStore((s) => s.reset);
+  return (
+    <Card title={t('welcome.rerun_title')} description={t('welcome.rerun_desc')}>
+      <div className="space-y-2">
+        <p className="text-[12px] text-muted">
+          {t('welcome.rerun_body')}
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigate('/welcome')}
+            data-testid="rerun-setup"
+            className="h-8 px-3 rounded-md text-[12px] font-medium bg-accent text-bg hover:bg-accent/90"
+          >
+            {t('welcome.rerun_button')}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              reset();
+              navigate('/welcome');
+            }}
+            data-testid="rerun-setup-reset"
+            className="h-8 px-3 rounded-md text-[12px] text-muted hover:text-fg"
+          >
+            {t('welcome.rerun_reset')}
+          </button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function BackupRestoreCard() {
   const { t } = useT();
   const prefs = usePrefsStore();
