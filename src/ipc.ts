@@ -1317,6 +1317,33 @@ export const latestClobSnapshot = (marketId: string) =>
   invoke<ClobSnapshot | null>('latest_clob_snapshot', { marketId });
 
 // =================================================================
+// ================== v0.51c — CLOB submit ========================
+// =================================================================
+
+/** v0.51c — outcome of a CLOB submit attempt.
+ * Mirrors `domain::polymarket::ClobOrderResult`.
+ * The L1 reads this from the `placeSignedOrder`
+ * response's audit-log payload (audit_log has
+ * via_http/fill_price/fill_size/partial fields
+ * recorded per v0.51c). For the L1 place-bet
+ * form (v0.52+), the full submit response is
+ * surfaced via the BetDto's filled_at/fill_price/
+ * fill_size/partial fields. */
+export interface ClobOrderResult {
+  ok: boolean;
+  txHash: string;
+  filledAtMs: number;
+  fillPrice: number;
+  fillSize: string;
+  partial: boolean;
+  error: string;
+  /** True when the call was made via the HTTP
+   * path (creds present + reachable). False when
+   * the deterministic stub was used. */
+  viaHttp: boolean;
+}
+
+// =================================================================
 // ================== v0.28a — auto_promote:finished =================
 // =================================================================
 

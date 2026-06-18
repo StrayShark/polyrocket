@@ -577,6 +577,9 @@ const en: Dictionary = {
   'clob.snapshots_count': '{{n}} snapshot(s) across {{markets}} market(s)',
   'clob.record_snapshot': 'Record snapshot',
   'clob.recorded': 'recorded {{n}} level(s)',
+  'clob.submit_stub': 'deterministic stub (no creds)',
+  'clob.submit_http': 'live HTTP submit',
+  'clob.submit_failed': 'CLOB rejected: {{msg}}',
   // v0.44c — paper trading mode
   'paper_mode.title': 'Paper trading mode',
   'paper_mode.desc': 'Mirror executor writes to paper_fills (no CLOB submission) when ON. Validate your config without risking real money.',
@@ -1311,6 +1314,9 @@ const zh: Dictionary = {
   'clob.snapshots_count': '{{markets}} 个市场累计 {{n}} 个快照',
   'clob.record_snapshot': '记录快照',
   'clob.recorded': '已记录 {{n}} 档行情',
+  'clob.submit_stub': '确定性 stub（无凭据）',
+  'clob.submit_http': '真实 HTTP 提交',
+  'clob.submit_failed': 'CLOB 拒绝：{{msg}}',
   // v0.44c — 模拟盘模式
   'paper_mode.title': '模拟盘模式',
   'paper_mode.desc': '开启后,mirror executor 将命中的订单写入 paper_fills 表(不调 CLOB),可用于无风险验证配置。',

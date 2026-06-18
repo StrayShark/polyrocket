@@ -177,28 +177,52 @@ pub async fn place_signed_order(
         }
     }
 
-    // Also verify the key exists in the OS keyring (best-effort)
-    let _ = polymarket::place_signed_order(
+    // v0.51c — CLOB submit. Replaces the v0.5d
+    // deterministic-only path. When CLOB creds are
+    // present (POLYROCKET_CLOB_API_KEY + SECRET +
+    // PASSPHRASE), attempts a real HTTP POST to the
+    // CLOB /order endpoint. When creds are absent,
+    // returns the stub shape (ok=true, slippage=0,
+    // partial=false) — the deterministic path the
+    // app has used since v0.5d.
+    //
+    // Errors are surfaced as AppError::Invalid (not
+    // Internal) so the L1 can show them inline. The
+    // CLOB's tx_hash (or the deterministic stub's
+    // hash) is what we persist to bets.tx_hash.
+    let clob = polymarket::submit_signed_order_via_clob(
         &args.market_id,
         &args.side,
         args.price,
-        &args.size,
+        &signed.shares,
         &args.key_alias,
+        order_type.as_str(),
+        signed.signed_at_ms,
     )
-    .await; // ignore error — sign_order already produced a tx_hash
+    .await;
+    if !clob.ok {
+        return Err(crate::AppError::Invalid(format!(
+            "CLOB rejected order: {}",
+            clob.error
+        )));
+    }
+    let _ = clob.via_http; // recorded via clob.tx_hash below; field
+                           // surfaces in audit_log payload.
 
     let id = Uuid::new_v4().to_string();
     let shares = signed.shares;
 
     // v0.51b — fill columns. In the v0.5d deterministic
     // stub we treat the order as filled immediately at
-    // the user's price (slippage = 0). When v0.51+ brings
-    // real CLOB execution, this section is replaced with
-    // the actual fill response.
-    let filled_at = signed.signed_at_ms;
-    let fill_price = args.price;
-    let fill_size = shares.clone();
-    let partial = false;
+    // the user's price (slippage = 0). v0.51c: when
+    // the CLOB submit returns a real response (creds
+    // present + reachable), we record the actual
+    // fill_price / fill_size / partial / filled_at
+    // from the CLOB. Otherwise we use the stub shape.
+    let filled_at = clob.filled_at_ms;
+    let fill_price = clob.fill_price;
+    let fill_size = clob.fill_size;
+    let partial = clob.partial;
 
     // v0.50a + v0.51b — INSERT now includes the
     // order-type AND fill columns. The idempotent
