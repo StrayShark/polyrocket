@@ -19,6 +19,23 @@ import { PolymarketStep } from '@/components/welcome/PolymarketStep';
 import { FinishStep } from '@/components/welcome/FinishStep';
 import { CheckCircle2, ChevronRight, ChevronLeft } from 'lucide-react';
 
+/**
+ * `/welcome` 路由 —— first-run landing 6 步 wizard。
+ *
+ * **6 步流程**（`WELCOME_STEPS` 常量）：
+ *   1. `welcome` — 介绍 + locale 选择
+ *   2. `storage` — DB 路径选择（v0.53a+）+ 主题
+ *   3. `theme` — 3 主题切换
+ *   4. `llm` — 添加第一个 LLM provider + key
+ *   5. `polymarket` — CLOB credentials + wallet private key
+ *   6. `finish` — summary + 跳到 dashboard
+ *
+ * **状态机**：`step` 状态在 `useWelcomeStore`（持久化到 localStorage）。`done=true`
+ * 后 mount 这路由自动 redirect 到 `/`（dashboard）。
+ *
+ * **6 个 step component**：每个 step 是独立 component（`StorageStep` / `ThemeStep`
+ * / `LlmStep` / `PolymarketStep` / `FinishStep` / `WelcomeStep`）。
+ */
 export function Welcome() {
   const welcome = useWelcomeStore();
   const navigate = useNavigate();

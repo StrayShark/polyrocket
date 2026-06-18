@@ -21,6 +21,18 @@ const KIND_CLS = {
   error: 'border-bear/40 bg-bear/10 text-fg',
 } as const;
 
+/**
+ * `/notifications` 路由 —— 当前 toast 列表 + 清空按钮。
+ *
+ * **数据来源**：`useToastStore`（zustand）—— 跟 `Toast` 容器共享同一 store。
+ *
+ * **4 种 kind 颜色**：
+ *   - `info` / `success` — 蓝 / 绿
+ *   - `warning` / `error` — 黄 / 红
+ *
+ * **状态机**：toast 是 transient（`staleTime` 在 toast 自身，不用这里管）。
+ * 「Clear」按钮调 `useToastStore.clear()` 全部 dismiss。
+ */
 export function Notifications() {
   const { t } = useT();
   const toasts = useToastStore((s) => s.toasts);

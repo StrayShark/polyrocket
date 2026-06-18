@@ -17,6 +17,21 @@ import type { Bet, BetStatus } from '@/types/bet';
 
 const STATUS_FILTERS: Array<BetStatus | 'all'> = ['all', 'open', 'won', 'lost', 'cancelled'];
 
+/**
+ * `/history` 路由 —— 全部 bet 历史（v0.40+ 改名自「PnL」拆出）。
+ *
+ * **3 个 section**：
+ *   1. **KPI row** —— 4 张 KpiCard（总 PnL / win rate / n bets / avg edge）
+ *   2. **Filter bar** —— `STATUS_FILTERS` 切换（all / open / won / lost / cancelled）
+ *   3. **Table** —— `DataTable` 渲染（市场、方向、价格、size、PnL、状态、时间）
+ *
+ * **数据流**：
+ *   1. mount `listBets({ limit: 500 })`
+ *   2. 客户端按 status 过滤
+ *   3. `staleTime: 30_000` 30s 内不重拉
+ *
+ * **状态机**：`loading`（Skeleton）→ `success`（表格） / `error`（ErrorState）。
+ */
 export function History() {
   const { t } = useT();
   const [statusFilter, setStatusFilter] = useState<BetStatus | 'all'>('all');

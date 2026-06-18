@@ -11,6 +11,22 @@ import { EmptyState } from '@/components/feedback/EmptyState';
 import { useT } from '@/lib/i18n';
 import { fmtUsdc, fmtPctInt } from '@/lib/format';
 
+/**
+ * `/pnl` 路由 —— PnL 详情（v0.40+ 从 History 拆出，专注「已实现 PnL」聚合）。
+ *
+ * **3 个 section**：
+ *   1. KPI row（总 PnL / win rate / n bets / max win / max loss）
+ *   2. 时间序列（最近 30 天累计 PnL 折线图）
+ *   3. Per-market PnL 表（按 market 聚合）
+ *
+ * **数据流**：
+ *   1. mount 并发 `dashboardKpis()` + `listBets({ limit: 500 })`
+ *   2. 30s 自动 refetch KPI
+ *   3. 客户端 `summarize()` + per-market 聚合
+ *
+ * **vs History**：History 是「按 bet 看」，PnL 是「按维度看」。两页共享 data，
+ * 渲染视角不同。
+ */
 export function PnL() {
   const { t } = useT();
   const kpis = useQuery({

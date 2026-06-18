@@ -18,6 +18,21 @@ import { useT } from '@/lib/i18n';
 import type { Wallet, WalletType } from '@/types/wallet';
 import { POLYGON_MAINNET } from '@/types/wallet';
 
+/**
+ * `/wallets` 路由 —— wallet 元数据管理。
+ *
+ * **数据流**：
+ *   1. mount `listWallets()`
+ *   2. 表格渲染（address / label / chain_id / wallet_type / last_synced）
+ *   3. 「Add Wallet」按钮打开 Modal（手动 paste / file picker）
+ *
+ * **Add 流程**：
+ *   1. 用户输入 address + (label) + (chain_id 默认 137) + (type 默认 eoa)
+ *   2. v0.57d+ 提供 file picker（`pickFile` + `extractAddressFromJson` 解析）
+ *   3. 提交 → `addWallet` mutation → 失效 query
+ *
+ * **私钥永远不**走这条路径。私钥走 `polyrocket_wallet_set_pk` IPC（`/settings`）。
+ */
 export function Wallets() {
   const { t } = useT();
   const [addOpen, setAddOpen] = useState(false);

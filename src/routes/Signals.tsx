@@ -17,6 +17,23 @@ import { toast } from '@/stores/toast-store';
 import { fmtEdge, fmtConfidence, fmtDate, fmtRelativeTime } from '@/lib/format';
 import type { Signal } from '@/types/signal';
 
+/**
+ * `/signals` 路由 —— 当前 active signals 列表。
+ *
+ * **filter**：
+ *   - `minEdgePct` —— L1 输入框（5 默认）
+ *   - `side` —— all / yes / no
+ *
+ * **数据流**：
+ *   1. mount `listActiveSignals({ limit: 200 })`
+ *   2. 客户端按 minEdgePct + side 过滤
+ *   3. 表格按 |edge| desc 排
+ *   4. 「Recompute」按钮调 `recomputeSignals` mutation（**当前 stub**）
+ *
+ * **KPI row** —— 4 张 KpiCard（n signals / avg |edge| / max |edge| / bullish vs bearish）。
+ *
+ * **性能**：`staleTime: 30_000` 30s 内不重拉。
+ */
 export function Signals() {
   const { t } = useT();
   const [minEdgePct, setMinEdgePct] = useState(5);

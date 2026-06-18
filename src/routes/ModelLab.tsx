@@ -36,6 +36,24 @@ import { useT } from '@/lib/i18n';
 import { toast } from '@/stores/toast-store';
 import { usePrefsStore } from '@/stores/prefs-store';
 
+/**
+ * `/model-lab` 路由 —— model 训练 + 提升 + 实验管理。
+ *
+ * **5 个 tab**：
+ *   1. **Train** —— 选 dataset / params → 启动 train job（async）
+ *   2. **Run** —— 实时看 train 进度（`train:progress` 事件流）
+ *   3. **Promote** —— 选 archived model → promote 到 active
+ *   4. **Backtest** —— 选 model version → 跑回测
+ *   5. **Archive** —— 所有 model version 列表（`is_active` 标记）
+ *
+ * **数据流**：
+ *   1. mount 拉 active model / archive / train progress
+ *   2. Train 启动 → `trainJob` IPC + 订阅 `train:progress` 事件
+ *   3. Promote → `promoteModel` mutation + 失效 archive query
+ *
+ * **auto-promote 流程**：`trainJob` 完后如果 `autoPromote` prefs 开了 →
+ * 后台 `auto_promote_if_better` worker → OS notification。
+ */
 export function ModelLab() {
   const { t } = useT();
   const queryClient = useQueryClient();

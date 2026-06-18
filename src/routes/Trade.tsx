@@ -9,6 +9,18 @@ import { useT } from '@/lib/i18n';
 import { PlaceBetForm } from '@/components/feedback/PlaceBetForm';
 import type { BetSide } from '@/types/bet';
 
+/**
+ * `/trade` 路由 —— 独立下单页。
+ *
+ * **使用方式**：
+ *   1. 直接访问（手动从 nav 进来）
+ *   2. 从 Signal 卡片跳过来（v0.52b+，URL 携带 `?market_id=...&side=YES&edge=...`）
+ *
+ * **核心 component**：`PlaceBetForm`（@/components/feedback/PlaceBetForm）——
+ * 完整的 form + 3 种 order type + post-only 校验 + submit。
+ *
+ * **URL params**：`market_id` 预填 / `side` 预填 / `edge` hint 展示。
+ */
 export function Trade() {
   const { t } = useT();
   const [params] = useSearchParams();

@@ -3,6 +3,18 @@ import { Card } from '@/components/base/Card';
 import { Book, Sparkles, GitBranch, Shield, Cpu, ExternalLink } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 
+/**
+ * `/help` 路由 —— 文档 + 快捷入口。
+ *
+ * **5 个 section**（i18n 全部）：
+ *   1. Quick start —— 4 步教程（welcome 流程简化版）
+ *   2. Modules —— 跳到每个 main route 的卡片网格
+ *   3. Architecture —— 5 层架构简图（from `docs/overview.md §1`）
+ *   4. Privacy —— "OS keyring only" 保证（spec 强约束）
+ *   5. External links —— GitHub repo / docs / Tauri 文档
+ *
+ * **无 IPC**：纯展示页，所有内容从 i18n 字符串 + `<Link>` 来。
+ */
 export function Help() {
   const { t } = useT();
   return (

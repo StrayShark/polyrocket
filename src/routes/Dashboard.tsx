@@ -26,6 +26,24 @@ import { WelcomeBanner } from '@/components/feedback/WelcomeBanner';
 import { fmtUsdc, fmtPct, fmtEdge, fmtRelativeTime, fmtLatency } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 
+/**
+ * `/`（root）路由 —— Dashboard 首页。
+ *
+ * **5 个 section**：
+ *   1. `WelcomeBanner` —— first-run 用户显示 nag（5 类 sub-config 还差什么）
+ *   2. **KPI row** —— 4 张 `KpiCard`（总权益 / open PnL / win rate 30d / Brier）
+ *   3. **Paper PnL** —— 纸面交易 summary（v0.45b+，paper mode 开启时显示）
+ *   4. **Active signals** —— top 5 signal 卡片（|edge| desc）
+ *   5. **Fill analytics** —— 最近 fill 折线图
+ *
+ * **数据流**：
+ *   1. mount 并发拉 5 个 query：dashboardKpis / paperPnlSummary /
+ *      listActiveSignals(5) / listBets / fillAnalytics
+ *   2. 30s 自动 refetch KPI（`refetchInterval`）
+ *   3. Welcome banner 调 `useWelcomeStore.pendingConfigs` 算 nag 项
+ *
+ * **状态机**：`loading`（5 个 Skeleton）→ `success` / `error`（每个 section 独立）。
+ */
 export function Dashboard() {
   const { t } = useT();
   const kpis = useQuery({

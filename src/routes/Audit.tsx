@@ -14,6 +14,21 @@ import { fmtDateTime } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import type { AuditEntry } from '@/types/shared';
 
+/**
+ * `/audit` 路由 —— 审计日志只读浏览页。
+ *
+ * **数据流**：
+ *   1. mount 时 `listAuditLog(500)` 拉最近 500 条
+ *   2. 客户端按 `actionFilter`（action prefix）+ `search`（actor/target）过滤
+ *   3. 表格 + 详情展开（payload JSON pretty-print）
+ *
+ * **filter 维度**：
+ *   - `actionFilter` —— `action` column prefix（`"pm."` / `"wallet."` / `"llm."` 等）
+ *   - `search` —— fuzzy match `actor` / `target` / `action`
+ *
+ * **性能**：`staleTime: 30_000` 30s 内不重拉。L1 「Settings → Audit」有 v0.42b
+ * 之后的 retention 设置（`set_audit_retention` IPC）。
+ */
 export function Audit() {
   const { t } = useT();
   const [search, setSearch] = useState('');

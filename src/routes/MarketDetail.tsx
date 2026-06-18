@@ -11,6 +11,20 @@ import { EmptyState } from '@/components/feedback/EmptyState';
 import { fmtDate, fmtUsdc, fmtEdge, fmtConfidence } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 
+/**
+ * `/markets/:id` 路由 —— 单个 market 详情页。
+ *
+ * **数据流**：
+ *   1. 从 URL 拿 `id`
+ *   2. `listMarkets({ active_only: false, limit: 1000 })` 拉所有 market → 客户端 find
+ *   3. `listActiveSignals({ limit: 50 })` 拉信号 → 客户端 filter by market_id
+ *   4. 渲染：基本信息 / 订单簿（来自 `price_snapshots`）/ 信号列表 / 「Trade」按钮
+ *
+ * **为什么拉全部 market 而不是 by id**：Rust 端 `list_markets_by_id` IPC 还没暴露，
+ * L1 走 `list_markets` + 客户端 find（market 数 ≤ 1000，单页查 O(n)）。
+ *
+ * **状态机**：`loading` / `not_found`（id 不存在）/ `success` / `error`。
+ */
 export function MarketDetail() {
   const { t } = useT();
   const { id } = useParams<{ id: string }>();

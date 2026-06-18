@@ -20,6 +20,20 @@ import type { Market } from '@/types/market';
 const CATEGORIES = ['all', 'football', 'cs2', 'politics', 'crypto', 'tech', 'other'] as const;
 type Category = (typeof CATEGORIES)[number];
 
+/**
+ * `/markets` 路由 —— 浏览 / 搜索 / 筛选 Polymarket market。
+ *
+ * **数据流**：
+ *   1. mount 时 `listMarkets({ active_only, limit: 500 })` 拉第一批
+ *   2. 客户端按 `category` + `search` 过滤（`useDebounce(200ms)`）
+ *   3. 表格分页（`DataTable` 内部处理）
+ *   4. 「Sync」按钮调 `syncMarkets` mutation 触发后端重新从 Polymarket 拉
+ *
+ * **状态机**：`loading`（Skeleton）→ `success`（DataTable） / `error`（ErrorState）。
+ *
+ * **性能**：`staleTime: 60_000` 让 1 分钟内不重拉；`active_only` 是 query key
+ * 的一部分，filter 切到 inactive 自动 refetch。
+ */
 export function Markets() {
   const { t } = useT();
   const [category, setCategory] = useState<Category>('all');

@@ -16,6 +16,22 @@ import { fmtLatency } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import type { LlmProvider, LlmProviderKey } from '@/types/llm';
 
+/**
+ * `/llm-mgmt` 路由 —— LLM provider / key 管理中心（M11）。
+ *
+ * **3 个 section**：
+ *   1. **Providers** —— provider 列表（kind / enabled / health / cost / quota）
+ *   2. **Keys** —— 当前选中 provider 的 key 列表（含 keyring 状态）
+ *   3. **Test** —— connectivity 测试 + 实时 health 更新
+ *
+ * **数据流**：
+ *   1. mount `llmProviderList()` + `secretsStatus()`
+ *   2. 选 provider → `llmKeyList(providerId)`
+ *   3. Add/Edit key → `llmKeyUpsert` mutation（v0.57d+ file picker 路径）
+ *   4. Test → `llmTestConnectivity` mutation + 立即刷新 health
+ *
+ * **关键 IPC**：`llmKeySetSecret`（轮换 secret）/ `llmKeyDelete` / `pickFile` + `extractSecretFromEnv`。
+ */
 export function LlmMgmt() {
   const { t } = useT();
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);

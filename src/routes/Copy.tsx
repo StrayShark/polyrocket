@@ -16,6 +16,19 @@ import { toast } from '@/stores/toast-store';
 import { fmtAddress, fmtRelativeTime, fmtUsdc, fmtDateTime } from '@/lib/format';
 import type { CopyTarget, CopyEvent } from '@/types/shared';
 
+/**
+ * `/copy` 路由 —— copy trading 中心。
+ *
+ * **3 个 tab**：
+ *   1. **Targets** —— 跟踪的 whale 地址列表 + Add 按钮 + enabled 切换
+ *   2. **Events** —— 最近 50 条 `copy_events`（按 detected_at desc）
+ *   3. **Mirror** —— `MirrorPanel` 显示 mirror queue 状态
+ *
+ * **数据流**：`listCopyTargets()` / `recentCopyEvents()` / `getMirrorPaperMode()`
+ * 并发 fetch。Add → `addCopyTarget` mutation。
+ *
+ * **状态机**：tab 切换不存 URL（**不** use `useParams`，只用 useState）。
+ */
 export function Copy() {
   const { t } = useT();
   const [addOpen, setAddOpen] = useState(false);

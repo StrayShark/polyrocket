@@ -12,6 +12,23 @@ import { downloadCsv, toCsv } from '@/lib/csv';
 import { toast } from '@/stores/toast-store';
 import { useT } from '@/lib/i18n';
 
+/**
+ * `/llm-perf` 路由 —— LLM performance 详情。
+ *
+ * **5 个 section**：
+ *   1. KPI row（avg Brier / avg win rate / total cost / n calls）
+ *   2. By-confidence histogram
+ *   3. By-prompt comparison table
+ *   4. Cost-vs-Brier scatter
+ *   5. Export CSV 按钮
+ *
+ * **数据流**：
+ *   1. mount 并发 4 个 query：`llmPerformance` / `llmStatsByConfidence` /
+ *      `llmStatsByPrompt` / `llmStatsCostEfficiency`
+ *   2. Export → `llmStatsExport` mutation → 下载 .csv
+ *
+ * **vs `/llm-mgmt`**：`/llm-mgmt` 是配置中心（CRUD），`/llm-perf` 是只读分析。
+ */
 export function LlmPerf() {
   const { t } = useT();
   const perf = useQuery({ queryKey: ['llm-performance'], queryFn: () => llmPerformance() });
