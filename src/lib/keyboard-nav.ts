@@ -34,11 +34,14 @@ export interface KbdBinding {
 const PREFIX_TIMEOUT_MS = 1200;
 
 function normalizeKey(e: KeyboardEvent): string {
-  // Strip modifier keys we don't want to capture (Cmd/Ctrl/Alt).
+  // v0.64b — modifier check FIRST. Previously the `?`
+  // mapping was first, which meant Cmd+? would still
+  // fire the help binding (incorrect — Cmd+? is a
+  // macOS system shortcut and should pass through).
+  if (e.metaKey || e.ctrlKey || e.altKey) return '';  // ignore
   // We DO want to capture plain `?` (Shift+/), so we map
   // `?` → "?" and otherwise use `e.key`.
   if (e.key === '?' || (e.shiftKey && e.key === '/')) return '?';
-  if (e.metaKey || e.ctrlKey || e.altKey) return '';  // ignore
   return e.key.toLowerCase();
 }
 

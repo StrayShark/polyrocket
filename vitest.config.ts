@@ -28,16 +28,24 @@ export default defineConfig({
     //           (the right one calls the
     //           IPC; Refresh just refetches
     //           the React Query cache).
-    // v0.63b:   67/63/56/68 (504 tests) — 3
+    // v0.63b:   67/63/56/68 (522 tests) — 3
     //           high-coverage route tests
     //           (PnL 25%→75%, Wallets
     //           14%→75%, Copy 25%→80%),
-    //           +18 tests total.  Big
+    //           +19 tests total.  Big
     //           jump on branches (+4.6%)
     //           because all 3 routes are
     //           pure-render / pure-form
     //           patterns with many
     //           branch-rich UI states.
+    // v0.64:    69/65/57/70 (545 tests) —
+    //           keyboard-nav.test.tsx
+    //           (+22 tests, 12%→80% cov)
+    //           + fix a real bug in
+    //           normalizeKey() where
+    //           Cmd+? fired the help
+    //           binding (modifier check
+    //           was after the `?` mapping).
     //
     // We exclude pure-presentation files
     // (BarChart, Sparkline, KpiCard, etc.)
@@ -65,10 +73,10 @@ export default defineConfig({
         '**/*.unused',
       ],
       thresholds: {
-        statements: 67,
-        branches: 63,
-        functions: 56,
-        lines: 68,
+        statements: 69,
+        branches: 65,
+        functions: 57,
+        lines: 70,
       },
     },
   },

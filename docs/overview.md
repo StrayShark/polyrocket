@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.25 · 2026-06-18 (v0.63b coverage ratchet 65% → 67% + density 7/7 + README badges)
+> 版本：v2.26 · 2026-06-18 (v0.64 coverage ratchet 67% → 69% + README badge auto-update)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿） · [`coding-spec.md`](./coding-spec.md)（v0.61 注释规范）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
@@ -799,6 +799,12 @@ v0.6 增量：
 
 ## 8. 变更日志
 
+- **v2.26** (2026-06-18) — v0.64 coverage ratchet 67% → 69% + README badge auto-update
+  - v0.64a scripts/update-readme-coverage.mjs (auto-update README badges from coverage-summary.json)
+  - v0.64b keyboard-nav.test.tsx (22 tests, lib 12%→80%) + fix Cmd+? bug
+  - 阈值: 67/63/56/68 → 69/65/57/70
+  - 实际 coverage: 69.2% stmts / 70.1% lines / 57.6% funcs / 65.3% branches
+  - 改动: 1 NEW test file + 1 NEW script + 1 lib fix + vitest.config, 545 tests
 - **v2.25** (2026-06-18) — v0.63b coverage ratchet 65% → 67% + density 7/7 + README badges
   - v0.63b.1 升 3 个 route test (PnL +8, Wallets +7, Copy +7) — routes coverage 25%/14%/25% → ~75%
   - v0.63b.2 dispatch.py + explainability.py 补 inline 注释, py-sidecar 5/7→7/7

@@ -2,7 +2,7 @@
 
 > Local-first Polymarket analysis desktop client (Tauri 2 + React 18 + SQLite + Python sidecar).
 
-[![coverage](https://img.shields.io/badge/vitest%20cov-67%25%20stmts-brightgreen)](./vitest.config.ts)
+[![coverage](https://img.shields.io/badge/vitest%20cov-67.4%25%20stmts-green)](./vitest.config.ts)
 [![density](https://img.shields.io/badge/comment%20density-5%2F5%20PASS-brightgreen)](./scripts/check-comment-density.mjs)
 [![rustdoc](https://img.shields.io/badge/rustdoc-0%20warnings-brightgreen)](./src-tauri)
 [![sidecar](https://img.shields.io/badge/sidecar-11%20methods-blue)](./sidecar/polyrocket_sidecar/dispatch.py)
