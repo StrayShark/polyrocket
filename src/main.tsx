@@ -18,7 +18,7 @@ import { Analysis } from '@/routes/Analysis';
 import { LlmPerf } from '@/routes/LlmPerf';
 import { LlmMgmt } from '@/routes/LlmMgmt';
 import { Brief } from '@/routes/Brief';
-import { Onboarding } from '@/routes/Onboarding';
+import { Onboarding as _Onboarding } from '@/routes/Onboarding'; // v0.57a — kept for type-only re-export; route removed
 import { Welcome } from '@/routes/Welcome';
 import { Audit } from '@/routes/Audit';
 import { Notifications } from '@/routes/Notifications';
@@ -59,7 +59,6 @@ const router = createBrowserRouter([
       { path: 'llm-perf', element: <LlmPerf /> },
       { path: 'llm-mgmt', element: <LlmMgmt /> },
       { path: 'brief', element: <Brief /> },
-      { path: 'onboarding', element: <Onboarding /> },
       { path: 'welcome', element: <Welcome /> },
       { path: 'audit', element: <Audit /> },
       { path: 'notifications', element: <Notifications /> },
