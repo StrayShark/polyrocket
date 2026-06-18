@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.12 · 2026-06-18 (v0.50 — order types + post-only + fill analytics)
+> 版本：v2.13 · 2026-06-18 (v0.51 — clob_snapshots + fill columns + real CLOB submit path)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
 
@@ -644,6 +644,9 @@ sequenceDiagram
 | **Order types + validation (v0.50a)** | `OrderType` enum (Market/Limit/StopLoss) + 4 new PlaceArgs fields; `validate_order_args` pure IPC; `bets` + `paper_fills` gain 4 columns via idempotent migration; `BetDto` extended with serde defaults | ✅ v0.50a 完成（16 cargo + 0 vitest + 8 i18n keys × 2 locales; +1 IPC; +2 tables touched） |
 | **Post-only enforcement (v0.50b)** | Limit orders flagged post_only are rejected at place_signed_order when their limit_price would cross the v0.47a book snapshot; NoSnapshot is a silent pass until v0.51+ brings a real CLOB feed | ✅ v0.50b 完成（10 cargo + 0 vitest + 0 i18n; post-only pure helpers + would_cross_book） |
 | **Fill analytics (v0.50c)** | `fill_analytics` IPC aggregates the real-mode `bets` table: status counts, win rate, realized PnL, avg time-to-settlement, per-order-type breakdown, post-only rate. L1 Dashboard card renders only when total_fills > 0. Slippage + time-to-fill deferred to v0.51+ | ✅ v0.50c 完成（3 cargo + 0 vitest + 16 i18n keys × 2 locales; +1 IPC） |
+| **clob_snapshots table + CLOB IPCs (v0.51a)** | Full order-book per market per timestamp (one row per price level per side); 4 cargo tests; L1 Settings card shows feed status; 3 new IPCs (`clob_feed_status`, `record_clob_snapshot_now`, `latest_clob_snapshot`). The live WebSocket listener is v0.51+ — needs real Polymarket CLOB credentials | ✅ v0.51a 完成（3 cargo + 0 vitest + 7 i18n keys × 2 locales; +3 IPCs） |
+| **Fill columns + slippage/time-to-fill (v0.51b)** | `bets` gains 4 columns (`filled_at`, `fill_price`, `fill_size`, `partial`) via idempotent migration; `FillAnalytics` adds slippage + ttf + partial metrics; Dashboard card grows 3 new tiles | ✅ v0.51b 完成（0 cargo + 0 vitest + 6 i18n keys × 2 locales; no new IPCs） |
+| **Real CLOB submit path (v0.51c)** | `submit_signed_order_via_clob` (domain::polymarket) replaces the v0.5d stub; gated on `POLYROCKET_CLOB_API_KEY` + `SECRET` + `PASSPHRASE`. Without creds: deterministic stub (slippage=0). With creds: real HTTP POST to clob.polymarket.com/order. On HTTP failure: structured `AppError::Invalid`. EIP-712 signing is v0.51+ proper (needs `rs-clob-client`) | ✅ v0.51c 完成（6 cargo + 0 vitest + 3 i18n keys × 2 locales; 0 new IPCs; replaces internal flow） |
 | **Reason wire mirror (Rust + L1) + hover tooltip** | `PromoteHistoryEntry.reason: Option<String>` (serde-default for pre-v0.41); ⓘ icon with native title in PromoteHistory row | ✅ v0.41b 完成（Rust serde-default; 2 new vitest tests; 1 new i18n key × 2 locales） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
