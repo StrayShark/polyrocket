@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.18 · 2026-06-18 (v0.57 consolidation: dead code removal + 10 L1 tests + full CI + tauri-plugin-fs + file pickers)
+> 版本：v2.19 · 2026-06-18 (v0.58 auto-migrate + PlaceBetForm tests + 3-theme WCAG AA contrast)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
@@ -799,6 +799,11 @@ v0.6 增量：
 
 ## 8. 变更日志
 
+- **v2.19** (2026-06-18) — v0.58 ship + clean
+  - v0.58a Apply 自动迁移 (no manual Copy)
+  - v0.58b PlaceBetForm 9 个 L1 test
+  - v0.58c 3 主题 WCAG AA 对比度审计 + 修复 (matrix muted 2.96→5.37)
+  - 总测试数: 855 + 31 script = 886
 - **v2.18** (2026-06-18) — v0.57 consolidation
   - 删 /onboarding 死代码 (v0.53b 残留)
   - 10 L1 component test (Dashboard 4 + ModelLab 3 + History 3)
