@@ -64,8 +64,13 @@ lines.push('```\n' + cargoTestSummary + '\n```');
 lines.push('');
 
 // ---- 4. vitest --coverage ---------------------------------------------------
-const vitest = run('pnpm vitest run --coverage 2>&1 | tail -8');
-const covMatch = vitest.out.match(/Statements\s+:\s+([\d.]+)%.*Branches\s+:\s+([\d.]+)%.*Functions\s+:\s+([\d.]+)%.*Lines\s+:\s+([\d.]+)%/s);
+// v0.66e — captures the full per-file coverage table
+// (not just the totals) so we can print top-10 / bottom-10
+// in the report. The full table is on lines after the
+// `File | % Stmts | ...` header, before the summary block.
+const vitestFull = run('pnpm vitest run --coverage 2>&1');
+const vitestTail = vitestFull.out.split('\n').slice(-20).join('\n');
+const covMatch = vitestTail.match(/Statements\s+:\s+([\d.]+)%.*Branches\s+:\s+([\d.]+)%.*Functions\s+:\s+([\d.]+)%.*Lines\s+:\s+([\d.]+)%/s);
 lines.push('## TS `vitest --coverage`');
 if (covMatch) {
   lines.push(`- Statements: ${covMatch[1]}%`);
@@ -74,9 +79,41 @@ if (covMatch) {
   lines.push(`- Lines:      ${covMatch[4]}%`);
 } else {
   lines.push('- ❌ FAILED to parse coverage');
-  lines.push('```\n' + vitest.out + '\n```');
+  lines.push('```\n' + vitestTail + '\n```');
 }
 lines.push('');
+
+// v0.66e — per-file top/bottom-10 by statements coverage.
+// Parse the table rows: `  filename.tsx | 65.5 | 59.26 | 55.04 | 66.31 |`.
+// We grab every row that has a numeric 1st column (%), sort
+// by stmts desc, then print top-10 and bottom-10.
+const tableRows = vitestFull.out.split('\n').filter((l) =>
+  /^\s+([\w./-]+\.tsx?)\s+\|\s+[\d.]+/.test(l)
+);
+const fileCov = tableRows.map((l) => {
+  const m = l.match(/^\s+([\w./-]+\.tsx?)\s+\|\s+([\d.]+)\s+\|\s+([\d.]+)\s+\|\s+([\d.]+)\s+\|\s+([\d.]+)/);
+  if (!m) return null;
+  return { path: m[1], stmts: parseFloat(m[2]), branches: parseFloat(m[3]), funcs: parseFloat(m[4]), lines: parseFloat(m[5]) };
+}).filter(Boolean);
+
+if (fileCov.length > 0) {
+  const top = [...fileCov].sort((a, b) => b.stmts - a.stmts).slice(0, 10);
+  const bot = [...fileCov].sort((a, b) => a.stmts - b.stmts).slice(0, 10);
+  lines.push('### Top 10 (by stmts %)');
+  lines.push('| File | Stmts | Branches | Funcs | Lines |');
+  lines.push('|---|---|---|---|---|');
+  for (const f of top) {
+    lines.push(`| \`${f.path}\` | ${f.stmts.toFixed(1)}% | ${f.branches.toFixed(1)}% | ${f.funcs.toFixed(1)}% | ${f.lines.toFixed(1)}% |`);
+  }
+  lines.push('');
+  lines.push('### Bottom 10 (by stmts %)');
+  lines.push('| File | Stmts | Branches | Funcs | Lines |');
+  lines.push('|---|---|---|---|---|');
+  for (const f of bot) {
+    lines.push(`| \`${f.path}\` | ${f.stmts.toFixed(1)}% | ${f.branches.toFixed(1)}% | ${f.funcs.toFixed(1)}% | ${f.lines.toFixed(1)}% |`);
+  }
+  lines.push('');
+}
 
 // ---- 5. comment density ----------------------------------------------------
 const density = run('node scripts/check-comment-density.mjs 2>&1');
@@ -98,5 +135,5 @@ const report = lines.join('\n');
 console.log(report);
 
 // Also write to /tmp/weekly-report.md for the workflow to upload
-const fs = require('node:fs');
-fs.writeFileSync('/tmp/polyrocket-weekly-report.md', report);
+import { writeFileSync } from 'node:fs';
+writeFileSync('/tmp/polyrocket-weekly-report.md', report);

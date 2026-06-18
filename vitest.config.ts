@@ -59,12 +59,20 @@ export default defineConfig({
     //             tracked for v0.66)
     //           • keyboard-nav prefix-
     //             timeout test reworked
-    //             (asserts setTimeout call
-    //             instead of full scheduler
-    //             integration)
     //           Stmts +2.1, branches +2.2,
-    //           funcs +2.9 — biggest jump
-    //           since v0.62a.
+    //           funcs +2.9.
+    // v0.66:    72/68/61/73 (575 tests) —
+    //           • PolymarketStep.test.tsx
+    //             (+6 tests, 17%→70% br)
+    //           • ts-routes-components-lib
+    //             density 65% → 70%
+    //           • auto-bump version in
+    //             update-readme-coverage
+    //           • fix sendNotification
+    //             missing from LlmStep mock
+    //             (4 unhandled rejections)
+    //           • ModelLab mock has
+    //             zustand-like getState()
     //
     // We exclude pure-presentation files
     // (BarChart, Sparkline, KpiCard, etc.)
@@ -92,10 +100,10 @@ export default defineConfig({
         '**/*.unused',
       ],
       thresholds: {
-        statements: 71,
-        branches: 67,
-        functions: 60,
-        lines: 72,
+        statements: 72,
+        branches: 68,
+        functions: 61,
+        lines: 73,
       },
     },
   },

@@ -43,14 +43,23 @@ vi.mock('@/ipc', () => ({
   onAutoPromoteFinished: () => mockOnAutoPromoteFinished(),
   sendNotification: vi.fn().mockResolvedValue(undefined),
   requestNotificationPermission: vi.fn().mockResolvedValue(true),
+  listBacktestSamples: vi.fn().mockResolvedValue([]),
+  runBacktest: vi.fn().mockResolvedValue({ brier: 0, calibration: [], predictions: [] }),
 }));
 
-vi.mock('@/stores/prefs-store', () => ({
-  usePrefsStore: () => ({
+vi.mock('@/stores/prefs-store', () => {
+  // v0.66 — toast-store.ts calls usePrefsStore.getState()
+  // when rendering an error toast. The plain-object mock
+  // breaks that path. Use a zustand-like API with both
+  // hook + getState.
+  const state = {
     autoPromoteAfterTrain: false,
     autoPromoteNotify: false,
-  }),
-}));
+  };
+  const usePrefsStore: any = () => state;
+  usePrefsStore.getState = () => state;
+  return { usePrefsStore };
+});
 
 import { ModelLab } from '@/routes/ModelLab';
 

@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.27 · 2026-06-18 (v0.65 coverage ratchet 69% → 71% + density auto-update + ModelLab rules-of-hooks fix)
+> 版本：v2.28 · 2026-06-18 (v0.66 auto-bumped)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿） · [`coding-spec.md`](./coding-spec.md)（v0.61 注释规范）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
@@ -799,6 +799,24 @@ v0.6 增量：
 
 ## 8. 变更日志
 
+- **v2.28** (2026-06-19) — v0.66 coverage ratchet 71% → 72% + density 65% → 70% + 5 tool improvements
+  - v0.66a PolymarketStep.test.tsx (6 tests, 17%→70% branches)
+  - v0.66b density ts-routes-components-lib 51/78→55/78 files (Toast/BarChart/KpiCard/WelcomeStep JSDoc)
+  - v0.66c L1 IPC contract test (snapshot-based, 0 deps, 5ms runtime)
+  - v0.66d withFakeTimersAndState helper (test-helpers.ts)
+  - v0.66e weekly report per-file top/bottom-10
+  - v0.66f auto-bump version via update-readme-coverage.mjs --version
+  - 阈值: 71/67/60/72 → 72/68/61/73
+  - 实际 coverage: 72.7% stmts / 73.8% lines / 61.3% funcs / 68.4% branches
+  - 改动: 5 NEW files + 6 modified, 575 tests, 0 unhandled rejections (was 6)
+- **v2.27** (2026-06-18) — v0.65 coverage ratchet 69% → 71% + density badge auto-update + ModelLab rules-of-hooks fix
+  - v0.65a ModelLab.more.test.tsx (10 tests, 38%→70% cov) + fix rules-of-hooks violation in ModelLab.tsx
+  - v0.65b keyboard-nav prefix-timeout test reworked (asserts setTimeout call instead of full scheduler integration)
+  - v0.65c density badge auto-update (extend update-readme-coverage.mjs to run check-comment-density + update density badge)
+  - v0.65d Markets.more.test.tsx (7 tests, 17%→57% branches) + LlmStep.test.tsx (8 tests, 32%→90% stmts)
+  - 阈值: 69/65/57/70 → 71/67/60/72
+  - 实际 coverage: 71.4% stmts / 72.3% lines / 60.4% funcs / 67.6% branches
+  - 改动: 4 NEW test files + 1 lib fix + 1 script extend, 569 tests
 - **v2.26** (2026-06-18) — v0.64 coverage ratchet 67% → 69% + README badge auto-update
   - v0.64a scripts/update-readme-coverage.mjs (auto-update README badges from coverage-summary.json)
   - v0.64b keyboard-nav.test.tsx (22 tests, lib 12%→80%) + fix Cmd+? bug

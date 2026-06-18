@@ -20,6 +20,7 @@ import { render, act } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useNavBindings, useKeyboardNav, formatKeys, type KbdBinding } from './keyboard-nav';
+import { withFakeTimersAndState } from '@/test-helpers';
 
 // ---- (1) useNavBindings -------------------------------------------------
 describe('useNavBindings', () => {
@@ -210,18 +211,24 @@ describe('useKeyboardNav', () => {
   });
 
   it('two-key chord prefix schedules a 1200ms reset timer', () => {
-    // v0.65b — the actual timeout test (full React +
-    // setTimeout interaction) is flaky in happy-dom
-    // because React 18 batches setState across the
-    // microtask boundary. Instead, verify that
-    // pressing `g` (which has 2-key bindings) causes
-    // the handler to register a setTimeout for the
-    // 1200ms prefix reset. If the timer is registered,
-    // the timeout logic is exercised at the source
-    // level — the full React scheduler integration
-    // is covered by the existing 'two-key chord: g
-    // then x fires the binding action' test (the
-    // chord fires → prefix is cleared manually).
+    // v0.65b — verify the source-level behavior: pressing
+    // `g` (which has 2-key bindings) causes the handler
+    // to register a setTimeout for the 1200ms prefix reset.
+    // If the timer is registered, the timeout logic is
+    // exercised at the source level. The full React
+    // scheduler integration is covered by the existing
+    // 'two-key chord: g then x fires the binding action'
+    // test (the chord fires → prefix is cleared manually
+    // via setPendingPrefix(null)).
+    //
+    // v0.66d — tried withFakeTimersAndState() helper to
+    // verify the FULL behavior (advance → state propagates)
+    // but it still fails in happy-dom + React 18 because
+    // the fake setTimeout callback's setState is still in
+    // a batch boundary that the microtask flush can't
+    // reach. Kept the source-level assertion as a
+    // pragmatic stop. See src/test-helpers.ts for the
+    // helper (works for some cases, not this one).
     const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
     const rig = makeRig();
     rig.fireKey('g');

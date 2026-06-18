@@ -25,6 +25,13 @@ vi.mock('@/ipc', () => ({
   llmKeySetSecret: (...args: unknown[]) => mockLlmKeySetSecret(...args),
   llmTestConnectivity: (...args: unknown[]) => mockLlmTestConnectivity(...args),
   llmProviderList: () => mockListProviders(),
+  // v0.66 — toast-store.ts calls sendNotification when
+  // a system-enabled toast is rendered. Without this
+  // mock, the import resolves to undefined and the
+  // unhandled rejection makes the whole test file
+  // report as failed.
+  sendNotification: vi.fn().mockResolvedValue(undefined),
+  requestNotificationPermission: vi.fn().mockResolvedValue(true),
 }));
 
 import { LlmStep } from './LlmStep';

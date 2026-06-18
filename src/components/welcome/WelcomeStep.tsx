@@ -3,6 +3,15 @@
 // Hero + language picker. No IPC side effects on
 // mount; the locale change writes to the
 // locale-store + welcome-store.
+//
+// **Why no IPC on step 1**: the user is just landing
+// in the app. We don't have their language preference
+// yet, and they may bail out. Keep step 1 cheap.
+//
+// **Layout**: vertical center column with
+//   1. Rocket icon (64×64) + app name
+//   2. EN / 中文 language picker (2 buttons)
+//   3. Three "value prop" chips (local-first / keys / LLM)
 
 import { Rocket } from 'lucide-react';
 import { useT } from '@/lib/i18n';
@@ -83,6 +92,7 @@ export function WelcomeStep({
   );
 }
 
+/** Locale button — the active locale has accent background. */
 function LocaleButton({
   active,
   onClick,
@@ -116,6 +126,7 @@ function LocaleButton({
   );
 }
 
+/** Small "value prop" chip — title + 1-line body, 3 across. */
 function PropChip({
   testid,
   title,
