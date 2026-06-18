@@ -11,6 +11,7 @@
 
 use crate::AppResult;
 use crate::infra::error::AppError;
+use crate::infra::scheduler::{self, SchedulerSelfTest};
 use crate::infra::state::AppState;
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -112,4 +113,24 @@ pub async fn degradation_check_now(
     crate::infra::scheduler::run_degradation_check_now(&state.db).await
         .map_err(|e| AppError::Internal(format!("degradation check: {e}")))?;
     Ok(())
+}
+
+// =================================================================
+// ============== v0.49c — scheduler self-test =====================
+// =================================================================
+
+/// v0.49c — return a snapshot of the 7 background
+/// scheduler loops' liveness. Each loop's last
+/// tick timestamp is captured in a process-global
+/// atomic (see `infra::scheduler::self_test`).
+///
+/// The L1 Settings card renders this as a row of
+/// green/red dots per loop. "Healthy" means the
+/// loop ticked within 3x its expected interval.
+/// If a loop has never ticked (process just
+/// started and the stagger sleep hasn't elapsed),
+/// it's marked unhealthy with `age_ms = None`.
+#[tauri::command]
+pub fn scheduler_self_test_now() -> SchedulerSelfTest {
+    scheduler::self_test()
 }

@@ -553,6 +553,12 @@ const en: Dictionary = {
   'active_model.brier': 'Train Brier:',
   'active_model.promoted_at': 'Promoted at:',
   'active_model.source': 'Source:',
+  // v0.49c — scheduler self-test
+  'scheduler.self_test_title': 'Scheduler self-test',
+  'scheduler.self_test_desc': 'Background loops (8 total). Green = ticked within 3x the expected interval. Red = late. Yellow = never ticked (still in stagger sleep).',
+  'scheduler.all_healthy': 'all loops healthy',
+  'scheduler.some_unhealthy': 'one or more loops unhealthy',
+  'scheduler.never': 'never',
   // v0.44c — paper trading mode
   'paper_mode.title': 'Paper trading mode',
   'paper_mode.desc': 'Mirror executor writes to paper_fills (no CLOB submission) when ON. Validate your config without risking real money.',
@@ -1242,6 +1248,12 @@ const zh: Dictionary = {
   'active_model.brier': '训练 Brier：',
   'active_model.promoted_at': '晋升时间：',
   'active_model.source': '来源：',
+  // v0.49c — scheduler self-test
+  'scheduler.self_test_title': '调度器自检',
+  'scheduler.self_test_desc': '8 个后台循环。全绿 = 在 3 倍预期间隔内 tick。红色 = 落后。黄色 = 从未 tick（仍在 stagger 等待中）。',
+  'scheduler.all_healthy': '全部循环健康',
+  'scheduler.some_unhealthy': '部分循环异常',
+  'scheduler.never': '未启动',
   // v0.44c — 模拟盘模式
   'paper_mode.title': '模拟盘模式',
   'paper_mode.desc': '开启后,mirror executor 将命中的订单写入 paper_fills 表(不调 CLOB),可用于无风险验证配置。',

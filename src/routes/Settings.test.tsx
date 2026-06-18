@@ -45,6 +45,13 @@ vi.mock('@/ipc', () => ({
   purgeTelemetryLogs: vi.fn().mockResolvedValue(0),
   // v0.49b — active model IPC
   getActiveModel: vi.fn().mockResolvedValue(null),
+  // v0.49c — scheduler self-test
+  schedulerSelfTestNow: vi.fn().mockResolvedValue({
+    processStartedAtUnix: 1700000000,
+    checkedAtUnixMs: 1700000010000,
+    allHealthy: true,
+    loops: [],
+  }),
   setMirrorPaperMode: vi.fn().mockResolvedValue(true),
   getMirrorPaperMode: vi.fn().mockResolvedValue(false),
 }));
@@ -370,6 +377,50 @@ describe('Active model card (v0.49b)', () => {
     render(wrap(<Settings />));
     await waitFor(() => {
       expect(screen.getByTestId('active-model-error')).toBeInTheDocument();
+    });
+  });
+});
+
+describe('Scheduler self-test card (v0.49c)', () => {
+  it('renders all 8 loop rows when the IPC returns a snapshot', async () => {
+    const { schedulerSelfTestNow } = await import('@/ipc');
+    (schedulerSelfTestNow as ReturnType<typeof vi.fn>).mockResolvedValue({
+      processStartedAtUnix: 1700000000,
+      checkedAtUnixMs: 1700000010000,
+      allHealthy: true,
+      loops: [
+        { name: 'anomaly', lastTickUnixMs: 1700000009000, ageMs: 1000, healthy: true },
+        { name: 'audit_purge', lastTickUnixMs: 1700000009000, ageMs: 1000, healthy: true },
+        { name: 'daily_brief', lastTickUnixMs: 1700000009000, ageMs: 1000, healthy: true },
+        { name: 'degradation_check', lastTickUnixMs: 1700000009000, ageMs: 1000, healthy: true },
+        { name: 'health_probe', lastTickUnixMs: 1700000009000, ageMs: 1000, healthy: true },
+        { name: 'mirror_executor', lastTickUnixMs: 1700000009000, ageMs: 1000, healthy: true },
+        { name: 'paper_fills_reconcile', lastTickUnixMs: 1700000009000, ageMs: 1000, healthy: true },
+        { name: 'sidecar_health', lastTickUnixMs: 1700000009000, ageMs: 1000, healthy: true },
+      ],
+    });
+    render(wrap(<Settings />));
+    await waitFor(() => {
+      expect(screen.getByTestId('scheduler-loop-health_probe')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('scheduler-overall').textContent).toContain('scheduler.all_healthy');
+    // 8 rows.
+    expect(screen.getAllByTestId(/^scheduler-loop-/).length).toBe(8);
+  });
+
+  it('flips to some-unhealthy when at least one loop is red', async () => {
+    const { schedulerSelfTestNow } = await import('@/ipc');
+    (schedulerSelfTestNow as ReturnType<typeof vi.fn>).mockResolvedValue({
+      processStartedAtUnix: 1700000000,
+      checkedAtUnixMs: 1700000010000,
+      allHealthy: false,
+      loops: [
+        { name: 'health_probe', lastTickUnixMs: 0, ageMs: null, healthy: false },
+      ],
+    });
+    render(wrap(<Settings />));
+    await waitFor(() => {
+      expect(screen.getByTestId('scheduler-overall').textContent).toContain('scheduler.some_unhealthy');
     });
   });
 });

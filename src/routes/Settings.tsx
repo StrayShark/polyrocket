@@ -17,6 +17,7 @@ import {
   listTelemetryLogs, // v0.49a
   purgeTelemetryLogs, // v0.49a
   getActiveModel, // v0.49b
+  schedulerSelfTestNow, // v0.49c
   setMirrorPaperMode,
   getMirrorPaperMode,
   type AuditRetentionView,
@@ -207,6 +208,12 @@ export function Settings() {
           on-disk path. Goes through `getActiveModel`
           IPC, so it's the same view Rust sees. */}
       <ActiveModelCard />
+
+      {/* v0.49c — scheduler self-test. Row of
+          green/red dots per loop. Calls
+          `schedulerSelfTestNow` IPC which reads
+          the per-loop atomic last-tick counters. */}
+      <SchedulerSelfTestCard />
 
       {/* v0.44c — paper trading mode toggle */}
       <PaperModeCard />
@@ -974,6 +981,118 @@ function TelemetryLogList({ enabled }: { enabled: boolean }) {
 // ================================================================
 // ============ v0.49b — Active model summary card =================
 // ================================================================
+
+/** v0.49c — scheduler self-test. Reads the
+ *  process-global atomic counters in
+ *  `infra::scheduler::self_test` and renders a row
+ *  of green/red dots per loop. Refresh button
+ *  forces a re-poll. Loops that have never
+ *  ticked (still in their initial stagger sleep)
+ *  are rendered yellow with "starting...".
+ */
+function SchedulerSelfTestCard() {
+  const { t } = useT();
+  type Loop = {
+    name: string;
+    lastTickUnixMs: number;
+    ageMs: number | null;
+    healthy: boolean;
+  };
+  type Snapshot = {
+    processStartedAtUnix: number;
+    checkedAtUnixMs: number;
+    allHealthy: boolean;
+    loops: Loop[];
+  };
+  const [snap, setSnap] = useState<Snapshot | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(() => {
+    setBusy(true);
+    schedulerSelfTestNow()
+      .then((s) => setSnap(s))
+      .catch(() => setSnap(null))
+      .finally(() => setBusy(false));
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    // Auto-poll every 30s so the dots update without
+    // a manual click. Cheap (atomic reads).
+    const id = setInterval(refresh, 30_000);
+    return () => clearInterval(id);
+  }, [refresh]);
+
+  const fmtAge = (ms: number | null) => {
+    if (ms == null) return t('scheduler.never');
+    if (ms < 1000) return `${ms}ms`;
+    if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+    if (ms < 3_600_000) return `${(ms / 60_000).toFixed(1)}m`;
+    return `${(ms / 3_600_000).toFixed(1)}h`;
+  };
+
+  return (
+    <Card
+      title={t('scheduler.self_test_title')}
+      description={t('scheduler.self_test_desc')}
+    >
+      <div className="space-y-3" data-testid="scheduler-self-test">
+        <div className="flex items-center justify-between">
+          <span
+            className={
+              'text-[11px] ' +
+              (snap?.allHealthy ? 'text-bull' : snap ? 'text-warn' : 'text-muted')
+            }
+            data-testid="scheduler-overall"
+          >
+            {snap
+              ? snap.allHealthy
+                ? '● ' + t('scheduler.all_healthy')
+                : '● ' + t('scheduler.some_unhealthy')
+              : t('common.loading')}
+          </span>
+          <button
+            type="button"
+            onClick={refresh}
+            disabled={busy}
+            className="text-[10px] text-muted hover:text-fg disabled:opacity-50"
+            data-testid="scheduler-self-test-refresh"
+          >
+            {t('common.refresh')}
+          </button>
+        </div>
+        {snap && (
+          <ul className="space-y-1" data-testid="scheduler-loops-list">
+            {snap.loops.map((l) => (
+              <li
+                key={l.name}
+                className="text-[10px] flex items-center gap-2 bg-surface-2 rounded px-2 py-1"
+                data-testid={`scheduler-loop-${l.name}`}
+              >
+                <span
+                  className={
+                    'shrink-0 ' +
+                    (l.ageMs == null
+                      ? 'text-warn'
+                      : l.healthy
+                        ? 'text-bull'
+                        : 'text-bear')
+                  }
+                >
+                  ●
+                </span>
+                <span className="font-mono flex-1 truncate">{l.name}</span>
+                <span className="text-muted whitespace-nowrap">
+                  {fmtAge(l.ageMs)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Card>
+  );
+}
 
 /** v0.49b — read-only card showing what the
  *  Rust side considers the "current" model.

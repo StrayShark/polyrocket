@@ -20,6 +20,13 @@
 //! - `POLYROCKET_TELEMETRY`                 — when 1, also publishes
 //!   in-process events (future: Sentry).
 //!
+//! v0.49c — self-test on boot. Every loop updates
+//! `LOOP_LAST_TICK[loop_name]` on each tick. The
+//! `self_test` IPC reads these to verify the 7
+//! loops are alive. If a loop hasn't ticked in
+//! > 3x its expected interval, the L1 surfaces
+//! a warning.
+//!
 //! Layer rules: this module depends on L3 (`domain::llm`) and L5
 //! (`platform::keyring`) — it MUST NOT depend on L1 or L2.
 
@@ -33,6 +40,151 @@ use crate::domain::llm::{
 // `infra::telemetry` for the env-var gate and the
 // stable NDJSON wire format.
 use crate::infra::telemetry;
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::OnceLock;
+
+// ============================================================
+// v0.49c — per-loop last-tick registry
+// ============================================================
+//
+// Every loop calls `record_tick(loop_name, expected_interval)`
+// at the top of each iteration. The self-test IPC
+// (`scheduler_self_test_now`) reads these to verify the
+// 8 loops are alive and ticking at expected cadence.
+//
+// LOOP_LAST_TICK is process-global. The keys are
+// static `&'static str` literals (compile-time
+// guaranteed); values are unix-millis of the most
+// recent tick.
+//
+// PROCESS_START_UNIX is set once on first call to
+// `record_tick`. The self-test reports it back so
+// the L1 can tell "the loop has NEVER ticked" from
+// "the loop ticked once at boot and then died".
+
+static PROCESS_START_UNIX: OnceLock<u64> = OnceLock::new();
+static LOOP_LAST_TICK: OnceLock<HashMap<&'static str, AtomicU64>> = OnceLock::new();
+
+fn loop_registry() -> &'static HashMap<&'static str, AtomicU64> {
+    LOOP_LAST_TICK.get_or_init(|| {
+        let mut m = HashMap::new();
+        // Each loop_name matches the variant in
+        // infra::scheduler's existing comment headers
+        // — keep these strings stable; the L1 shows
+        // them verbatim.
+        for name in [
+            "health_probe",
+            "daily_brief",
+            "anomaly",
+            "mirror_executor",
+            "audit_purge",
+            "sidecar_health",
+            "paper_fills_reconcile",
+            "degradation_check",
+        ] {
+            m.insert(name, AtomicU64::new(0));
+        }
+        m
+    })
+}
+
+pub fn record_tick(loop_name: &'static str) {
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let _ = PROCESS_START_UNIX.get_or_init(|| now_ms / 1000);
+    if let Some(slot) = loop_registry().get(loop_name) {
+        slot.store(now_ms, Ordering::Relaxed);
+    } else {
+        // Unknown loop_name — surface in tests; in
+        // production we just no-op so a typo in a
+        // single call site doesn't crash the loop.
+        #[cfg(test)]
+        panic!("record_tick: unknown loop {loop_name}");
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct LoopStatus {
+    pub name: &'static str,
+    /// Unix-ms of the most recent tick. 0 = never
+    /// ticked (still in its initial sleep).
+    pub last_tick_unix_ms: u64,
+    /// Milliseconds since the last tick. `null` if
+    /// the loop has never ticked.
+    pub age_ms: Option<u64>,
+    /// True when `age_ms <= 3 * expected_interval_ms`.
+    /// The L1 uses this for the green/red dot.
+    pub healthy: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SchedulerSelfTest {
+    /// Unix-seconds when this process started.
+    pub process_started_at_unix: u64,
+    /// Unix-ms when the self-test ran.
+    pub checked_at_unix_ms: u64,
+    /// True when every loop is healthy.
+    pub all_healthy: bool,
+    pub loops: Vec<LoopStatus>,
+}
+
+/// Run the self-test. Cheap: just reads atomic
+/// counters, no IO. Returns a snapshot that the
+/// L1 Settings card renders.
+pub fn self_test() -> SchedulerSelfTest {
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let process_started_at = PROCESS_START_UNIX.get().copied().unwrap_or(now_ms / 1000);
+    let cfg = SchedulerConfig::from_env();
+
+    // Expected tick interval per loop. Lifted from
+    // the loop bodies' tokio::time::sleep() values.
+    // Keep these in sync if you change the loop
+    // cadence.
+    let expected_ms: &[(&str, u64)] = &[
+        ("health_probe",         cfg.health_probe_interval.as_millis() as u64),
+        ("daily_brief",          24 * 60 * 60 * 1000), // once per day
+        ("anomaly",              cfg.anomaly_window.as_millis() as u64),
+        ("mirror_executor",      cfg.mirror_tick.as_millis() as u64),
+        ("audit_purge",          24 * 60 * 60 * 1000),
+        ("sidecar_health",       30 * 1000),
+        ("paper_fills_reconcile", 5 * 60 * 1000),
+        ("degradation_check",    60 * 60 * 1000),
+    ];
+    let reg = loop_registry();
+    let mut loops: Vec<LoopStatus> = expected_ms
+        .iter()
+        .map(|(name, exp_ms)| {
+            let last_ms = reg.get(name).map(|a| a.load(Ordering::Relaxed)).unwrap_or(0);
+            let age_ms = if last_ms == 0 { None } else { Some(now_ms.saturating_sub(last_ms)) };
+            let healthy = match age_ms {
+                None => false,
+                Some(a) => a <= 3 * exp_ms,
+            };
+            LoopStatus {
+                name,
+                last_tick_unix_ms: last_ms,
+                age_ms,
+                healthy,
+            }
+        })
+        .collect();
+    // Stable display order: by name. L1 reads in any
+    // order, but this makes the JSON diff-friendly.
+    loops.sort_by(|a, b| a.name.cmp(b.name));
+    let all_healthy = loops.iter().all(|l| l.healthy);
+    SchedulerSelfTest {
+        process_started_at_unix: process_started_at,
+        checked_at_unix_ms: now_ms,
+        all_healthy,
+        loops,
+    }
+}
 use sqlx::SqlitePool;
 use std::sync::Arc;
 use std::time::Duration;
@@ -196,9 +348,11 @@ async fn run_health_probe_loop(
     tokio::time::sleep(Duration::from_secs(5)).await;
     let mut ticker = tokio::time::interval(cfg.health_probe_interval);
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    record_tick("health_probe"); // v0.49c
     loop {
         tokio::select! {
             _ = ticker.tick() => {
+                record_tick("health_probe"); // v0.49c
                 if let Err(e) = probe_all_providers(&pool, &http).await {
                     tracing::warn!("health probe sweep error: {e}");
                     telemetry::emit(telemetry::Event::SchedulerError {
@@ -474,6 +628,7 @@ async fn run_daily_brief_loop(
         _ = shutdown.notified() => return,
     }
     loop {
+        record_tick("daily_brief"); // v0.49c
         if let Err(e) = run_daily_brief_once(&pool).await {
             tracing::warn!("daily brief job error: {e}");
             telemetry::emit(telemetry::Event::SchedulerError {
@@ -583,9 +738,11 @@ async fn run_anomaly_loop(
     tokio::time::sleep(Duration::from_secs(30)).await;
     let mut ticker = tokio::time::interval(cfg.anomaly_window);
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    record_tick("anomaly"); // v0.49c
     loop {
         tokio::select! {
             _ = ticker.tick() => {
+                record_tick("anomaly"); // v0.49c
                 if let Err(e) = detect_anomalies(&pool, cfg.anomaly_window).await {
                     tracing::warn!("anomaly detection error: {e}");
                     telemetry::emit(telemetry::Event::SchedulerError {
@@ -612,9 +769,11 @@ async fn run_mirror_executor_loop(pool: SqlitePool, cfg: SchedulerConfig, shutdo
     let mut ticker = tokio::time::interval(cfg.mirror_tick);
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     let exec_cfg = crate::domain::mirror::ExecutorConfig::from_env();
+    record_tick("mirror_executor"); // v0.49c
     loop {
         tokio::select! {
             _ = ticker.tick() => {
+                record_tick("mirror_executor"); // v0.49c
                 if let Err(e) = run_mirror_pass(&pool, &exec_cfg).await {
                     tracing::warn!("mirror executor pass error: {e}");
                     telemetry::emit(telemetry::Event::SchedulerError {
@@ -882,9 +1041,11 @@ async fn run_audit_purge_loop(
     let mut ticker = tokio::time::interval(Duration::from_secs(DEFAULT_AUDIT_PURGE_TICK_SEC));
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     let _ = DEFAULT_AUDIT_PURGE_HOUR_UTC; // reserved for future hour-gated firing
+    record_tick("audit_purge"); // v0.49c
     loop {
         tokio::select! {
             _ = ticker.tick() => {
+                record_tick("audit_purge"); // v0.49c
                 if let Err(e) = run_audit_purge_once(&pool).await {
                     tracing::warn!(error = %e, "audit purge tick error");
                     telemetry::emit(telemetry::Event::SchedulerError {
@@ -913,7 +1074,6 @@ pub async fn run_audit_purge_now(pool: &SqlitePool) -> sqlx::Result<usize> {
 
 use crate::domain::sidecar_health::SidecarHealthKind;
 use crate::infra::db::sidecar_health as sh;
-use std::sync::OnceLock;
 
 /// Global handle to the running Tauri AppHandle so the scheduler
 /// can look up managed state (e.g. SidecarState) without going
@@ -976,9 +1136,11 @@ async fn run_sidecar_health_loop(
     let mut ticker = tokio::time::interval(Duration::from_secs(DEFAULT_SIDECAR_PROBE_SEC));
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     let mut last_was_ok: Option<bool> = None;
+    record_tick("sidecar_health"); // v0.49c
     loop {
         tokio::select! {
             _ = ticker.tick() => {
+                record_tick("sidecar_health"); // v0.49c
                 if let Err(e) = run_sidecar_health_once(&pool).await {
                     tracing::warn!(error = %e, "sidecar health tick error");
                     telemetry::emit(telemetry::Event::SchedulerError {
@@ -1122,9 +1284,11 @@ async fn run_paper_fills_reconcile_loop(
         DEFAULT_PAPER_FILL_RECONCILE_TICK_SEC,
     ));
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    record_tick("paper_fills_reconcile"); // v0.49c
     loop {
         tokio::select! {
             _ = ticker.tick() => {
+                record_tick("paper_fills_reconcile"); // v0.49c
                 match reconcile_paper_fills_once(&pool).await {
                     Ok(n) if n > 0 => {
                         tracing::info!(settled = n, "paper_fills reconciled");
@@ -1527,15 +1691,17 @@ async fn run_degradation_check_loop(
     _cfg: SchedulerConfig,
     shutdown: Arc<Notify>,
 ) {
-    // Stagger so we don't run all 7 loops at once
+    // Stagger so we don't run all 8 loops at once
     tokio::time::sleep(Duration::from_secs(20)).await;
     let mut ticker = tokio::time::interval(Duration::from_secs(
         DEFAULT_DEGRADATION_TICK_SEC,
     ));
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    record_tick("degradation_check"); // v0.49c
     loop {
         tokio::select! {
             _ = ticker.tick() => {
+                record_tick("degradation_check"); // v0.49c
                 if let Err(e) = run_degradation_check_once(&pool).await {
                     tracing::warn!(error = %e, "model degradation check error");
                     use crate::infra::telemetry;
@@ -1550,5 +1716,103 @@ async fn run_degradation_check_loop(
                 break;
             }
         }
+    }
+}
+
+
+// ============================================================
+// v0.49c — self-test cargo tests
+// ============================================================
+//
+// These tests exercise the `record_tick` / `self_test`
+// pair. They use the `LOOP_LAST_TICK` global, which is
+// a OnceLock — so the first test to run "wins" the
+// initialization. Subsequent tests share state with the
+// first one. That's fine for our purposes because we're
+// only testing the helpers' shape, not the global
+// ordering.
+//
+// IMPORTANT: tests must NOT assume `last_tick == 0` for
+// any loop; in this process some other test may have
+// already tick'd. The tests below only check invariants
+// ("healthy <=> age within tolerance", "name list is
+// stable", etc.).
+
+#[cfg(test)]
+mod self_test_tests {
+    use super::*;
+
+    /// v0.49c — the loop name list is stable across
+    /// processes. If you add a 9th loop, this test
+    /// breaks; update the list.
+    #[test]
+    fn self_test_returns_eight_loops() {
+        let st = self_test();
+        assert_eq!(st.loops.len(), 8, "got: {st:?}");
+        // Sorted alphabetically by name.
+        let names: Vec<&str> = st.loops.iter().map(|l| l.name).collect();
+        let mut sorted = names.clone();
+        sorted.sort();
+        assert_eq!(names, sorted, "loops must be alphabetically sorted");
+        // All expected names are present.
+        for expected in [
+            "anomaly",
+            "audit_purge",
+            "daily_brief",
+            "degradation_check",
+            "health_probe",
+            "mirror_executor",
+            "paper_fills_reconcile",
+            "sidecar_health",
+        ] {
+            assert!(names.contains(&expected), "missing loop {expected}");
+        }
+    }
+
+    /// v0.49c — a loop that ticked recently is
+    /// healthy. We force a tick and re-check.
+    #[test]
+    fn record_tick_marks_loop_healthy() {
+        record_tick("sidecar_health");
+        let st = self_test();
+        let sh = st
+            .loops
+            .iter()
+            .find(|l| l.name == "sidecar_health")
+            .unwrap();
+        assert!(sh.last_tick_unix_ms > 0, "last tick should be > 0");
+        assert!(sh.age_ms.is_some(), "age should be Some after tick");
+        assert!(sh.healthy, "fresh tick should be healthy");
+    }
+
+    /// v0.49c — `all_healthy` is true iff every
+    /// loop is healthy. After ticking every loop,
+    /// we expect all_healthy = true.
+    #[test]
+    fn all_healthy_after_ticking_every_loop() {
+        for name in [
+            "anomaly",
+            "audit_purge",
+            "daily_brief",
+            "degradation_check",
+            "health_probe",
+            "mirror_executor",
+            "paper_fills_reconcile",
+            "sidecar_health",
+        ] {
+            record_tick(name);
+        }
+        let st = self_test();
+        assert!(st.all_healthy, "got: {st:?}");
+        assert!(st.loops.iter().all(|l| l.healthy));
+    }
+
+    /// v0.49c — an unknown loop name panics in
+    /// tests (so typos surface). In production
+    /// `record_tick` is silent.
+    #[test]
+    #[should_panic(expected = "unknown loop")]
+    fn unknown_loop_name_panics_in_test() {
+        record_tick("definitely_not_a_loop");
     }
 }

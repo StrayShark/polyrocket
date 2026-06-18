@@ -402,7 +402,7 @@ pub enum Event {
         settled: u64,
     },
     /// v0.48a — model degradation check. Emitted by
-    /// the 7th scheduler loop when the live Brier
+    /// the 8th scheduler loop when the live Brier
     /// (computed against the FALLBACK model
     /// weights on recently resolved markets) has
     /// drifted above the threshold relative to the

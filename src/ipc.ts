@@ -1135,6 +1135,51 @@ export const getActiveModel = () =>
   invoke<ActiveModel | null>('get_active_model');
 
 // =================================================================
+// ================== v0.49c — scheduler self-test =================
+// =================================================================
+
+/** v0.49c — one loop's status from the
+ * scheduler self-test. The Rust side captures
+ * the unix-ms of each loop's most recent tick
+ * in a process-global atomic; the L1 polls this
+ * snapshot to render a row of green/red dots. */
+export interface SchedulerLoopStatus {
+  /** Stable loop name, e.g. "health_probe".
+   * Matches the variant names in
+   * `infra::scheduler::record_tick`. */
+  name: string;
+  /** Unix-ms of the most recent tick. 0 = never
+   * ticked (still in its initial stagger sleep). */
+  lastTickUnixMs: number;
+  /** Milliseconds since the last tick.
+   * `null` if the loop has never ticked. */
+  ageMs: number | null;
+  /** True when `ageMs <= 3 * expected_interval_ms`. */
+  healthy: boolean;
+}
+
+/** v0.49c — the scheduler self-test snapshot.
+ * Returned by `schedulerSelfTestNow`. Cheap to
+ * call (just reads atomic counters, no IO). */
+export interface SchedulerSelfTest {
+  /** Unix-seconds when this process started. */
+  processStartedAtUnix: number;
+  /** Unix-ms when the self-test ran. */
+  checkedAtUnixMs: number;
+  /** True when every loop is healthy. */
+  allHealthy: boolean;
+  /** Per-loop status, alphabetically sorted. */
+  loops: SchedulerLoopStatus[];
+}
+
+/** v0.49c — return a snapshot of the 8
+ * background scheduler loops' liveness. The
+ * L1 Settings card renders this as a row of
+ * green/red dots. */
+export const schedulerSelfTestNow = () =>
+  invoke<SchedulerSelfTest>('scheduler_self_test_now');
+
+// =================================================================
 // ================== v0.28a — auto_promote:finished =================
 // =================================================================
 
