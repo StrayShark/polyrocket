@@ -2,6 +2,17 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
+/** DataTable 列定义。**泛型 `<T>`** 是 row 类型（route 传 `Market` / `Bet` / `Signal` 等）。
+ *
+ * **字段**：
+ *   - `key` — unique column key（用于 sort）
+ *   - `header` — 表头 ReactNode（字符串 / icon / i18n key 都行）
+ *   - `cell` — 渲染每行 cell（`row => ReactNode`）
+ *   - `align` — `'left'` / `'right'` / `'center'`
+ *   - `width` — CSS 宽度（`'100px'` / `'30%'` 等）
+ *   - `sortable` — 是否可点表头排序
+ *   - `sortValue` — 自定义 sort key（默认用 `cell` 字符串 fallback）
+ */
 export interface Column<T> {
   key: string;
   header: ReactNode;
@@ -12,6 +23,16 @@ export interface Column<T> {
   sortValue?: (row: T) => string | number | null;
 }
 
+/** `DataTable` props。**泛型 `<T>`** = row 类型。
+ *
+ * **必填**：`rows` / `columns` / `rowKey`。
+ * **可选**：
+ *   - `empty` — rows 为空时渲染（默认 EmptyState）
+ *   - `loading` — Skeleton 模式
+ *   - `pageSize` — 0 = 不分页（默认 0）。L1 路由如果 list 长可设 50。
+ *   - `onRowClick` — 点击行回调（详情页用）
+ *   - `className` — 外层 div className
+ */
 export interface DataTableProps<T> {
   rows: T[];
   columns: Column<T>[];
@@ -24,6 +45,28 @@ export interface DataTableProps<T> {
   className?: string;
 }
 
+/**
+ * `DataTable<T>` —— 通用表格 component（L1 表格的 baseline 实现）。
+ *
+ * **特性**：
+ *   - 点击表头排序（asc / desc / 三态 cycle）
+ *   - 客户端分页（`pageSize > 0` 时启用）
+ *   - loading 态渲染 Skeleton 行
+ *   - 行点击回调（`onRowClick`）
+ *   - 三主题：颜色 / spacing / 字体走 `data-theme` CSS variable
+ *
+ * **何时不用 DataTable**：
+ *   - 复杂 cell 交互（dropdown / popover）—— 写自定义 table
+ *   - 树形结构（groups / sub-rows）—— 写 tree
+ *   - 大数据虚拟化（> 10k 行）—— 加 `react-window` 再来
+ *
+ * @example
+ *   const cols: Column<Market>[] = [
+ *     { key: 'q', header: 'Question', cell: (m) => m.question, sortable: true,
+ *       sortValue: (m) => m.question },
+ *   ];
+ *   <DataTable rows={markets} columns={cols} rowKey={(m) => m.id} pageSize={50} />
+ */
 export function DataTable<T>({
   rows,
   columns,

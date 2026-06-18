@@ -42,6 +42,20 @@ export interface PendingMirror {
   reason?: string;
 }
 
+/**
+ * `MirrorPanel` —— `/copy` 的 mirror 队列面板（M5 phase 2 preview）。
+ *
+ * **业务流**（L1 客户端算 + L3 `should_mirror`）：
+ *   1. 拉 `listCopyTargets()` / `recentCopyEvents()` / `listActiveSignals()`
+ *   2. 对每个 `CopyEvent`，找同 market 的「最佳 active signal」
+ *   3. 调 `shouldMirror(target, event.side, event.size, signal.edge)` 决定是否 mirror
+ *   4. 渲染：pending / submitted / filled / rejected / expired 五种 state
+ *
+ * **`flip = true` 含义**：model 跟 whale 方向相反但仍 mirror。L1 显示「⚠️ disagree」。
+ *
+ * **不是 IPC 后端**：当前 L1 客户端 derive，**未来 v0.62+** Rust 端会暴露
+ * `list_pending_mirrors` IPC 走 DB `copy_mirror_queue` 表。
+ */
 export function MirrorPanel() {
   const targets = useQuery({
     queryKey: ['copy-targets'],

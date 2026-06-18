@@ -22,6 +22,21 @@ import type { SecretsStatus } from '@/types/shared';
 import { useT } from '@/lib/i18n';
 import { AlertTriangle, ChevronRight } from 'lucide-react';
 
+/**
+ * `WelcomeBanner` —— Dashboard 顶部「Setup incomplete」横幅。
+ *
+ * **显示条件**：调 `computeMissing` 算还有哪些 sub-config 缺（`llmKeys > 0` /
+ * `pmApi` / `walletPk > 0`）。**全部 OK** 时不渲染（return null）。
+ *
+ * **数据流**：
+ *   1. mount `secretsStatus()` IPC
+ *   2. 同时读 `useWelcomeStore.configured` 标志
+ *   3. 两者 union → `computeMissing` → 列表
+ *   4. 渲染 alert 卡片 + 各项状态 + 「Complete」按钮 → navigate('/welcome')
+ *
+ * **v0.54c fix**：`computeMissing` 之前读 `SecretsStatus` 字段名错（`llm_keys.length` /
+ * `polymarket.find`），实际 shape 是 `{ llm_keys: count, pm_api: bool, pm_passphrase, pm_secret, wallet_pk: count }`。
+ */
 export function WelcomeBanner() {
   const { t } = useT();
   const navigate = useNavigate();

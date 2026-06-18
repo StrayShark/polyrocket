@@ -29,6 +29,26 @@ const CATEGORY_NAV = [
   { icon: Landmark, label: 'Politics', count: '25' },
 ];
 
+/**
+ * `AppShell` —— 整 app 的 layout 外壳。
+ *
+ * **结构**：
+ *   - 顶 bar —— logo + breadcrumb + global actions (Sync / Sidecar badge / Bell / Settings)
+ *   - 左 sidebar —— primary nav (7 routes) + category nav (3 categories)
+ *   - 主区域 —— `<Outlet>`（当前 route content）
+ *
+ * **键盘快捷键**：
+ *   - `Cmd+K` / `Ctrl+K` —— 打开 `CommandPalette`（搜索 / 跳转 / 跑命令）
+ *   - `?` —— 打开 `KbdHelpDialog`（快捷键 help）
+ *   - `1`-`7` —— 跳到 primary nav 第 N 项
+ *
+ * **数据流**：
+ *   1. mount 时 `isSeeded()` 检查 DB 是否首次启动 → 跳到 `/welcome`
+ *   2. 各 IPC（sync / recompute / purge）通过 `CommandPalette` 触发
+ *   3. Toast 容器在 sidebar 底部
+ *
+ * **i18n**：nav 项的 label 都走 i18n key（`nav.dashboard` 等）。
+ */
 export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();

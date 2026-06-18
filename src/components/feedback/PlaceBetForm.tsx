@@ -1,26 +1,3 @@
-// v0.52a — Place-bet form component.
-//
-// Renders a form for the user to construct an order
-// (Market / Limit / StopLoss) and submit it via
-// `placeSignedOrder`. Validates live via
-// `validateOrderArgs` so the user sees the same
-// errors the Rust side would surface, without a
-// round-trip.
-//
-// Defaults:
-//   - side: 'YES' (toggleable)
-//   - order_type: 'market'
-//   - price: 0.5 (mid)
-//   - size: '10' USDC
-//   - post_only: false
-//
-// Conditional fields:
-//   - limit_price: shown when order_type = 'limit' OR
-//     'stop_loss' (StopLoss uses limit as the fill
-//     price once the stop triggers)
-//   - stop_price: shown when order_type = 'stop_loss'
-//   - post_only: shown only when order_type = 'limit'
-
 import { useEffect, useState, useCallback } from 'react';
 import { Card } from '@/components/base/Card';
 import { Input } from '@/components/base/Input';
@@ -50,6 +27,33 @@ export interface PlaceBetFormProps {
   onSuccess?: (betId: string) => void;
 }
 
+/**
+ * `PlaceBetForm` —— 完整的下单 form（Market / Limit / StopLoss 三种 order type）。
+ *
+ * **Props**：
+ *   - `initialMarketId` — 预填 market（URL `?market_id=...` 进来时 L1 解析）
+ *   - `initialSide` — 预填 YES/NO（默认 YES）
+ *   - `initialPrice` — 预填 mid price
+ *   - `onSuccess(betId)` — submit 成功后回调（路由跳转 / 关闭 modal）
+ *
+ * **Defaults**：
+ *   - `side: 'YES'`（toggle 改 NO）
+ *   - `order_type: 'market'`
+ *   - `price: 0.5`（mid）
+ *   - `size: '10' USDC`
+ *   - `post_only: false`
+ *
+ * **Conditional fields**：
+ *   - `limit_price` — order_type = 'limit' OR 'stop_loss'（StopLoss 触发后用 limit 价）
+ *   - `stop_price` — order_type = 'stop_loss'
+ *   - `post_only` — only when 'limit'（做市单）
+ *
+ * **Live validation**：调 `validateOrderArgs` IPC（同一函数 Rust 端也会调）——
+ * 用户立刻看到「market_id required」/「size > 10000」等错，不用 round-trip submit。
+ *
+ * **Submit**：调 `placeSignedOrder` IPC → Rust 端走 `validatePlaceArgs` →
+ * 调 `placeBet` 写 DB + 调 CLOB。成功 toast + 调 `onSuccess(betId)`。
+ */
 export function PlaceBetForm(props: PlaceBetFormProps) {
   const { t } = useT();
   // Form state
