@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.16 · 2026-06-18 (v0.53 first-run landing + storage picker)
+> 版本：v2.17 · 2026-06-18 (v0.54 dialog plugin + storage migration + 11 L1 tests + v0.55 SHAP + v0.56 proxy + typecheck housekeeping)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
@@ -799,6 +799,14 @@ v0.6 增量：
 
 ## 8. 变更日志
 
+- **v2.17** (2026-06-18) — v0.54 + v0.55 + v0.56
+  - v0.54a tauri-plugin-dialog (Browse 按钮 + pickFile/pickDirectory 2 IPC)
+  - v0.54b storage 迁移工具 (migrate_storage_path IPC + Settings StorageMigrationCard)
+  - v0.54c 11 个 L1 component test (6 welcome step + WelcomeBanner + Settings migration)
+  - v0.55 SHAP-like 模型可解释性 (explain_model sidecar 方法 + ExplainabilityCard)
+  - v0.56 网络代理/Tor (3 IPC + Settings NetworkCard + network_proxy.json)
+  - typecheck housekeeping (39 → 0 错误)
+  - 总测试数: 799 + 31 script = 830
 - **v2.16** (2026-06-18) — v0.53 first-run landing
   - 6 步 wizard 落地；`/welcome` route + 6 步骤组件 + WelcomeBanner
   - 3 个 storage IPC (get/set/reset_storage_*) + `storage_path.json` config
