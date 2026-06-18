@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.15 · 2026-06-18 (v0.53 spec — first-run landing + storage picker)
+> 版本：v2.16 · 2026-06-18 (v0.53 first-run landing + storage picker)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
@@ -799,6 +799,11 @@ v0.6 增量：
 
 ## 8. 变更日志
 
+- **v2.16** (2026-06-18) — v0.53 first-run landing
+  - 6 步 wizard 落地；`/welcome` route + 6 步骤组件 + WelcomeBanner
+  - 3 个 storage IPC (get/set/reset_storage_*) + `storage_path.json` config
+  - `polyrocket.onboarding` 一次性迁移到 `polyrocket.welcome`
+  - §6 first-run landing 行的设计稿已落地
 - **v2.15** (2026-06-18) — v0.53 spec
   - §6 关键约束加 first-run landing 引用 + 新独立 doc 链
   - 不动 5 层架构；landing 落在 L1 (Welcome route) + L2 (commands/storage) + L4 (infra/db/pool resolve path)
