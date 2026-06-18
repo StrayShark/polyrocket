@@ -15,8 +15,12 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 vi.mock('@/ipc', () => ({
-  listMarkets: vi.fn().mockResolvedValue([]),
-  syncMarkets: vi.fn().mockResolvedValue(0),
+  listMarkets: vi.fn().mockResolvedValue([
+    { id: 'm1', slug: 'm1', question: 'Will X happen?', category: 'crypto',
+      end_date: 9999999999, active: true, resolved: false, outcome: null,
+      liquidity: '1000', volume_24h: '500' },
+  ]),
+  syncMarkets: vi.fn().mockResolvedValue(1),
 }));
 
 import { Markets } from './Markets';
@@ -65,6 +69,17 @@ describe('Markets', () => {
       const buttons = screen.getAllByRole('button');
       const pill = buttons.find((b) => b.textContent === 'crypto');
       if (pill) fireEvent.click(pill);
+    });
+  });
+
+  it('search input is editable', async () => {
+    renderMarkets();
+    await waitFor(() => {
+      const inputs = screen.getAllByPlaceholderText(/search/i);
+      if (inputs.length > 0) {
+        fireEvent.change(inputs[0], { target: { value: 'crypto' } });
+        expect((inputs[0] as HTMLInputElement).value).toBe('crypto');
+      }
     });
   });
 });
