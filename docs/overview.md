@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.22 · 2026-06-18 (v0.59-60 SHAP + hot-swap + v0.61 coding-spec + 注释密度提升 a-k full)
+> 版本：v2.23 · 2026-06-18 (v0.62 coverage ratchet + telemetry polish + cargo doc 0)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿） · [`coding-spec.md`](./coding-spec.md)（v0.61 注释规范）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
@@ -799,6 +799,16 @@ v0.6 增量：
 
 ## 8. 变更日志
 
+- **v2.23** (2026-06-18) — v0.62 coverage ratchet + telemetry polish + cargo doc 0
+  - v0.62d 补 5 个未达标文件注释 (LLM client + Brief + feedback)
+  - v0.62a coverage ratchet 50% → 60% (15 个新 component test)
+  - v0.62a.2 coverage 60% → 64% (4 个新 + 2 升级 test)
+  - v0.62c Telemetry dashboard polish (summary row + 7 tests)
+  - v0.62e cargo doc 0 warning (12→0) + weekly cron
+  - 总测试数: 901 + 31 script = 932 (+27 from v0.61)
+  - 改动: 43 文件, +1371 行 (test + 1 cron + rustdoc fixes)
+  - density: 5/5 PASS, cargo doc 0 warning
+  - coverage: 64.74% stmts / 65.5% lines / 53.39% funcs / 58.13% branches
 - **v2.22** (2026-06-18) — v0.61 a-k full (注释密度提升)
   - v0.61a coding-spec 注释规范 (Rust + TS + Python 三套规则)
   - v0.61b-c 给 Rust infra 5 核心 + infra/db 13 文件加 /// 文档
