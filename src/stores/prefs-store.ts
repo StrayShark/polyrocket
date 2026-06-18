@@ -33,6 +33,16 @@ export interface UiPrefs {
    * wants the OS notification when a background
    * action completes). */
   autoPromoteNotify: boolean;
+  /** v0.42c — opt-in lifecycle telemetry. When true,
+   * every Rust lifecycle event (train started /
+   * completed / failed, promote completed, scheduler
+   * tick, etc.) writes one NDJSON line to stderr.
+   * Default false. Capture with `polyrocket 2>
+   * telemetry.log`. The user can change this at
+   * runtime via the Settings telemetry toggle —
+   * changes are pushed to Rust via the
+   * `setTelemetryEnabled` IPC. */
+  telemetryEnabled: boolean;
 }
 
 interface PrefsState extends UiPrefs {
@@ -49,6 +59,7 @@ const DEFAULT: UiPrefs = {
   autoPromoteBrierMargin: 0.005,
   autoPromoteAfterTrain: false,
   autoPromoteNotify: true,
+  telemetryEnabled: false,
 };
 
 export const usePrefsStore = create<PrefsState>()(

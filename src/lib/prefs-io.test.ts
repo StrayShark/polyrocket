@@ -26,6 +26,7 @@ const FULL_PREFS: UiPrefs = {
   autoPromoteBrierMargin: 0.01,
   autoPromoteAfterTrain: true,
   autoPromoteNotify: false,
+  telemetryEnabled: true,
 };
 
 describe('prefs-io (v0.36a)', () => {
@@ -37,7 +38,7 @@ describe('prefs-io (v0.36a)', () => {
       expect(typeof parsed.exported_at_ms).toBe('number');
       expect(parsed.prefs).toEqual(FULL_PREFS);
     });
-    it('includes all 8 UiPrefs fields', () => {
+    it('includes all 9 UiPrefs fields', () => {
       const json = exportPrefsToString(FULL_PREFS);
       const parsed = JSON.parse(json);
       expect(Object.keys(parsed.prefs).sort()).toEqual(
@@ -50,6 +51,7 @@ describe('prefs-io (v0.36a)', () => {
           'defaultAllocationCapUsdc',
           'defaultMinEdgePct',
           'notificationsEnabled',
+          'telemetryEnabled',
         ].sort(),
       );
     });
@@ -71,6 +73,7 @@ describe('prefs-io (v0.36a)', () => {
         autoPromoteBrierMargin: 0.005,
         autoPromoteAfterTrain: false,
         autoPromoteNotify: true,
+        telemetryEnabled: false,
       };
       const json = exportPrefsToString(defaults);
       const parsed = parsePrefsFromString(json);

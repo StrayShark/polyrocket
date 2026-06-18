@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Settings as SettingsIcon, RotateCcw, Save, Database, Bell, Eye, FlaskConical, Trash2, Download, Upload } from 'lucide-react';
+import { Settings as SettingsIcon, RotateCcw, Save, Database, Bell, Eye, FlaskConical, Trash2, Download, Upload, Activity } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/base/Card';
 import { Button } from '@/components/base/Button';
@@ -12,6 +12,8 @@ import {
   setAuditRetention,
   purgeAuditLogNow,
   setAutoPromoteConfig,
+  setTelemetryEnabled,
+  getTelemetryEnabled,
   type AuditRetentionView,
   type SetAuditRetentionArgs,
 } from '@/ipc';
@@ -190,6 +192,9 @@ export function Settings() {
 
       {/* v0.36b — export/import of UI prefs */}
       <BackupRestoreCard />
+
+      {/* v0.42c — opt-in lifecycle telemetry */}
+      <TelemetryCard />
     </div>
   );
 }
@@ -670,6 +675,101 @@ function BackupRestoreCard() {
           style={{ display: 'none' }}
           data-testid="backup-import-input"
         />
+      </div>
+    </Card>
+  );
+}
+
+// =================================================================
+// ============== v0.42c — Telemetry opt-in card ===================
+// =================================================================
+
+/** v0.42c — opt-in lifecycle telemetry.
+ *
+ *  When ON, every Rust lifecycle event (train started /
+ *  completed / failed, promote completed, scheduler
+ *  tick, etc.) writes one NDJSON line to stderr. Capture
+ *  with `polyrocket 2> telemetry.log`.
+ *
+ *  Default OFF. The user can flip this in Settings and
+ *  the change takes effect immediately (the L1 pushes
+ *  the new value to Rust via `setTelemetryEnabled`).
+ *
+ *  No PII, no model weights, no secrets. The events
+ *  are coarse-grained lifecycle markers (job_id,
+ *  loop_name, latency_ms) — see
+ *  `src-tauri/src/infra/telemetry.rs` for the full
+ *  event schema.
+ */
+function TelemetryCard() {
+  const { t } = useT();
+  const enabled = usePrefsStore((s) => s.telemetryEnabled);
+  const setPref = usePrefsStore((s) => s.setPref);
+  const [pushed, setPushed] = useState(false);
+
+  // v0.42c — on mount, ask Rust what the current
+  // effective state is. This handles the case where
+  // the env var POLYROCKET_TELEMETRY=1 was set at
+  // startup (the L1 store starts as false; Rust
+  // starts as true; the toggle should reflect that).
+  useEffect(() => {
+    getTelemetryEnabled()
+      .then((v) => {
+        if (v !== usePrefsStore.getState().telemetryEnabled) {
+          setPref('telemetryEnabled', v);
+        }
+      })
+      .catch(() => {
+        // Sidecar may be down during boot; default
+        // stays as the L1 store value.
+      });
+  }, [setPref]);
+
+  const onToggle = (next: boolean) => {
+    setPref('telemetryEnabled', next);
+    setTelemetryEnabled({ enabled: next })
+      .then(() => {
+        setPushed(true);
+        setTimeout(() => setPushed(false), 1500);
+      })
+      .catch(() => {
+        // best-effort; user can re-toggle.
+        toast.error(t('telemetry.push_failed'));
+      });
+  };
+
+  return (
+    <Card
+      title={t('telemetry.title')}
+      description={t('telemetry.desc')}
+    >
+      <div className="space-y-3">
+        <div>
+          <Toggle
+            data-testid="telemetry-toggle"
+            label={t('telemetry.label')}
+            checked={enabled}
+            onChange={onToggle}
+          />
+          <p className="text-[10px] text-muted mt-1 ml-1">
+            {t('telemetry.hint')}
+          </p>
+        </div>
+        {/* v0.42c — capture hint. The user has to
+            know how to actually capture the stream
+            once telemetry is on. The text is in the
+            i18n catalog (telemetry.capture_hint). */}
+        <div className="text-[10px] text-muted bg-surface-2 rounded px-2 py-1.5 font-mono">
+          {t('telemetry.capture_hint')}
+        </div>
+        {pushed && (
+          <span
+            data-testid="telemetry-pushed-badge"
+            className="text-[10px] text-bull"
+          >
+            ✓ {t('telemetry.pushed')}
+          </span>
+        )}
       </div>
     </Card>
   );

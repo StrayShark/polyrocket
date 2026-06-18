@@ -1454,6 +1454,42 @@ pub async fn set_auto_promote_config(
     })
 }
 
+// =================================================================
+// v0.42c — telemetry enabled toggle (L1 IPC)
+// =================================================================
+
+/// v0.42c — runtime override of telemetry enable/disable.
+/// L1 calls this from the Settings toggle. The default
+/// (false) is what `init_from_env` leaves it as unless
+/// `POLYROCKET_TELEMETRY=1` was set in the env at
+/// startup. After this call, the user is in full
+/// control — the env var no longer matters for this
+/// process.
+#[tauri::command]
+pub async fn set_telemetry_enabled(args: SetTelemetryEnabledArgs) -> AppResult<bool> {
+    crate::infra::telemetry::set_enabled(args.enabled);
+    Ok(args.enabled)
+}
+
+/// v0.42c — read the current telemetry state. The L1
+/// calls this on Settings mount so the toggle
+/// reflects "what the Rust side currently has"
+/// (in case the env var set it at startup).
+#[tauri::command]
+pub async fn get_telemetry_enabled() -> AppResult<bool> {
+    Ok(crate::infra::telemetry::is_enabled())
+}
+
+/// v0.42c — args for `set_telemetry_enabled`. We use a
+/// struct (not a bare bool) for future-proofing: a
+/// future `sink: Option<String>` could let the L1
+/// pick stderr vs file vs no-op without an IPC
+/// redesign.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SetTelemetryEnabledArgs {
+    pub enabled: bool,
+}
+
 /// v0.28a — read the current auto-promote config from
 /// `AppState`. Returns defaults if the L1 has never
 /// pushed any config.

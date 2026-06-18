@@ -78,6 +78,15 @@ pub fn set_enabled_for_test(v: bool) {
     INITIALIZED.store(true, Ordering::SeqCst);
 }
 
+/// v0.42c — runtime override. Called by the L1
+/// `setTelemetryEnabled` IPC when the user toggles
+/// the pref in Settings. Does NOT touch the
+/// `INITIALIZED` flag, so a later `init_from_env` call
+/// would still be a no-op (idempotent).
+pub fn set_enabled(v: bool) {
+    ENABLED.store(v, Ordering::SeqCst);
+}
+
 /// All telemetry events. Add variants here as new lifecycle
 /// hooks appear; the wire format (NDJSON) is stable because
 /// the `Serialize` impl is auto-derived.
@@ -269,5 +278,15 @@ mod tests {
         let s = serde_json::to_string(&ev).unwrap();
         assert!(s.contains("\"name\":\"train_failed\""), "got: {s}");
         assert!(s.contains("\"error\":\"kaboom\""), "got: {s}");
+    }
+
+    #[test]
+    fn set_enabled_flips_at_runtime() {
+        set_enabled_for_test(false);
+        assert!(!is_enabled());
+        set_enabled(true);
+        assert!(is_enabled());
+        set_enabled(false);
+        assert!(!is_enabled());
     }
 }

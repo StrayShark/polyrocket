@@ -38,6 +38,8 @@ vi.mock('@/ipc', () => ({
   setAuditRetention: vi.fn(),
   purgeAuditLogNow: vi.fn(),
   setAutoPromoteConfig: vi.fn(),
+  setTelemetryEnabled: vi.fn().mockResolvedValue(true),
+  getTelemetryEnabled: vi.fn().mockResolvedValue(false),
 }));
 
 // Mock the prefs store with a controllable in-memory
@@ -228,6 +230,38 @@ describe('Backup & restore card (v0.36b)', () => {
     fireEvent.click(toggle);
     await waitFor(() => {
       expect(mockSetPref).toHaveBeenCalledWith('autoPromoteNotify', false);
+    });
+  });
+
+  // v0.42c — telemetry opt-in toggle
+  it('renders the telemetry card with a toggle', async () => {
+    render(wrap(<Settings />));
+    await waitFor(() => {
+      expect(screen.getByTestId('telemetry-toggle')).toBeInTheDocument();
+    });
+  });
+
+  it('toggling telemetry ON pushes { enabled: true } to Rust', async () => {
+    const { setTelemetryEnabled } = await import('@/ipc');
+    vi.mocked(setTelemetryEnabled).mockClear();
+    render(wrap(<Settings />));
+    const toggle = await screen.findByTestId('telemetry-toggle');
+    fireEvent.click(toggle);
+    await waitFor(() => {
+      expect(setTelemetryEnabled).toHaveBeenCalledWith({ enabled: true });
+    });
+  });
+
+  it('mount pushes the current effective state from Rust (sync path)', async () => {
+    const { getTelemetryEnabled } = await import('@/ipc');
+    vi.mocked(getTelemetryEnabled).mockClear();
+    vi.mocked(getTelemetryEnabled).mockResolvedValue(true);
+    render(wrap(<Settings />));
+    // The mount effect calls getTelemetryEnabled
+    // and pushes the value into the prefs store if
+    // it differs.
+    await waitFor(() => {
+      expect(getTelemetryEnabled).toHaveBeenCalled();
     });
   });
 });

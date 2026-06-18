@@ -843,6 +843,41 @@ export const getAutoPromoteConfig = () =>
   invoke<AutoPromoteConfigDto>('get_auto_promote_config');
 
 // =================================================================
+// ================== v0.42c — telemetry enabled toggle ============
+// =================================================================
+
+/** v0.42c — args for `setTelemetryEnabled`. The L1
+ * pushes this from the Settings telemetry toggle. */
+export interface SetTelemetryEnabledArgs {
+  enabled: boolean;
+}
+
+/** v0.42c — runtime override of the telemetry gate.
+ *
+ * The default is whatever the env var `POLYROCKET_TELEMETRY`
+ * was at process start (typically `false`). After this
+ * call, the env var is ignored for the lifetime of the
+ * process — the user's choice wins.
+ *
+ * When ON, every Rust lifecycle event (train started /
+ * completed / failed, promote completed, scheduler tick,
+ * etc.) writes one NDJSON line to stderr. Capture with:
+ *
+ *     polyrocket 2> telemetry.log
+ *
+ * When OFF, `emit()` is a no-op (atomic load, zero
+ * overhead).
+ */
+export const setTelemetryEnabled = (args: SetTelemetryEnabledArgs) =>
+  invoke<boolean>('set_telemetry_enabled', { args });
+
+/** v0.42c — read the current telemetry state. Returns
+ * the current effective value (env var at startup
+ * unless the L1 has overridden it). */
+export const getTelemetryEnabled = () =>
+  invoke<boolean>('get_telemetry_enabled');
+
+// =================================================================
 // ================== v0.28a — auto_promote:finished =================
 // =================================================================
 

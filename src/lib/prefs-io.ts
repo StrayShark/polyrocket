@@ -41,7 +41,8 @@ export interface PrefsExport {
   version: number;
   /** v0.36a — when the export was created (unix millis). */
   exported_at_ms: number;
-  /** v0.36a — the actual prefs. All 7 UiPrefs fields. */
+  /** v0.36a — the actual prefs. All 8 UiPrefs fields
+   *  (was 7 until v0.42c added telemetryEnabled). */
   prefs: UiPrefs;
 }
 
@@ -58,6 +59,7 @@ const PREF_DEFAULTS: UiPrefs = {
   autoPromoteBrierMargin: 0.005,
   autoPromoteAfterTrain: false,
   autoPromoteNotify: true,
+  telemetryEnabled: false,
 };
 
 /**
@@ -174,6 +176,16 @@ export function parsePrefsFromString(json: string): UiPrefs {
       throw new Error('Invalid export: autoPromoteNotify must be a boolean');
     }
     result.autoPromoteNotify = v;
+  }
+  // v0.42c — telemetryEnabled. New in v0.42; old
+  // exports don't have it (forward-compat: defaults
+  // to false).
+  if ('telemetryEnabled' in rawPrefs) {
+    const v = rawPrefs.telemetryEnabled;
+    if (typeof v !== 'boolean') {
+      throw new Error('Invalid export: telemetryEnabled must be a boolean');
+    }
+    result.telemetryEnabled = v;
   }
   return result;
 }
