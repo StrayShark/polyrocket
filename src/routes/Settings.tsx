@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Settings as SettingsIcon, RotateCcw, Save, Database, Bell, Eye, FlaskConical, Trash2, Download, Upload, Activity } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/base/Card';
@@ -14,6 +14,8 @@ import {
   setAutoPromoteConfig,
   setTelemetryEnabled,
   getTelemetryEnabled,
+  listTelemetryLogs, // v0.49a
+  purgeTelemetryLogs, // v0.49a
   setMirrorPaperMode,
   getMirrorPaperMode,
   type AuditRetentionView,
@@ -807,8 +809,139 @@ function TelemetryCard() {
             ✓ {t('telemetry.pushed')}
           </span>
         )}
+
+        {/* v0.49a — on-disk session files. v0.49a
+            persists events to a per-session JSONL file
+            (one per process start). The user can see
+            the inventory and purge old files. */}
+        <TelemetryLogList enabled={enabled} />
       </div>
     </Card>
+  );
+}
+
+/** v0.49a — sub-component: list the on-disk telemetry
+ *  session files and let the user purge the old ones.
+ *
+ *  We always render the section, even when telemetry is
+ *  off, because the file might still be there from a
+ *  previous session (the log dir is created on first
+ *  emit; before that the list is empty).
+ */
+function TelemetryLogList({ enabled }: { enabled: boolean }) {
+  const { t } = useT();
+  const [logs, setLogs] = useState<
+    Array<{
+      name: string;
+      path: string;
+      sizeBytes: number;
+      modifiedUnix: number;
+      isCurrent: boolean;
+    }>
+  >([]);
+  const [purged, setPurged] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(() => {
+    listTelemetryLogs()
+      .then(setLogs)
+      .catch(() => setLogs([]));
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh, enabled]);
+
+  const onPurge = () => {
+    setBusy(true);
+    purgeTelemetryLogs()
+      .then((n) => {
+        setPurged(n);
+        setTimeout(() => setPurged(null), 2000);
+        refresh();
+      })
+      .catch(() => {
+        toast.error(t('telemetry.purge_failed'));
+      })
+      .finally(() => setBusy(false));
+  };
+
+  const fmtBytes = (n: number) => {
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / 1024 / 1024).toFixed(2)} MB`;
+  };
+
+  const fmtDate = (unix: number) => {
+    if (!unix) return '—';
+    const d = new Date(unix * 1000);
+    return d.toISOString().slice(0, 16).replace('T', ' ');
+  };
+
+  return (
+    <div className="border-t border-border pt-2 space-y-2">
+      <div className="flex items-center justify-between">
+        <h4 className="text-xs font-semibold text-fg">
+          {t('telemetry.logs_title')}
+        </h4>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={refresh}
+            className="text-[10px] text-muted hover:text-fg"
+            data-testid="telemetry-logs-refresh"
+          >
+            {t('common.refresh')}
+          </button>
+          <button
+            type="button"
+            onClick={onPurge}
+            disabled={busy || logs.length === 0}
+            className="text-[10px] text-bear hover:text-fg disabled:opacity-50"
+            data-testid="telemetry-logs-purge"
+          >
+            {t('telemetry.purge_old')}
+          </button>
+        </div>
+      </div>
+      {logs.length === 0 ? (
+        <p className="text-[10px] text-muted">
+          {t('telemetry.logs_empty')}
+        </p>
+      ) : (
+        <ul className="space-y-1" data-testid="telemetry-logs-list">
+          {logs.map((l) => (
+            <li
+              key={l.path}
+              className="text-[10px] text-muted flex items-center justify-between bg-surface-2 rounded px-2 py-1"
+            >
+              <span className="font-mono truncate flex-1">
+                {l.name}
+                {l.isCurrent && (
+                  <span
+                    data-testid="telemetry-log-current"
+                    className="ml-2 text-bull"
+                  >
+                    ●
+                  </span>
+                )}
+              </span>
+              <span className="ml-2 whitespace-nowrap">
+                {fmtBytes(l.sizeBytes)} · {fmtDate(l.modifiedUnix)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {purged !== null && (
+        <span
+          data-testid="telemetry-purged-badge"
+          className="text-[10px] text-bull"
+        >
+          ✓ {t('telemetry.purged', { n: purged })}
+        </span>
+      )}
+    </div>
   );
 }
 

@@ -1053,6 +1053,48 @@ export const getTelemetryEnabled = () =>
   invoke<boolean>('get_telemetry_enabled');
 
 // =================================================================
+// ================== v0.49a — telemetry log file retention ========
+// =================================================================
+
+/** v0.49a — one row in the on-disk telemetry log
+ * inventory. Returned by `listTelemetryLogs`. The
+ * current process's active session file is flagged
+ * `isCurrent = true`. The L1 TelemetryCard uses this
+ * to show "this session" / "older sessions" with their
+ * sizes. */
+export interface TelemetryLogInfo {
+  /** File name only, e.g. `session-1740000000.jsonl`. */
+  name: string;
+  /** Absolute path on disk. The L1 does not open
+   * this directly (Rust is the IO owner); the
+   * path is shown in the UI for reference only. */
+  path: string;
+  /** File size in bytes. */
+  sizeBytes: number;
+  /** File modification time, unix seconds. */
+  modifiedUnix: number;
+  /** True if this is the active session file
+   * (the current process is appending to it). */
+  isCurrent: boolean;
+}
+
+/** v0.49a — list the on-disk telemetry session
+ * files in the current log dir. The current process's
+ * file is flagged `isCurrent = true`. Empty list
+ * when no log dir is set yet (e.g. before startup
+ * setup finished). */
+export const listTelemetryLogs = () =>
+  invoke<TelemetryLogInfo[]>('list_telemetry_logs');
+
+/** v0.49a — manually trigger a retention sweep.
+ * Deletes session files older than
+ * `POLYROCKET_TELEMETRY_RETENTION_DAYS` (default 14).
+ * Returns the count of files deleted. The same
+ * sweep runs automatically on startup. */
+export const purgeTelemetryLogs = () =>
+  invoke<number>('purge_telemetry_logs');
+
+// =================================================================
 // ================== v0.28a — auto_promote:finished =================
 // =================================================================
 

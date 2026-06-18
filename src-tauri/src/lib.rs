@@ -47,6 +47,37 @@ pub fn run() {
             // v0.11b — store the AppHandle so the scheduler can look
             // up managed state (SidecarState) without going through L2.
             let _ = infra::scheduler::TAURI_APP.set(app_handle.clone());
+
+            // v0.49a — telemetry file retention. Set up the
+            // log dir (<app_data_dir>/logs/telemetry) and run
+            // a sweep on startup to delete session files
+            // older than the retention window (default 14d).
+            // Errors here are non-fatal: telemetry remains
+            // functional via the stderr sink; only the file
+            // component is degraded.
+            match platform::paths::log_dir(&app_handle) {
+                Ok(d) => {
+                    let tel_dir = d.join("telemetry");
+                    if let Err(e) = infra::telemetry::set_log_dir(tel_dir) {
+                        tracing::warn!(
+                            "telemetry log dir setup failed: {e} (file sink disabled)"
+                        );
+                    } else {
+                        match infra::telemetry::purge_telemetry_logs() {
+                            Ok(n) => tracing::info!(
+                                "telemetry retention sweep on startup: {n} file(s) deleted"
+                            ),
+                            Err(e) => tracing::warn!(
+                                "telemetry retention sweep failed: {e}"
+                            ),
+                        }
+                    }
+                }
+                Err(e) => tracing::warn!(
+                    "telemetry log_dir setup failed (no app_data_dir): {e}"
+                ),
+            }
+
             tauri::async_runtime::block_on(async move {
                 let pool = infra::db::init_pool(&app_handle)
                     .await
@@ -142,6 +173,8 @@ pub fn run() {
             commands::sidecar::list_promote_history_archive,
             commands::sidecar::set_telemetry_enabled,
             commands::sidecar::get_telemetry_enabled,
+            commands::telemetry::list_telemetry_logs,
+            commands::telemetry::purge_telemetry_logs,
             commands::sidecar_health::sidecar_health_now,
             commands::sidecar_health::sidecar_health_snapshot,
             commands::scheduler::scheduler_status,

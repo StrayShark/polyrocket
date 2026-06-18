@@ -22,4 +22,5 @@ pub mod sidecar_health;
 pub mod scheduler;
 pub mod secrets;
 pub mod signal;
+pub mod telemetry; // v0.49a
 pub mod wallet;

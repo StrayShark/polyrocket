@@ -538,6 +538,12 @@ const en: Dictionary = {
   'telemetry.capture_hint': '$ polyrocket 2> telemetry.log',
   'telemetry.pushed': 'telemetry enabled',
   'telemetry.push_failed': 'failed to update telemetry state',
+  // v0.49a — on-disk session file inventory
+  'telemetry.logs_title': 'Session log files',
+  'telemetry.logs_empty': 'No telemetry sessions recorded yet. Enable telemetry above and restart to start a session.',
+  'telemetry.purge_old': 'Purge old',
+  'telemetry.purged': 'purged {{n}} old session file(s)',
+  'telemetry.purge_failed': 'failed to purge old telemetry files',
   // v0.44c — paper trading mode
   'paper_mode.title': 'Paper trading mode',
   'paper_mode.desc': 'Mirror executor writes to paper_fills (no CLOB submission) when ON. Validate your config without risking real money.',
@@ -690,6 +696,7 @@ const en: Dictionary = {
   'common.loading': 'Loading…',
   'common.error': 'Something went wrong',
   'common.close': 'Close',
+  'common.refresh': 'Refresh', // v0.49a — telemetry logs refresh button
   'kbd.title': 'Keyboard shortcuts',
   'kbd.tip': 'Press a key, then the route key. Esc to cancel.',
   'palette.placeholder': 'Type a command…',
@@ -1211,6 +1218,12 @@ const zh: Dictionary = {
   'telemetry.capture_hint': '$ polyrocket 2> telemetry.log',
   'telemetry.pushed': '遥测已开启',
   'telemetry.push_failed': '遥测状态更新失败',
+  // v0.49a — on-disk session file inventory
+  'telemetry.logs_title': '会话日志文件',
+  'telemetry.logs_empty': '尚无遥测会话记录。开启遥测并重启即可创建会话。',
+  'telemetry.purge_old': '清理旧文件',
+  'telemetry.purged': '已清理 {{n}} 个旧会话文件',
+  'telemetry.purge_failed': '清理旧遥测文件失败',
   // v0.44c — 模拟盘模式
   'paper_mode.title': '模拟盘模式',
   'paper_mode.desc': '开启后,mirror executor 将命中的订单写入 paper_fills 表(不调 CLOB),可用于无风险验证配置。',
@@ -1363,6 +1376,7 @@ const zh: Dictionary = {
   'common.loading': '加载中…',
   'common.error': '出错了',
   'common.close': '关闭',
+  'common.refresh': '刷新', // v0.49a
   'kbd.title': '键盘快捷键',
   'kbd.tip': '先按前缀键，再按路由键。Esc 取消。',
   'palette.placeholder': '输入命令…',

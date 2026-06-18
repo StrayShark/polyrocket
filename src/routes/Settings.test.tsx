@@ -40,6 +40,9 @@ vi.mock('@/ipc', () => ({
   setAutoPromoteConfig: vi.fn(),
   setTelemetryEnabled: vi.fn().mockResolvedValue(true),
   getTelemetryEnabled: vi.fn().mockResolvedValue(false),
+  // v0.49a — telemetry log file retention
+  listTelemetryLogs: vi.fn().mockResolvedValue([]),
+  purgeTelemetryLogs: vi.fn().mockResolvedValue(0),
   setMirrorPaperMode: vi.fn().mockResolvedValue(true),
   getMirrorPaperMode: vi.fn().mockResolvedValue(false),
 }));

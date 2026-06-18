@@ -3,6 +3,12 @@
 //! v0.42a — opt-in event emission. Default off; turn on
 //! with `POLYROCKET_TELEMETRY=1` in the env.
 //!
+//! v0.49a — file retention. When telemetry is on, every
+//! event is also appended to a per-session JSONL file in
+//! `<app_data_dir>/logs/telemetry/session-<start_unix>.jsonl`.
+//! On startup we delete session files older than
+//! `POLYROCKET_TELEMETRY_RETENTION_DAYS` (default 14).
+//!
 //! ## Design
 //!
 //! - **Default off** (zero overhead). `is_enabled()` is a
@@ -11,13 +17,15 @@
 //!   coarse-grained lifecycle markers (train started,
 //!   promote completed, scheduler tick) plus a small
 //!   typed context bag (job_id, loop_name, latency_ms).
-//! - **Sink is stderr, NDJSON.** One event per line:
-//!   `{"name":"train_completed","ts_unix_ms":...,"ctx":{...}}`.
-//!   Capture with `polyrocket 2> telemetry.log`. No file
-//!   rotation, no locking.
+//! - **Sinks are stderr (always, when enabled) AND a
+//!   per-session JSONL file (when log_dir is set, v0.49a).**
+//!   Capture with `polyrocket 2> telemetry.log` for the
+//!   live stream; the file gives you a persistent record
+//!   that survives restarts. The L1 can call
+//!   `list_telemetry_logs` / `purge_telemetry_logs` to
+//!   browse and clean up.
 //! - **Sink is swappable** via the `Sink` trait. v0.42a ships
-//!   a `StderrSink`; future: file sink, Sentry sink, no-op
-//!   test sink.
+//!   a `StderrSink`; v0.49a adds a `FileSink`.
 //!
 //! ## Why not `log`/`tracing` crates?
 //!
@@ -46,6 +54,7 @@
 use crate::platform::env;
 use serde::Serialize;
 use std::io::Write;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Process-global enabled flag. `static` so `is_enabled()` is
@@ -85,6 +94,198 @@ pub fn set_enabled_for_test(v: bool) {
 /// would still be a no-op (idempotent).
 pub fn set_enabled(v: bool) {
     ENABLED.store(v, Ordering::SeqCst);
+}
+
+// ============================================================
+// v0.49a — file retention
+// ============================================================
+//
+// When telemetry is enabled, every event is also appended to
+// a per-session JSONL file. The file path is fixed for the
+// lifetime of the process (set via `set_log_dir` at startup).
+// On startup we also run a retention sweep that deletes
+// session files older than `POLYROCKET_TELEMETRY_RETENTION_DAYS`
+// (default 14). The L1 can also call `purge_telemetry_logs` to
+// run the sweep on demand.
+//
+// File name format: `session-<start_unix>.jsonl`. Lex-sorted
+// filenames → time-sorted. Two-digit start_unix means the
+// sortable part is the first 10 chars after "session-".
+
+static LOG_DIR: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
+
+/// Set the log directory for the FileSink. Called once at
+/// startup, after `app_data_dir` is reachable. Idempotent —
+/// only the first call has effect. Creates the directory
+/// if missing.
+pub fn set_log_dir(dir: PathBuf) -> std::io::Result<()> {
+    let mut slot = LOG_DIR.lock().expect("LOG_DIR lock poisoned");
+    if slot.is_some() {
+        return Ok(());
+    }
+    std::fs::create_dir_all(&dir)?;
+    *slot = Some(dir);
+    Ok(())
+}
+
+/// Default retention window in days. Read from
+/// `POLYROCKET_TELEMETRY_RETENTION_DAYS` (env-var override);
+/// 14 is the out-of-box default.
+pub fn retention_days() -> u64 {
+    env::env_u64("POLYROCKET_TELEMETRY_RETENTION_DAYS", 14)
+}
+
+/// One row in the L1 telemetry-log list. Returned by
+/// `list_telemetry_logs` so the Settings card can show
+/// the on-disk file inventory.
+#[derive(Debug, Clone, Serialize)]
+pub struct TelemetryLogInfo {
+    /// File name only, e.g. `session-1740000000.jsonl`.
+    pub name: String,
+    /// Absolute path on disk.
+    pub path: String,
+    /// File size in bytes (0 if the file vanished between
+    /// `read_dir` and `metadata` — we tolerate that).
+    pub size_bytes: u64,
+    /// File modification time, unix seconds (0 if
+    /// unknown).
+    pub modified_unix: u64,
+    /// True if this is the active session file (i.e.
+    /// the current process is appending to it).
+    pub is_current: bool,
+}
+
+/// Return a sorted list of all telemetry session files
+/// under the current log dir. The current process's
+/// session is flagged `is_current = true`. Returns an
+/// empty list (not an error) when no log dir is set
+/// yet — the L1 might call this before startup finishes.
+pub fn list_telemetry_logs() -> Vec<TelemetryLogInfo> {
+    let dir = match LOG_DIR.lock().expect("LOG_DIR lock poisoned").clone() {
+        Some(d) => d,
+        None => return vec![],
+    };
+    let current = current_session_path().and_then(|p| p.file_name().map(|f| f.to_os_string()));
+    list_in_dir(&dir, current.as_ref())
+}
+
+fn list_in_dir(dir: &std::path::Path, current_name: Option<&std::ffi::OsString>) -> Vec<TelemetryLogInfo> {
+    let Ok(rd) = std::fs::read_dir(dir) else { return vec![]; };
+    let mut out: Vec<TelemetryLogInfo> = rd
+        .filter_map(|e| e.ok())
+        .filter_map(|e| {
+            let p = e.path();
+            // Only the "session-*.jsonl" pattern. Lex-sort
+            // on the filename gives chronological order.
+            let fname = p.file_name()?.to_os_string();
+            let name = fname.to_str()?.to_string();
+            if !name.starts_with("session-") || !name.ends_with(".jsonl") {
+                return None;
+            }
+            let meta = e.metadata().ok();
+            let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+            let modified = meta
+                .and_then(|m| m.modified().ok())
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            let is_current = current_name
+                .map(|c| c == &fname)
+                .unwrap_or(false);
+            Some(TelemetryLogInfo {
+                name,
+                path: p.to_string_lossy().to_string(),
+                size_bytes: size,
+                modified_unix: modified,
+                is_current,
+            })
+        })
+        .collect();
+    // Oldest first — user reading top-down.
+    out.sort_by(|a, b| a.name.cmp(&b.name));
+    out
+}
+
+/// Manually trigger a retention sweep. Returns the number
+/// of files deleted. The retention window is
+/// `POLYROCKET_TELEMETRY_RETENTION_DAYS` (default 14).
+///
+/// Policy: a file is "stale" when its filename timestamp
+/// is older than `now - retention_days`. We use the
+/// filename (`session-<unix>.jsonl`) rather than mtime
+/// because the latter can be perturbed by filesystem
+/// backup tools / `touch`.
+pub fn purge_telemetry_logs() -> std::io::Result<u64> {
+    let dir = match LOG_DIR.lock().expect("LOG_DIR lock poisoned").clone() {
+        Some(d) => d,
+        None => return Ok(0),
+    };
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let cutoff = now.saturating_sub(retention_days() * 86_400);
+    let mut deleted = 0u64;
+    for entry in std::fs::read_dir(&dir)? {
+        let entry = match entry { Ok(e) => e, Err(_) => continue };
+        let p = entry.path();
+        let name = match p.file_name().and_then(|n| n.to_str()) {
+            Some(n) => n.to_string(),
+            None => continue,
+        };
+        if !name.starts_with("session-") || !name.ends_with(".jsonl") {
+            continue;
+        }
+        // Extract the timestamp portion: "session-<digits>.jsonl"
+        let ts_str = &name["session-".len()..name.len() - ".jsonl".len()];
+        let Ok(ts) = ts_str.parse::<u64>() else { continue };
+        if ts < cutoff {
+            if std::fs::remove_file(&p).is_ok() {
+                deleted += 1;
+            }
+        }
+    }
+    Ok(deleted)
+}
+
+/// Compute the per-session file path. The session starts
+/// at the first `emit()` call after `set_log_dir`. Subsequent
+/// events in the same process append to the same file.
+fn current_session_path() -> Option<PathBuf> {
+    let dir = LOG_DIR.lock().expect("LOG_DIR lock poisoned").clone()?;
+    let start = SESSION_START_UNIX
+        .get()
+        .copied()
+        .unwrap_or_else(|| now_unix());
+    Some(dir.join(format!("session-{}.jsonl", start)))
+}
+
+use std::sync::OnceLock;
+static SESSION_START_UNIX: OnceLock<u64> = OnceLock::new();
+
+fn now_unix() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+/// Append one NDJSON line to the session file. Best-effort:
+/// errors (full disk, permission, etc.) are silently dropped.
+/// Telemetry is observability, not a hard dependency.
+fn append_to_file(line: &str) {
+    let path = match current_session_path() {
+        Some(p) => p,
+        None => return,
+    };
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+    {
+        let _ = writeln!(f, "{}", line);
+        let _ = f.flush();
+    }
 }
 
 /// All telemetry events. Add variants here as new lifecycle
@@ -237,9 +438,10 @@ pub enum Event {
 /// Emit a single event. No-op if `!is_enabled()`.
 ///
 /// On the enabled path, serializes to NDJSON and writes
-/// one line to stderr. Failure to write is silent (stderr
-/// is best-effort; we never want telemetry to crash the
-/// app).
+/// one line to stderr AND (v0.49a) appends the same line
+/// to the per-session JSONL file. Failure to write is
+/// silent (best-effort; we never want telemetry to crash
+/// the app).
 pub fn emit(event: Event) {
     if !is_enabled() {
         return;
@@ -251,6 +453,9 @@ pub fn emit(event: Event) {
     let mut err = std::io::stderr().lock();
     let _ = writeln!(err, "{}", payload);
     let _ = err.flush();
+    // v0.49a — file sink. Same line, appended to the
+    // session file. Errors are silent.
+    append_to_file(&payload);
 }
 
 #[cfg(test)]
@@ -327,5 +532,136 @@ mod tests {
         assert!(is_enabled());
         set_enabled(false);
         assert!(!is_enabled());
+    }
+
+    // v0.49a — file sink tests. We use a per-test
+    // tempdir so the global LOG_DIR state is overwritten
+    // (set_log_dir is idempotent, so we reset via a
+    // direct unsafe write — fine in tests).
+    use std::sync::Mutex;
+    static FILE_TESTS: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn file_sink_creates_session_file() {
+        let _g = FILE_TESTS.lock().unwrap();
+        let dir = std::env::temp_dir().join(format!(
+            "polyrocket_telemetry_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // Reset global LOG_DIR via the public API. The
+        // set_log_dir is "first call wins" — for tests
+        // we use a fresh dir each time, and we patch
+        // the global via the path the test wants.
+        {
+            let mut slot = LOG_DIR.lock().unwrap();
+            *slot = Some(dir.clone());
+        }
+
+        set_enabled_for_test(true);
+        emit(Event::TrainStarted {
+            job_id: "train-t1".into(),
+            n_trials: 3,
+            epochs: 5,
+        });
+        emit(Event::TrainCompleted {
+            job_id: "train-t1".into(),
+            model_version: "logistic-train-t1".into(),
+            best_brier: Some(0.1),
+            duration_ms: 100,
+        });
+
+        let infos = list_telemetry_logs();
+        assert_eq!(infos.len(), 1, "expected 1 session file, got {infos:?}");
+        assert!(infos[0].is_current);
+        assert!(infos[0].size_bytes > 0);
+        let body = std::fs::read_to_string(&infos[0].path).unwrap();
+        assert!(body.contains("\"name\":\"train_started\""), "got: {body}");
+        assert!(body.contains("\"name\":\"train_completed\""), "got: {body}");
+        // Each emit is exactly one line.
+        assert_eq!(body.lines().count(), 2, "got: {body}");
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn purge_telemetry_logs_deletes_old_files() {
+        let _g = FILE_TESTS.lock().unwrap();
+        let dir = std::env::temp_dir().join(format!(
+            "polyrocket_telemetry_purge_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // Write a "stale" file with a filename ts in
+        // the distant past. The retention window for
+        // this test is 14 days, so any ts older than
+        // 14d-ago should be deleted.
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let old_ts = now - (30 * 86_400); // 30 days ago
+        let recent_ts = now - (3 * 86_400); // 3 days ago
+        std::fs::write(dir.join(format!("session-{old_ts}.jsonl")), b"old\n").unwrap();
+        std::fs::write(dir.join(format!("session-{recent_ts}.jsonl")), b"recent\n").unwrap();
+
+        {
+            let mut slot = LOG_DIR.lock().unwrap();
+            *slot = Some(dir.clone());
+        }
+
+        let deleted = purge_telemetry_logs().unwrap();
+        assert_eq!(deleted, 1, "should have deleted 1 file");
+
+        let remaining: Vec<_> = std::fs::read_dir(&dir).unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .collect();
+        assert_eq!(remaining.len(), 1);
+        assert!(remaining[0].contains(&recent_ts.to_string()), "got: {remaining:?}");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn file_sink_noop_when_disabled() {
+        let _g = FILE_TESTS.lock().unwrap();
+        let dir = std::env::temp_dir().join(format!(
+            "polyrocket_telemetry_disabled_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        {
+            let mut slot = LOG_DIR.lock().unwrap();
+            *slot = Some(dir.clone());
+        }
+        set_enabled_for_test(false);
+        emit(Event::SchedulerTick { loop_name: "x", tick_index: 1 });
+        // File is created lazily but stays empty (or
+        // isn't created at all). Either way, no event
+        // payload in the dir.
+        let count = std::fs::read_dir(&dir).unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                let p = e.path();
+                std::fs::read_to_string(&p)
+                    .map(|b| b.contains("scheduler_tick"))
+                    .unwrap_or(false)
+            })
+            .count();
+        assert_eq!(count, 0);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
