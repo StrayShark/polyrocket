@@ -25,8 +25,8 @@
  * silently by the sidecar, not by the L1.
  */
 import { useState, useEffect } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { BarChart3, X, Trophy, Skull, Activity } from 'lucide-react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { BarChart3, X, Trophy, Skull, Activity, Database } from 'lucide-react';
 import { Modal } from '@/components/feedback/Modal';
 import { Button } from '@/components/base/Button';
 import { Skeleton } from '@/components/feedback/Skeleton';
@@ -34,11 +34,13 @@ import { ErrorState } from '@/components/feedback/ErrorState';
 import { useT } from '@/lib/i18n';
 import {
   backtestModel,
+  listPromoteHistory,
+  listResolvedMarketsForBacktest,
   type BacktestResult,
   type BacktestSample,
   type PromoteHistoryEntry,
+  type ResolvedMarketSample,
 } from '@/ipc';
-import { listPromoteHistory } from '@/ipc';
 
 interface BacktestReportProps {
   /** Whether the modal is open. */
@@ -75,6 +77,11 @@ export function BacktestReport({
   );
   const [samplesJson, setSamplesJson] = useState<string>(DEFAULT_SAMPLES_JSON);
   const [parseError, setParseError] = useState<string | null>(null);
+  // v0.46 — limit for "Pull from resolved markets".
+  // The L1 fetches up to this many resolved markets
+  // and converts them to a JSON array. Default 50
+  // (matches the v0.46 IPC default).
+  const [pullLimit, setPullLimit] = useState<number>(50);
 
   // v0.43d — when the modal opens with a target,
   // fetch the in-memory history to find the
@@ -100,6 +107,43 @@ export function BacktestReport({
       cancelled = true;
     };
   }, [open, targetJobId]);
+
+  // v0.46 — query for resolved markets. Used by
+  // the "Pull from resolved markets" button. We
+  // only enable when the modal is open, so the
+  // query doesn't fire on every page visit.
+  const resolvedQuery = useQuery({
+    queryKey: ['resolved-markets-for-backtest', pullLimit],
+    queryFn: () => listResolvedMarketsForBacktest({ limit: pullLimit }),
+    enabled: open,
+    staleTime: 60_000,
+  });
+
+  // v0.46 — handler for the "Pull from resolved
+  // markets" button. Converts the query result
+  // into a JSON array suitable for the textarea.
+  // v0.46 uses fixed price=0.5 and
+  // market_age_hours=24 (a degenerate but
+  // consistent proxy for "predict 1 day before
+  // close"). The user can edit the textarea
+  // before clicking Run if they have actual
+  // prices.
+  const onPullResolved = () => {
+    const samples = (resolvedQuery.data ?? []).map(
+      (m: ResolvedMarketSample) => ({
+        price: m.price,
+        market_age_hours: m.market_age_hours,
+        outcome: m.outcome === 'YES' ? 1.0 : 0.0,
+        label: m.question,
+      }),
+    );
+    if (samples.length === 0) {
+      setParseError(t('backtest.no_resolved_markets'));
+      return;
+    }
+    setSamplesJson(JSON.stringify(samples, null, 2));
+    setParseError(null);
+  };
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -202,6 +246,52 @@ export function BacktestReport({
             </div>
           )}
         </div>
+
+        {/* v0.46 — Pull from resolved markets.
+            One-click pre-fill from the markets DB
+            (resolved markets only). v0.46 uses a
+            degenerate proxy (price=0.5, age=24h)
+            documented in the hint. The user can
+            edit the textarea before clicking Run. */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            data-testid="backtest-pull-resolved-btn"
+            variant="secondary"
+            size="sm"
+            iconLeft={<Database className="w-3 h-3" />}
+            onClick={onPullResolved}
+            loading={resolvedQuery.isLoading}
+            disabled={!targetEntry}
+          >
+            {t('backtest.pull_resolved')}
+          </Button>
+          <label
+            className="text-[10px] text-muted"
+            htmlFor="backtest-pull-limit"
+          >
+            {t('backtest.pull_limit')}
+          </label>
+          <input
+            id="backtest-pull-limit"
+            data-testid="backtest-pull-limit"
+            type="number"
+            min={1}
+            max={500}
+            value={pullLimit}
+            onChange={(e) =>
+              setPullLimit(Math.max(1, Math.min(500, Number(e.target.value) || 50)))
+            }
+            className="w-16 rounded border border-border bg-surface-1 px-2 py-1 text-[11px] font-mono"
+          />
+          {resolvedQuery.data && (
+            <span className="text-[10px] text-muted">
+              ({resolvedQuery.data.length} {t('backtest.resolved_available')})
+            </span>
+          )}
+        </div>
+        <p className="text-[10px] text-muted italic">
+          {t('backtest.pull_hint')}
+        </p>
 
         {/* Run button */}
         <div className="flex items-center gap-2">

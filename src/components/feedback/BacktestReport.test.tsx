@@ -34,6 +34,22 @@ vi.mock('@/ipc', () => ({
       },
     ],
   }),
+  listResolvedMarketsForBacktest: vi.fn().mockResolvedValue([
+    {
+      market_id: 'm-1',
+      question: 'Will X happen?',
+      outcome: 'YES',
+      market_age_hours: 24.0,
+      price: 0.5,
+    },
+    {
+      market_id: 'm-2',
+      question: 'Will Y happen?',
+      outcome: 'NO',
+      market_age_hours: 24.0,
+      price: 0.5,
+    },
+  ]),
 }));
 
 vi.mock('@/lib/i18n', () => ({
@@ -159,5 +175,28 @@ describe('BacktestReport (v0.43d)', () => {
     });
     // backtestModel should NOT have been called
     expect(vi.mocked(backtestModel)).not.toHaveBeenCalled();
+  });
+
+  // v0.46 — Pull from resolved markets pre-fills
+  // the textarea with the query result.
+  it('clicking Pull from resolved pre-fills the textarea', async () => {
+    render(wrap(<BacktestReport open onClose={() => {}} targetJobId="train-target" />));
+    await waitFor(() => {
+      expect(screen.getByTestId('backtest-target')).toBeInTheDocument();
+    });
+    const pullBtn = await screen.findByTestId('backtest-pull-resolved-btn');
+    fireEvent.click(pullBtn);
+    // The textarea should now contain a JSON
+    // array with 2 entries (one per resolved
+    // market) and the YES outcome converted to 1.0
+    await waitFor(() => {
+      const ta = screen.getByTestId('backtest-samples-input') as HTMLTextAreaElement;
+      const parsed = JSON.parse(ta.value);
+      expect(parsed).toHaveLength(2);
+      expect(parsed[0].outcome).toBe(1.0); // YES → 1.0
+      expect(parsed[1].outcome).toBe(0.0); // NO → 0.0
+      expect(parsed[0].price).toBe(0.5);
+      expect(parsed[0].label).toContain('Will X happen?');
+    });
   });
 });

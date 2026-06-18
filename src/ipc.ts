@@ -58,6 +58,36 @@ export const listMarkets = (args: ListMarketsArgs = {}) =>
   invoke<Market[]>('list_markets', { args });
 export const syncMarkets = () => invoke<number>('sync_markets');
 
+// v0.46a — list resolved markets formatted as
+// backtest samples. The L1 uses this to pre-fill
+// the BacktestReport textarea via the
+// "Pull from resolved markets" button.
+//
+// Known limitation: price is fixed at 0.5 and
+// market_age_hours at 24 (the "predict 1 day
+// before close" convention). Real price
+// history is not stored; this is a degenerate
+// but consistent sanity check (the model should
+// at least beat 0.5 on settled markets).
+export interface ResolvedMarketSample {
+  market_id: string;
+  question: string;
+  outcome: string;
+  market_age_hours: number;
+  price: number;
+}
+export interface ListResolvedMarketsForBacktestArgs {
+  category?: string;
+  limit?: number;
+  /** Only markets that ended at or after this
+   * unix-ms timestamp. Useful for "last 30
+   * days" filters. */
+  since_ms?: number;
+}
+export const listResolvedMarketsForBacktest = (
+  args: ListResolvedMarketsForBacktestArgs = {},
+) => invoke<ResolvedMarketSample[]>('list_resolved_markets_for_backtest', { args });
+
 // ---------------------------------------------------------------- Signal (M2)
 export const listActiveSignals = (args: ListSignalsArgs = {}) =>
   invoke<Signal[]>('list_active_signals', { args });

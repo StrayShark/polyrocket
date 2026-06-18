@@ -68,6 +68,7 @@ pub fn run() {
             commands::wallet::add_wallet,
             commands::market::list_markets,
             commands::market::sync_markets,
+            commands::market::list_resolved_markets_for_backtest,
             commands::signal::list_active_signals,
             commands::signal::recompute_signals,
             commands::bet::place_jump_link,

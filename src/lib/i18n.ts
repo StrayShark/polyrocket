@@ -518,6 +518,12 @@ const en: Dictionary = {
   'backtest.no_target': 'no target model selected',
   'backtest.invalid_json': 'invalid JSON: {{error}}',
   'backtest.sample_count': '{{n}} samples',
+  // v0.46 — backtest auto-populate from resolved markets
+  'backtest.pull_resolved': 'Pull from resolved markets',
+  'backtest.pull_limit': 'Limit',
+  'backtest.resolved_available': 'available',
+  'backtest.pull_hint': 'v0.46 limitation: price is fixed at 0.5 and market_age_hours at 24 (no historical price snapshots stored). The model should at least beat 0.5 on settled markets as a sanity check. Edit the textarea to use real prices if you have them.',
+  'backtest.no_resolved_markets': 'no resolved markets in the DB — sync markets first, then come back',
   // v0.39b — auto-promote OS notification
   'auto_promote.notify.label': 'Desktop notification on auto-promote',
   'auto_promote.notify.desc': 'When ON, a real OS notification (macOS Notification Center / Windows toast) fires when a background auto-promote completes. The in-app toast always fires regardless.',
@@ -1177,6 +1183,12 @@ const zh: Dictionary = {
   'backtest.no_target': '未选择目标模型',
   'backtest.invalid_json': 'JSON 解析错误: {{error}}',
   'backtest.sample_count': '{{n}} 个样本',
+  // v0.46 — 从已结算市场自动填充回测样本
+  'backtest.pull_resolved': '从已结算市场拉取',
+  'backtest.pull_limit': '上限',
+  'backtest.resolved_available': '可用',
+  'backtest.pull_hint': 'v0.46 局限：price 固定为 0.5，market_age_hours 固定为 24（暂无历史价格快照）。模型在已结算市场上至少应超过 0.5（随机猜测）作为合理性检查。如果你有真实价格，编辑文本框再运行。',
+  'backtest.no_resolved_markets': '数据库中暂无已结算市场 — 请先同步市场,再回来。',
   // v0.39b — auto-promote OS notification
   'auto_promote.notify.label': '自动晋升时发送桌面通知',
   'auto_promote.notify.desc': '开启后，后台自动晋升完成时会发送真实系统通知（macOS 通知中心 / Windows 通知）。应用内 Toast 始终会显示。',
