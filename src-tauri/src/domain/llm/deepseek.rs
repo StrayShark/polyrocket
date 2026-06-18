@@ -1,4 +1,4 @@
-//! DeepSeek — OpenAI-compatible wire (https://api.deepseek.com/v1).
+//! DeepSeek — OpenAI-compatible wire (<https://api.deepseek.com/v1>).
 
 use crate::domain::llm::{CallError, CallRequest, CostRate, LlmClient, ProviderKind};
 use crate::domain::llm::common;

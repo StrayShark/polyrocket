@@ -34,11 +34,11 @@ pub async fn dashboard_kpis(state: State<'_, AppState>) -> AppResult<DashboardKp
             .await?;
 
     let wins: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bets WHERE status = 'won' AND placed_at >= ?")
-        .bind((chrono::Utc::now().timestamp_millis() - 30 * 24 * 3600 * 1000))
+        .bind(chrono::Utc::now().timestamp_millis() - 30 * 24 * 3600 * 1000)
         .fetch_one(&state.db)
         .await?;
     let losses: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bets WHERE status = 'lost' AND placed_at >= ?")
-        .bind((chrono::Utc::now().timestamp_millis() - 30 * 24 * 3600 * 1000))
+        .bind(chrono::Utc::now().timestamp_millis() - 30 * 24 * 3600 * 1000)
         .fetch_one(&state.db)
         .await?;
     let total = (wins + losses).max(1);

@@ -1,6 +1,6 @@
 //! L3 — Markets domain (helpers used by L2 commands).
 //!
-//! Holds the typed [`Market`] DTO + filter / sort / classify helpers
+//! Holds the typed `Market` DTO + filter / sort / classify helpers
 //! that BOTH the L2 `commands::market` handler and the L1 `Markets`
 //! route can share. No DB access here — that lives in L2 / L4.
 //!

@@ -2,8 +2,9 @@
 //!
 //! Wallets live in the `wallets` table. The private key is NEVER stored
 //! in SQLite — it's kept in the OS keyring under a `wallet_alias`
-//! (see [`crate::platform::keyring::wallet_alias`]). This module owns
-//! the metadata layer: list, register, and label wallets.
+//! (see `crate::platform::keyring::wallet_alias` — re-exported from
+//! the `aliases` submodule). This module owns the metadata layer:
+//! list, register, and label wallets.
 //!
 //! **Status (v0.3c): stub.** L2 `commands::wallet` has the working SQL
 //! — it will move here as part of the M3 "Wallet management" milestone.

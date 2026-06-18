@@ -1,5 +1,5 @@
 //! Anthropic Messages API client.
-//! Spec: https://docs.anthropic.com/en/api/messages
+//! Spec: <https://docs.anthropic.com/en/api/messages>
 
 use crate::domain::llm::{CallError, CallOutcome, CallRequest, CostRate, LlmClient, ProviderKind, err};
 use serde_json::{Value, json};
@@ -12,12 +12,12 @@ use serde_json::{Value, json};
 //   - cache 标记：cache_creation_input_tokens / cache_read_input_tokens
 //   - 计费含 cache read（多 1.1x 或 1.25x）
 
-/// Anthropic Messages API 客户端。Spec: https://docs.anthropic.com/en/api/messages
+/// Anthropic Messages API 客户端。Spec: <https://docs.anthropic.com/en/api/messages>
 ///
 /// **与 OpenAI 的差异**：
 ///   - `x-api-key` header 鉴权（非 `Authorization: Bearer`）
 ///   - `anthropic-version` header 必须
-///   - system prompt 走独立 `system` 字段，非 messages[0]
+///   - system prompt 走独立 `system` 字段，非 `messages[0]`
 ///   - token 计费含 cache_read（多 1.1x / 多 1.25x）
 ///
 /// **`api_base`**：默认 `https://api.anthropic.com`。可指向 gateway proxy

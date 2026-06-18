@@ -1,5 +1,5 @@
 //! Google Gemini — generateContent API.
-//! Spec: https://ai.google.dev/api/generate-content
+//! Spec: <https://ai.google.dev/api/generate-content>
 //!
 //! Notes
 //! -----
@@ -11,7 +11,7 @@
 use crate::domain::llm::{CallError, CallOutcome, CallRequest, CostRate, LlmClient, ProviderKind, err};
 use serde_json::{Value, json};
 
-/// Google Gemini `generateContent` 客户端。Spec: https://ai.google.dev/api/generate-content
+/// Google Gemini `generateContent` 客户端。Spec: <https://ai.google.dev/api/generate-content>
 ///
 /// **与 OpenAI 的差异**：
 ///   - API key 在 query string（`?key=...`），**不**在 `Authorization` header

@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)] // kept for future seed_status IPC + tests
 pub struct SeedStatus {
     pub seeded: bool,
     pub last_seed_rows: i64,

@@ -1,8 +1,8 @@
 //! L4 — SQLite pool + PRAGMAs.
 //!
 //! Mirrors the Drizzle schema declared in `src/db/schema/index.ts`.
-//! Path resolution goes through [`crate::platform::paths`] so the
-//! layout is owned in one place.
+//! Path resolution goes through `crate::platform::paths` (see
+//! `db_path`, `sqlite_url`) so the layout is owned in one place.
 
 use crate::infra::error::AppResult;
 use crate::platform::paths::{db_path, sqlite_url};
