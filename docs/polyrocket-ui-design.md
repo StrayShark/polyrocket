@@ -769,34 +769,77 @@ v0.1 仅支持桌面窗口（≥1200×720）。v0.3 规划：
 
 ---
 
-## 5.13 Onboarding `/onboarding`（v2.0 新增 — 首启引导）
+## 5.13 Landing `/welcome`（v0.53 重做 — 首启 6 步引导）
 
-**目的**：首次启动且无 LLM key / 无 wallet 时，4 步引导用户完成最小配置。
+> 详细设计：[`polyrocket-landing-design.md`](./polyrocket-landing-design.md)。
+> 路径从 `/onboarding` 改 `/welcome`（与 VS Code / Postman / Figma 桌面惯例对齐）。Storage key 从 `polyrocket.onboarding` 改 `polyrocket.welcome`，旧 key 启动时一次性迁移。
+
+**目的**：首次启动引导用户完成**真实**最小配置：选存储路径 + 选主题 + 至少 1 个 LLM key + Polymarket 凭据。**不是**4 步描述性，**是** 6 步真操作（每步 Next 触发真实 IPC 副作用）。
 
 **步骤**：
-1. **Welcome** — hero（polyrocket 简介 + 3 主题预览图）+ 「Get started」按钮
-2. **Theme** — 3 主题大预览卡，选一个作为默认
-3. **Wallets** — 添加第一个 Polygon wallet（地址 + 可选 pk，0 pk 也可继续）
-4. **LLM providers** — provider 选择网格（4 选 1+）+ 粘贴 API key + 实时 keychain alias 预览
 
-**进度指示**：顶部 4 dot + 连接线（步 3 of 4 文字）
+| # | 步骤 | UI 元素 | 真实副作用（IPC） |
+|---|---|---|---|
+| 1 | Welcome | 语言选择 + hero + Get started | `setLocale` |
+| 2 | Storage path | default 单选 / custom input + Browse 按钮（v0.54+） | `setStoragePath`（重启生效） |
+| 3 | Theme | 3 主题大预览卡 + 实时换色 | `setTheme` |
+| 4 | LLM providers | provider 网格 + alias + paste key + Test connectivity | `llm_provider_upsert` + `llm_key_set_secret` + `llm_test_connectivity` |
+| 5 | Polymarket | CLOB 三件套 + 可选 wallet pk | `llm_pm_set_credentials` + `polyrocket_wallet_set_pk` |
+| 6 | Finish | 汇总 + Finish btn | `set welcome.done=true` + navigate /dashboard |
+
+**进度指示**：顶部 6 dot + 连接线（`Step 3 of 6`）
 
 **关键交互**：
 - 每步「Back / Next」按钮
-- 任一步可「Skip for now」直接进 dashboard（标记为未完成）
-- 最后一步「Save & finish」→ 写 `polyrocket.first-run-done=1` 到 localStorage + 跳 dashboard
-- 真实环境：每步完成后调对应 IPC，secret 走 keychain
+- 任一步可「Skip for now」直接进 dashboard（不写 `welcome.done`）
+- Step 4 连通性测试失败时，错误 inline 显示 + 提供 3 选项（继续 / 重试 / 跳过）
+- Step 2 选 custom path 后提示"This change takes effect on next launch" + [Restart now] 按钮（v0.53+ 暂未接 tauri-plugin-dialog，文本输入）
+- Step 6 Finish 后下次启动不再进 /welcome
 
-**触发逻辑**（lib 启动时）：
-```js
-let firstRunDone = localStorage.getItem('polyrocket.first-run-done') === '1';
-if (!firstRunDone) {
-  const sec = await invoke('secrets_status');
-  if (sec.llm_keys.length === 0 || sec.wallets.length === 0) {
-    route('onboarding');
+**触发逻辑**（main.tsx 启动时）：
+```ts
+const isFirstRun = localStorage.getItem('polyrocket.welcome.done') !== '1';
+useEffect(() => {
+  if (isFirstRun) {
+    navigate('/welcome', { replace: true });
+    return;
   }
-}
+  // 强制跳转后，检查半配置状态
+  invoke('secrets_status').then((s) => {
+    const needsLlm = s.llm_keys.length === 0;
+    const needsPm = !s.polymarket.find((x) => x.kind === 'pm_api')?.configured;
+    if (needsLlm || needsPm) {
+      // 不强制跳转 — 在 Dashboard 顶部显示横幅
+      queryClient.setQueryData(['welcome-banner'], { needsLlm, needsPm });
+    }
+  });
+}, []);
 ```
+
+**Dashboard 半配置横幅**：
+```
+┌─────────────────────────────────────────────────┐
+│ ⚠ Setup incomplete — 2 of 4 secrets missing     │
+│   • LLM providers: 0 keys configured            │
+│   • Polymarket CLOB: not configured              │
+│                                       [ Complete ] │
+└─────────────────────────────────────────────────┘
+```
+"Complete" 按钮 → 跳 `/welcome` 的最后未完成步骤（不重置已完成的）
+
+**Storage path 步骤关键文案**：
+- "This folder will hold: polyrocket.db (your bets, signals, models, audit log) · logs/ (Tauri + scheduler) · logs/telemetry/ (opt-in lifecycle events). NO secrets — those live in OS keyring only."
+
+**keyring alias 实时显示**（每步）：
+- LLM: `polyrocket/llm/<provider_id>/<alias>`
+- Polymarket: `polyrocket/pm/{api,secret,passphrase}`
+- Wallet: `polyrocket/wallet/<alias>`
+
+**v0.53 不做**（v0.54+ candidate）：
+- tauri-plugin-dialog → 用 `<input type="text">` 替代 "Browse..." 按钮
+- 多 wallet alias 引导（留 /wallets 页面）
+- Storage path 迁移工具（"copy existing db to new path"）
+- LLM provider `base_url` 自定义配置（CUSTOM provider 默认 OpenAI-compatible）
 
 ---
 

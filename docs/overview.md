@@ -2,7 +2,8 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.14 · 2026-06-18 (v0.52 — place-bet form + signal integration + history columns)
+> 版本：v2.15 · 2026-06-18 (v0.53 spec — first-run landing + storage picker)
+> 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
 
@@ -672,7 +673,7 @@ sequenceDiagram
 | M10 | LLM Analysis | — (already in M3c) | `/analysis` | 12 | — |
 | M11 | LLM Mgmt | — (already in M3c) | `/llm-mgmt` | 14 + 1 audit | — |
 | M12 | Daily Brief | — (already in M3c) | `/brief` | 4 | — |
-| M13 | Onboarding | — (UI store) | `/onboarding` | — | — |
+| M13 | Landing (Onboarding) | — (UI store + 3 new IPC) | `/welcome` (planned) | +3 (storage_*) | v0.53 |
 | X1 | Audit | — (Rust commands/audit.rs) | `/audit` | +2 new | 3 |
 | X2 | Notifications | — (toast store) | `/notifications` | — | — |
 | Help | — (static page) | `/help` | — | — |
@@ -774,6 +775,7 @@ v0.6 增量：
 | **doc-sync** | 改 `src/**` 或 `src-tauri/**` 必须同步改 docs | `scripts/check-doc-sync.mjs` |
 | **test** | L3 全部覆盖单测；L2 全部覆盖 integration | `src-tauri/tests/` (21/21 pass) |
 | **snapshot** | UI 改动必须 `python3 scripts/snapshot_pages.py` 重生成 54 PNG | `scripts/snapshot_pages.py` |
+| **first-run landing** | 首次启动 6 步引导（welcome → storage → theme → LLM → Polymarket → finish）。每步触发真实 IPC 副作用，secret 走 keyring 不落 SQLite | [`polyrocket-landing-design.md`](./polyrocket-landing-design.md) |
 
 ---
 
@@ -797,6 +799,10 @@ v0.6 增量：
 
 ## 8. 变更日志
 
+- **v2.15** (2026-06-18) — v0.53 spec
+  - §6 关键约束加 first-run landing 引用 + 新独立 doc 链
+  - 不动 5 层架构；landing 落在 L1 (Welcome route) + L2 (commands/storage) + L4 (infra/db/pool resolve path)
+- **v2.14** (2026-06-18) — v0.52 place-bet form milestone
 - **v1.0** (2026-06-16) — 初版。
   - §0-§1 设计目标 + 5 层架构图
   - §2 19 个 module 按层定位（5 + 6 + 17 + 12 + 12）

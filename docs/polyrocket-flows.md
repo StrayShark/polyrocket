@@ -827,34 +827,54 @@ POLYROCKET_ENV=dev && POLYROCKET_KEYRING_ONLY=0  → 读 .env
 
 ---
 
-## F18 — 首启 Onboarding（M13 v2.0 新增）
+## F18 — 首启 Landing（M13 v0.53 重做）
+
+> 详细设计：[`polyrocket-landing-design.md`](./polyrocket-landing-design.md)。
+> v0.53 spec：原 4 步描述性改 6 步真操作。增加 storage path 选 + LLM/PM 真收集 + 跳过后横幅回流。
 
 ```mermaid
 flowchart TD
-    Start([App launch]) --> Check{localStorage<br/>first-run-done?}
-    Check -->|yes| Dashboard[route 'dashboard']
-    Check -->|no| Status[invoke 'secrets_status']
-    Status --> Empty{llm_keys.length==0<br/>OR wallets.length==0?}
-    Empty -->|no| Mark[set first-run-done=1<br/>route dashboard]
-    Empty -->|yes| Onboard[route 'onboarding']
-    Onboard --> Step1[Step 1: Welcome<br/>hero + 3 主题预览 + Get started]
-    Step1 --> Step2[Step 2: Theme<br/>3 大预览卡 + 实时切换]
-    Step2 --> Step3[Step 3: Wallets<br/>地址 + 可选 pk]
-    Step3 --> Step4[Step 4: LLM providers<br/>4 provider 卡 + 粘贴 key]
-    Step4 --> Submit[Save & finish]
-    Submit --> Done[set first-run-done=1<br/>route dashboard]
-    Step1 -.skip.-> Mark
-    Step2 -.skip.-> Mark
-    Step3 -.skip.-> Mark
-    Step4 -.skip.-> Mark
+    Start([App launch]) --> ReadLS{localStorage<br/>polyrocket.welcome<br/>.done?}
+    ReadLS -->|no| Welcome[route /welcome step 1<br/>Welcome hero + locale pick]
+    ReadLS -->|yes| CheckSec[invoke 'secrets_status']
 
-    style Onboard fill:#007ACC,color:#fff
-    style Submit fill:#4EC9B0,color:#fff
+    Welcome --> Step1[Step 1: Welcome<br/>language + Get started]
+    Step1 --> Step2[Step 2: Storage path<br/>default OR custom]
+    Step2 --> Step2a[if custom: set_storage_path<br/>+ restart required]
+    Step2a --> Step3[Step 3: Theme<br/>3 大预览卡 + 实时换色]
+    Step3 --> Step4[Step 4: LLM providers<br/>pick provider + paste key<br/>+ test connectivity]
+    Step4 --> Step4a[4a: llm_provider_upsert<br/>4b: llm_key_set_secret<br/>4c: llm_test_connectivity]
+    Step4a --> Step5[Step 5: Polymarket<br/>CLOB creds + optional wallet pk]
+    Step5 --> Step5a[5a: llm_pm_set_credentials<br/>5b: polyrocket_wallet_set_pk]
+    Step5a --> Step6[Step 6: Finish<br/>汇总 + Finish btn]
+    Step6 --> MarkDone[set welcome.done=true<br/>navigate /dashboard]
+
+    Step1 -.skip.-> MarkDone
+    Step2 -.skip.-> MarkDone
+    Step3 -.skip.-> MarkDone
+    Step4 -.skip.-> MarkDone
+    Step4 -.test fail.-> Step4b[error inline + 3 选项<br/>继续 / 重试 / 跳过]
+    Step4b --> Step4
+    Step5 -.skip.-> MarkDone
+
+    CheckSec -->|llm=0 OR pm=0| Banner[Dashboard 顶部横幅<br/>Complete setup button]
+    CheckSec -->|all configured| Dashboard[route /dashboard]
+    Banner -->|click| Welcome
+
+    style Welcome fill:#007ACC,color:#fff
+    style Step4a fill:#4EC9B0,color:#fff
+    style Step5a fill:#4EC9B0,color:#fff
+    style Banner fill:#DCDCAA,color:#000
+    style MarkDone fill:#4EC9B0,color:#fff
 ```
 
-**关键约束**：
-- 进度指示（顶部 4 dot）始终可见
-- 任一步可「Skip for now」直接进 dashboard（保留 `first-run-done=0`，下次启动还会回 onboarding）
+**关键约束**（v0.53）：
+- 6 步，每步的「Next」都触发**真实 IPC 副作用**（不是只 set step + 1）
+- 任一步可「Skip for now」直接进 dashboard；dashboard 顶部显示未完成配置横幅
+- Storage path 自定义后**下次启动才生效**（settings 表在 init_pool 之前读）
+- LLM 连通性测试失败不阻塞 — 错误 inline 显示 + 继续 / 重试 / 跳过
+- 旧 `polyrocket.onboarding` 存储 key 一次性迁移到 `polyrocket.welcome`
+- secrets 从不写 SQLite — LLM keys 走 `polyrocket/llm/<provider>/<alias>`，CLOB 三件套走 `polyrocket/pm/{api,secret,passphrase}`，wallet 走 `polyrocket/wallet/<alias>`
 - 「Save & finish」写 `localStorage` + 跳 dashboard
 - 真实环境：每步的 secret 走 client paste（参见 F17 主路径）
 

@@ -76,11 +76,12 @@ polyrocket 拆为 **10 个功能模块 + 2 个横切关注点**：
 | **M10** | **LLM Analysis** | **业务** | **多 LLM 并行分析、prompt 工程、共识聚合、用户决策追踪、LLM 胜率统计** | **v0.2** |
 | **M11** | **LLM Management** | **业务** | **Provider / Key 配置（OS keyring 持久化）+ 连通性测试 + 流量监控 + 健康探针 + 配额 + 异常告警** | **v0.2** |
 | **M12** | **Daily Brief** | **业务** | **每日自动分析今日值得关注的市场，评分 + 缓存 + 用户偏好** | **v0.2** |
-| **M13** | **Onboarding** | **业务** | **首启 4 步引导（welcome → theme → wallet → LLM keys）+ Market Detail + Notifications + Help + Trade History 入口** | **v0.2** |
+| **M13** | **Onboarding (Landing)** | **业务** | **首启 6 步引导（welcome → storage path → theme → LLM providers → Polymarket → finish）。每步触发真实 IPC 副作用，secret 走 keyring 不落 SQLite** | **v0.53 (rebuilt)** |
 | X1 | AuditLog | 横切 | 所有写操作的可追溯记录 | v0.1 |
 | X2 | Notifications | 横切 | Toast / 系统通知 / 重要事件推送 | v0.1 |
 
 **详细 M10 / M11 / M12 设计**：见 [`polyrocket-llm-analysis.md`](./polyrocket-llm-analysis.md) + [`polyrocket-llm-management.md`](./polyrocket-llm-management.md)。
+**M13 详细设计**：见 [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 spec）。
 
 ## 2. 模块详细设计
 
@@ -435,7 +436,7 @@ model_performance({ model_version, window }): ModelPerformanceDto
 | M10 LLM Analysis | ✅ 真实现 | /analysis (M10 Rust 已实) |
 | M11 LLM Mgmt | ✅ 真实现 | /llm-mgmt + /llm-perf |
 | M12 Daily Brief | ✅ 真实现 | /brief (M12 Rust 已实) |
-| M13 Onboarding | ✅ 真实现 | /onboarding + onb-store |
+| M13 Onboarding (Landing) | 🔄 v0.53 spec 已定 | /welcome (planned) + welcome-store + commands/storage.rs |
 | X1 Audit | ✅ 增 read-side | commands/audit.rs + /audit |
 | X2 Notifications | ✅ toast UI | /notifications + toast-store |
 | Help | ✅ static | /help |
@@ -486,6 +487,7 @@ model_performance({ model_version, window }): ModelPerformanceDto
 
 ## 变更日志
 
+- **v2.0** (2026-06-18) — **M13 Landing v0.53 spec**：4 步描述性改 6 步真操作引导。详见 [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)。新增 3 个 IPC（get/set/reset_storage_path）+ 1 张 settings 表 key (`storage_path`) + 6 dot progress + 半配置横幅回流。Storage path 选自定义后下次启动生效（restart required）。
 - **v1.6** (2026-06-16) — M10 真实化：4-provider HTTP fan-out 落地。新增 5 个 provider client（OpenAI / Anthropic / Google / DeepSeek / Custom）+ key rotation + retry/backoff + 3 prompt 模板 + 2 个新 IPC（llm_get_recommendation / llm_list_analyses）。代码量 ~1200 行 + 8 个测试（3 unit + 5 integration）。
 - **v1.8** (2026-06-16) — UI v2.1：18 页面 × 3 主题 = 54 PNG 截图（`docs/previews/{dark,light,matrix}/*.png`）通过 `scripts/snapshot_pages.py` 一键生成。修复 `prototype.html` 中 `const SIGNALS` mock data 移位 bug（导致 dashboard 渲染空白）。UI spec 加 Feature Coverage Matrix 验证 17 module 100% 覆盖。
 - **v1.7** (2026-06-16) — M11 后台调度：3 个 tokio loop（health probe 5min / daily brief 00:00 UTC cron / anomaly detect 60min）+ 3-fail auto-disable + 3 个新 IPC（scheduler_status / scheduler_run_health_probe_now / scheduler_run_daily_brief_now）。
