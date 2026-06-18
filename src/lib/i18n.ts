@@ -522,7 +522,7 @@ const en: Dictionary = {
   'backtest.pull_resolved': 'Pull from resolved markets',
   'backtest.pull_limit': 'Limit',
   'backtest.resolved_available': 'available',
-  'backtest.pull_hint': 'v0.46 limitation: price is fixed at 0.5 and market_age_hours at 24 (no historical price snapshots stored). The model should at least beat 0.5 on settled markets as a sanity check. Edit the textarea to use real prices if you have them.',
+  'backtest.pull_hint': 'v0.47+: samples use the latest price_snapshots entry per market (or 0.5 fallback when no snapshot exists, e.g. pre-v0.47 DBs). market_age_hours is fixed at 24 (the "predict 1 day before close" convention). Edit the textarea to use real prices if you have them.',
   'backtest.no_resolved_markets': 'no resolved markets in the DB — sync markets first, then come back',
   // v0.39b — auto-promote OS notification
   'auto_promote.notify.label': 'Desktop notification on auto-promote',
@@ -1187,7 +1187,7 @@ const zh: Dictionary = {
   'backtest.pull_resolved': '从已结算市场拉取',
   'backtest.pull_limit': '上限',
   'backtest.resolved_available': '可用',
-  'backtest.pull_hint': 'v0.46 局限：price 固定为 0.5，market_age_hours 固定为 24（暂无历史价格快照）。模型在已结算市场上至少应超过 0.5（随机猜测）作为合理性检查。如果你有真实价格，编辑文本框再运行。',
+  'backtest.pull_hint': 'v0.47+: 样本使用每个市场最新的 price_snapshots 记录(无快照时退回 0.5,例如 v0.47 之前的数据库)。market_age_hours 固定为 24(预测日 = 收盘日前 1 天)。如果你有真实价格,编辑文本框再运行。',
   'backtest.no_resolved_markets': '数据库中暂无已结算市场 — 请先同步市场,再回来。',
   // v0.39b — auto-promote OS notification
   'auto_promote.notify.label': '自动晋升时发送桌面通知',

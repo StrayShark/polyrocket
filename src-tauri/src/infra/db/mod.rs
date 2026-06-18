@@ -17,6 +17,7 @@
 pub mod audit;
 pub mod paper_fills;
 pub mod pool;
+pub mod price_snapshots;
 pub mod seed;
 pub mod settings;
 pub mod sidecar_health;

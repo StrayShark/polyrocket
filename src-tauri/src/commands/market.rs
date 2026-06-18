@@ -78,6 +78,15 @@ pub async fn sync_markets(state: State<'_, AppState>) -> AppResult<usize> {
     let remote = polymarket::fetch_active_markets().await?;
     let mut tx = state.db.begin().await?;
     let mut n = 0usize;
+    // v0.47a — also record a price snapshot per market.
+    // For now, we use a placeholder (best_bid=0.5,
+    // best_ask=0.5) because the Gamma API doesn't
+    // expose an order book — only metadata. v0.50+
+    // can wire a real CLOB order-book feed and the
+    // schema is ready. The v0.47b backtest falls
+    // back to 0.5 when no real snapshot exists, so
+    // pre-v0.50 markets still get a sensible default.
+    let now_ms = chrono::Utc::now().timestamp_millis();
     for m in remote {
         sqlx::query(
             "INSERT INTO markets (id, slug, question, category, end_date, active, resolved, outcome, liquidity, volume_24h, updated_at)
@@ -103,6 +112,20 @@ pub async fn sync_markets(state: State<'_, AppState>) -> AppResult<usize> {
         .bind(&m.outcome)
         .bind(&m.liquidity)
         .bind(&m.volume_24h)
+        .execute(&mut *tx)
+        .await?;
+        // v0.47a — placeholder snapshot. Will be
+        // replaced with real order-book data in
+        // v0.50+. For now this exercises the path
+        // and the backtest falls back to 0.5 when
+        // it's the latest.
+        sqlx::query(
+            "INSERT INTO price_snapshots
+                (market_id, captured_at, best_bid, best_ask, mid_price, spread)
+             VALUES (?, ?, 0.5, 0.5, 0.5, 0.0)",
+        )
+        .bind(&m.id)
+        .bind(now_ms)
         .execute(&mut *tx)
         .await?;
         n += 1;
@@ -159,16 +182,14 @@ pub struct ListResolvedMarketsForBacktestArgs {
 /// into the BacktestReport textarea via a
 /// "Pull from resolved markets" button.
 ///
-/// Known limitations (v0.46):
-///   - `price` is fixed at 0.5 (no price history)
-///   - `market_age_hours` = 24 (the "predict 1
-///     day before close" convention)
-/// This is degenerate (no real price history)
-/// but useful as a sanity check: the model
-/// should at least beat 0.5 (random) on
-/// settled markets. v0.46+ could add a
-/// price-snapshot table to enable real
-/// backtests.
+/// v0.47b — joined against `price_snapshots` to
+/// surface the most recent observed price. Until
+/// v0.50+ wires a real CLOB order-book feed, the
+/// snapshots are placeholders (best_bid =
+/// best_ask = 0.5), so the behavior matches v0.46
+/// for users who have been syncing markets. After
+/// v0.50+ lands, this becomes a real backtest
+/// without any L1 changes.
 #[tauri::command]
 pub async fn list_resolved_markets_for_backtest(
     state: State<'_, AppState>,
@@ -176,15 +197,37 @@ pub async fn list_resolved_markets_for_backtest(
 ) -> AppResult<Vec<ResolvedMarketSample>> {
     let limit = args.limit.unwrap_or(100);
     let since = args.since_ms.unwrap_or(0);
-    let rows: Vec<(String, String, String, i64)> = match args.category.as_deref() {
+    // v0.47b — join with the latest price_snapshots
+    // entry per market. The LATERAL subquery
+    // pattern (or correlated subquery) picks the
+    // row with the highest captured_at per
+    // market_id. We use a correlated subquery
+    // here for clarity; SQLite optimizes it
+    // against the price_snapshots_market_recent_idx.
+    //
+    // If a market has no snapshot (typical for
+    // pre-v0.47 DBs that never wrote a snapshot
+    // for resolved markets), the LEFT JOIN gives
+    // us NULL for the snapshot fields; the COALESCE
+    // falls back to 0.5 / 24 — the v0.46 degenerate
+    // default. This keeps pre-v0.47 DBs
+    // working unchanged.
+    let rows: Vec<(String, String, String, Option<f64>, Option<f64>, Option<i64>)> = match args.category.as_deref() {
         Some(cat) => sqlx::query_as(
-            "SELECT id, question, outcome, end_date
-             FROM markets
-             WHERE resolved = 1
-               AND outcome IS NOT NULL
-               AND category = ?
-               AND end_date >= ?
-             ORDER BY end_date DESC
+            "SELECT m.id, m.question, m.outcome,
+                    ps.mid_price, ps.spread, ps.captured_at
+             FROM markets m
+             LEFT JOIN price_snapshots ps
+               ON ps.id = (
+                 SELECT id FROM price_snapshots
+                 WHERE market_id = m.id
+                 ORDER BY captured_at DESC LIMIT 1
+               )
+             WHERE m.resolved = 1
+               AND m.outcome IS NOT NULL
+               AND m.category = ?
+               AND m.end_date >= ?
+             ORDER BY m.end_date DESC
              LIMIT ?",
         )
         .bind(cat)
@@ -193,12 +236,19 @@ pub async fn list_resolved_markets_for_backtest(
         .fetch_all(&state.db)
         .await?,
         None => sqlx::query_as(
-            "SELECT id, question, outcome, end_date
-             FROM markets
-             WHERE resolved = 1
-               AND outcome IS NOT NULL
-               AND end_date >= ?
-             ORDER BY end_date DESC
+            "SELECT m.id, m.question, m.outcome,
+                    ps.mid_price, ps.spread, ps.captured_at
+             FROM markets m
+             LEFT JOIN price_snapshots ps
+               ON ps.id = (
+                 SELECT id FROM price_snapshots
+                 WHERE market_id = m.id
+                 ORDER BY captured_at DESC LIMIT 1
+               )
+             WHERE m.resolved = 1
+               AND m.outcome IS NOT NULL
+               AND m.end_date >= ?
+             ORDER BY m.end_date DESC
              LIMIT ?",
         )
         .bind(since)
@@ -209,13 +259,18 @@ pub async fn list_resolved_markets_for_backtest(
     const PREDICT_BEFORE_CLOSE_HOURS: f64 = 24.0;
     let samples = rows
         .into_iter()
-        .map(|(id, question, outcome, _end_date)| ResolvedMarketSample {
-            market_id: id,
-            question,
-            outcome,
-            market_age_hours: PREDICT_BEFORE_CLOSE_HOURS,
-            price: 0.5,
-        })
+        .map(
+            |(id, question, outcome, mid_price, _spread, _captured_at)| ResolvedMarketSample {
+                market_id: id,
+                question,
+                outcome,
+                market_age_hours: PREDICT_BEFORE_CLOSE_HOURS,
+                // v0.47b — use the snapshot's
+                // mid_price when available; fall back
+                // to 0.5 when not (degenerate default).
+                price: mid_price.unwrap_or(0.5),
+            },
+        )
         .collect();
     Ok(samples)
 }
@@ -284,5 +339,80 @@ mod tests {
         // m1 is YES, m2 is NO.
         assert_eq!(rows[0].2, "YES");
         assert_eq!(rows[1].2, "NO");
+    }
+
+    /// v0.47b — the LEFT JOIN against the latest
+    /// price_snapshots row per market returns the
+    /// most recent mid_price (or NULL when no
+    /// snapshot exists). The function maps NULL →
+    /// 0.5 (the v0.46 fallback).
+    #[tokio::test]
+    async fn backtest_join_uses_latest_snapshot() {
+        use sqlx::sqlite::SqlitePoolOptions;
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect(":memory:")
+            .await
+            .unwrap();
+        sqlx::query(
+            "CREATE TABLE markets (
+                id TEXT PRIMARY KEY,
+                category TEXT NOT NULL,
+                question TEXT NOT NULL,
+                resolved INTEGER DEFAULT 0 NOT NULL,
+                outcome TEXT,
+                end_date INTEGER NOT NULL
+            )",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "CREATE TABLE price_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                market_id TEXT NOT NULL,
+                captured_at INTEGER NOT NULL,
+                best_bid REAL NOT NULL,
+                best_ask REAL NOT NULL,
+                mid_price REAL NOT NULL,
+                spread REAL NOT NULL
+            )",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        // One resolved market with two snapshots
+        // (older + newer). The newer one wins.
+        sqlx::query("INSERT INTO markets VALUES ('m1', 'cat', 'q1', 1, 'YES', 1_700_000_000_000)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO price_snapshots (market_id, captured_at, best_bid, best_ask, mid_price, spread) VALUES ('m1', 1_000, 0.4, 0.6, 0.5, 0.2)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO price_snapshots (market_id, captured_at, best_bid, best_ask, mid_price, spread) VALUES ('m1', 2_000, 0.7, 0.8, 0.75, 0.1)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let rows: Vec<(String, Option<f64>)> = sqlx::query_as(
+            "SELECT m.id, ps.mid_price
+             FROM markets m
+             LEFT JOIN price_snapshots ps
+               ON ps.id = (
+                 SELECT id FROM price_snapshots
+                 WHERE market_id = m.id
+                 ORDER BY captured_at DESC LIMIT 1
+               )
+             WHERE m.resolved = 1 AND m.outcome IS NOT NULL
+             LIMIT 1",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        assert_eq!(rows.len(), 1);
+        // The newer snapshot (0.75) wins, not the
+        // older 0.5.
+        assert_eq!(rows[0].1, Some(0.75));
     }
 }

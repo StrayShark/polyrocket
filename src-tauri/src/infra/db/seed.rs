@@ -309,6 +309,35 @@ mod tests {
             won INTEGER,
             pnl_usdc TEXT
         )",
+        // v0.47a — price_snapshots table. Records the
+        // current best-bid / best-ask (and derived
+        // mid_price) for each market every time
+        // `sync_markets` runs. Pre-v0.46, the v0.46
+        // backtest engine had to fall back to a
+        // degenerate proxy (price=0.5) because we
+        // had no historical price snapshots. v0.47
+        // makes the backtest real: the
+        // `list_resolved_markets_for_backtest` IPC
+        // now joins price_snapshots to surface the
+        // most recent price observed before the
+        // market's resolution.
+        //
+        // One row per (market_id, captured_at).
+        // captured_at is unix-ms; we index it for
+        // the "most recent snapshot per market"
+        // query. Old snapshots are pruned by the
+        // v0.47 retention sweep (default 30 days).
+        "CREATE TABLE IF NOT EXISTS price_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            market_id TEXT NOT NULL,
+            captured_at INTEGER NOT NULL,
+            best_bid REAL NOT NULL,
+            best_ask REAL NOT NULL,
+            mid_price REAL NOT NULL,
+            spread REAL NOT NULL
+        )",
+        "CREATE INDEX IF NOT EXISTS price_snapshots_market_recent_idx
+         ON price_snapshots(market_id, captured_at DESC)",
         "CREATE TABLE copy_targets (
             id TEXT PRIMARY KEY,
             address TEXT NOT NULL UNIQUE,

@@ -32,6 +32,7 @@ pub async fn init_pool(app: &AppHandle) -> AppResult<SqlitePool> {
 
     super::settings::ensure_table(&pool).await?;
     ensure_copy_mirror_queue(&pool).await?;
+    ensure_price_snapshots(&pool).await?;
     // v0.45a — paper_fills settlement columns. Idempotent:
     // ALTER TABLE ADD COLUMN is a no-op if the column
     // already exists when wrapped in the IF NOT EXISTS
@@ -81,6 +82,31 @@ pub async fn ensure_copy_mirror_queue(pool: &SqlitePool) -> sqlx::Result<()> {
     sqlx::query(
         "CREATE INDEX IF NOT EXISTS mirror_queue_status_idx
          ON copy_mirror_queue(status, created_at)",
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// v0.47a — ensure the price_snapshots table +
+/// its market/recent index exist. Idempotent.
+pub async fn ensure_price_snapshots(pool: &SqlitePool) -> sqlx::Result<()> {
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS price_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            market_id TEXT NOT NULL,
+            captured_at INTEGER NOT NULL,
+            best_bid REAL NOT NULL,
+            best_ask REAL NOT NULL,
+            mid_price REAL NOT NULL,
+            spread REAL NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS price_snapshots_market_recent_idx
+         ON price_snapshots(market_id, captured_at DESC)",
     )
     .execute(pool)
     .await?;
