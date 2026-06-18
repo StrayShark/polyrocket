@@ -9,6 +9,7 @@ import { MarketDetail } from '@/routes/MarketDetail';
 import { Signals } from '@/routes/Signals';
 import { Copy } from '@/routes/Copy';
 import { PnL } from '@/routes/PnL';
+import { Trade } from '@/routes/Trade';
 import { ModelLab } from '@/routes/ModelLab';
 import { History } from '@/routes/History';
 import { Wallets } from '@/routes/Wallets';
@@ -48,6 +49,7 @@ const router = createBrowserRouter([
       { path: 'signals', element: <Signals /> },
       { path: 'copy', element: <Copy /> },
       { path: 'pnl', element: <PnL /> },
+      { path: 'trade', element: <Trade /> },
       { path: 'lab', element: <ModelLab /> },
       { path: 'history', element: <History /> },
       { path: 'wallets', element: <Wallets /> },

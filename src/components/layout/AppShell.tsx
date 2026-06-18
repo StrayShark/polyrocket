@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, LineChart, Zap, Copy, BarChart3, FlaskConical, Search, RefreshCw, Bell, Settings, Radar, CircleDot, Crosshair, Landmark, Circle } from 'lucide-react';
+import { LayoutDashboard, LineChart, Zap, Copy, BarChart3, FlaskConical, Search, RefreshCw, Bell, Settings, Radar, CircleDot, Crosshair, Landmark, Circle, ArrowLeftRight } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
 import { LocaleSwitcher } from '@/components/i18n/LocaleSwitcher';
 import { KbdHelpDialog, useKbdHelpDialog } from '@/components/feedback/KbdHelpDialog';
@@ -20,6 +20,7 @@ const PRIMARY_NAV = [
   { to: '/copy', icon: Copy, i18nKey: 'nav.copy' },
   { to: '/pnl', icon: BarChart3, i18nKey: 'nav.pnl' },
   { to: '/lab', icon: FlaskConical, i18nKey: 'nav.lab' },
+  { to: '/trade', icon: ArrowLeftRight, i18nKey: 'nav.trade' }, // v0.52
 ];
 
 const CATEGORY_NAV = [
