@@ -43,6 +43,10 @@ pub struct AddCopyTargetArgs {
     pub min_edge: Option<f64>,
 }
 
+/// IPC: `list_copy_targets` —— 拉所有 copy 跟踪目标。
+///
+/// **排序**：按 `created_at DESC`（最近添加的在前）。
+/// **filter**：不过滤 enabled/disabled —— L1 拿到列表后自己渲染 toggle。
 #[tauri::command]
 pub async fn list_copy_targets(state: State<'_, AppState>) -> AppResult<Vec<CopyTargetDto>> {
     let rows = sqlx::query_as::<_, CopyTargetDto>(
@@ -53,6 +57,13 @@ pub async fn list_copy_targets(state: State<'_, AppState>) -> AppResult<Vec<Copy
     Ok(rows)
 }
 
+/// IPC: `add_copy_target` —— 添加一个 copy 跟踪目标。
+///
+/// **`min_edge` 默认 0.05**（5% 价差才 mirror）。
+/// **`enabled` 默认 true**（刚加的 target 立即开始监控）。
+///
+/// **不重复校验**：调用方（`domain::copy::validate_target_args`）已经验证地址
+/// 格式 + min_edge ∈ [0, 1]。这里直接 insert。
 #[tauri::command]
 pub async fn add_copy_target(
     state: State<'_, AppState>,
@@ -81,6 +92,12 @@ pub async fn add_copy_target(
     })
 }
 
+/// IPC: `recent_copy_events` —— 拉最近 N 条 copy event（可选按 target_id 过滤）。
+///
+/// **limit 默认 50**：L1 一次渲染 ≤ 50 行。
+/// **排序**：`detected_at DESC`（最新在前）。
+///
+/// **`tx_hash` 不去重**：可能一个 tx 匹配多个 target，所以不是 unique。
 #[tauri::command]
 pub async fn recent_copy_events(
     state: State<'_, AppState>,

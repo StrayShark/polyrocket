@@ -27,6 +27,16 @@ pub struct PmSetCredentialsArgs {
     pub chain_id: Option<i64>,
 }
 
+/// IPC: `llm_pm_set_credentials` —— 写 Polymarket CLOB 三件套到 OS keyring。
+///
+/// **业务流程**：
+///   1. 校验 3 个字段都不为空
+///   2. `keyring::set_key` 写 3 个 entry（pm_api / pm_secret / pm_passphrase）
+///   3. host / chain_id 写 SQLite `_polyrocket_settings`（**非** secret）
+///   4. audit_log 写 `pm.credentials.set` 事件，**只**记录 length（不记录 secret）
+///
+/// **错误**：3 个字段任一空 → `AppError::Invalid`。
+/// **安全 invariant**：secret 只在 keyring，**不**在 SQLite / .env / 日志。
 #[tauri::command]
 pub async fn llm_pm_set_credentials(
     state: State<'_, AppState>,
@@ -81,6 +91,14 @@ pub async fn llm_pm_set_credentials(
     Ok(())
 }
 
+/// IPC: `llm_pm_clear_credentials` —— 删 Polymarket CLOB 三件套。
+///
+/// **业务流程**：
+///   1. `keyring::delete_key` 删 3 个 entry（best-effort，删除失败不报错）
+///   2. SQLite `_polyrocket_settings` 删 `pm_host` / `pm_chain_id`
+///   3. audit_log 写 `pm.credentials.clear`
+///
+/// **`keyring` 删除失败不报错**：可能 key 已经被手动删过；这是 idempotent 清理。
 #[tauri::command]
 pub async fn llm_pm_clear_credentials(state: State<'_, AppState>) -> AppResult<()> {
     for alias in [
@@ -110,6 +128,18 @@ pub struct WalletSetPkArgs {
     pub alias: Option<String>,
 }
 
+/// IPC: `polyrocket_wallet_set_pk` —— 写 wallet 私钥到 OS keyring。
+///
+/// **业务流程**：
+///   1. 校验 `private_key`：64 hex chars（可选 `0x` 前缀）
+///   2. 校验 `address` 不空
+///   3. `alias` 默认 `"primary"`，keyring_alias = `wallet_alias("primary")`
+///   4. `keyring::set_key` 写私钥
+///   5. SQLite `wallets` 表 UPSERT：address + keyring_alias
+///   6. audit_log 写 `wallet.pk.set` 事件，**只**记录 `pk_len`（不记录 pk）
+///
+/// **校验 regex**：`0x[0-9a-fA-F]{64}` 或 `[0-9a-fA-F]{64}`。Ethereum 私钥
+/// 标准格式。
 #[tauri::command]
 pub async fn polyrocket_wallet_set_pk(
     state: State<'_, AppState>,
@@ -163,6 +193,10 @@ pub async fn polyrocket_wallet_set_pk(
     Ok(())
 }
 
+/// IPC: `polyrocket_wallet_clear_pk` —— 删 wallet 私钥。
+///
+/// **`alias` 默认 `"primary"`**：跟 `polyrocket_wallet_set_pk` 的默认 alias 一致。
+/// 删 `keyring` entry + 把 SQLite `wallets.keyring_alias` 置 NULL + audit_log 写事件。
 #[tauri::command]
 pub async fn polyrocket_wallet_clear_pk(
     state: State<'_, AppState>,
@@ -203,8 +237,15 @@ pub struct SecretsStatus {
     pub wallets: Vec<SecretStatus>,
 }
 
-/// Read-only status of which secrets are present in the OS keyring.
-/// Never returns the secret itself — only a boolean `configured` flag.
+/// IPC: `secrets_status` —— 读所有 secret 的「是否配置」状态。
+///
+/// **安全 invariant**：返回的只有 `configured: bool`，**绝不**返回 secret 本身。
+/// L1 Settings 用这个渲染「已配置 ✓ / 未配置 ✗」红绿灯。
+///
+/// **3 组 secret**：
+///   - `llm_keys` — 从 `llm_provider_keys` 表 JOIN keyring 状态
+///   - `polymarket` — 3 个固定 alias（pm_api / pm_secret / pm_passphrase）
+///   - `wallets` — 从 `wallets` 表 JOIN keyring 状态
 #[tauri::command]
 pub async fn secrets_status(state: State<'_, AppState>) -> AppResult<SecretsStatus> {
     // LLM keys — decode as Strings, compute `configured` from keyring.

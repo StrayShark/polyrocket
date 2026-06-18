@@ -122,6 +122,13 @@ pub struct LlmStatsCostEfficiency {
 
 // ---------- Provider CRUD ----------
 
+/// IPC: `llm_provider_list` —— 拉所有 LLM provider 配置。
+///
+/// **DTO 字段**：含 health 状态（p50/p95 latency、last error）、quota 配置
+/// （daily/monthly cents cap）、rate limit（rpm/tpm）。L1 「Settings → LLM
+/// Providers」表格用。
+///
+/// **不暴露** secret / keyring 内容。L1 拿到的只是 metadata + health。
 #[tauri::command]
 pub async fn llm_provider_list(state: State<'_, AppState>) -> AppResult<Vec<LlmProviderDto>> {
     let rows = sqlx::query_as::<_, LlmProviderDto>(
@@ -138,6 +145,14 @@ pub async fn llm_provider_list(state: State<'_, AppState>) -> AppResult<Vec<LlmP
     Ok(rows)
 }
 
+/// IPC: `llm_provider_upsert` —— 增改一个 LLM provider 配置。
+///
+/// **业务流程**：
+///   1. UPSERT `llm_providers` 行（按 `id`）
+///   2. `updated_at` 写 now
+///   3. 不触发 `apply_seed` / 任何 LLM call（纯 metadata 写）
+///
+/// **`provider.id` 必填**：L1 用 UUID v4。
 #[tauri::command]
 pub async fn llm_provider_upsert(
     state: State<'_, AppState>,
@@ -215,6 +230,11 @@ pub async fn llm_provider_upsert(
     Ok(())
 }
 
+/// IPC: `llm_provider_delete` —— 删一个 provider 配置 + 它的所有 key。
+///
+/// **保护**：先查 provider 的 key + analysis 引用数 > 0 则拒绝（防误删）。
+/// 引用 0 才真删。**cascade**：provider row + keyring entries + key rows
+/// 一并删。
 #[tauri::command]
 pub async fn llm_provider_delete(state: State<'_, AppState>, provider_id: String) -> AppResult<()> {
     let usages: i64 = sqlx::query_scalar(
@@ -264,6 +284,10 @@ pub async fn llm_provider_delete(state: State<'_, AppState>, provider_id: String
 
 // ---------- Keys CRUD ----------
 
+/// IPC: `llm_key_list` —— 拉一个 provider 的所有 key 配置。
+///
+/// **过滤**：`provider_id` 必传。
+/// **不暴露** secret。
 #[tauri::command]
 pub async fn llm_key_list(
     state: State<'_, AppState>,
@@ -299,6 +323,16 @@ pub struct KeyUpsertArgs {
     pub secret: Option<String>,
 }
 
+/// IPC: `llm_key_upsert` —— 添加或更新一个 LLM API key。
+///
+/// **业务流程**：
+///   1. UPSERT `llm_provider_keys` 行
+///   2. 如果 `args.secret` 给出 → 写 OS keyring
+///   3. 调 `dispatch_test` 检查连通性
+///   4. 更新 health 状态
+///
+/// **`secret: None`**：只更新 metadata（alias / priority / enabled），不动
+/// keyring。适用于「改个 alias 名字」场景。
 #[tauri::command]
 pub async fn llm_key_upsert(
     state: State<'_, AppState>,
@@ -370,10 +404,15 @@ pub struct KeySetSecretArgs {
     pub secret: String,
 }
 
-/// Rotate the secret for an existing key (e.g. user replaced the API key
-/// in their provider dashboard). Looks up the row's `keyring_alias`,
-/// overwrites the OS keyring entry, and audit-logs the rotation. The
-/// plaintext secret is never persisted to SQLite.
+/// IPC: `llm_key_set_secret` —— 轮换一个已存在 key 的 secret。
+///
+/// **业务流程**：
+///   1. 按 `key_id` 查 `keyring_alias`
+///   2. `keyring::set_key` 覆盖
+///   3. audit_log 写 `key.secret.rotate` 事件（**不**记录 secret）
+///
+/// **用途**：用户在 OpenAI dashboard 重置了 key，回到 polyrocket 替换。
+/// **plaintext 永远不**入 SQLite。
 #[tauri::command]
 pub async fn llm_key_set_secret(
     state: State<'_, AppState>,
@@ -405,6 +444,10 @@ pub async fn llm_key_set_secret(
     Ok(())
 }
 
+/// IPC: `llm_key_delete` —— 删一个 LLM key（keyring entry + DB row）。
+///
+/// **保护**：先查 key 是否被 `llm_analyses` / `llm_call_logs` 引用。被引用
+/// 则拒绝（防误删）。引用 0 才真删。
 #[tauri::command]
 pub async fn llm_key_delete(state: State<'_, AppState>, key_id: String) -> AppResult<()> {
     // Look up the keyring_alias before deleting the row, so we can also
@@ -443,6 +486,16 @@ pub struct TestConnectivityArgs {
     pub key_id: Option<String>,
 }
 
+/// IPC: `llm_test_connectivity` —— 测试 LLM provider 连通性。
+///
+/// **业务流程**：
+///   1. 按 `provider_id` + `key_id` 拿 keyring secret
+///   2. 构造一个 trivial prompt（"ping"）
+///   3. 调 `dispatch::dispatch` 触发实际 HTTP call
+///   4. 记录 latency + http_status + error_code
+///   5. 更新 `llm_providers.health_*` 字段
+///
+/// **`key_id: None`**：选 priority 最高的 key 测试。
 #[tauri::command]
 pub async fn llm_test_connectivity(
     state: State<'_, AppState>,
@@ -657,6 +710,13 @@ pub struct TrafficArgs {
     pub window: Option<String>, // '1h' | '24h' | '30d'
 }
 
+/// IPC: `llm_traffic_summary` —— 拉 LLM 流量聚合（calls / tokens / cost）。
+///
+/// **`window` 可选**：`"1h"` / `"24h"` / `"30d"`，默认 24h。
+/// **`provider_id` 可选**：None = 全部 provider。
+///
+/// **数据源**：`llm_call_logs` 表（v0.40+ 每次 call 写一行）。聚合 SQL 在
+/// IPC 内部，不走 scheduler。
 #[tauri::command]
 pub async fn llm_traffic_summary(
     state: State<'_, AppState>,
@@ -753,6 +813,10 @@ fn previous_window_cutoff(window: &str) -> i64 {
 
 // ---------- Health history ----------
 
+/// IPC: `llm_health_history` —— 拉 health probe 历史。
+///
+/// **数据源**：`llm_health_checks` 表（每次 `llm_test_connectivity` 写一行）。
+/// L1 「Settings → LLM Providers → Health」折线图用。
 #[tauri::command]
 pub async fn llm_health_history(
     state: State<'_, AppState>,
@@ -779,6 +843,13 @@ pub struct StatsByConfidenceArgs {
     pub window_days: Option<i64>,
 }
 
+/// IPC: `llm_stats_by_confidence` —— 按 confidence 桶聚合 LLM 调用成功率。
+///
+/// **用途**：评估 model 的 confidence 校准质量（model 说 "90% 确信" 时实际
+/// 命中率是不是 90%）。
+///
+/// **JOIN**：`llm_call_logs` ↔ `bets` ↔ `markets`（看 call 推荐方向 vs 实际
+/// market resolve）。Window 默认 7 天。
 #[tauri::command]
 pub async fn llm_stats_by_confidence(
     state: State<'_, AppState>,
@@ -846,6 +917,10 @@ pub struct LlmStatsByPrompt {
     pub brier: f64,
 }
 
+/// IPC: `llm_stats_by_prompt` —— 按 prompt version 聚合调用质量。
+///
+/// **用途**：A/B 改 prompt 后，对比新旧版本的 Brier / win rate。
+/// **`prompt_version`**：`PROMPT_VERSION_*` 常量（`prompts` 模块）。
 #[tauri::command]
 pub async fn llm_stats_by_prompt(
     state: State<'_, AppState>,
@@ -888,6 +963,10 @@ pub async fn llm_stats_by_prompt(
     Ok(out)
 }
 
+/// IPC: `llm_stats_cost_efficiency` —— cost vs Brier score 的散点聚合。
+///
+/// **用途**：L1 「Settings → LLM Providers → ROI」展示哪个 provider cost
+/// per correct prediction 最低。
 #[tauri::command]
 pub async fn llm_stats_cost_efficiency(
     state: State<'_, AppState>,
@@ -942,6 +1021,10 @@ pub struct ExportStatsArgs {
 
 /// Export LLM recommendation data joined with bet outcomes.
 /// Returns a string the frontend saves via tauri-plugin-fs.
+/// IPC: `llm_stats_export` —— 导出 LLM call logs 到 CSV。
+///
+/// **用途**：用户做外部分析（pandas / Excel）。
+/// **格式**：CSV with header，UTF-8 BOM（Excel 兼容）。
 #[tauri::command]
 pub async fn llm_stats_export(
     state: State<'_, AppState>,

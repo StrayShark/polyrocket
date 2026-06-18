@@ -30,6 +30,10 @@ pub struct AddWalletArgs {
     pub wallet_type: Option<String>,
 }
 
+/// IPC: `list_wallets` —— 拉所有 wallet 元数据。
+///
+/// **不含私钥** —— 私钥在 OS keyring，跟 SQLite 永远不接触。
+/// **排序**：`created_at DESC`。
 #[tauri::command]
 pub async fn list_wallets(state: State<'_, AppState>) -> AppResult<Vec<WalletDto>> {
     let rows = sqlx::query_as::<_, WalletDto>(
@@ -40,6 +44,13 @@ pub async fn list_wallets(state: State<'_, AppState>) -> AppResult<Vec<WalletDto
     Ok(rows)
 }
 
+/// IPC: `add_wallet` —— 添加一个 wallet 元数据。
+///
+/// **chain_id 默认 137**（Polygon mainnet），L1 不传就用默认。
+/// **wallet_type 默认 "eoa"**（普通 EOA 账户）。
+///
+/// **本 IPC 只写 metadata**（address, label, chain_id, wallet_type）——
+/// 私钥走 `polyrocket_wallet_set_pk`（`commands/secrets.rs`）。
 #[tauri::command]
 pub async fn add_wallet(
     state: State<'_, AppState>,

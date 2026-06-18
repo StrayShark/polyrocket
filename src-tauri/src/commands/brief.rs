@@ -10,6 +10,16 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use tauri::State;
 
+/// 每日简报单条记录。L1 Dashboard → Daily Brief 卡片用。
+///
+/// **数据来源**：
+///   - `daily_briefs` — 候选排名 + match_score
+///   - `markets` — 问题、分类、end_date
+///   - `signals` (LEFT JOIN) — 当前 model edge
+///   - `llm_analyses` (LEFT JOIN) — 最近一次多 LLM 共识
+///
+/// **`consensus_strength` 计算**：当前分析里推荐 `consensus_side` 的 LLM
+/// 数量 / 总 LLM 数。0..1。
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct DailyBriefEntry {
     pub market_id: String,
@@ -36,6 +46,16 @@ pub struct BriefGetArgs {
     pub max_items: Option<i64>,
 }
 
+/// IPC: `daily_brief_get` —— 拉今天 + 未来未过期的 brief 列表。
+///
+/// **参数**：`args.limit` 优先，`args.max_items` 兼容旧版（fallback），默认 5。
+/// **返回**：`Vec<DailyBriefEntry>`，按 `rank` 升序（rank 1 = 最佳候选）。
+///
+/// **dismissed 字段语义**：dismissed within last 24h 才算 dismissed。
+/// 24h 之后会自动重新出现（dismiss 不是永久）。
+///
+/// **性能**：单次 SQL 多 JOIN，单 market_id 计算 1 次 subquery。L1 每次 mount
+/// Dashboard 时调一次。
 #[tauri::command]
 pub async fn daily_brief_get(
     state: State<'_, AppState>,
@@ -84,6 +104,13 @@ pub async fn daily_brief_get(
     Ok(rows)
 }
 
+/// IPC: `daily_brief_dismiss` —— 用户 dismiss 一条 brief 卡片。
+///
+/// **业务流程**：把 `markets.brief_dismissed_at = now` 写。L1 `daily_brief_get`
+/// 会把 24h 内 dismissed 的 market 排除掉。
+///
+/// **24h 后自动恢复**：dismiss 不永久。再次出现时 rank 可能变化（取决于
+/// `daily_brief_refresh` 重算）。
 #[tauri::command]
 pub async fn daily_brief_dismiss(
     state: State<'_, AppState>,
@@ -96,6 +123,16 @@ pub async fn daily_brief_dismiss(
     Ok(())
 }
 
+/// IPC: `daily_brief_refresh` —— 重算 brief 候选排名（scheduler 也调）。
+///
+/// **业务流程**：
+///   1. 拉候选 = 24h 内关闭的、未结算、未 dismissed 的 market
+///   2. 用 `daily_brief_score_breakdown` 公式算每条 match_score
+///   3. 写 `daily_briefs`（UPSERT 覆盖今天的）
+///   4. 返回 `BriefRefreshResult { n_candidates, n_written, top_market_id }`
+///
+/// **scheduler 也调**：`run_daily_brief_now`（cron 触发）会调这个的逻辑；
+/// IPC 是 L1 手动「Refresh」按钮的入口。
 #[tauri::command]
 pub async fn daily_brief_refresh(
     state: State<'_, AppState>,
@@ -201,6 +238,7 @@ pub async fn daily_brief_refresh(
     })
 }
 
+/// `daily_brief_refresh` 的返回。L1 「Refresh」按钮 toast 展示 `n_items`。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BriefRefreshResult {
     pub computed_at: i64,
@@ -232,6 +270,17 @@ pub struct SetBriefPrefsArgs {
     pub categories: Option<Vec<String>>,
 }
 
+/// IPC: `daily_brief_set_prefs` —— 用户调 brief 排序权重 + max_items。
+///
+/// **6 个 weight 默认**（`BriefWeights::default()`）：
+///   - w1=0.35 edge（最重）
+///   - w2=0.20 confidence
+///   - w3=0.20 consensus
+///   - w4=0.15 time
+///   - w5=0.10 user_interest
+///   - w6=0.10 cost penalty
+///
+/// **UPSERT** 写入 `user_brief_prefs` 表，按 `user_id` 唯一。
 #[tauri::command]
 pub async fn daily_brief_set_prefs(
     state: State<'_, AppState>,

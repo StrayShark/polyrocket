@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use tauri::State;
 
+/// Signal 数据传输对象。JOIN 了 `markets` 表的 `question` / `slug` 字段，
+/// 让 L1 「Signals」页不用再二次查 market。
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct SignalDto {
     pub id: i64,
@@ -32,6 +34,14 @@ pub struct ListSignalsArgs {
     pub limit: Option<i64>,
 }
 
+/// IPC: `list_active_signals` —— 拉所有 active signals（按 |edge| 降序）。
+///
+/// **`min_edge` 默认 0.05**：过滤 5% 以下的低确信度信号。
+/// **`limit` 默认 50**：L1 dashboard 一次渲染 ≤ 50 行。
+/// **`category` 当前未过滤**：UI 留 filter 但 SQL 不带（v0.62+ 加）。
+///
+/// **`active = 1` 含义**：信号没被 `domain::signal::expire_for_closed_markets`
+/// 标记为 expired。M2 每日重算会刷新。
 #[tauri::command]
 pub async fn list_active_signals(
     state: State<'_, AppState>,
@@ -57,8 +67,12 @@ pub async fn list_active_signals(
     Ok(rows)
 }
 
-/// Trigger a recompute of all active signals.
-/// Real impl: invoke Python sidecar (model lab) or run embedded model.
+/// IPC: `recompute_signals` —— 手动触发 signal 重算。**当前是 stub**。
+///
+/// **未来实现**：调 `sidecar.signal_recompute` 方法（v0.51a+）让 Python 端
+/// 重跑 model；或者内嵌 model 直接调。
+///
+/// **返回 0**：stub 状态。
 #[tauri::command]
 pub async fn recompute_signals(_state: State<'_, AppState>) -> AppResult<usize> {
     // TODO: invoke model-lab sidecar (Phase 2 milestone)
