@@ -4,6 +4,12 @@ use crate::domain::llm::{CallError, CallRequest, CostRate, LlmClient, ProviderKi
 use crate::domain::llm::common;
 use crate::domain::llm::openai::OpenAIClient;
 
+/// DeepSeek API 客户端。**底层复用 `OpenAIClient`**（DeepSeek 用 OpenAI 兼容协议）。
+///
+/// **保留独立 struct 的原因**：
+///   - CostRate 单独定价（DeepSeek 价格跟 OpenAI 不同）
+///   - ProviderKind 区分（`dispatch` 按 kind 选 client）
+///   - 未来 DeepSeek 走自有协议时（已有传闻）不破坏接口
 pub struct DeepSeekClient {
     inner: OpenAIClient,
 }

@@ -11,6 +11,16 @@
 use crate::domain::llm::{CallError, CallOutcome, CallRequest, CostRate, LlmClient, ProviderKind, err};
 use serde_json::{Value, json};
 
+/// Google Gemini `generateContent` 客户端。Spec: https://ai.google.dev/api/generate-content
+///
+/// **与 OpenAI 的差异**：
+///   - API key 在 query string（`?key=...`），**不**在 `Authorization` header
+///   - system instructions 有独立 `systemInstruction.parts` 字段
+///   - 响应路径是 `candidates[0].content.parts[0].text`
+///   - token 计数在 `usageMetadata.promptTokenCount` / `candidatesTokenCount`
+///
+/// **`api_base`**：默认 `https://generativelanguage.googleapis.com/v1beta`。
+/// `request_path` 走 `models/{model}:generateContent`。
 pub struct GoogleClient {
     pub api_base: String, // e.g. "https://generativelanguage.googleapis.com/v1beta"
 }

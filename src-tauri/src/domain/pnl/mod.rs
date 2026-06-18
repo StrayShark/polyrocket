@@ -9,6 +9,18 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Dashboard KPI 聚合。L1 顶部卡片显示。
+///
+/// **字段语义**：
+///   - `total_equity_usdc` — 钱包余额 + 未结算 PnL（best-effort 估值）
+///   - `open_pnl_usdc` — 当前 open bet 的 mark-to-market PnL
+///   - `win_rate_30d` — 最近 30 天已 settle bet 的 win 比例（0..1）
+///   - `brier_score` — 最近 30 天 model 预测的 Brier（越低越好，0.25 = random）
+///   - `active_signals` — 当前 `signals.active = 1` 的行数
+///   - `open_positions` — 当前 `bets.status = 'open'` 的行数
+///
+/// **为什么都是 string**：USDC 精度是 6 位小数，f64 累积误差会让 1000 USDC 显示成
+/// 999.9999999。**始终用 decimal string**，L1 用 `parseFloat` 渲染。
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DashboardKpis {
     pub total_equity_usdc: String,

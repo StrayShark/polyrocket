@@ -13,6 +13,10 @@ use crate::AppResult;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
+/// 钱包元数据。私钥**永远不**存 SQLite —— 走 OS keyring（`platform::keyring::wallet_alias`）。
+///
+/// **`wallet_type`**：Eoa 是普通 EOA 账户（私钥直接签），Smart 是智能合约钱包
+/// （需要 EIP-1271 签名验证）。Polymarket 当前主要用 Eoa。
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Wallet {
     pub id: String,

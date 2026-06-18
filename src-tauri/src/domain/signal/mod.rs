@@ -12,7 +12,16 @@
 use crate::domain::polymarket::hours_until_close;
 use serde::{Deserialize, Serialize};
 
-/// Signal record — mirrors `signals` table.
+/// 信号记录 —— 镜像 SQLite `signals` 表的一行。
+///
+/// **`edge` 计算**：`predicted_prob - market_prob`。`edge > 0` 表示 model 觉得
+/// YES token 被低估，机会买 YES；`edge < 0` 反之。
+///
+/// **`confidence` 计算**：v0.4 用 `min(|edge| * 2, 0.95)` 简单占位。真正的 model
+/// 应该输出独立的不确定性（v0.55+ 替换）。
+///
+/// **`horizon_hours`**：从 `computed_at` 到市场关闭的小时数。L1 在 card 展示
+/// 「3h to close」之类的提示。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Signal {
     pub market_id: String,

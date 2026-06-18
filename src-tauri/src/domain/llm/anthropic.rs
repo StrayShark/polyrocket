@@ -4,6 +4,16 @@
 use crate::domain::llm::{CallError, CallOutcome, CallRequest, CostRate, LlmClient, ProviderKind, err};
 use serde_json::{Value, json};
 
+/// Anthropic Messages API 客户端。Spec: https://docs.anthropic.com/en/api/messages
+///
+/// **与 OpenAI 的差异**：
+///   - `x-api-key` header 鉴权（非 `Authorization: Bearer`）
+///   - `anthropic-version` header 必须
+///   - system prompt 走独立 `system` 字段，非 messages[0]
+///   - token 计费含 cache_read（多 1.1x / 多 1.25x）
+///
+/// **`api_base`**：默认 `https://api.anthropic.com`。可指向 gateway proxy
+/// （如 AWS Bedrock / GCP Vertex Anthropic）—— 协议兼容就行。
 pub struct AnthropicClient {
     pub api_base: String, // e.g. "https://api.anthropic.com"
 }

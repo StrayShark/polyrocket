@@ -4,7 +4,13 @@
 use crate::domain::llm::{CallError, CallOutcome, CallRequest, CostRate, err};
 use serde_json::{Value, json};
 
-/// Build the standard chat/completions JSON body.
+/// 构建标准 OpenAI chat/completions JSON 请求体。
+///
+/// **调用方**：`OpenAIClient::call` + `DeepSeekClient::call`（通过 OpenAIClient）
+/// + `CustomClient::call`（`provider_kind = OpenaiCompat`）。
+///
+/// **为什么 Anthropic 不复用**：Anthropic 的 system 走独立字段 + 需要
+/// `anthropic-version` header，不在 chat/completions 框架里。
 pub fn build_body(req: &CallRequest) -> Value {
     let mut body = json!({
         "model": req.model,
@@ -20,6 +26,10 @@ pub fn build_body(req: &CallRequest) -> Value {
 
 /// Parse a non-streaming chat/completions response.
 /// `cost` is applied if usage data is present.
+/// 从 chat/completions 响应 JSON 抽 `text` / `tokens_in` / `tokens_out`。
+///
+/// **返回**：`CallOutcome` 即使 Ok 也可能 `parse_ok = false`（JSON 字段缺失
+/// / 形状不匹配）。`text` 始终填（best-effort）。
 pub fn parse_response(
     status: u16,
     body_text: &str,
@@ -78,6 +88,15 @@ pub fn parse_response(
 }
 
 /// Classify an HTTP status (or transport error) into a stable `err::*` code.
+/// 把 HTTP status + body 提示归类到 8 个 stable error codes 之一。
+///
+/// **`body_hint` 用于辨识**：
+///   - 401 with `{"error": {"code": "invalid_api_key"}}` → `AUTH`
+///   - 429 with `Retry-After` header → `RATE_LIMIT`
+///   - 400 with `model_not_found` → `MODEL_NOT_FOUND`
+///
+/// **为什么不只看 status**：401 跟 403 都在 4xx，但一个是 key 错一个是权限不够；
+/// 401 with key 错也是 `AUTH`（不是 `INVALID_INPUT`）。
 pub fn classify_status(status: u16, body_hint: &str) -> &'static str {
     // First, status-based classification
     let from_status = match status {

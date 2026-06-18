@@ -5,6 +5,13 @@ use crate::domain::llm::{CallError, CallRequest, CostRate, LlmClient, ProviderKi
 use crate::domain::llm::common;
 use serde_json::Value;
 
+/// 自定义 OpenAI/Anthropic 兼容 proxy 客户端（OpenRouter / Azure / 自部署 llama-server）。
+///
+/// **`provider_kind` 必填**：
+///   - `OpenaiCompat` — 走 chat/completions 协议
+///   - `AnthropicCompat` — 走 messages 协议
+///
+/// **`api_base`** 必须以 `https://` 开头 + 不带尾 `/`。
 pub struct CustomClient {
     pub provider_kind: ProviderKind, // OpenaiCompat or AnthropicCompat
     pub api_base: String,

@@ -8,6 +8,18 @@
 
 use serde::{Deserialize, Serialize};
 
+/// 系统通知类型。Spec: docs/polyrocket-modules.md §3.X2
+///
+/// **9 种 kind**（+ 1 个 `Info` 兜底）：
+///   - `NewSignal` / `OrderFill` / `MirrorDecision` — 业务事件
+///   - `KeyringOk` / `KeyringError` — OS keyring 状态（用户首次授权后会通知）
+///   - `ProviderAutoDisabled` — 3 次连续失败后 LLM provider 自动禁用
+///   - `DailyBrief` — 每日简报
+///   - `AutoPromote` — train 后自动 promote
+///   - `Info` — 通用
+///
+/// **L1 怎么用**：每个 kind 在 L1 settings 都有独立开关（`setNotificationPref` IPC），
+/// 默认开。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NotificationKind {
     /// New actionable signal appeared

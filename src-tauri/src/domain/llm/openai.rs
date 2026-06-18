@@ -3,6 +3,10 @@
 use crate::domain::llm::{CallError, CallRequest, CostRate, LlmClient, ProviderKind, err};
 use crate::domain::llm::common;
 
+/// OpenAI 官方 API 客户端（`api.openai.com/v1`）。**也是 compat 协议的 baseline**。
+///
+/// **`api_base`**：默认 `https://api.openai.com/v1`。可指向任何 OpenAI 兼容 endpoint
+/// （如 OpenRouter / Azure OpenAI / 本地 llama-server）—— 协议同 chat/completions。
 pub struct OpenAIClient {
     pub api_base: String, // e.g. "https://api.openai.com/v1"
 }
