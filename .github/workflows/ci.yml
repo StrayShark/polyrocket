@@ -66,6 +66,15 @@ jobs:
       # staged (i.e. on a clean checkout of
       # main after merge).
 
+      # v0.61k — comment density check. Fails
+      # if <50% of files in any of 5 categories
+      # (rust-commands-domain-infra, rust-platform,
+      # ts-routes-components-lib, ts-types, py-sidecar)
+      # meet the density target. See
+      # docs/coding-spec.md §5 and §6.
+      - name: comment density (v0.61k)
+        run: node scripts/check-comment-density.mjs
+
   # ============================================================
   # TypeScript + vitest (L1).
   # ============================================================

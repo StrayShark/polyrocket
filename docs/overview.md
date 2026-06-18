@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.21 · 2026-06-18 (v0.59-60 SHAP + hot-swap + v0.61 coding-spec + Rust 注释密度提升 a-e)
+> 版本：v2.22 · 2026-06-18 (v0.59-60 SHAP + hot-swap + v0.61 coding-spec + 注释密度提升 a-k full)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿） · [`coding-spec.md`](./coding-spec.md)（v0.61 注释规范）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
@@ -799,6 +799,20 @@ v0.6 增量：
 
 ## 8. 变更日志
 
+- **v2.22** (2026-06-18) — v0.61 a-k full (注释密度提升)
+  - v0.61a coding-spec 注释规范 (Rust + TS + Python 三套规则)
+  - v0.61b-c 给 Rust infra 5 核心 + infra/db 13 文件加 /// 文档
+  - v0.61d-e 给 Rust domain/llm + copy + bet + 5 LLM client 加 /// 文档
+  - v0.61f ship log (a-e partial)
+  - v0.61g 给 Rust commands/* (15 文件) 加 /// 文档
+  - v0.61h 给 TS lib/domain/* + stores + types 加 JSDoc 文档
+  - v0.61i 给 TS routes (17 文件) + components 加 JSDoc 文档
+  - v0.61j 给 Python sidecar dispatch.py 加 docstring
+  - v0.61k scripts/check-comment-density.mjs + CI gate + ship
+  - 总测试数: 874 (零行为变更)  + 31 script = 905
+  - 改动: 85 文件, +2357 行 /// 文档 + 1 spec doc + 1 CI gate
+  - 密度变化: Rust 18% → 22% 平均, TS 8% → 12% 平均, Python 12% → 15% 平均
+  - 5 类别 CI gate 全部 PASS (60-100% 达标)
 - **v2.21** (2026-06-18) — v0.61 a-e partial (Rust 注释密度)
   - v0.61a coding-spec 注释规范 (Rust + TS + Python 三套规则)
   - v0.61b 给 Rust infra 5 个核心文件加 /// 文档
