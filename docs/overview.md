@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.11 · 2026-06-18 (v0.49 — telemetry retention + active model IPC + scheduler self-test)
+> 版本：v2.12 · 2026-06-18 (v0.50 — order types + post-only + fill analytics)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
 
@@ -641,6 +641,9 @@ sequenceDiagram
 | **Telemetry file retention (v0.49a)** | Per-session JSONL file under `<app_data_dir>/logs/telemetry/session-<start_unix>.jsonl`; 14-day retention sweep on startup; L1 Settings card shows inventory + manual purge | ✅ v0.49a 完成（3 cargo + 0 vitest + 6 i18n keys × 2 locales; +2 IPCs） |
 | **Active model single-source IPC (v0.49b)** | New `get_active_model` IPC; L1 Settings card shows version / train Brier / promoted at / source path. v0.48a degradation detector refactored to use the same helper | ✅ v0.49b 完成（4 cargo + 3 vitest + 8 i18n keys × 2 locales; +1 IPC） |
 | **Scheduler self-test on boot (v0.49c)** | Each of 8 loops records last-tick into process-global atomic; new `scheduler_self_test_now` IPC returns per-loop healthy flag (age ≤ 3x interval); L1 Settings card renders green/red/yellow dots, auto-polls 30s | ✅ v0.49c 完成（4 cargo + 2 vitest + 5 i18n keys × 2 locales; +1 IPC） |
+| **Order types + validation (v0.50a)** | `OrderType` enum (Market/Limit/StopLoss) + 4 new PlaceArgs fields; `validate_order_args` pure IPC; `bets` + `paper_fills` gain 4 columns via idempotent migration; `BetDto` extended with serde defaults | ✅ v0.50a 完成（16 cargo + 0 vitest + 8 i18n keys × 2 locales; +1 IPC; +2 tables touched） |
+| **Post-only enforcement (v0.50b)** | Limit orders flagged post_only are rejected at place_signed_order when their limit_price would cross the v0.47a book snapshot; NoSnapshot is a silent pass until v0.51+ brings a real CLOB feed | ✅ v0.50b 完成（10 cargo + 0 vitest + 0 i18n; post-only pure helpers + would_cross_book） |
+| **Fill analytics (v0.50c)** | `fill_analytics` IPC aggregates the real-mode `bets` table: status counts, win rate, realized PnL, avg time-to-settlement, per-order-type breakdown, post-only rate. L1 Dashboard card renders only when total_fills > 0. Slippage + time-to-fill deferred to v0.51+ | ✅ v0.50c 完成（3 cargo + 0 vitest + 16 i18n keys × 2 locales; +1 IPC） |
 | **Reason wire mirror (Rust + L1) + hover tooltip** | `PromoteHistoryEntry.reason: Option<String>` (serde-default for pre-v0.41); ⓘ icon with native title in PromoteHistory row | ✅ v0.41b 完成（Rust serde-default; 2 new vitest tests; 1 new i18n key × 2 locales） |
 | **v0.11 final** | overview + README + release build | ✅ v0.11e 完成 |
 | **v0.10 final** | overview + README + release build | ✅ v0.10e 完成 |
