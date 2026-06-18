@@ -123,14 +123,54 @@ if (COVERAGE_LINE_RE.test(readme)) {
   process.exit(1);
 }
 
-// 3. Density badge color — 5/5 stays brightgreen unless
-//    the maintainer has disabled it (we don't recompute
-//    density here — that's scripts/check-comment-density.mjs's
-//    job; this script just keeps the badge label stable).
+// 3. Density badge — run scripts/check-comment-density.mjs and
+//    parse the output. Updates the `[![density](...)]` badge
+//    URL with the current "N/5 PASS" count and a color
+//    bucket (red if 0/5, yellow if 1-2/5, yellowgreen if
+//    3/5, green if 4/5, brightgreen if 5/5).
 //
-//    (No-op for now; the badge text "5/5 PASS" is
-//    hand-maintained in v0.63c. Future: re-run the
-//    density check and grep for "All categories PASS".)
+//    v0.65c — was hand-maintained "5/5 PASS" in v0.63c.
+//    Now we re-run the check and update the badge from
+//    real output.
+import { spawnSync } from 'node:child_process';
+
+const DENSITY_RESULT = spawnSync('node', ['scripts/check-comment-density.mjs'], {
+  cwd: REPO_ROOT,
+  encoding: 'utf8',
+});
+
+if (DENSITY_RESULT.status !== 0) {
+  // density check failed (e.g. some category dropped below 50% passing).
+  // We still want to fail loudly so the maintainer notices, BUT
+  // the script shouldn't lose the previous badge value silently.
+  console.error('Density check FAILED — not updating README density badge.');
+  console.error(DENSITY_RESULT.stdout);
+  console.error(DENSITY_RESULT.stderr);
+  process.exit(1);
+}
+
+// Parse: "[PASS] rust-commands-domain-infra (target 15%+, rust)"
+//        "        85/85 files passing (100.0%); avg ratio 22.4%"
+// 5 lines of [PASS] / [FAIL] for the 5 categories.
+const densityLines = DENSITY_RESULT.stdout.split('\n');
+const passingCount = densityLines.filter((l) => /^\[PASS\]/.test(l)).length;
+const totalCount = densityLines.filter((l) => /^\[(PASS|FAIL)\]/.test(l)).length;
+
+const DENSITY_BADGE_RE = /\[!\[density\]\(https:\/\/img\.shields\.io\/badge\/comment%20density-[^)]+\)\]\(\.\/scripts\/check-comment-density\.mjs\)/;
+const densityColor =
+  passingCount === totalCount ? 'brightgreen' :
+  passingCount >= 4 ? 'green' :
+  passingCount >= 3 ? 'yellowgreen' :
+  passingCount >= 2 ? 'yellow' :
+  passingCount >= 1 ? 'orange' : 'red';
+const newDensityBadge = `[![density](https://img.shields.io/badge/comment%20density-${passingCount}%2F${totalCount}%20PASS-${densityColor})](./scripts/check-comment-density.mjs)`;
+
+if (DENSITY_BADGE_RE.test(readme)) {
+  readme = readme.replace(DENSITY_BADGE_RE, newDensityBadge);
+} else {
+  console.error('README.md does not contain the expected density badge anchor. Run v0.63c first.');
+  process.exit(1);
+}
 
 if (readme === before) {
   console.log('README.md is already up to date (no changes needed).');
@@ -141,5 +181,6 @@ writeFileSync(README_PATH, readme);
 console.log(`README.md updated:`);
 console.log(`  coverage badge → vitest ${fmt(sPct)}% stmts (color: ${COVERAGE_COLOR})`);
 console.log(`  coverage gate line → vitest ${fmt(sPct)}% stmts / ${fmt(bPct)}% branches / ${fmt(fPct)}% funcs / ${fmt(lPct)}% lines`);
+console.log(`  density badge → ${passingCount}/${totalCount} PASS (color: ${densityColor})`);
 console.log('');
 console.log('Next: git add README.md && git commit -m "..."');

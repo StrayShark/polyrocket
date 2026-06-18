@@ -63,7 +63,17 @@ export function ModelLab() {
     staleTime: 60_000,
   });
 
-  if (error) return <ErrorState message={String(error)} onRetry={() => refetch()} />;
+  // v0.65a — moved error early-return BELOW the
+  // subsequent useQuery / useState / useEffect
+  // hooks. Previously the early return sat at
+  // line 66 (after only the first useQuery) but
+  // more useQuery / useState calls followed, so
+  // a re-render after error fired fewer hooks
+  // and React warned "Rendered fewer hooks than
+  // expected". The actual user impact is small
+  // (the page would unmount the broken state on
+  // next render anyway) but it's a rules-of-hooks
+  // violation that hides future bugs.
 
   const total = data?.length ?? 0;
   const best = data && data.length > 0
@@ -420,6 +430,8 @@ export function ModelLab() {
       toast.error(t('promote.toast.all_failed'), e.message);
     },
   });
+
+  if (error) return <ErrorState message={String(error)} onRetry={() => refetch()} />;
 
   return (
     <div className="space-y-4">
