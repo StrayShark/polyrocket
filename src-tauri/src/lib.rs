@@ -27,6 +27,11 @@ pub fn run() {
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
         .init();
 
+    // v0.42b — telemetry init. Default off; enable with
+    // `POLYROCKET_TELEMETRY=1` in the env. Must run BEFORE
+    // the schedulers start so loop events are captured.
+    infra::telemetry::init_from_env();
+
     // Dev .env → OS keyring sync (L5 platform/env). Gated by env vars;
     // no-op in any environment other than POLYROCKET_ENV=dev +
     // POLYROCKET_KEYRING_ONLY=0.

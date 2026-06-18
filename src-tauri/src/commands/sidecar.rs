@@ -529,12 +529,25 @@ pub async fn train_job(
             started_at,
         },
     );
+    // v0.42b — lifecycle event for the IPC accept. This
+    // is the "user clicked Train" moment; it doesn't
+    // mean the sidecar will succeed.
+    use crate::infra::telemetry;
+    telemetry::emit(telemetry::Event::TrainStarted {
+        job_id: job_id.clone(),
+        n_trials: n_trials as usize,
+        epochs: epochs as usize,
+    });
 
     if !state.is_running() {
         // Sidecar not running — emit a finished event with
         // status="failed" and a descriptive message, then
         // return the same shape so the L1 doesn't have to
         // handle a special "no sidecar" path.
+        telemetry::emit(telemetry::Event::TrainFailed {
+            job_id: job_id.clone(),
+            error: "sidecar not running".into(),
+        });
         let _ = app.emit(
             "train_job:finished",
             TrainFinishedEvent {
@@ -601,6 +614,14 @@ pub async fn train_job(
     let elapsed = started.elapsed();
     if elapsed > deadline {
         let msg = format!("train_job timeout after {}ms", elapsed.as_millis());
+        // v0.42b — emit lifecycle event. TrainFailed
+        // captures the timeout distinctly from a
+        // sidecar-decoded failure.
+        use crate::infra::telemetry;
+        telemetry::emit(telemetry::Event::TrainFailed {
+            job_id: job_id.clone(),
+            error: msg.clone(),
+        });
         let _ = app.emit(
             "train_job:finished",
             TrainFinishedEvent {
@@ -634,10 +655,41 @@ pub async fn train_job(
         )));
     }
     let result = parse_train_response(&response).map_err(|e| {
+        // v0.42b — emit lifecycle event. Decode error
+        // is treated as a failed train for telemetry.
+        use crate::infra::telemetry;
+        telemetry::emit(telemetry::Event::TrainFailed {
+            job_id: job_id.clone(),
+            error: e.to_string(),
+        });
         AppError::Internal(format!("train_job decode: {e}"))
     })?;
 
     // v0.17a — emit finished with the parsed result.
+    // v0.42b — emit TrainCompleted lifecycle event. We
+    // pull the model_version from result.model_version
+    // and best_brier straight off the parsed payload.
+    use crate::infra::telemetry as _t;
+    let train_completed = matches!(result.status.as_str(), "succeeded" | "ok");
+    if train_completed {
+        let model_version = result
+            .best_params
+            .as_ref()
+            .and_then(|p| p.get("model_version").and_then(|v| v.as_str()))
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| format!("logistic-{}", result.job_id));
+        _t::emit(_t::Event::TrainCompleted {
+            job_id: result.job_id.clone(),
+            model_version,
+            best_brier: result.best_brier,
+            duration_ms: result.duration_ms as u64,
+        });
+    } else {
+        _t::emit(_t::Event::TrainFailed {
+            job_id: result.job_id.clone(),
+            error: result.message.clone().unwrap_or_else(|| "train failed".into()),
+        });
+    }
     let _ = app.emit(
         "train_job:finished",
         TrainFinishedEvent {
@@ -783,6 +835,23 @@ pub async fn promote_model(
     }
     parse_promote_response(&response).map_err(|e| {
         AppError::Internal(format!("promote decode: {e}"))
+    })
+    .map(|r| {
+        // v0.42b — emit lifecycle event on successful
+        // promote. We read the `reason` and `trial_index`
+        // straight off the response. Skipped / failed
+        // promotes don't emit (the OS notification path
+        // already covers user-visible signal).
+        if r.promoted {
+            use crate::infra::telemetry;
+            telemetry::emit(telemetry::Event::PromoteCompleted {
+                job_id: args.job_id.clone().unwrap_or_else(|| "<latest>".into()),
+                model_version: r.model_version.clone(),
+                trial_index: r.trial_index,
+                reason: r.message.clone().unwrap_or_else(|| "Promoted".into()),
+            });
+        }
+        r
     })
 }
 
@@ -1583,17 +1652,36 @@ async fn run_auto_promote_worker(
     let _ = app.emit(
         "auto_promote:finished",
         AutoPromoteFinishedEvent {
-            job_id,
+            job_id: job_id.clone(),
             promoted: result.promoted,
-            message: result.message.unwrap_or_default(),
+            message: result.message.clone().unwrap_or_default(),
             model_version: if result.promoted {
-                result.model_version
+                result.model_version.clone()
             } else {
                 None
             },
             finished_at: chrono::Utc::now().timestamp_millis(),
         },
     );
+    // v0.42b — emit lifecycle event. The OS notification
+    // path is unchanged (v0.39a only fires on
+    // `promoted: true`); telemetry captures BOTH
+    // outcomes for analysis. Future v0.42e may add a
+    // skipped-notification toggle that piggybacks on
+    // the AutoPromoteSkipped event.
+    use crate::infra::telemetry;
+    if result.promoted {
+        telemetry::emit(telemetry::Event::AutoPromoteFired {
+            job_id,
+            model_version: result.model_version.unwrap_or_default(),
+            message: result.message.unwrap_or_default(),
+        });
+    } else {
+        telemetry::emit(telemetry::Event::AutoPromoteSkipped {
+            job_id,
+            message: result.message.unwrap_or_default(),
+        });
+    }
 }
 
 #[cfg(test)]

@@ -29,6 +29,10 @@ use crate::domain::llm::{
     AnthropicClient, CostRate, CustomClient, DeepSeekClient, GoogleClient, LlmClient,
     OpenAIClient, ProviderKind,
 };
+// v0.42b — opt-in lifecycle events. Default off; see
+// `infra::telemetry` for the env-var gate and the
+// stable NDJSON wire format.
+use crate::infra::telemetry;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 use std::time::Duration;
@@ -171,6 +175,10 @@ async fn run_health_probe_loop(
             _ = ticker.tick() => {
                 if let Err(e) = probe_all_providers(&pool, &http).await {
                     tracing::warn!("health probe sweep error: {e}");
+                    telemetry::emit(telemetry::Event::SchedulerError {
+                        loop_name: "health_probe",
+                        error: e.to_string(),
+                    });
                 }
             }
             _ = shutdown.notified() => {
@@ -297,6 +305,13 @@ async fn probe_one_provider(
                 Some(latency), status, None, None,
             ).await;
             let _ = update_provider_health(pool, &p.id, true, latency, None).await;
+            // v0.42b — per-provider health probe result.
+            telemetry::emit(telemetry::Event::LlmHealthProbe {
+                provider: p.id.clone(),
+                ok: true,
+                latency_ms: latency,
+                error: None,
+            });
         }
         Err(e) => {
             let _ = insert_health_check(
@@ -307,6 +322,12 @@ async fn probe_one_provider(
             let _ = update_provider_health(pool, &p.id, false, latency, Some(&e.message)).await;
             // Check 3-fail streak → auto-disable
             let _ = maybe_auto_disable(pool, &p.id).await;
+            telemetry::emit(telemetry::Event::LlmHealthProbe {
+                provider: p.id.clone(),
+                ok: false,
+                latency_ms: latency,
+                error: Some(e.message.clone()),
+            });
         }
     }
     Ok(())
@@ -429,6 +450,10 @@ async fn run_daily_brief_loop(
     loop {
         if let Err(e) = run_daily_brief_once(&pool).await {
             tracing::warn!("daily brief job error: {e}");
+            telemetry::emit(telemetry::Event::SchedulerError {
+                loop_name: "daily_brief",
+                error: e.to_string(),
+            });
         }
         let dur = Duration::from_secs(24 * 3600);
         tokio::select! {
@@ -503,6 +528,18 @@ async fn run_daily_brief_once(pool: &SqlitePool) -> sqlx::Result<()> {
     .execute(pool)
     .await?;
     tracing::info!("daily brief job: done (n_markets={}, top_n={})", n_markets, top_n);
+    // v0.42b — emit lifecycle event. The "items_json"
+    // size is the rough proxy for "summary size".
+    let summary_chars = serde_json::to_string(&serde_json::json!({
+        "note": "v0.2 stub — top N by recency",
+        "n_active_markets": n_markets,
+    }))
+    .map(|s| s.len())
+    .unwrap_or(0);
+    telemetry::emit(telemetry::Event::DailyBriefGenerated {
+        summary_chars,
+        duration_ms: (chrono::Utc::now().timestamp_millis() - started) as u64,
+    });
     Ok(())
 }
 
@@ -525,6 +562,10 @@ async fn run_anomaly_loop(
             _ = ticker.tick() => {
                 if let Err(e) = detect_anomalies(&pool, cfg.anomaly_window).await {
                     tracing::warn!("anomaly detection error: {e}");
+                    telemetry::emit(telemetry::Event::SchedulerError {
+                        loop_name: "anomaly",
+                        error: e.to_string(),
+                    });
                 }
             }
             _ = shutdown.notified() => {
@@ -550,6 +591,10 @@ async fn run_mirror_executor_loop(pool: SqlitePool, cfg: SchedulerConfig, shutdo
             _ = ticker.tick() => {
                 if let Err(e) = run_mirror_pass(&pool, &exec_cfg).await {
                     tracing::warn!("mirror executor pass error: {e}");
+                    telemetry::emit(telemetry::Event::SchedulerError {
+                        loop_name: "mirror_executor",
+                        error: e.to_string(),
+                    });
                 }
             }
             _ = shutdown.notified() => {
@@ -572,6 +617,10 @@ async fn run_mirror_pass(
     )
     .fetch_all(pool)
     .await?;
+    // v0.42b — capture the queue depth at the start of
+    // the tick. The original `rows` is consumed by
+    // `into_iter` below, so we save the length first.
+    let intents_pending = rows.len();
     let orders: Vec<crate::domain::copy::MirrorOrder> = rows.into_iter().map(Into::into).collect();
     let market_ids: Vec<String> = orders.iter().map(|o| o.market_id.clone()).collect();
     let market_closes = if market_ids.is_empty() {
@@ -605,6 +654,15 @@ async fn run_mirror_pass(
             result.current_exposure,
             result.headroom
         );
+        // v0.42b — emit per-tick stats. The error count
+        // is implicit (picked.len() + rejected.len() vs
+        // total rows); we approximate by counting
+        // "rejected" as errors.
+        telemetry::emit(telemetry::Event::MirrorExecutorTick {
+            intents_pending,
+            executed: result.picked.len(),
+            errors: result.rejected.len(),
+        });
     }
     Ok(())
 }
@@ -683,6 +741,24 @@ async fn detect_anomalies(pool: &SqlitePool, window: Duration) -> sqlx::Result<(
             }))
             .execute(pool)
             .await?;
+            // v0.42b — surface every distinct anomaly kind as
+            // a separate event. Severity is the rough
+            // ordering: rate_limit > cost_spike > zero >
+            // low_success. We pick the first present kind
+            // to keep the event stream low-volume.
+            let primary_kind = anomalies.first().copied().unwrap_or("unknown");
+            let severity: u8 = match primary_kind {
+                "rate_limit_spike" => 3,
+                "cost_spike" => 2,
+                "zero_activity" => 1,
+                "low_success_rate" => 2,
+                _ => 1,
+            };
+            telemetry::emit(telemetry::Event::AnomalyDetected {
+                kind: primary_kind.to_string(),
+                severity,
+                details: format!("provider={} calls={} rl={} success_rate={:.2}", provider_id, calls, rl, success_rate),
+            });
         }
     }
     Ok(())
@@ -751,6 +827,15 @@ async fn run_audit_purge_once(pool: &SqlitePool) -> sqlx::Result<usize> {
                     max_rows = policy.max_rows,
                     "audit log retention purge"
                 );
+                // v0.42b — emit retention sweep result.
+                // retention_days is approximate (rounded
+                // down from ms). We don't emit when n=0
+                // to keep the volume low.
+                let retention_days = (policy.retain_recent_ms / (24 * 3600 * 1000)).max(1) as u64;
+                telemetry::emit(telemetry::Event::AuditPurged {
+                    rows: n as u64,
+                    retention_days,
+                });
             }
             Ok(n)
         }
@@ -776,6 +861,10 @@ async fn run_audit_purge_loop(
             _ = ticker.tick() => {
                 if let Err(e) = run_audit_purge_once(&pool).await {
                     tracing::warn!(error = %e, "audit purge tick error");
+                    telemetry::emit(telemetry::Event::SchedulerError {
+                        loop_name: "audit_purge",
+                        error: e.to_string(),
+                    });
                 }
             }
             _ = shutdown.notified() => {
@@ -860,12 +949,34 @@ async fn run_sidecar_health_loop(
     tokio::time::sleep(Duration::from_secs(20)).await;
     let mut ticker = tokio::time::interval(Duration::from_secs(DEFAULT_SIDECAR_PROBE_SEC));
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    let mut last_was_ok: Option<bool> = None;
     loop {
         tokio::select! {
             _ = ticker.tick() => {
                 if let Err(e) = run_sidecar_health_once(&pool).await {
                     tracing::warn!(error = %e, "sidecar health tick error");
+                    telemetry::emit(telemetry::Event::SchedulerError {
+                        loop_name: "sidecar_health",
+                        error: e.to_string(),
+                    });
                 }
+                // v0.42b — emit connect/disconnect transitions.
+                // We do this by re-running the kind decision
+                // from the last probe; cheap to redo since
+                // ping_sidecar_once is fast and we're
+                // already past the DB write. The transition
+                // is: None -> Ok = Connected; Ok -> Failed
+                // = Disconnected.
+                let (kind, _, reason) = ping_sidecar_once().await;
+                let ok_now = matches!(kind, SidecarHealthKind::Ok);
+                match last_was_ok {
+                    None if ok_now => telemetry::emit(telemetry::Event::SidecarConnected { pid: None }),
+                    Some(true) if !ok_now => telemetry::emit(telemetry::Event::SidecarDisconnected {
+                        reason: reason.unwrap_or_else(|| "unknown".into()),
+                    }),
+                    _ => {}
+                }
+                last_was_ok = Some(ok_now);
             }
             _ = shutdown.notified() => {
                 tracing::info!("sidecar health loop shutting down");
