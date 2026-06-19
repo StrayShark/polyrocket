@@ -2,7 +2,7 @@
 
 > Local-first Polymarket analysis desktop client (Tauri 2 + React 18 + SQLite + Python sidecar).
 
-[![coverage](https://img.shields.io/badge/vitest%20cov-80.4%25%20stmts-brightgreen)](./vitest.config.ts)
+[![coverage](https://img.shields.io/badge/vitest%20cov-80.6%25%20stmts-brightgreen)](./vitest.config.ts)
 [![density](https://img.shields.io/badge/comment%20density-5%2F5%20PASS-brightgreen)](./scripts/check-comment-density.mjs)
 [![rustdoc](https://img.shields.io/badge/rustdoc-0%20warnings-brightgreen)](./src-tauri)
 [![sidecar](https://img.shields.io/badge/sidecar-11%20methods-blue)](./sidecar/polyrocket_sidecar/dispatch.py)
@@ -12,8 +12,8 @@
 |---|---|
 | Bundle id | `com.polyrocket.app` |
 | Stack | Tauri 2 · React 18 · TypeScript · Rust · SQLite · Python (sidecar) |
-| Test totals | **319 cargo + 680 vitest + 85 Python = 1084/** |
-| Coverage gate | vitest 80.4% stmts / 76.8% branches / 72.3% funcs / 81.7% lines (`vitest.config.ts`) |
+| Test totals | **319 cargo + 690 vitest + 85 Python = 1094/** |
+| Coverage gate | vitest 80.6% stmts / 77.7% branches / 72.6% funcs / 81.9% lines (`vitest.config.ts`) |
 | Comment density | 5/5 PASS (`scripts/check-comment-density.mjs`) |
 | Status | v0.71 — auto-bumped by update-readme-coverage.mjs |
 
