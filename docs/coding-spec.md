@@ -2,7 +2,7 @@
 
 > 代码注释 / 文档化规范。**所有新增代码必须遵循此规范；存量代码按 v0.61 计划分轮翻新。**
 
-**版本**：v1.8 · 2026-06-19 (v0.74 — Visual Acceptance Gate + class-coverage lint + nav-item CSS 修复)
+**版本**：v1.9 · 2026-06-19 (v0.74 final — Visual Acceptance Gate + 6 sub-versions ship log)
 **配套**：[`overview.md`](./overview.md)（5 层架构） · [`polyrocket-modules.md`](./polyrocket-modules.md)（17 模块业务） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 交互流程） · [`polyrocket-v0.69-final.md`](./polyrocket-v0.69-final.md)（CI 修复记录）
 
 ---
