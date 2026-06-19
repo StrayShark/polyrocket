@@ -44,10 +44,20 @@ import { vi } from 'vitest';
  *                  `vi.fn()` (returning undefined) so tests can
  *                  still `expect(mock.foo).toHaveBeenCalled()`
  *                  without setting up an explicit return value.
+ *
+ * **v0.69a**: changed parameter/return type from
+ * `Record<string, ReturnType<typeof vi.fn>>` (vitest 4.x's
+ * stricter `Mock<Procedure | Constructable>`) to
+ * `Record<string, (...args: any[]) => any>`. Reason: test
+ * files commonly use inline arrow functions like
+ * `llmAnalyze: () => mockLlmAnalyze()`, where `vi.fn()` would
+ * have type `Mock<...>`. Vitest 4.x rejects `() => any` as
+ * not assignable to `Mock<...>`. The looser signature accepts
+ * both raw functions and `vi.fn()` instances.
  */
 export function createIpcMock(
-  overrides: Record<string, ReturnType<typeof vi.fn>> = {},
-): Record<string, ReturnType<typeof vi.fn>> {
+  overrides: Record<string, (...args: any[]) => any> = {},
+): Record<string, (...args: any[]) => any> {
   return {
     // v0.67f — always-on. toast-store.ts uses both of these
     // when rendering system-enabled toasts. Without these

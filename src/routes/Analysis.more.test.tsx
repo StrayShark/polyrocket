@@ -13,12 +13,6 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createIpcMock } from '@/test-mocks';
 
-const mockLlmAnalyze = vi.fn();
-const mockLlmGetRecommendation = vi.fn();
-const mockRecordLlmDecision = vi.fn();
-const mockListActiveSignals = vi.fn();
-const mockOnAnalyzeStarted = vi.fn();
-
 const { mockLlmAnalyze: ma, mockLlmGetRecommendation: mr, mockRecordLlmDecision: md,
         mockListActiveSignals: ms, mockOnAnalyzeStarted: mo } = vi.hoisted(() => ({
   mockLlmAnalyze: vi.fn(),

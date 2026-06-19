@@ -33,7 +33,6 @@ import { join } from 'node:path';
 
 const SRC_DIR = join(import.meta.dirname, '..');
 const IPC_PATH = join(SRC_DIR, 'ipc.ts');
-const TYPES_DIR = join(SRC_DIR, 'types');
 const SNAPSHOT_PATH = join(SRC_DIR, 'ipc.snapshot.v2.json');
 
 interface IpcSnapshotV2 {

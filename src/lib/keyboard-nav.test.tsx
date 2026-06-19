@@ -18,9 +18,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, act } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useNavBindings, useKeyboardNav, formatKeys, type KbdBinding } from './keyboard-nav';
-import { withFakeTimersAndState } from '@/test-helpers';
 // v0.68e — added @testing-library/user-event as a devDependency
 // for future keyboard tests. happy-dom currently has issues
 // with user-event's keyboard dispatch (test timeout), so we

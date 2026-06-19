@@ -19,12 +19,6 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createIpcMock } from '@/test-mocks';
 
-const mockListCopyTargets = vi.fn();
-const mockRecentCopyEvents = vi.fn();
-const mockListPaperFills = vi.fn();
-const mockGetMirrorPaperMode = vi.fn();
-const mockAddCopyTarget = vi.fn();
-
 const { mockListCopyTargets: m1, mockRecentCopyEvents: m2, mockListPaperFills: m3,
         mockGetMirrorPaperMode: m4, mockAddCopyTarget: m5 } = vi.hoisted(() => ({
   mockListCopyTargets: vi.fn(),
