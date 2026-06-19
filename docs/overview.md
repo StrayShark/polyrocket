@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.34 · 2026-06-19 (v0.71 final)
+> 版本：v2.35 · 2026-06-19 (v0.72 final)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿） · [`coding-spec.md`](./coding-spec.md)（v0.61 注释规范）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
@@ -799,6 +799,15 @@ v0.6 增量：
 
 ## 8. 变更日志
 
+- **v2.35** (2026-06-19) — v0.72 final coverage ratchet 81.9→82.4% + branches 79.2→80.3%(首次 > 80%) + threshold 维持
+  - v0.72a Brief.more.test.tsx (+10 tests, 78→95.65 stmts)
+  - v0.72b Wallets.round2.test.tsx (+8 tests, 79→91.66 stmts)
+  - v0.72c Audit.branches.test.tsx (+12 tests, branches 69→95.23 ⭐)
+  - v0.72d History.extras2.test.tsx (+10 tests, branches 84→87.14)
+  - v0.72e Markets.extras2.test.tsx (+11 tests, branches 66→82.85)
+  - 阈值: 81/78/73/82 (维持,v0.73+ coverage 稳后再 bump)
+  - 实际 coverage: 82.40% stmts / 80.25% branches / 75.43% funcs / 83.76% lines
+  - 改动: 5 NEW test files + ship log, 767 tests
 - **v2.34** (2026-06-19) — v0.71 final coverage ratchet 79.5→81.9% + threshold 81% 跨过 + density round 3 deferred
   - v0.71a ModelLab.more.test.tsx (+11 tests, auto-promote listener + OS notification pref branches)
   - v0.71b Analysis.more.test.tsx (+10 tests, mutation flow + status transition)

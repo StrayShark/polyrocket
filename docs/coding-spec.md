@@ -2,7 +2,7 @@
 
 > 代码注释 / 文档化规范。**所有新增代码必须遵循此规范；存量代码按 v0.61 计划分轮翻新。**
 
-**版本**：v1.4 · 2026-06-19 (v0.71 final — coverage 79.5→81.9% + density round 3 deferred)
+**版本**：v1.5 · 2026-06-19 (v0.72 final — coverage 81.9→82.4% + branches 79.2→80.3% ⭐)
 **配套**：[`overview.md`](./overview.md)（5 层架构） · [`polyrocket-modules.md`](./polyrocket-modules.md)（17 模块业务） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 交互流程） · [`polyrocket-v0.69-final.md`](./polyrocket-v0.69-final.md)（CI 修复记录）
 
 ---
@@ -314,6 +314,7 @@ def test_efficiency_axiom_holds_at_extremes():
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v1.5 | 2026-06-19 | v0.72 final: branches 79.2→80.3%(首次 > 80%),threshold 维持 81/78/73/82 |
 | v1.4 | 2026-06-19 | §5 density round 3 deferred 决策(不 bump,等 v0.74+ plateau) |
 | v1.3 | 2026-06-19 | §5 density round 2: ts-routes-components-lib target 10→15% |
 | v1.2 | 2026-06-19 | 新增 §10.7「Pre-push 本地 CI gate」—— `scripts/run-ci-local.sh` + pre-push hook, push 前必跑 |
