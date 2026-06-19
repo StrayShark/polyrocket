@@ -6,6 +6,7 @@ import { Card } from '@/components/base/Card';
 import { Button } from '@/components/base/Button';
 import { Input } from '@/components/base/Input';
 import { Toggle } from '@/components/base/Toggle';
+import { Skeleton } from '@/components/feedback/Skeleton';
 import { usePrefsStore } from '@/stores/prefs-store';
 import { toast } from '@/stores/toast-store';
 import { cn } from '@/lib/cn';
@@ -24,6 +25,7 @@ import {
   getActiveModel, // v0.49b
   schedulerSelfTestNow, // v0.49c
   clobFeedStatus, // v0.51a
+  listWallets, // v0.79c — bankroll config card
   getStorageInfo, // v0.54b
   migrateStoragePath, // v0.54b
   explainModel, // v0.55
@@ -33,10 +35,12 @@ import {
   clearProxyConfig, // v0.56
   setMirrorPaperMode,
   getMirrorPaperMode,
+  // v0.78 — bankroll allocation (M11)
+  getBankrollConfig,
   type AuditRetentionView,
   type SetAuditRetentionArgs,
 } from '@/ipc';
-import { formatRetentionAge } from '@/lib/format';
+import { formatRetentionAge, fmtPct } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import {
   downloadPrefsAsFile,
@@ -276,6 +280,12 @@ export function Settings() {
           required" flag from getStorageInfo gates
           the visibility of the migration button. */}
       <StorageMigrationCard />
+
+      {/* v0.79c — bankroll allocation config. Read-only summary
+         that links to /bankroll for editing. We don't duplicate
+         the slider UI here because the Bankroll page already
+         has the full editor + apply flow. */}
+      <BankrollConfigCard />
     </div>
   );
 }
@@ -1625,6 +1635,78 @@ function DegradationAlertCard() {
 // data to new path" button. After the migration
 // completes, the next launch already finds the
 // data at the new location (no empty-DB surprise).
+// v0.79c — bankroll allocation config card. Read-only summary
+// that calls `get_bankroll_config` and shows the current values.
+// The actual editing happens in /bankroll (which has the
+// slider UI + apply-allocation flow). This card is a
+// "where is my config" pointer.
+export function BankrollConfigCard() {
+  const { t } = useT();
+  const walletsQuery = useQuery({
+    queryKey: ['wallets'],
+    queryFn: () => listWallets(),
+    staleTime: 30_000,
+  });
+  const firstWalletId = (walletsQuery.data ?? [])[0]?.id ?? 'default';
+  const configQuery = useQuery({
+    queryKey: ['bankroll-config', firstWalletId],
+    queryFn: () => getBankrollConfig(firstWalletId),
+    enabled: !!firstWalletId && firstWalletId !== 'default',
+  });
+  const navigate = useNavigate();
+  return (
+    <Card
+      title={t('settings.bankroll.title', { default: 'Bankroll Allocation' })}
+      description={t('settings.bankroll.desc', {
+        default:
+          'AI-driven Kelly-based bet allocation. Edit in /bankroll.',
+      })}
+    >
+      <div className="space-y-3">
+        {configQuery.isLoading ? (
+          <Skeleton className="h-20" />
+        ) : configQuery.data ? (
+          <div className="grid grid-cols-2 gap-2 text-[12px]" data-testid="bankroll-config-card">
+            <ConfigItem label="Kelly multiplier" value={fmtPct(configQuery.data.kelly_multiplier)} />
+            <ConfigItem label="Max per signal" value={fmtPct(configQuery.data.max_per_signal_pct)} />
+            <ConfigItem label="Reserve" value={fmtPct(configQuery.data.reserve_pct)} />
+            <ConfigItem label="Min |edge|" value={fmtPct(configQuery.data.min_edge_pct)} />
+            <ConfigItem
+              label="Max total exposure"
+              value={fmtPct(configQuery.data.max_total_exposure_pct)}
+            />
+            <ConfigItem
+              label="Min confidence"
+              value={fmtPct(configQuery.data.min_confidence)}
+            />
+          </div>
+        ) : (
+          <div className="text-[12px] text-muted">
+            Using default config. Configure in /bankroll to persist.
+          </div>
+        )}
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => navigate('/bankroll')}
+          data-testid="bankroll-config-go"
+        >
+          Open /bankroll
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+function ConfigItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between px-2 py-1 rounded bg-surface-2">
+      <span className="text-muted">{label}</span>
+      <span className="font-mono text-fg">{value}</span>
+    </div>
+  );
+}
+
 function StorageMigrationCard() {
   const { t } = useT();
   const qc = useQueryClient();
