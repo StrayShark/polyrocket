@@ -2,7 +2,7 @@
 
 > 代码注释 / 文档化规范。**所有新增代码必须遵循此规范；存量代码按 v0.61 计划分轮翻新。**
 
-**版本**：v1.1 · 2026-06-19 (v0.69 CI infra 3-fix)
+**版本**：v1.2 · 2026-06-19 (v0.69h — pre-push 本地 CI gate)
 **配套**：[`overview.md`](./overview.md)（5 层架构） · [`polyrocket-modules.md`](./polyrocket-modules.md)（17 模块业务） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 交互流程） · [`polyrocket-v0.69-final.md`](./polyrocket-v0.69-final.md)（CI 修复记录）
 
 ---
@@ -303,8 +303,9 @@ def test_efficiency_axiom_holds_at_extremes():
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
-| v1.1 | 2026-06-19 | 新增 §10「CI 环境契约」—— pnpm 9 / Rust 1.88 / `--test-threads=1` / README sync 4 条硬约束 |
-| v1.0 | 2026-06-18 | 初版：Rust + TS + Python 三套规则 + 密度目标 + CI 校验 |
+| v1.2 | 2026-06-19 | 新增 §10.7「Pre-push 本地 CI gate」—— `scripts/run-ci-local.sh` + pre-push hook, push 前必跑 |
+| v1.1 | 2026-06-19 | 新增 §10「CI 环境契约」—— pnpm 9 / Rust 1.89 / `--test-threads=1` / README sync 4 条硬约束 |
+| v1.0 | 2026-06-18 | 初版:Rust + TS + Python 三套规则 + 密度目标 + CI 校验 |
 
 ---
 
@@ -414,6 +415,64 @@ node scripts/update-readme-coverage.mjs --version v0.XX    # 同时更新 README
 
 **禁止**:
 - ❌ 在 `.github/workflows/ci.yml` 里给守门脚本加 `continue-on-error: true` —— 静默退化
-- ❌ 把 `cargo +1.88` 降回 `1.77` —— edition2024 会回来
+- ❌ 把 `cargo +1.89` 降回 `1.77` —— edition2024 / dlopen2_derive 会回来
 - ❌ 把 `version: 9` 改成 `version: 10/11` —— workspace.yaml 逻辑要重写
 - ❌ 删 `scripts/check-*.mjs` —— 守门就废了
+
+### 10.7 Pre-push 本地 CI gate(v0.69h,强制)
+
+**所有 `git push` 必须在本地通过 `scripts/run-ci-local.sh` 才能 push。**
+
+```bash
+# 一键安装 hook(每个开发者只需运行一次):
+./scripts/install-ci-hook.sh
+
+# 之后 git push 会自动:
+#   1. 跑 scripts/run-ci-local.sh(模拟 CI 的 4 个 job)
+#   2. 失败则 BLOCK push + 提示具体哪个 job 出错
+#   3. 通过则 echo "safe to push" 并继续
+```
+
+**为什么必须有这个 gate(v0.69 的教训)**:
+
+v0.69 一连 7 个 fix 都在 GHA 上才暴露问题:
+
+| fix | 表面成功(本地) | 真实失败(CI) |
+|---|---|---|
+| v0.69c 切 Rust toolchain 1.77→1.88 | `cargo +1.88 check` pass | CI 报 `notify-rust 4.18 需要 1.89+` |
+| v0.69e README sync step 移到 frontend job | 本地手测 grep 通过 | CI 上 `coverage-summary.json` 不存在 → script exit 1 |
+| v0.69f 加 Linux 系统依赖 | macOS 已有 glib,build pass | CI ubuntu-latest 没装 → glib-sys 找不到 |
+| v0.69g stub `dist/index.html` | 本地有 stale `dist/`,pass | CI 干净 checkout,`tauri::generate_context!()` panic |
+
+每个 fix 在 macOS 上看起来都对,**只有 GHA 才能 reveal 真实问题**。
+
+`run-ci-local.sh` 通过以下手段把 CI 的"真实环境"逼近到本地:
+
+| 手段 | 解决哪个问题 |
+|---|---|
+| 强制 `pnpm@9`(检测 + 提示) | pnpm 11 容忍空 workspace.yaml |
+| 强制 `rustc 1.89`(rustup run) | 不用本地 default toolchain |
+| 强制 `pnpm test:coverage` 后跑 sync check | coverage-summary.json 必须先存在 |
+| `rm -rf dist && mkdir stub` | 模拟 CI 干净 checkout |
+| Linux 上跑 apt-get 系统依赖 | macOS 跳过(brew 已有) |
+| `rm -f ~/.polyrocket/sidecar/models/active.json` | 清除 pytest stale 状态 |
+| `--test-threads=1` | 已知 race 修复(§10.3) |
+
+**Bypass(紧急情况)**:
+
+```bash
+git push --no-verify                      # git 原生 bypass
+POLYROCKET_PRE_PUSH_SKIP=1 git push       # env override
+```
+
+**禁止**:`--no-verify` 用作常规绕道 —— 每次用都要在 PR 描述里说明原因。
+
+**`--quick` 模式**(节省 ~1m cargo 编译):
+
+```bash
+POLYROCKET_PRE_PUSH_QUICK=1 git push
+# 或
+./scripts/run-ci-local.sh --quick
+```
+
+适用于:只改了 TS / test / docs,没改 Rust 代码的场景。**改 Rust 必须跑完整版**。
