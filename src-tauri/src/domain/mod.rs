@@ -22,6 +22,7 @@
 //! by L2 (their public types are still defined in L2 commands).
 
 pub mod audit;
+pub mod bankroll;  // v0.78 — M11
 pub mod bet;
 pub mod consensus;
 pub mod copy;
