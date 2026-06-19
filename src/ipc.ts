@@ -416,25 +416,59 @@ export interface AnalyzeFinishedEvent {
   finished_at: number;
 }
 
+/**
+ * Detect if we're running inside the Tauri runtime (vs Vite-only dev).
+ *
+ * In Vite-only dev mode (e.g. `pnpm dev` without `tauri dev`), the
+ * `@tauri-apps/api/event.listen` calls fail with "Cannot read
+ * properties of undefined (reading 'transformCallback')" because
+ * the IPC bridge isn't injected. Pages that useEffect-call
+ * onAnalyzeStarted / onTrainStarted etc. crash on mount in this
+ * mode, blocking the page from rendering.
+ *
+ * Detection: `window.__TAURI_INTERNALS__` is set by Tauri at boot.
+ * Falls back to checking `window.isTauri` (older convention).
+ */
+const isTauriRuntime = (): boolean =>
+  typeof window !== 'undefined' &&
+  (Boolean((window as any).__TAURI_INTERNALS__) ||
+    Boolean((window as any).__TAURI__) ||
+    Boolean((window as any).isTauri));
+
+/**
+ * Safe wrapper around `listen()` that returns a no-op UnlistenFn
+ * when running outside Tauri (Vite dev / Storybook / unit tests).
+ * Pages can call onAnalyzeStarted() etc. unconditionally without
+ * crashing the React tree.
+ */
+const safeListen = <T>(event: string, cb: (msg: { payload: T }) => void): Promise<UnlistenFn> => {
+  if (!isTauriRuntime()) {
+    // No-op: dev mode without Tauri runtime. The cb never fires.
+    // Pages should already handle "no events arrived" state.
+    return Promise.resolve(() => {});
+  }
+  return listen<T>(event, cb);
+};
+
 /** Listen for `llm_analyze:started` events. Returns an unlisten
  * function. Use in `useEffect`'s cleanup to avoid leaks. */
 export const onAnalyzeStarted = (cb: (e: AnalyzeStartedEvent) => void): Promise<UnlistenFn> =>
-  listen<AnalyzeStartedEvent>('llm_analyze:started', (msg) => cb(msg.payload));
+  safeListen<AnalyzeStartedEvent>('llm_analyze:started', (msg) => cb(msg.payload));
 
 /** Listen for `llm_analyze:provider_done` events. Fires once per
  * provider, in any order (since the fan-out is parallel). */
 export const onProviderDone = (cb: (e: ProviderDoneEvent) => void): Promise<UnlistenFn> =>
-  listen<ProviderDoneEvent>('llm_analyze:provider_done', (msg) => cb(msg.payload));
+  safeListen<ProviderDoneEvent>('llm_analyze:provider_done', (msg) => cb(msg.payload));
 
 /** Listen for `llm_analyze:consensus_done` events. Fires once per
  * analyze, after all providers finished and consensus computed. */
 export const onConsensusDone = (cb: (e: ConsensusDoneEvent) => void): Promise<UnlistenFn> =>
-  listen<ConsensusDoneEvent>('llm_analyze:consensus_done', (msg) => cb(msg.payload));
+  safeListen<ConsensusDoneEvent>('llm_analyze:consensus_done', (msg) => cb(msg.payload));
 
 /** Listen for `llm_analyze:finished` events. The terminal event
  * the L1 typically `await`s to know the analyze is done. */
 export const onAnalyzeFinished = (cb: (e: AnalyzeFinishedEvent) => void): Promise<UnlistenFn> =>
-  listen<AnalyzeFinishedEvent>('llm_analyze:finished', (msg) => cb(msg.payload));
+  safeListen<AnalyzeFinishedEvent>('llm_analyze:finished', (msg) => cb(msg.payload));
 
 // ---------------------------------------------------------------- Train job (v0.17a)
 // Event payloads for the `train_job:*` events emitted from
@@ -512,13 +546,13 @@ export const trainJob = (args: TrainJobArgs = {}) =>
  * uses this to render a "Training…" pill right after the
  * user clicks Train. */
 export const onTrainStarted = (cb: (e: TrainStartedEvent) => void): Promise<UnlistenFn> =>
-  listen<TrainStartedEvent>('train_job:started', (msg) => cb(msg.payload));
+  safeListen<TrainStartedEvent>('train_job:started', (msg) => cb(msg.payload));
 
 /** Listen for `train_job:finished` events. The terminal event
  * the L1 awaits to know the sweep is done. Carries the full
  * result (per-trial stats + best Brier + params). */
 export const onTrainFinished = (cb: (e: TrainFinishedEvent) => void): Promise<UnlistenFn> =>
-  listen<TrainFinishedEvent>('train_job:finished', (msg) => cb(msg.payload));
+  safeListen<TrainFinishedEvent>('train_job:finished', (msg) => cb(msg.payload));
 
 // ---------------------------------------------------------------- Promote model (v0.18a)
 // Wire-format mirror of the Rust `PromoteResult` (returned by
@@ -1678,4 +1712,4 @@ export interface AutoPromoteFinishedEvent {
 export const onAutoPromoteFinished = (
   cb: (e: AutoPromoteFinishedEvent) => void,
 ): Promise<UnlistenFn> =>
-  listen<AutoPromoteFinishedEvent>('auto_promote:finished', (msg) => cb(msg.payload));
+  safeListen<AutoPromoteFinishedEvent>('auto_promote:finished', (msg) => cb(msg.payload));

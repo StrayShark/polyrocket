@@ -73,6 +73,8 @@ const en: Dictionary = {
   'page.audit': 'Audit Log',
   'page.notifications': 'Notifications',
   'page.help': 'Help',
+  'page.welcome': 'Welcome',
+  'page.trade': 'Trade',
   // Status / generic
   'status.loading': 'Loading…',
   'status.empty': 'Nothing here yet.',
@@ -535,6 +537,9 @@ const en: Dictionary = {
   // v0.39b — auto-promote OS notification
   'auto_promote.notify.label': 'Desktop notification on auto-promote',
   'auto_promote.notify.desc': 'When ON, a real OS notification (macOS Notification Center / Windows toast) fires when a background auto-promote completes. The in-app toast always fires regardless.',
+  // v0.42e-2 — skipped auto-promote OS notification
+  'auto_promote.notify_skipped.label': 'Desktop notification on auto-promote SKIPPED',
+  'auto_promote.notify_skipped.desc': 'When ON, a real OS notification fires when a background auto-promote evaluates the candidate and decides NOT to promote it (e.g. brier did not improve). Off by default — most users do not want a "no improvement" ping after every train.',
   'auto_promote.toast.auto_promoted_body': 'A new model was auto-promoted',
   // v0.42e-2 — skipped auto-promote OS notification body
   'auto_promote.toast.auto_skipped_body': 'No improvement over the active model',
@@ -898,6 +903,12 @@ const en: Dictionary = {
   'welcome.banner_missing_pm': 'no Polymarket CLOB',
   'welcome.banner_missing_wallet': 'no trading wallet',
   'welcome.banner_complete': 'Complete setup',
+  // v0.55c — re-run setup card on /settings
+  'welcome.rerun_title': 'Re-run first-run setup',
+  'welcome.rerun_desc': 'Walk through the wizard again. Existing settings (LLM keys, wallet, storage path) are preserved unless you explicitly reset.',
+  'welcome.rerun_body': 'Use this when you want to revisit a step you skipped (e.g. add a wallet, change storage path, configure a new LLM provider). The full flow is non-destructive — your data and active model are not touched.',
+  'welcome.rerun_button': 'Open setup wizard',
+  'welcome.rerun_reset': 'Reset all & re-run',
   'kbd.title': 'Keyboard shortcuts',
   'kbd.tip': 'Press a key, then the route key. Esc to cancel.',
   'palette.placeholder': 'Type a command…',
@@ -953,6 +964,8 @@ const zh: Dictionary = {
   'page.audit': '审计日志',
   'page.notifications': '通知',
   'page.help': '帮助',
+  'page.welcome': '欢迎',
+  'page.trade': '交易',
   // Status / generic
   'status.loading': '加载中…',
   'status.empty': '暂无数据。',
