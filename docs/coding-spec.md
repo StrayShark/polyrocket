@@ -2,8 +2,8 @@
 
 > 代码注释 / 文档化规范。**所有新增代码必须遵循此规范；存量代码按 v0.61 计划分轮翻新。**
 
-**版本**：v1.0 · 2026-06-18
-**配套**：[`overview.md`](./overview.md)（5 层架构） · [`polyrocket-modules.md`](./polyrocket-modules.md)（17 模块业务） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 交互流程）
+**版本**：v1.1 · 2026-06-19 (v0.69 CI infra 3-fix)
+**配套**：[`overview.md`](./overview.md)（5 层架构） · [`polyrocket-modules.md`](./polyrocket-modules.md)（17 模块业务） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 交互流程） · [`polyrocket-v0.69-final.md`](./polyrocket-v0.69-final.md)（CI 修复记录）
 
 ---
 
@@ -303,4 +303,117 @@ def test_efficiency_axiom_holds_at_extremes():
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v1.1 | 2026-06-19 | 新增 §10「CI 环境契约」—— pnpm 9 / Rust 1.88 / `--test-threads=1` / README sync 4 条硬约束 |
 | v1.0 | 2026-06-18 | 初版：Rust + TS + Python 三套规则 + 密度目标 + CI 校验 |
+
+---
+
+## 10. CI 环境契约（v0.69 强制）
+
+> 本节列出 polyrocket CI 必须满足的硬约束。所有 PR / push 改动若违反任一条，CI 会直接红。**新增依赖、新增测试、新增 build script 前先读本节。**
+
+### 10.1 pnpm 9 + `onlyBuiltDependencies`
+
+| 项 | 约束 |
+|---|---|
+| **CI 版本** | `pnpm 9.x`（`pnpm/action-setup@v4` with `version: 9`） |
+| **本地推荐** | pnpm 9.x（与 CI 1:1）或 pnpm 11.x（更宽松，会容忍一些 pnpm 9 报错） |
+| **原生模块** | 必须放在 `package.json#pnpm.onlyBuiltDependencies` 数组里：`better-sqlite3`、`esbuild` 等有 postinstall 的包 |
+| **禁止** | 单独的 `pnpm-workspace.yaml` 仅含 `allowBuilds:` —— pnpm 9 会报 `packages field missing or empty` 并直接 fail install |
+
+**为什么**:pnpm 9 要求 workspace yaml 含 `packages:` 字段；只放 `allowBuilds` 等价于"声明了工作区但没工作区",会被拒绝。`onlyBuiltDependencies` 在 `package.json` 里是 pnpm 9.4+ 原生支持的位置,既不需要 workspace yaml,也不需要 11.x 的 `allowBuilds`。
+
+**校验命令**:
+
+```bash
+# 应该能跑通(pnpm 9 与 11 都行)
+pnpm install --frozen-lockfile
+```
+
+如果报 `packages field missing or empty`,检查 `pnpm-workspace.yaml` 是否存在但只有 `allowBuilds:` —— 删除它,把列表迁到 `package.json#pnpm.onlyBuiltDependencies`。
+
+### 10.2 Rust 1.88 toolchain
+
+| 项 | 约束 |
+|---|---|
+| **CI 版本** | `rustc 1.88`（`dtolnay/rust-toolchain@stable` with `toolchain: 1.88`） |
+| **本地推荐** | 1.88+ (1.96 是 user 当前默认) |
+| **Cargo.lock 必须提交** | ✅ 已经在 .gitignore 排除项之外 |
+| **降级 CI toolchain** | ❌ 不允许 —— Tauri 2.11 的传递依赖(dlopen2_derive 0.4.3, time-0.3.49, darling 0.23)需要 1.85+;darling 需要 1.88+ |
+| **本地可选** | 添加 `src-tauri/rust-toolchain.toml` 写 `channel = "1.88"` 让本地与 CI 1:1(v0.70 candidate) |
+
+**为什么**:Cargo 1.77 无法解析 edition2024 的 manifest(Cargo.lock 已 pin 在 0.4.3,没法 downgrade)。升级 toolchain 比 `[patch.crates-io]` 强制老版本更可持续 —— 后者会跟 Tauri 上游打架。
+
+**校验命令**:
+
+```bash
+cargo +1.88 check --manifest-path src-tauri/Cargo.toml
+cargo +1.88 test --lib --manifest-path src-tauri/Cargo.toml -- --test-threads=1
+```
+
+### 10.3 `cargo test --lib -- --test-threads=1`
+
+**所有 Cargo 测试必须以 `--test-threads=1` 运行。** 包括本地(强制)和 CI(`ci.yml` 已配置)。
+
+**为什么**:`commands::sidecar::tests::archive_filters_by_job_ids` 用 `std::env::set_var("POLYROCKET_SIDECAR_MODEL_DIR", ...)` 改了进程级环境变量。并行线程下另一个测试可能 race 同一个 var,导致 flaky failure(约 1/50 次失败)。`--test-threads=1` 强制串行,代价是测试慢约 1.5x(总时长 < 1 分钟,可接受)。
+
+**根治方案**(v0.70+ candidate):重构该测试,model dir 通过函数参数注入,而不是读环境变量。需要改 4-5 个测试 fn。
+
+**禁止**:`--test-threads=2` 或更高 —— race 风险仍存在。
+
+### 10.4 README badges sync 步骤(故意设计为 fail-fast)
+
+`.github/workflows/ci.yml` 的 `README badges in sync (v0.67d)` 步骤会跑:
+
+```bash
+node scripts/update-readme-coverage.mjs 2>&1 | grep -q "no changes needed"
+```
+
+如果脚本判定 README 与 `coverage/coverage-summary.json` 有 drift,**脚本会原地修改 README.md 并 exit 0**(不会让 CI 步骤本身挂);但 grep 没匹配上 "no changes needed",CI 步骤 fail。这是**故意的 fail-fast drift 检测**。
+
+**正确流程**(维护者本地):
+
+```bash
+pnpm test:coverage                                          # 生成 coverage-summary.json
+node scripts/update-readme-coverage.mjs                     # 自动同步 README + overview
+git add README.md docs/overview.md
+git commit -m "v0.XX: ratchet NN% → MM% (auto update)"       # 跟主 commit 一起或单独 commit
+```
+
+**禁止**:
+- ❌ 跳过 `update-readme-coverage.mjs` 直接 push → CI 必挂 governance guards
+- ❌ 在 PR description 里说"README drift 是 known issue" → 不会被接受
+- ❌ 把 `grep -q "no changes needed"` 改成 `grep -q "README"` —— 会让 drift 检测失效
+
+**Status 字段额外步骤**(可选):
+
+```bash
+node scripts/update-readme-coverage.mjs --version v0.XX    # 同时更新 README Status 行 + overview 版本号
+```
+
+### 10.5 其他 CI 硬约束(沿用 v0.57c)
+
+| 项 | 约束 | 失败影响 |
+|---|---|---|
+| TypeScript typecheck | `pnpm typecheck` 必须 0 error | 阻塞 PR merge |
+| vitest 覆盖率门槛 | stmts 73% / branches 69% / funcs 63% / lines 75%(v0.68) | 低于门槛 CI fail |
+| L1↔Tauri 守门 | `scripts/check-l1-tauri.mjs` 检查 111 个 IPC 命令一一对应 | 不匹配 fail |
+| Layer rules | `scripts/check-layers.mjs` 阻止 L3→L1/L2 等反向依赖 | 提交前 pre-commit 钩子拦截 |
+| Theme contrast | `scripts/check-theme-contrast.mjs` 检查 3 主题 WCAG AA(≥4.5:1) | 任意一对 < 4.5:1 fail |
+| Comment density | `scripts/check-comment-density.mjs` 检查 5 类模块 ≥50% 文件达标 | 全部 < 50% fail |
+| Doc sync | `scripts/check-doc-sync.mjs` 阻止改 code 不改 doc | pre-commit 钩子拦截 |
+| Python sidecar tests | `pytest`(单进程,CI 上无 race) | 任意 fail CI fail |
+
+### 10.6 紧急降级(勿轻用)
+
+如果某个 CI 约束临时挡住了紧急 PR,可以:
+
+1. 在 PR description 明确标注 "CI override: <reason>"
+2. 在 commit 里 `git revert` 临时关闭守门脚本(不是删除)
+3. merge 后立即在新 commit 里 revert revert + 修复
+
+**禁止**:
+- ❌ 在 `.github/workflows/ci.yml` 里给守门脚本加 `continue-on-error: true` —— 静默退化
+- ❌ 把 `cargo +1.88` 降回 `1.77` —— edition2024 会回来
+- ❌ 把 `version: 9` 改成 `version: 10/11` —— workspace.yaml 逻辑要重写
+- ❌ 删 `scripts/check-*.mjs` —— 守门就废了
