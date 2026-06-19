@@ -32,10 +32,16 @@ const __dirname = __filename.replace(/\/[^/]+$/, '');
 const REPO_ROOT = join(__dirname, '..');
 
 // ----- Density targets per coding-spec §5 -------------------------------
+// v0.68c round 1: rust-commands-domain-infra 10%→15%, ts-routes 5%→10%.
+// v0.70 round 2: ts-routes-components-lib 10%→15% (avg ratio 21.9%;
+//       58/78 files at 15%, 20/78 below). Bumping forces more
+//       /// / JSDoc on the bottom 5 (PolymarketStep 5.5%, Copy 5.7%,
+//       Markets 5.8%, History 6.5%, format 6.7%) — done incrementally
+//       in v0.71+ sub-versions.
 const TARGETS = [
   { name: 'rust-commands-domain-infra',  pattern: /^src-tauri\/src\/(commands|domain|infra)\//,         min: 15, lang: 'rust' },
   { name: 'rust-platform',                pattern: /^src-tauri\/src\/platform\//,                        min: 10, lang: 'rust' },
-  { name: 'ts-routes-components-lib',     pattern: /^src\/(routes|components|lib|stores)\//,            min: 10, lang: 'ts'   },
+  { name: 'ts-routes-components-lib',     pattern: /^src\/(routes|components|lib|stores)\//,            min: 15, lang: 'ts'   },
   { name: 'ts-types',                     pattern: /^src\/types\//,                                      min: 5,  lang: 'ts'   },
   { name: 'py-sidecar',                   pattern: /^sidecar\/polyrocket_sidecar\//,                     min: 12, lang: 'py'   },
 ];

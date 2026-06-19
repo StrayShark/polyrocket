@@ -2,7 +2,7 @@
 
 > 代码注释 / 文档化规范。**所有新增代码必须遵循此规范；存量代码按 v0.61 计划分轮翻新。**
 
-**版本**：v1.2 · 2026-06-19 (v0.69h — pre-push 本地 CI gate)
+**版本**：v1.3 · 2026-06-19 (v0.70 final — coverage 73.9→79.5% + density round 2)
 **配套**：[`overview.md`](./overview.md)（5 层架构） · [`polyrocket-modules.md`](./polyrocket-modules.md)（17 模块业务） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 交互流程） · [`polyrocket-v0.69-final.md`](./polyrocket-v0.69-final.md)（CI 修复记录）
 
 ---
@@ -246,13 +246,17 @@ def test_efficiency_axiom_holds_at_extremes():
 
 ## 5. 密度目标
 
-| 语言 | 模块类别 | 目标注释行占比 | 当前（v0.60 final） |
+| 语言 | 模块类别 | 目标注释行占比 | 当前（v0.70 final） |
 |---|---|---|---|
-| Rust | `commands` / `domain` / `infra` | **≥ 15%** | ~5% |
-| Rust | `platform` | ≥ 10% | ~15% |
-| TypeScript | `routes` / `components` / `lib` / `stores` | **≥ 10%** | ~5% |
-| TypeScript | `types` | ≥ 5% | ~15% |
-| Python | `polyrocket_sidecar/` | **≥ 12%** | ~8% |
+| Rust | `commands` / `domain` / `infra` | **≥ 15%** | avg 27.5% (57/67 pass) |
+| Rust | `platform` | ≥ 10% | 100% pass (5/5) |
+| TypeScript | `routes` / `components` / `lib` / `stores` | **≥ 15%** | avg 21.9% (45/78 pass) |
+| TypeScript | `types` | ≥ 5% | 100% pass (7/7) |
+| Python | `polyrocket_sidecar/` | **≥ 12%** | 100% pass (7/7) |
+
+**v0.68c round 1**:rust-commands-domain-infra 10→15%, ts-routes 5→10%。
+**v0.70 round 2**:ts-routes-components-lib 10→15%(45/78 pass, avg 21.9%)。
+**v0.71+ round 3 候选**:rust-commands-domain-infra 15→20% (57/67 当前)。
 
 **统计口径**：`///` + `//!` + `//` + `/** */` + `""" """` + `#` 之和 / 总行数。空行不计入分子。
 
@@ -303,6 +307,7 @@ def test_efficiency_axiom_holds_at_extremes():
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v1.3 | 2026-06-19 | §5 density round 2: ts-routes-components-lib target 10→15% |
 | v1.2 | 2026-06-19 | 新增 §10.7「Pre-push 本地 CI gate」—— `scripts/run-ci-local.sh` + pre-push hook, push 前必跑 |
 | v1.1 | 2026-06-19 | 新增 §10「CI 环境契约」—— pnpm 9 / Rust 1.89 / `--test-threads=1` / README sync 4 条硬约束 |
 | v1.0 | 2026-06-18 | 初版:Rust + TS + Python 三套规则 + 密度目标 + CI 校验 |
