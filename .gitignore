@@ -56,3 +56,8 @@ docs/.seed.html
 
 # vitest coverage HTML report (v0.60b)
 coverage/
+
+# v0.82 — Playwright HTML report + per-failure diff/actual artifacts
+playwright-report/
+test-results/
+

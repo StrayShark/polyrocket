@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# polyrocket — run all CI jobs locally (v0.73a — HARDENED).
+# polyrocket — run all CI jobs locally (v0.73a — HARDENED, v0.82 — +Playwright).
 #
 # Why this exists: each v0.69 fix surfaced an issue that local
 # macOS verification missed because:
@@ -27,12 +27,15 @@
 #                              typecheck + vitest + coverage + readme sync)
 #   3. Rust cargo test      (cargo 1.89 + dist stub + build + test --threads=1)
 #   4. Python sidecar       (pip install -e . + pytest)
+#   5. Playwright e2e       (v0.82; on macOS reuses puppeteer's chrome-headless-
+#                              shell cache, on Linux installs Playwright's
+#                              chromium via `npx playwright install`)
 #
 # Exit codes:
 #   0 = all pass (safe to push; state file written)
-#   N = job N failed (1-indexed: 1=governance, 2=L1, 3=Rust, 4=Python)
+#   N = job N failed (1-indexed: 1=governance, 2=L1, 3=Rust, 4=Python, 5=e2e)
 #
-# State file (v0.73a):
+# State file (v0.73a, unchanged in v0.82):
 #   On success, writes .git/CI_VERIFIED with:
 #     sha=<current_head_sha>
 #     timestamp=<unix_ts>
@@ -66,11 +69,18 @@ for arg in "$@"; do
 done
 
 # ----- Toolchain detection ---------------------------------------------
-# CI uses rustc 1.89, pnpm 9, node 20. We check what's installed and
-# either use it (if compatible) or fail loudly with install hint.
+# CI uses rustc stable (1.96+), pnpm 9, node 20. We check what's
+# installed and either use it (if compatible) or fail loudly with
+# install hint.
+#
+# v0.82 — bumped from 1.89 to stable (1.96+). Reason: specta 2.0.0-
+# rc.25 (added in v0.76 codegen) uses `core::fmt::from_fn` gated
+# behind `debug_closure_helpers`, which was stabilized in Rust 1.96.
+# Older toolchains (1.89) emit E0658. Pinning to `stable` keeps
+# local CI in lockstep with whatever the system Rust happens to be.
 RUSTC_VERSION=""
 if command -v rustup >/dev/null 2>&1; then
-  RUSTC_VERSION="$(rustup run 1.89 rustc --version 2>/dev/null | awk '{print $2}' || echo "")"
+  RUSTC_VERSION="$(rustup run stable rustc --version 2>/dev/null | awk '{print $2}' || echo "")"
 fi
 
 NODE_VERSION="$(node --version 2>/dev/null | tr -d 'v' || echo "")"
@@ -86,7 +96,7 @@ echo "============================================================"
 echo "Platform    : $(uname -s)/$(uname -m)"
 echo "Node        : ${NODE_VERSION:-NOT FOUND}"
 echo "pnpm        : ${PNPM_VERSION:-NOT FOUND}"
-echo "Rust 1.89   : ${RUSTC_VERSION:-NOT INSTALLED}"
+echo "Rust stable : ${RUSTC_VERSION:-NOT INSTALLED}"
 echo "Python 3    : ${PYTHON_VERSION:-NOT FOUND}"
 echo "============================================================"
 echo
@@ -96,7 +106,7 @@ echo
 FAIL=0
 [ -z "$NODE_VERSION" ] && { echo "✗ node not found — install Node 20.x"; FAIL=1; }
 [ -z "$PNPM_VERSION" ] && { echo "✗ pnpm not found — npm install -g pnpm@9"; FAIL=1; }
-[ -z "$RUSTC_VERSION" ] && { echo "✗ rustc 1.89 not installed — rustup toolchain install 1.89 --profile minimal"; FAIL=1; }
+[ -z "$RUSTC_VERSION" ] && { echo "✗ rustc stable (1.96+) not installed — rustup toolchain install stable --profile minimal"; FAIL=1; }
 [ -z "$PYTHON_VERSION" ] && { echo "✗ python3 not found — install Python 3.9+"; FAIL=1; }
 if [ "$FAIL" = "1" ]; then
   echo
@@ -105,7 +115,7 @@ if [ "$FAIL" = "1" ]; then
 fi
 
 # ----- Job 1: governance guards ----------------------------------------
-echo "[1/4] governance guards"
+echo "[1/5] governance guards"
 echo "--- L1↔Tauri guard"
 node scripts/check-l1-tauri.mjs
 echo "--- Layer rules"
@@ -123,7 +133,7 @@ echo "✓ governance guards PASS"
 echo
 
 # ----- Job 2: L1 typecheck + vitest -----------------------------------
-echo "[2/4] L1 typecheck + vitest"
+echo "[2/5] L1 typecheck + vitest"
 echo "--- pnpm install"
 pnpm install --frozen-lockfile
 echo "--- pnpm typecheck"
@@ -145,8 +155,10 @@ echo "✓ L1 typecheck + vitest PASS"
 echo
 
 # ----- Job 3: Rust cargo test (REQUIRED in v0.73a — no --quick) ------
-echo "[3/4] Rust cargo test (REQUIRED — v0.73a removes --quick)"
-CARGO="rustup run 1.89 cargo"
+echo "[3/5] Rust cargo test (REQUIRED — v0.73a removes --quick)"
+# v0.82 — use stable toolchain (was 1.89; bumped because specta 2.0.0-
+# rc.25 needs `core::fmt::from_fn` from Rust 1.96+).
+CARGO="rustup run stable cargo"
 
 if [ "$(uname -s)" = "Linux" ]; then
   echo "--- Linux system deps (webkit2gtk-4.1 stack)"
@@ -196,7 +208,7 @@ rm -rf dist
 echo
 
 # ----- Job 4: Python sidecar tests ------------------------------------
-echo "[4/4] Python sidecar tests"
+echo "[4/5] Python sidecar tests"
 python3 -m pip install --upgrade pip setuptools wheel --quiet 2>/dev/null || \
   python3 -m pip install --user --upgrade pip setuptools wheel --quiet
 (cd sidecar && python3 -m pip install -e . pytest --quiet)
@@ -210,6 +222,42 @@ if ! grep -E "passed|passed in" /tmp/pytest.log > /dev/null 2>&1; then
   exit 4
 fi
 echo "✓ Python sidecar tests PASS"
+echo
+
+# ----- Job 5: Playwright e2e (v0.82 — Visual Acceptance Gate) ----------
+# Spec: docs/coding-spec.md §12. Catches both DOM and CSS regressions
+# in the /bankroll route (and any other future route under tests/e2e/).
+#
+# Browser strategy:
+#   - macOS arm64: reuses puppeteer's chrome-headless-shell cache at
+#     ~/.cache/puppeteer/chrome-headless-shell/. No download needed
+#     (playwright.config.ts resolves the binary via OS detection).
+#   - linux:        installs Playwright's bundled chromium. Idempotent
+#     and cheap (~2s for the version check when already present).
+#   - override:     set PLAYWRIGHT_EXECUTABLE_PATH to a custom binary.
+#
+# Why the OS branch: Playwright's own chromium download is ~200MB.
+# On macOS dev (this user's primary workstation) we already have
+# puppeteer's cache populated from v0.80 setup, so reusing it skips
+# the download entirely. The macOS path is the fast path; the Linux
+# path is the cold path that matches what CI does.
+echo "[5/5] Playwright e2e (v0.82 Visual Acceptance Gate)"
+if [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
+  echo "--- macOS arm64: reusing puppeteer's chrome-headless-shell (no install)"
+else
+  echo "--- installing Playwright chromium (idempotent; ~200MB on cold cache)"
+  npx playwright install chromium
+fi
+echo "--- pnpm test:e2e"
+pnpm test:e2e 2>&1 | tee /tmp/playwright.log
+# Playwright exits 0 on success and 1 on visual diff or test failure.
+# We additionally check the log for the "passed" marker for clarity.
+if ! grep -E "passed|passed in" /tmp/playwright.log > /dev/null 2>&1; then
+  echo "✗ Playwright e2e failed — see /tmp/playwright.log"
+  echo "  If snapshots drifted intentionally, run: pnpm test:e2e --update-snapshots"
+  exit 5
+fi
+echo "✓ Playwright e2e PASS"
 echo
 
 # ----- State file (v0.73a) --------------------------------------------
@@ -228,6 +276,6 @@ runner=$RUNNER_TAG
 EOF
 
 echo "============================================================"
-echo "ALL 4 JOBS PASSED — safe to push"
+echo "ALL 5 JOBS PASSED — safe to push"
 echo "CI_VERIFIED state written to $STATE_FILE"
 echo "============================================================"

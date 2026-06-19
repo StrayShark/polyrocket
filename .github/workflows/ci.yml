@@ -182,7 +182,12 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.89
+          # v0.82 — bumped from 1.89 to 1.96. Reason: specta 2.0.0-
+          # rc.25 (added in v0.76 codegen) uses `core::fmt::from_fn`
+          # gated behind `debug_closure_helpers`, which stabilized
+          # in Rust 1.96. Older toolchains emit E0658. Pinning to
+          # the current latest stable keeps local + CI in lockstep.
+          toolchain: 1.96
 
       # v0.69g — tauri::generate_context!() macro reads
       # `../dist/index.html` at compile time (tauri.conf.json
@@ -228,3 +233,64 @@ jobs:
       - name: pytest
         working-directory: sidecar
         run: pytest
+
+  # ============================================================
+  # Playwright e2e (v0.82 — Visual Acceptance Gate).
+  #
+  # Spec: docs/coding-spec.md §12. Catches both DOM and CSS
+  # regressions in the /bankroll route (and any other future
+  # route under tests/e2e/).
+  #
+  # Browser: Playwright's bundled chromium (no executablePath
+  # override — the macOS dev shortcut via puppeteer's cache is
+  # handled in `playwright.config.ts` resolveChromiumPath() and
+  # is not used on Linux runners).
+  #
+  # Why this is a separate job: the Vite dev server + chromium
+  # process needs ~60s to warm up, and visual diffs are noisy
+  # if bundled with typecheck or cargo. Splitting keeps each
+  # job's failure mode clean.
+  # ============================================================
+  e2e:
+    name: Playwright e2e (visual regression)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # v0.82 — Playwright needs its own chromium on Linux runners
+      # (the macOS puppeteer cache trick from `playwright.config.ts`
+      # only applies to local dev). `--with-deps` installs the OS
+      # shared libraries chromium needs (libnss3, libatk-1.0, etc.)
+      # that aren't in the ubuntu-latest image.
+      - name: Install Playwright chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run e2e tests
+        run: pnpm test:e2e
+
+      # v0.82 — on failure, upload the test report + diff PNGs so
+      # the PR author can see which route/theme regressed without
+      # rerunning locally. Playwright HTML reporter writes to
+      # `playwright-report/` by default.
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            tests/e2e/**/*-diff.png
+            tests/e2e/**/*-actual.png
+          retention-days: 7
