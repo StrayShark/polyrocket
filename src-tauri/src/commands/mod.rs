@@ -7,6 +7,7 @@
 //! full list of 39 IPCs and the modules they live in.
 
 pub mod audit;
+pub mod bankroll;  // v0.78 — M11
 pub mod bet;
 pub mod brief;
 pub mod copy;

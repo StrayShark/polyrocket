@@ -11,6 +11,7 @@
 
 use crate::domain::polymarket::hours_until_close;
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
 /// 信号记录 —— 镜像 SQLite `signals` 表的一行。
 ///
@@ -22,7 +23,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// **`horizon_hours`**：从 `computed_at` 到市场关闭的小时数。L1 在 card 展示
 /// 「3h to close」之类的提示。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct Signal {
     pub market_id: String,
     pub computed_at: i64,
