@@ -9,6 +9,7 @@
 //! Io, Serde, Keyring, plus Invalid/NotFound/Internal for app logic).
 
 use serde::Serialize;
+use specta::Type;
 use thiserror::Error;
 
 /// 全应用统一的 `Result` 别名。命令层用 `Result<T, AppError>` 代替 `Result<T, String>`，
@@ -75,6 +76,17 @@ pub enum AppError {
 impl Serialize for AppError {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         s.serialize_str(&self.to_string())
+    }
+}
+
+impl specta::Type for AppError {
+    // v0.81 — Map AppError to TS `string` for codegen.
+    // The runtime wire format is already a string (see `Serialize`
+    // impl above), so this is consistent. `Primitive::str` is the
+    // specta 2.0.0-rc.25 representation that maps to `string` in
+    // the TS exporter.
+    fn definition(_: &mut specta::Types) -> specta::datatype::DataType {
+        specta::datatype::DataType::Primitive(specta::datatype::Primitive::str)
     }
 }
 

@@ -5,23 +5,84 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 /** Commands */
 export const commands = {
 	dashboardKpisCodegen: () => typedError<DashboardKpisDto, string>(__TAURI_INVOKE("dashboard_kpis_codegen")),
+	computeAllocationPreviewCodegen: (args: ComputeAllocationArgsCodegen) => typedError<AllocationResult, string>(__TAURI_INVOKE("compute_allocation_preview_codegen", { args })),
+	getBankrollConfigCodegen: (walletId: string) => typedError<BankrollConfigDto, string>(__TAURI_INVOKE("get_bankroll_config_codegen", { walletId })),
+	setBankrollConfigCodegen: (walletId: string, config: BankrollConfigDto) => typedError<null, string>(__TAURI_INVOKE("set_bankroll_config_codegen", { walletId, config })),
+	applyAllocationCodegen: (walletId: string, result: AllocationResult, bankrollUsdc: string, config: BankrollConfigDto) => typedError<string, string>(__TAURI_INVOKE("apply_allocation_codegen", { walletId, result, bankrollUsdc, config })),
 };
 
 /* Types */
 /**
- *  v0.76 Phase 1 — proof of concept.
- * 
- *  This bin generates TS bindings for ONE command
- *  (`dashboard_kpis`). Phase 3-5 will expand to all
- *  108 IPCs. See `docs/codegen-migration-plan.md`.
- * 
- *  **Known limitations**:
- *  - AppError doesn't derive `specta::Type`, so we
- *    wrap the result in a codegen-friendly type.
- *  - Default TS export uses camelCase; polyrocket
- *    uses snake_case. The drift is documented as
- *    a Phase 2 follow-up.
+ *  One allocation for a single market. Multiple signals on the same
+ *  market are grouped into a single `AllocationItem` (with
+ *  `source_signal_ids` listing the merged signals).
  */
+export type AllocationItem = {
+	market_id: string,
+	side: BetSide,
+	/**
+	 *  Final size in USDC, rounded to 2 decimals (string to avoid
+	 *  float precision issues — the DB column is TEXT).
+	 */
+	size_usdc: string,
+	/**  Raw Kelly fraction before any caps. Range: [0, 1]. */
+	kelly_pct: number | null,
+	/**  Why this allocation was capped, if at all. */
+	capped_reason: CappedReason | null,
+	/**  Original signal IDs that were merged into this allocation. */
+	source_signal_ids: string[],
+	/**  Model version (most recent among merged signals). */
+	model_version: string,
+	/**  Confidence (max across merged signals). */
+	confidence: number | null,
+	/**  Expected ROI = edge × confidence. Used for display only. */
+	expected_roi: number | null,
+};
+
+/**  Final allocation result. */
+export type AllocationResult = {
+	/**  Total USDC allocated across all markets (sum of size_usdc). */
+	total_allocated_usdc: string,
+	/**  USDC held in reserve (not allocated). */
+	reserved_usdc: string,
+	/**  Per-market allocations. */
+	per_market: AllocationItem[],
+	/**  Markets dropped due to liquidity (kelly > 0 but couldn't fit). */
+	dropped_markets: string[],
+};
+
+/**
+ *  IPC-friendly DTO for `BankrollConfig`. Same shape, separate type
+ *  so the L1↔L2 boundary stays clean (domain::BankrollConfig has no
+ *  `specta::Type` derive to keep it free of IPC-layer types).
+ */
+export type BankrollConfigDto = {
+	kelly_multiplier: number | null,
+	max_per_signal_pct: number | null,
+	reserve_pct: number | null,
+	min_edge_pct: number | null,
+	max_total_exposure_pct: number | null,
+	min_confidence: number | null,
+};
+
+/**  Side of the bet (Yes/No token on a prediction market). */
+export type BetSide = "Yes" | "No";
+
+export type CappedReason = 
+/**  Allocation was capped by `max_per_signal_pct`. */
+"PerSignalCap" | 
+/**  Allocation was capped by market liquidity. */
+"Liquidity" | 
+/**  Total exposure > max_total_exposure_pct, scaled down. */
+"TotalExposure";
+
+export type ComputeAllocationArgsCodegen = {
+	bankroll_usdc: string,
+	config: BankrollConfigDto | null,
+	signals: SignalCodegenDto[],
+	market_liquidity: { [key in string]: string } | null,
+};
+
 export type DashboardKpisDto = {
 	total_equity_usdc: string,
 	open_pnl_usdc: string,
@@ -29,6 +90,18 @@ export type DashboardKpisDto = {
 	brier_score: number | null,
 	active_signals: number,
 	open_positions: number,
+};
+
+export type SignalCodegenDto = {
+	market_id: string,
+	computed_at: number,
+	model_version: string,
+	predicted_prob: number | null,
+	market_prob: number | null,
+	edge: number | null,
+	confidence: number | null,
+	horizon_hours: number,
+	rationale: string | null,
 };
 
 /* Tauri Specta runtime */

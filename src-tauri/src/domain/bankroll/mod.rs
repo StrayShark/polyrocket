@@ -15,6 +15,7 @@
 
 use crate::domain::signal::Signal;
 use serde::{Deserialize, Serialize};
+use specta::Type;
 use std::collections::HashMap;
 
 /// Per-wallet bankroll configuration. Stored in `bankroll_config` table.
@@ -54,7 +55,7 @@ impl Default for BankrollConfig {
 }
 
 /// Side of the bet (Yes/No token on a prediction market).
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Type)]
 pub enum BetSide {
     Yes,
     No,
@@ -63,7 +64,7 @@ pub enum BetSide {
 /// One allocation for a single market. Multiple signals on the same
 /// market are grouped into a single `AllocationItem` (with
 /// `source_signal_ids` listing the merged signals).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type)]
 pub struct AllocationItem {
     pub market_id: String,
     pub side: BetSide,
@@ -84,7 +85,7 @@ pub struct AllocationItem {
     pub expected_roi: f64,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Type)]
 pub enum CappedReason {
     /// Allocation was capped by `max_per_signal_pct`.
     PerSignalCap,
@@ -95,7 +96,7 @@ pub enum CappedReason {
 }
 
 /// Final allocation result.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type)]
 pub struct AllocationResult {
     /// Total USDC allocated across all markets (sum of size_usdc).
     pub total_allocated_usdc: String,
