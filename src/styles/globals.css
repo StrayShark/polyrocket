@@ -46,4 +46,54 @@
   ::-webkit-scrollbar-thumb:hover {
     background: var(--border-strong);
   }
+
+  /* Sidebar nav-item — used by AppShell.tsx.
+   *
+   * v0.74c fix: this class was referenced in AppShell since
+   * initial commit but never defined in CSS. Result: sidebar
+   * icons rendered at default 24×24, layout broken (block
+   * instead of flex, no padding, no hover state). The
+   * spec describes the visual target: "Cursor / VS Code
+   * sidebar density — 24px row, 12px font, 4px icon-text gap,
+   * muted-text-by-default with active accent".
+   *
+   * The class is custom (not a Tailwind utility) so it lives
+   * in @layer components to keep specificity predictable.
+   */
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px;
+    height: 24px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 16px;
+    text-decoration: none;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color var(--duration-theme) var(--ease-out),
+                color var(--duration-theme) var(--ease-out);
+  }
+  .nav-item:hover {
+    background: var(--surface-hover);
+    color: var(--fg);
+  }
+  .nav-item.active {
+    background: var(--surface-2);
+    color: var(--fg);
+    font-weight: var(--font-weight-medium, 500);
+  }
+  .nav-item svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+  .nav-item span {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
