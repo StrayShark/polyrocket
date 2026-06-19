@@ -11,6 +11,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
+import type { InvokeArgs } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type {
   Wallet,
@@ -50,13 +51,13 @@ import type {
 } from '@/types/shared';
 
 // ---------------------------------------------------------------- Wallet (M4)
-export const listWallets = () => invoke<Wallet[]>('list_wallets');
-export const addWallet = (args: AddWalletArgs) => invoke<Wallet>('add_wallet', { args });
+export const listWallets = () => safeInvoke<Wallet[]>('list_wallets');
+export const addWallet = (args: AddWalletArgs) => safeInvoke<Wallet>('add_wallet', { args });
 
 // ---------------------------------------------------------------- Market (M1)
 export const listMarkets = (args: ListMarketsArgs = {}) =>
   invoke<Market[]>('list_markets', { args });
-export const syncMarkets = () => invoke<number>('sync_markets');
+export const syncMarkets = () => safeInvoke<number>('sync_markets');
 
 // v0.46a — list resolved markets formatted as
 // backtest samples. The L1 uses this to pre-fill
@@ -86,12 +87,12 @@ export interface ListResolvedMarketsForBacktestArgs {
 }
 export const listResolvedMarketsForBacktest = (
   args: ListResolvedMarketsForBacktestArgs = {},
-) => invoke<ResolvedMarketSample[]>('list_resolved_markets_for_backtest', { args });
+) => safeInvoke<ResolvedMarketSample[]>('list_resolved_markets_for_backtest', { args });
 
 // ---------------------------------------------------------------- Signal (M2)
 export const listActiveSignals = (args: ListSignalsArgs = {}) =>
   invoke<Signal[]>('list_active_signals', { args });
-export const recomputeSignals = () => invoke<number>('recompute_signals');
+export const recomputeSignals = () => safeInvoke<number>('recompute_signals');
 
 // ---------------------------------------------------------------- Bet (M3)
 export const placeJumpLink = (args: PlaceJumpArgs) =>
@@ -111,7 +112,7 @@ export const listBets = (args: ListBetsArgs = {}) =>
   invoke<Bet[]>('list_bets', { args });
 
 // ---------------------------------------------------------------- Copy (M5)
-export const listCopyTargets = () => invoke<CopyTarget[]>('list_copy_targets');
+export const listCopyTargets = () => safeInvoke<CopyTarget[]>('list_copy_targets');
 export const addCopyTarget = (args: AddCopyTargetArgs) =>
   invoke<CopyTarget>('add_copy_target', { args });
 export const recentCopyEvents = (targetId?: string, limit = 50) =>
@@ -144,7 +145,7 @@ export const listPaperFills = (args: { limit?: number } = {}) =>
   invoke<PaperFill[]>('list_paper_fills', { args });
 
 // ---------------------------------------------------------------- PnL (M6)
-export const dashboardKpis = () => invoke<DashboardKpis>('dashboard_kpis');
+export const dashboardKpis = () => safeInvoke<DashboardKpis>('dashboard_kpis');
 // v0.45b — paper trading PnL summary (settled fills only)
 export const paperPnlSummary = () =>
   invoke<PaperPnlSummary>('paper_pnl_summary');
@@ -156,12 +157,12 @@ export const degradationCheckNow = () =>
   invoke<void>('degradation_check_now', { args: {} });
 
 // ---------------------------------------------------------------- LLM Analysis (M10)
-export const listLlmProviders = () => invoke<LlmProvider[]>('list_llm_providers');
+export const listLlmProviders = () => safeInvoke<LlmProvider[]>('list_llm_providers');
 export const upsertLlmProvider = (args: UpsertLlmProviderArgs) =>
   invoke<LlmProvider>('upsert_llm_provider', { args });
 export const llmAnalyze = (marketId: string, providers?: string[]) =>
   invoke<LlmAnalysis>('llm_analyze', { marketId, providers });
-export const llmPerformance = () => invoke<LlmPerformance[]>('llm_performance');
+export const llmPerformance = () => safeInvoke<LlmPerformance[]>('llm_performance');
 
 /**
  * v0.16b — `record_llm_decision` arg shape.
@@ -186,7 +187,7 @@ export interface RecordLlmDecisionArgs {
 }
 export const recordLlmDecision = (args: RecordLlmDecisionArgs) =>
   invoke<number>('record_llm_decision', { args });
-export const llmStatsHeatmap = () => invoke<LlmHeatmapCell[]>('llm_stats_heatmap');
+export const llmStatsHeatmap = () => safeInvoke<LlmHeatmapCell[]>('llm_stats_heatmap');
 export const llmStatsScatter = (marketId?: string) =>
   invoke<LlmScatterPoint[]>('llm_stats_scatter', { marketId });
 export const llmStatsTimeseries = (windowHours = 24) =>
@@ -201,7 +202,7 @@ export const llmListAnalyses = (marketId?: string) =>
   invoke<LlmAnalysis[]>('llm_list_analyses', { marketId });
 
 // ---------------------------------------------------------------- LLM Mgmt (M11)
-export const llmProviderList = () => invoke<LlmProvider[]>('llm_provider_list');
+export const llmProviderList = () => safeInvoke<LlmProvider[]>('llm_provider_list');
 export const llmProviderUpsert = (args: UpsertLlmProviderArgs) =>
   invoke<LlmProvider>('llm_provider_upsert', { args });
 export const llmProviderDelete = (id: string) =>
@@ -212,7 +213,7 @@ export const llmKeyUpsert = (args: UpsertLlmKeyArgs) =>
   invoke<LlmProviderKey>('llm_key_upsert', { args });
 export const llmKeySetSecret = (keyId: string, secret: string) =>
   invoke<void>('llm_key_set_secret', { keyId, secret });
-export const llmKeyDelete = (keyId: string) => invoke<void>('llm_key_delete', { keyId });
+export const llmKeyDelete = (keyId: string) => safeInvoke<void>('llm_key_delete', { keyId });
 export const llmTestConnectivity = (providerId: string, keyId?: string) =>
   invoke<ConnectivityTestResult>('llm_test_connectivity', { providerId, keyId });
 export const llmTrafficSummary = (windowHours = 24) =>
@@ -237,15 +238,15 @@ export const llmStatsExport = (format: 'csv' | 'json' = 'csv') =>
 // ---------------------------------------------------------------- Secrets (M11)
 export const llmPmSetCredentials = (apiKey: string, secret: string, passphrase: string) =>
   invoke<void>('llm_pm_set_credentials', { apiKey, secret, passphrase });
-export const llmPmClearCredentials = () => invoke<void>('llm_pm_clear_credentials');
+export const llmPmClearCredentials = () => safeInvoke<void>('llm_pm_clear_credentials');
 export const polyrocketWalletSetPk = (alias: string, pk: string) =>
   invoke<void>('polyrocket_wallet_set_pk', { alias, pk });
 export const polyrocketWalletClearPk = (alias: string) =>
   invoke<void>('polyrocket_wallet_clear_pk', { alias });
-export const secretsStatus = () => invoke<SecretsStatus>('secrets_status');
+export const secretsStatus = () => safeInvoke<SecretsStatus>('secrets_status');
 
 // ---------------------------------------------------------------- Scheduler (L2)
-export const schedulerStatus = () => invoke<SchedulerStatus>('scheduler_status');
+export const schedulerStatus = () => safeInvoke<SchedulerStatus>('scheduler_status');
 export const schedulerRunHealthProbeNow = () =>
   invoke<SchedulerTriggerResult>('scheduler_run_health_probe_now');
 export const schedulerRunDailyBriefNow = () =>
@@ -259,7 +260,7 @@ export const sendNotification = (
   title: string,
   body: string,
   prefsEnabled = true,
-) => invoke<number>('send_notification', {
+) => safeInvoke<number>('send_notification', {
   args: { kind, title, body, prefs_enabled: prefsEnabled },
 });
 export const requestNotificationPermission = () =>
@@ -268,11 +269,11 @@ export const notificationPermissionState = () =>
   invoke<string>('notification_permission_state');
 
 // ---------------------------------------------------------------- Audit (X1)
-export const listAuditLog = (limit = 200) => invoke<AuditEntry[]>('list_audit_log', { limit });
+export const listAuditLog = (limit = 200) => safeInvoke<AuditEntry[]>('list_audit_log', { limit });
 export const auditCountForActor = (actor: string) =>
   invoke<number>('audit_count_for_actor', { actor });
 // v0.8c — manual trigger for the daily retention purge.
-export const purgeAuditLogNow = () => invoke<number>('purge_audit_log_now');
+export const purgeAuditLogNow = () => safeInvoke<number>('purge_audit_log_now');
 
 // v0.13c — read the user-overridden retention policy. Returns the
 // effective policy (user overrides merged with defaults).
@@ -304,7 +305,7 @@ export const dailyBriefGet = (limit = 5) =>
   invoke<DailyBriefEntry[]>('daily_brief_get', { limit });
 export const dailyBriefDismiss = (marketId: string) =>
   invoke<void>('daily_brief_dismiss', { marketId });
-export const dailyBriefRefresh = () => invoke<BriefRefreshResult>('daily_brief_refresh');
+export const dailyBriefRefresh = () => safeInvoke<BriefRefreshResult>('daily_brief_refresh');
 export const dailyBriefSetPrefs = (args: SetBriefPrefsArgs) =>
   invoke<void>('daily_brief_set_prefs', { args });
 
@@ -313,7 +314,7 @@ export const dailyBriefSetPrefs = (args: SetBriefPrefsArgs) =>
 // Idempotent: the second call is a no-op unless `force: true`.
 export const seedDemoData = (force = false) =>
   invoke<number>('seed_demo_data', { args: { force } });
-export const isSeeded = () => invoke<boolean>('is_seeded');
+export const isSeeded = () => safeInvoke<boolean>('is_seeded');
 
 // ---------------------------------------------------------------- Sidecar health (v0.10d)
 // Rolling "last N probes" snapshot for the topbar status badge.
@@ -448,6 +449,31 @@ const safeListen = <T>(event: string, cb: (msg: { payload: T }) => void): Promis
     return Promise.resolve(() => {});
   }
   return listen<T>(event, cb);
+};
+
+/**
+ * Safe wrapper around `invoke()` for Vite-only dev mode. In a
+ * real Tauri build this is a pass-through; in Vite-only dev
+ * (no Tauri runtime) the underlying `invoke` throws
+ * "Cannot read properties of undefined (reading 'invoke')" which
+ * crashes the React tree. We convert that into a typed rejection
+ * with a clear message, so pages can render their normal
+ * error/empty state instead of crashing the whole page.
+ *
+ * Pages should NOT call `invoke` directly — they should always go
+ * through their typed wrapper in this file. (L1 ↔ L2 layer rule.)
+ */
+const safeInvoke = <T>(cmd: string, args?: InvokeArgs): Promise<T> => {
+  if (!isTauriRuntime()) {
+    return Promise.reject(
+      new Error(
+        `[polyrocket] IPC '${cmd}' unavailable: not running inside Tauri. ` +
+          `Use 'pnpm tauri:dev' (or 'pnpm tauri:build') to run the full app, ` +
+          `or mock the IPC in unit tests.`,
+      ),
+    );
+  }
+  return invoke<T>(cmd, args);
 };
 
 /** Listen for `llm_analyze:started` events. Returns an unlisten
