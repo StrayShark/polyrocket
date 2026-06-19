@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.33 · 2026-06-19 (v0.71 auto-bumped)
+> 版本：v2.34 · 2026-06-19 (v0.71 final)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿） · [`coding-spec.md`](./coding-spec.md)（v0.61 注释规范）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
@@ -799,6 +799,18 @@ v0.6 增量：
 
 ## 8. 变更日志
 
+- **v2.34** (2026-06-19) — v0.71 final coverage ratchet 79.5→81.9% + threshold 81% 跨过 + density round 3 deferred
+  - v0.71a ModelLab.more.test.tsx (+11 tests, auto-promote listener + OS notification pref branches)
+  - v0.71b Analysis.more.test.tsx (+10 tests, mutation flow + status transition)
+  - v0.71c History.more.test.tsx (+10 tests, branches 51→84)
+  - v0.71d LlmPerf.extras.test.tsx (+10 tests, 0→100% 直通, threshold 80→81)
+  - v0.71e LlmMgmt.round2.test.tsx (+10 tests, AddKeyModal + KeyRow pills + ProviderRow deselect)
+  - 阈值: 79/75/71/80 → 81/78/73/82
+  - 实际 coverage: 81.89% stmts / 79.20% branches / 74.34% funcs / 83.23% lines
+  - 改动: 5 NEW test files + vitest.config.ts + this ship log, 716 tests
+- **v2.33** (2026-06-19) — v0.71 push (5 sub-versions, auto-bumped by README sync; see `polyrocket-v0.71-final.md`)
+- **v2.32** (2026-06-19) — v0.70 final coverage ratchet 73.9→79.5% + density round 2 (ts-routes 10%→15%); see `polyrocket-v0.70-final.md`
+- **v2.31** (2026-06-19) — v0.69 CI infra 4-fix (typecheck + pnpm install + Rust toolchain 1.88→1.89 + dist stub + Linux apt-get + pre-push local-CI gate `run-ci-local.sh`); see `polyrocket-v0.69-final.md`
 - **v2.30** (2026-06-19) — v0.68 coverage ratchet 73% → 74% + density polish + 5 tool improvements
   - v0.68a Analysis.more.test.tsx (+5 tests, Run / mount / ErrorState paths)
   - v0.68b codegen migration plan (v0.69+ candidate — too risky for unattended session)

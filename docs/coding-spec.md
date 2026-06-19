@@ -2,7 +2,7 @@
 
 > 代码注释 / 文档化规范。**所有新增代码必须遵循此规范；存量代码按 v0.61 计划分轮翻新。**
 
-**版本**：v1.3 · 2026-06-19 (v0.70 final — coverage 73.9→79.5% + density round 2)
+**版本**：v1.4 · 2026-06-19 (v0.71 final — coverage 79.5→81.9% + density round 3 deferred)
 **配套**：[`overview.md`](./overview.md)（5 层架构） · [`polyrocket-modules.md`](./polyrocket-modules.md)（17 模块业务） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 交互流程） · [`polyrocket-v0.69-final.md`](./polyrocket-v0.69-final.md)（CI 修复记录）
 
 ---
@@ -246,17 +246,24 @@ def test_efficiency_axiom_holds_at_extremes():
 
 ## 5. 密度目标
 
-| 语言 | 模块类别 | 目标注释行占比 | 当前（v0.70 final） |
+| 语言 | 模块类别 | 目标注释行占比 | 当前（v0.71 final） |
 |---|---|---|---|
-| Rust | `commands` / `domain` / `infra` | **≥ 15%** | avg 27.5% (57/67 pass) |
+| Rust | `commands` / `domain` / `infra` | **≥ 15%** | avg 27.5% (57/67 pass, 85.1%) |
 | Rust | `platform` | ≥ 10% | 100% pass (5/5) |
-| TypeScript | `routes` / `components` / `lib` / `stores` | **≥ 15%** | avg 21.9% (45/78 pass) |
+| TypeScript | `routes` / `components` / `lib` / `stores` | **≥ 15%** | avg 21.9% (45/78 pass, 57.7%) |
 | TypeScript | `types` | ≥ 5% | 100% pass (7/7) |
 | Python | `polyrocket_sidecar/` | **≥ 12%** | 100% pass (7/7) |
 
 **v0.68c round 1**:rust-commands-domain-infra 10→15%, ts-routes 5→10%。
 **v0.70 round 2**:ts-routes-components-lib 10→15%(45/78 pass, avg 21.9%)。
-**v0.71+ round 3 候选**:rust-commands-domain-infra 15→20% (57/67 当前)。
+**v0.71 round 3 — deferred**:rust-commands-domain-infra 15→20% 候选未执行,理由:
+- 当前 57/67 在 15% 目标下已 PASS(85.1%),提升到 20% 会让 ~17 个文件 fail,
+  其中 `seed/mod.rs`(47/641=7.3%)、`sidecar_health/mod.rs`(9/114=7.9%)为
+  机器生成/内部 SQL dump 类文件,加 /// 收益小。
+- ts-routes 15→20% 更激进(33 个文件 fail),10-15h 工作量,优先级低于
+  coverage ratchet。
+- 当前 5/5 类别 PASS 是 good enough,不强推 round 3,等 coverage 进入
+  plateau(v0.74+)后再启动前置 /// doc 工作。
 
 **统计口径**：`///` + `//!` + `//` + `/** */` + `""" """` + `#` 之和 / 总行数。空行不计入分子。
 
@@ -307,6 +314,7 @@ def test_efficiency_axiom_holds_at_extremes():
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v1.4 | 2026-06-19 | §5 density round 3 deferred 决策(不 bump,等 v0.74+ plateau) |
 | v1.3 | 2026-06-19 | §5 density round 2: ts-routes-components-lib target 10→15% |
 | v1.2 | 2026-06-19 | 新增 §10.7「Pre-push 本地 CI gate」—— `scripts/run-ci-local.sh` + pre-push hook, push 前必跑 |
 | v1.1 | 2026-06-19 | 新增 §10「CI 环境契约」—— pnpm 9 / Rust 1.89 / `--test-threads=1` / README sync 4 条硬约束 |
