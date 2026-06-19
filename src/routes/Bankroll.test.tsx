@@ -1,11 +1,11 @@
-// v0.78c — bankroll L4 component tests (+8 tests, ~95% br).
+// v0.78c — bankroll L4 component tests (+12 tests, ~95% br).
 //
 // Covers:
 //   - BankrollCard: 4 tiles, free=available-reserved-allocated, negatives clamp
 //   - AllocationTable: empty state, single item, multiple items,
 //     capped reason badges, Yes/No pill
 //   - Bankroll route: renders with empty signals, config sliders,
-//     apply button is no-op (toast "v0.78e coming")
+//     bankroll input, empty state for no signals
 //
 // @vitest-environment happy-dom
 

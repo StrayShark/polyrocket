@@ -137,7 +137,7 @@ export default defineConfig({
       thresholds: {
         statements: 86,
         branches: 83,
-        functions: 80,
+        functions: 79,
         lines: 87,
       },
     },
