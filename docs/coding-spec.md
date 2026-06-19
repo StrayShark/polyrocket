@@ -2,7 +2,7 @@
 
 > 代码注释 / 文档化规范。**所有新增代码必须遵循此规范；存量代码按 v0.61 计划分轮翻新。**
 
-**版本**：v2.4 · 2026-06-19 (v0.79~v0.81 final — bankroll E2E + Playwright + codegen Phase 2)
+**版本**：v2.5 · 2026-06-20 (v0.82 — Playwright e2e CI gate + Rust 1.96)
 **配套**：[`overview.md`](./overview.md)（5 层架构） · [`polyrocket-modules.md`](./polyrocket-modules.md)（17 模块业务） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 交互流程） · [`polyrocket-v0.69-final.md`](./polyrocket-v0.69-final.md)（CI 修复记录）
 
 ---
@@ -314,6 +314,7 @@ def test_efficiency_axiom_holds_at_extremes():
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v2.5 | 2026-06-20 | v0.82: Playwright e2e wired as CI gate (Job 5) + Rust 1.89→1.96 (specta dep needs `core::fmt::from_fn` from 1.96) + 4-component test totals in README. §10.2 / §11 / §12 updated for 5-job pipeline. |
 | v1.8 | 2026-06-19 | v0.74: 新增 §12 Visual Acceptance Gate + `scripts/check-class-coverage.mjs` + 修 nav-item 缺失 CSS |
 | v1.7 | 2026-06-19 | v0.73 final: coverage 81.9→82.98% stmts + branches 80.25→81.31% ⭐,threshold 81/78/73/82 → 82/81/76/84 |
 | v1.6 | 2026-06-19 | v0.73a: CI gate HARDENED — 移除 `POLYROCKET_PRE_PUSH_SKIP` env + `--quick`,新增 `.git/CI_VERIFIED` state file,§11 新增完整 policy |
@@ -350,23 +351,24 @@ pnpm install --frozen-lockfile
 
 如果报 `packages field missing or empty`,检查 `pnpm-workspace.yaml` 是否存在但只有 `allowBuilds:` —— 删除它,把列表迁到 `package.json#pnpm.onlyBuiltDependencies`。
 
-### 10.2 Rust 1.88 toolchain
+### 10.2 Rust 1.96 toolchain (v0.82 bumped from 1.89)
 
 | 项 | 约束 |
 |---|---|
-| **CI 版本** | `rustc 1.88`（`dtolnay/rust-toolchain@stable` with `toolchain: 1.88`） |
-| **本地推荐** | 1.88+ (1.96 是 user 当前默认) |
+| **CI 版本** | `rustc 1.96`（`dtolnay/rust-toolchain@stable` with `toolchain: 1.96`） |
+| **本地推荐** | 1.96+ (rustup default `stable` channel) |
 | **Cargo.lock 必须提交** | ✅ 已经在 .gitignore 排除项之外 |
-| **降级 CI toolchain** | ❌ 不允许 —— Tauri 2.11 的传递依赖(dlopen2_derive 0.4.3, time-0.3.49, darling 0.23)需要 1.85+;darling 需要 1.88+ |
-| **本地可选** | 添加 `src-tauri/rust-toolchain.toml` 写 `channel = "1.88"` 让本地与 CI 1:1(v0.70 candidate) |
+| **降级 CI toolchain** | ❌ 不允许 —— Tauri 2.11 的传递依赖(dlopen2_derive 0.4.3, time-0.3.49, darling 0.23)需要 1.85+;darling 需要 1.88+;**v0.76+ 的 specta 2.0.0-rc.25 需要 1.96+**(`core::fmt::from_fn` stabilized in 1.96) |
+| **本地可选** | 添加 `src-tauri/rust-toolchain.toml` 写 `channel = "1.96"` 让本地与 CI 1:1 |
 
-**为什么**:Cargo 1.77 无法解析 edition2024 的 manifest(Cargo.lock 已 pin 在 0.4.3,没法 downgrade)。升级 toolchain 比 `[patch.crates-io]` 强制老版本更可持续 —— 后者会跟 Tauri 上游打架。
+**为什么 1.96 不是 1.88 / 1.89**:
+v0.76 codegen 添加了 `tauri-specta 2.0.0-rc.25`,其内部使用 `core::fmt::from_fn`,该函数在 Rust 1.96 才稳定(stable behind `debug_closure_helpers`)。在 1.89 上编译会触发 E0658(无法在 stable 上使用不稳定 feature)。v0.82 把 CI toolchain pin 从 1.89 升到 1.96,让 local + GitHub Actions 跟 `rustup default stable` 一致 —— 之前 v0.76-v0.81 这一长串版本在 local CI runner 上其实跑不过(只在 system 1.96 上能过),v0.82 修复了 local-CI 漂移。
 
 **校验命令**:
 
 ```bash
-cargo +1.88 check --manifest-path src-tauri/Cargo.toml
-cargo +1.88 test --lib --manifest-path src-tauri/Cargo.toml -- --test-threads=1
+cargo +1.96 check --manifest-path src-tauri/Cargo.toml
+cargo +1.96 test --lib --manifest-path src-tauri/Cargo.toml -- --test-threads=1
 ```
 
 ### 10.3 `cargo test --lib -- --test-threads=1`
@@ -717,9 +719,95 @@ commit,**必须**附至少 1 张 Playwright 截图(sidebar 或被改的 componen
 | 触发时机 | 工具 | 拦哪类问题 |
 |---|---|---|
 | pre-commit(v0.74 candidate) | check-class-coverage + tsc | class coverage + TS error |
-| pre-push(已落地) | run-ci-local.sh 4 jobs | governance / L1 / Rust / Python + **class coverage**(v0.74d 加) |
-| post-push GitHub Actions | 4 jobs | 同上,但在 CI runner |
-| 视觉(每 PR 必跑) | Playwright screenshot | silent visual regression |
+| pre-push(已落地) | run-ci-local.sh 5 jobs | governance / L1 / Rust / Python / **Playwright e2e**(v0.82 加) + class coverage(v0.74d 加) |
+| post-push GitHub Actions | 5 jobs | 同上,但在 CI runner |
+| 视觉(每 PR 必跑,v0.82 起) | Playwright screenshot + diff | silent visual regression |
 
 **lint 必须在 pre-push 跑**:v0.74d 起 `run-ci-local.sh` job 1 governance 增加
 `node scripts/check-class-coverage.mjs` 调用(详见 §6 CI 校验)。
+
+---
+
+## 13. Playwright e2e CI 门禁(v0.82 新增)
+
+> 本节是 §12 Visual Acceptance Gate 的工程化延伸 —— 把"每 PR 必跑 Playwright"从 v0.74d 的
+> 人工 checklist 升级为 **CI gate**(Job 5 / `e2e` job)。新增/修改任何 L1 路由前必读本节。
+
+### 13.1 为什么是 gate 不是可选
+
+v0.80 之前 Playwright 是 on-demand(`pnpm test:e2e` 手动跑),v0.74d 的 §12.4 视觉验证
+清单靠人工 review。两次 silent regression(8 commits 全部 4/4 CI 绿但样式坏了)
+证明:**没有强制执行的检查等于没有检查**。v0.82 把 Playwright 升为 Job 5。
+
+### 13.2 三层浏览器策略
+
+| 平台 | 策略 | 原因 |
+|---|---|---|
+| **macOS arm64 (本地 dev + local CI)** | 复用 puppeteer 缓存 `~/.cache/puppeteer/chrome-headless-shell/` | v0.80 dev box 已有 puppeteer 的 cache,0 下载;`playwright.config.ts` 的 `resolveChromiumPath()` 自动选 |
+| **Linux (GitHub Actions runner)** | `npx playwright install --with-deps chromium` | runner 是干净 ubuntu-latest,需装 Playwright 自带 chromium + 系统 lib(nss3/atk 等) |
+| **任意** | `PLAYWRIGHT_EXECUTABLE_PATH=/path/to/chrome` | 强制覆盖(测试用) |
+
+**为什么不让 Playwright 装到本地**:装 Playwright 自带 chromium 要 ~200MB,而 macOS dev box
+已经有 puppeteer 的 ~80MB cache。复用是 0 成本的 fast path。
+
+### 13.3 Job 5 实现
+
+**本地** (`scripts/run-ci-local.sh`):
+```bash
+[5/5] Playwright e2e (v0.82 Visual Acceptance Gate)
+if [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
+  echo "--- macOS arm64: reusing puppeteer's chrome-headless-shell (no install)"
+else
+  npx playwright install chromium
+fi
+pnpm test:e2e
+```
+
+**CI** (`.github/workflows/ci.yml` 的 `e2e` job):
+```yaml
+- name: Install Playwright chromium
+  run: npx playwright install --with-deps chromium
+- name: Run e2e tests
+  run: pnpm test:e2e
+- name: Upload Playwright report on failure
+  if: failure()
+  uses: actions/upload-artifact@v4
+  with:
+    name: playwright-report
+    path: |
+      playwright-report/
+      tests/e2e/**/*-diff.png
+      tests/e2e/**/*-actual.png
+```
+
+### 13.4 baseline PNG 协议
+
+- **首次**:`pnpm test:e2e` 生成 `tests/e2e/bankroll.spec.ts-snapshots/<name>.png`
+- **回归**:`toHaveScreenshot()` 拿当前渲染 vs baseline 比对,差 > 0.1% 像素 fail
+- **更新 baseline**:`pnpm test:e2e --update-snapshots`(故意设计成 opt-in 防止误覆盖)
+- **CI 失败时**:artifact 上传 `playwright-report/`(HTML 报告)+ `*-diff.png`(红/绿蒙版)+ `*-actual.png`(当前截图),PR 作者一眼能看出哪个 route/theme 坏了
+
+### 13.5 写新 e2e 测试的规范
+
+1. **每条 test 必须设 localStorage 主题** + 等待 `getByTestId` selector visible(参考 `bankroll.spec.ts`)
+2. **`data-theme` override 时机**:React 17+ 在 mount 后从 persist middleware rehydrate,会盖掉 `addInitScript` 的初始值。Fix: `addInitScript` 设 localStorage + `page.evaluate` 在 selector visible 后强制 `setAttribute('data-theme', ...)`
+3. **3 主题 × N 路由的模板**:`for (const theme of THEMES) { test(\`${route} renders in ${theme}\`, ...); }`(见 `bankroll.spec.ts` 现有结构)
+4. **截图前必等 hydration**:`await expect(page.getByTestId('...')).toBeVisible()` 比 `waitForTimeout` 稳定
+5. **console error 必查**:`page.on('console', ...)` + `page.on('pageerror', ...)` 收集,过滤已知 safe 噪声后断言 `expect(errors).toEqual([])`
+
+### 13.6 失败排查流程
+
+```
+# 1. 重新生成 baseline (only if change is intentional)
+pnpm test:e2e --update-snapshots
+
+# 2. 查看 HTML 报告
+pnpm exec playwright show-report
+
+# 3. 单独跑失败 case
+pnpm test:e2e bankroll.spec.ts -g "matrix theme"
+
+# 4. 跑 + 保留 trace
+pnpm test:e2e --trace on
+# → test-results/<test>/trace.zip, 用 playwright show-trace 看 step-by-step
+```

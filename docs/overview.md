@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.43 · 2026-06-19 (v0.79~v0.81 final — bankroll E2E + Playwright + codegen Phase 2)
+> 版本：v2.44 · 2026-06-19 (v0.82 auto-bumped)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿） · [`coding-spec.md`](./coding-spec.md)（v0.61 注释规范）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
@@ -799,6 +799,27 @@ v0.6 增量：
 
 ## 8. 变更日志
 
+- **v2.44** (2026-06-20) — v0.82 Playwright e2e wired as CI gate (Job 5) + Rust 1.89→1.96 (specta dep) + 4-component test totals
+  - v0.82a `playwright.config.ts` cross-platform (puppeteer cache on macOS, Playwright chromium on Linux, env override)
+  - v0.82b `scripts/run-ci-local.sh` Job 5 (Playwright e2e); header [N/5] renumber + state file unchanged
+  - v0.82c `.github/workflows/ci.yml` +`e2e` job (10min timeout, on-failure artifact upload of `playwright-report/` + `*-diff.png` + `*-actual.png`)
+  - v0.82d `scripts/update-readme-coverage.mjs` cargo/python/playwright test counts now dynamic (was hardcoded 319/85); 4-component totals `348 cargo + 892 vitest + 86 Python + 7 e2e = 1333`
+  - v0.82e Rust toolchain 1.89→1.96 (system stable); reason: specta 2.0.0-rc.25 (added v0.76 codegen) needs `core::fmt::from_fn` which stabilized in 1.96. Affects `scripts/run-ci-local.sh` and `.github/workflows/ci.yml` job `rust`.
+  - Visual Acceptance Gate now runs on every push (was on-demand only). 7 e2e tests across 3 themes × 2 routes + console-error smoke.
+  - 阈值: 86/83/79/87 (维持, all 4 dims PASS with 0.15/0.24/0.93/0.35pp headroom)
+  - 实际 coverage: 86.15% stmts / 83.24% branches / 79.93% funcs / 87.35% lines
+  - 改动: 1 NEW (test file) + 4 modified scripts/configs + 2 modified docs, 1333 tests, 5/5 CI jobs green
+- **v2.43** (2026-06-19) — v0.79~v0.81 final push-ready (codegen Phase 2 + bankroll allocation complete; see `polyrocket-v0.79-v0.81-final.md`)
+  - v0.75 5 sub-versions: ModelLab + Settings + LlmMgmt + Wallets + threshold 82→83 stmts; +25 tests
+  - v0.76 codegen Phase 1 (tauri-specta 2.0.0-rc.25 + gen_ts_types bin + dashboard_kpis export)
+  - v0.77 branches plateau, 9 sub-versions, +58 tests, threshold 86/83/80/87
+  - v0.78 M11 bankroll allocation: 5 sub-versions (a 算法 / b IPC / c UI / d DB / e apply), +27 tests, threshold 80→79 functions
+  - v0.79 3 sub-versions: bets.allocation_id column + apply writes N bet rows + E2E + BankrollConfigCard in Settings, +5 tests
+  - v0.80 Playwright visual regression setup for /bankroll (cross-platform config, 7 tests, baseline PNGs verified)
+  - v0.81 codegen Phase 2 (+4 bankroll commands + AppError Type impl + codegen-friendly DTOs); 5/112 IPC commands now codegen-exported
+  - 实际 coverage: 86.15% stmts / 83.24% branches / 79.93% funcs / 87.35% lines
+  - 改动: 17 commits stacked, NOT pushed (pending v0.82 CI wire-in)
+  - **NOTE**: v0.74 changelog entry (ratchet 82.4→83.0%) was implicit in v0.74 README sync at `bc6b8cd`; the v0.74 final ship log lives at `polyrocket-v0.74-final.md`.
 - **v2.37** (2026-06-19) — v0.73 final CI gate HARDENED + coverage ratchet + threshold 81→82%
   - v0.73a CI gate HARDENED (3 scripts + coding-spec §11 + overview v2.36)
   - v0.73b Analysis branches 47→82% (+15 tests, 单版本最大单文件 branches 提升)
