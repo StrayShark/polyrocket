@@ -97,6 +97,17 @@ export default defineConfig({
     //             bumped 4-5% → 10-11%)
     //           • CI cleanup coverage/ dir
     //             between runs (v0.68c)
+    // v0.69-v0.74: coverage ratchet from
+    //              74→83% (28 commits, +213 tests).
+    //              See polyrocket-v0.7*-final.md
+    //              for per-version details.
+    // v0.75:    83/81/76/84 (794+ tests) — only
+    //           stmts bumped (others tight).
+    //           +25 tests across ModelLab
+    //           round 3 + Settings round 2 +
+    //           LlmMgmt round 4 + Wallets
+    //           round 3. Headroom 0.19/0.64/
+    //           0.9/0.54pp — branches tight.
     //
     // We exclude pure-presentation files
     // (BarChart, Sparkline, KpiCard, etc.)
@@ -124,7 +135,7 @@ export default defineConfig({
         '**/*.unused',
       ],
       thresholds: {
-        statements: 82,
+        statements: 83,
         branches: 81,
         functions: 76,
         lines: 84,
