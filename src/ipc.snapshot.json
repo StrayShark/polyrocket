@@ -107,7 +107,8 @@
     "getProxyConfig": 1,
     "clearProxyConfig": 1,
     "readProxyConfigFile": 1,
-    "onAutoPromoteFinished": 1
+    "onAutoPromoteFinished": 1,
+    "computeAllocationPreview": 1
   },
-  "total": 108
+  "total": 109
 }

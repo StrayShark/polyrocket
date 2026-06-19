@@ -11,7 +11,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render } from '@testing-library/react';
-import { useWelcomeStore, WELCOME_STEPS, type WelcomeStep } from '@/stores/welcome-store';
+import { useWelcomeStore, WELCOME_STEPS } from '@/stores/welcome-store';
 import { useThemeStore } from '@/stores/theme-store';
 import { FinishStep } from '@/components/welcome/FinishStep';
 

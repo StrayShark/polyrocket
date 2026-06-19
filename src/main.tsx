@@ -25,6 +25,7 @@ import { Brief } from '@/routes/Brief';
 import { Welcome } from '@/routes/Welcome';
 import { Audit } from '@/routes/Audit';
 import { Notifications } from '@/routes/Notifications';
+import { Bankroll } from '@/routes/Bankroll';  // v0.78 — M11
 import { Help } from '@/routes/Help';
 import { AppShell } from '@/components/layout/AppShell';
 import { useThemeStore } from '@/stores/theme-store';
@@ -65,6 +66,7 @@ const router = createBrowserRouter([
       { path: 'welcome', element: <Welcome /> },
       { path: 'audit', element: <Audit /> },
       { path: 'notifications', element: <Notifications /> },
+      { path: 'bankroll', element: <Bankroll /> },  // v0.78 — M11
       { path: 'help', element: <Help /> },
     ],
   },

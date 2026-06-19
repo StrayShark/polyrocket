@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, LineChart, Zap, Copy, BarChart3, FlaskConical, Search, RefreshCw, Bell, Settings, Radar, CircleDot, Crosshair, Landmark, Circle, ArrowLeftRight } from 'lucide-react';
+import { LayoutDashboard, LineChart, Zap, Copy, BarChart3, FlaskConical, Search, RefreshCw, Bell, Settings, Radar, CircleDot, Crosshair, Landmark, Circle, ArrowLeftRight, Wallet } from 'lucide-react';
 import { KbdHelpDialog, useKbdHelpDialog } from '@/components/feedback/KbdHelpDialog';
 import { CommandPalette, useCommandPalette } from '@/components/feedback/CommandPalette';
 import { SidecarHealthBadge } from '@/components/feedback/SidecarHealthBadge';
@@ -19,6 +19,7 @@ const PRIMARY_NAV = [
   { to: '/pnl', icon: BarChart3, i18nKey: 'nav.pnl' },
   { to: '/lab', icon: FlaskConical, i18nKey: 'nav.lab' },
   { to: '/trade', icon: ArrowLeftRight, i18nKey: 'nav.trade' }, // v0.52
+  { to: '/bankroll', icon: Wallet, i18nKey: 'nav.bankroll' }, // v0.78 — M11
 ];
 
 const CATEGORY_NAV = [

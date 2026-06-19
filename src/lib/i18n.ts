@@ -50,6 +50,7 @@ const en: Dictionary = {
   'nav.pnl': 'P&L',
   'nav.lab': 'Model Lab',
   'nav.trade': 'Trade', // v0.52
+  'nav.bankroll': 'Bankroll', // v0.78 — M11
   'nav.settings': 'Settings',
   'nav.settings_section': 'Settings',
   'nav.preferences': 'Preferences',
@@ -946,6 +947,7 @@ const zh: Dictionary = {
   'nav.pnl': '盈亏',
   'nav.lab': '模型实验室',
   'nav.trade': '交易', // v0.52
+  'nav.bankroll': '资金管理', // v0.78 — M11
   'nav.settings': '设置',
   'nav.settings_section': '设置',
   'nav.preferences': '偏好',

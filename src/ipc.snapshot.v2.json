@@ -679,6 +679,13 @@
         "cb"
       ],
       "returnType": null
+    },
+    "computeAllocationPreview": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
     }
   },
   "typeImports": [
@@ -724,7 +731,9 @@
     "UpsertLlmKeyArgs",
     "UpsertLlmProviderArgs",
     "ValidateOrderArgsArgs",
-    "Wallet"
+    "Wallet",
+    "AllocationResult",
+    "ComputeAllocationArgs"
   ],
   "total": 108
 }

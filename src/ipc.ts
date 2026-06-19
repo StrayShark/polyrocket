@@ -94,6 +94,20 @@ export const listActiveSignals = (args: ListSignalsArgs = {}) =>
   invoke<Signal[]>('list_active_signals', { args });
 export const recomputeSignals = () => safeInvoke<number>('recompute_signals');
 
+// ---------------------------------------------------------------- Bankroll (M11) v0.78
+import type { ComputeAllocationArgs, AllocationResult } from '@/types/bankroll';
+export type { ComputeAllocationArgs };
+
+/**
+ * v0.78 — Compute a bankroll allocation preview. Pure compute, no DB
+ * writes. Takes signals + bankroll + (optional) config + (optional)
+ * liquidity map. Returns the deterministic per-market allocation.
+ *
+ * The actual `apply_allocation` (writes to `bets` table) is in v0.78e.
+ */
+export const computeAllocationPreview = (args: ComputeAllocationArgs) =>
+  safeInvoke<AllocationResult>('compute_allocation_preview', { args });
+
 // ---------------------------------------------------------------- Bet (M3)
 export const placeJumpLink = (args: PlaceJumpArgs) =>
   invoke<string>('place_jump_link', { args });
