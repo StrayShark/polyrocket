@@ -88,6 +88,16 @@ pub async fn ensure_bets_columns(pool: &SqlitePool) -> sqlx::Result<()> {
             .execute(pool)
             .await?;
     }
+
+    // v0.79a — M11 bankroll allocation link
+    if !names.contains("allocation_id") {
+        // TEXT nullable, no default — pre-v0.79 bets have NULL
+        // (i.e. they were placed manually or by copy trading,
+        // not from a bankroll allocation batch).
+        sqlx::query("ALTER TABLE bets ADD COLUMN allocation_id TEXT")
+            .execute(pool)
+            .await?;
+    }
     Ok(())
 }
 
@@ -147,6 +157,8 @@ mod tests {
         for expected in ["order_type", "limit_price", "stop_price", "post_only"] {
             assert!(names.contains(expected), "missing {expected}");
         }
+        // v0.79a — M11 bankroll allocation link
+        assert!(names.contains("allocation_id"), "missing allocation_id (v0.79a)");
     }
 
     #[tokio::test]

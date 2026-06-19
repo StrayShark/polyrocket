@@ -16,6 +16,8 @@
 
 pub mod audit;
 pub mod bankroll;  // v0.78 — M11
+#[cfg(test)]
+mod bankroll_e2e;  // v0.79b — E2E integration test
 pub mod bets_columns;
 pub mod clob_snapshots;
 pub mod paper_fills;

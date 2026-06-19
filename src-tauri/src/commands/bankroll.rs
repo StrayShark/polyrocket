@@ -151,6 +151,8 @@ pub async fn set_bankroll_config(
 }
 
 /// v0.78e — apply an allocation result. Writes to `allocation_batches`.
+/// v0.79a — also writes N `bets` rows (one per AllocationItem),
+/// each with `mode = 'C_allocated'` and `allocation_id = <batch_id>`.
 /// Returns the batch id (UUID).
 #[tauri::command]
 #[specta::specta]
@@ -167,14 +169,66 @@ pub async fn apply_allocation(
     })?;
     let batch = crate::infra::db::bankroll::AllocationBatch {
         id: id.clone(),
-        wallet_id,
+        wallet_id: wallet_id.clone(),
         bankroll_usdc,
         config_json,
         total_allocated_usdc: result.total_allocated_usdc.clone(),
         applied_at: chrono::Utc::now().timestamp_millis(),
     };
     crate::infra::db::bankroll::insert_batch(&state.db, &batch).await?;
+
+    // v0.79a — write one `bets` row per AllocationItem, linked
+    // back to the batch via `allocation_id`. This is the "press
+    // apply and bets land in the DB" path. The actual order
+    // execution (signed_tx → CLOB) is still a separate step
+    // (v0.51+ executor); the bankroll path pre-creates the
+    // bet rows with `status = 'open'` so the dashboard
+    // immediately reflects the allocation.
+    let now_ms = chrono::Utc::now().timestamp_millis();
+    for item in &result.per_market {
+        let bet_id = uuid::Uuid::new_v4().to_string();
+        // `size` is in USDC; we use 0.5 as a placeholder price
+        // (the real price comes from the executor's market
+        // snapshot at fill time — v0.51b+)
+        let side_str = match item.side {
+            crate::domain::bankroll::BetSide::Yes => "YES",
+            crate::domain::bankroll::BetSide::No => "NO",
+        };
+        let size_f = parse_usdc(&item.size_usdc).unwrap_or(0.0);
+        sqlx::query(
+            "INSERT INTO bets (
+                id, wallet_id, market_id, signal_id, decision_id,
+                was_llm_assisted, mode, side, size, price, shares,
+                placed_at, settled_at, pnl, status, tx_hash, notes,
+                order_type, limit_price, stop_price, post_only,
+                filled_at, fill_price, fill_size, partial,
+                allocation_id
+             ) VALUES (
+                ?, ?, ?, NULL, NULL, 1, 'C_allocated', ?, ?, 0.5, ?,
+                ?, NULL, NULL, 'open', NULL, NULL,
+                'market', NULL, NULL, 0,
+                ?, 0.5, ?, 0, ?
+             )",
+        )
+        .bind(&bet_id)
+        .bind(&wallet_id)
+        .bind(&item.market_id)
+        .bind(side_str)
+        .bind(&item.size_usdc)
+        .bind(format!("{:.6}", size_f / 0.5))
+        .bind(now_ms)
+        .bind(now_ms)
+        .bind(&item.size_usdc)
+        .bind(&id)
+        .execute(&state.db)
+        .await?;
+    }
+
     Ok(id)
+}
+
+fn parse_usdc(s: &str) -> Option<f64> {
+    s.parse().ok()
 }
 
 #[cfg(test)]
