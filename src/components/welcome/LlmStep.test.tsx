@@ -14,24 +14,18 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { createIpcMock } from '@/test-mocks';
 
 const mockLlmKeyUpsert = vi.fn();
 const mockLlmKeySetSecret = vi.fn();
 const mockLlmTestConnectivity = vi.fn();
 const mockListProviders = vi.fn();
 
-vi.mock('@/ipc', () => ({
+vi.mock('@/ipc', () => createIpcMock({
   llmKeyUpsert: (...args: unknown[]) => mockLlmKeyUpsert(...args),
   llmKeySetSecret: (...args: unknown[]) => mockLlmKeySetSecret(...args),
   llmTestConnectivity: (...args: unknown[]) => mockLlmTestConnectivity(...args),
   llmProviderList: () => mockListProviders(),
-  // v0.66 — toast-store.ts calls sendNotification when
-  // a system-enabled toast is rendered. Without this
-  // mock, the import resolves to undefined and the
-  // unhandled rejection makes the whole test file
-  // report as failed.
-  sendNotification: vi.fn().mockResolvedValue(undefined),
-  requestNotificationPermission: vi.fn().mockResolvedValue(true),
 }));
 
 import { LlmStep } from './LlmStep';

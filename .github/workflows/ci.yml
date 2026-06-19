@@ -75,6 +75,24 @@ jobs:
       - name: comment density (v0.61k)
         run: node scripts/check-comment-density.mjs
 
+      # v0.67d — README badges must match actuals.
+      # The auto-update script is idempotent; we run
+      # it in dry-run mode and fail if it would
+      # produce a diff. Maintainer runs the script
+      # locally + commits the resulting README/overview
+      # changes (we don't auto-commit because the
+      # project is local-only push — see user.md).
+      - name: README badges in sync (v0.67d)
+        run: |
+          if node scripts/update-readme-coverage.mjs 2>&1 | grep -q "no changes needed"; then
+            echo "README badges are in sync with current actuals ✓"
+          else
+            echo "❌ README.md or docs/overview.md is out of sync."
+            echo "Run: node scripts/update-readme-coverage.mjs locally,"
+            echo "review the diff, and commit."
+            exit 1
+          fi
+
   # ============================================================
   # TypeScript + vitest (L1).
   # ============================================================

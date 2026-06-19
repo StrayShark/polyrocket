@@ -15,18 +15,22 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { createIpcMock } from '@/test-mocks';
 
-const mockPmSetCredentials = vi.fn();
-const mockWalletSetPk = vi.fn();
-const mockSendNotification = vi.fn();
+// v0.67f — vi.mock is hoisted above the `const` declarations.
+// Use vi.hoisted() to expose our spy objects to the factory.
+const { mockPmSetCredentials, mockWalletSetPk, mockSendNotification } = vi.hoisted(() => ({
+  mockPmSetCredentials: vi.fn(),
+  mockWalletSetPk: vi.fn(),
+  mockSendNotification: vi.fn(),
+}));
 
-vi.mock('@/ipc', () => ({
+vi.mock('@/ipc', () => createIpcMock({
   llmPmSetCredentials: (...args: unknown[]) => mockPmSetCredentials(...args),
   polyrocketWalletSetPk: (...args: unknown[]) => mockWalletSetPk(...args),
-  // v0.66 — toast-store.ts calls sendNotification on system-enabled toasts.
-  // Without this, the unhandled rejection makes the test file report as failed.
-  sendNotification: () => mockSendNotification(),
-  requestNotificationPermission: vi.fn().mockResolvedValue(true),
+  // Override sendNotification to also call our local spy so
+  // tests can assert on it.
+  sendNotification: mockSendNotification,
 }));
 
 import { PolymarketStep } from './PolymarketStep';

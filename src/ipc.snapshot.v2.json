@@ -1,0 +1,730 @@
+{
+  "functions": {
+    "listWallets": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "addWallet": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "listMarkets": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "syncMarkets": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "listResolvedMarketsForBacktest": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "listActiveSignals": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "recomputeSignals": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "placeJumpLink": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "placeSignedOrder": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "validateOrderArgs": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "listBets": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "listCopyTargets": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "addCopyTarget": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "recentCopyEvents": {
+      "params": 2,
+      "paramNames": [
+        "targetId",
+        "limit"
+      ],
+      "returnType": null
+    },
+    "enqueueMirror": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "listMirrors": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "runMirrorExecutorPass": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "mirrorQueueStats": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "setMirrorPaperMode": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "getMirrorPaperMode": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "listPaperFills": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "dashboardKpis": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "paperPnlSummary": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "degradationCheckNow": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "listLlmProviders": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "upsertLlmProvider": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "llmAnalyze": {
+      "params": 2,
+      "paramNames": [
+        "marketId",
+        "providers"
+      ],
+      "returnType": null
+    },
+    "llmPerformance": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "recordLlmDecision": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "llmStatsHeatmap": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "llmStatsScatter": {
+      "params": 1,
+      "paramNames": [
+        "marketId"
+      ],
+      "returnType": null
+    },
+    "llmStatsTimeseries": {
+      "params": 1,
+      "paramNames": [
+        "windowHours"
+      ],
+      "returnType": null
+    },
+    "llmStatsDecision": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "llmGetRecommendation": {
+      "params": 1,
+      "paramNames": [
+        "analysisId"
+      ],
+      "returnType": null
+    },
+    "llmListAnalyses": {
+      "params": 1,
+      "paramNames": [
+        "marketId"
+      ],
+      "returnType": null
+    },
+    "llmProviderList": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "llmProviderUpsert": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "llmProviderDelete": {
+      "params": 1,
+      "paramNames": [
+        "id"
+      ],
+      "returnType": null
+    },
+    "llmKeyList": {
+      "params": 1,
+      "paramNames": [
+        "providerId"
+      ],
+      "returnType": null
+    },
+    "llmKeyUpsert": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "llmKeySetSecret": {
+      "params": 2,
+      "paramNames": [
+        "keyId",
+        "secret"
+      ],
+      "returnType": null
+    },
+    "llmKeyDelete": {
+      "params": 1,
+      "paramNames": [
+        "keyId"
+      ],
+      "returnType": null
+    },
+    "llmTestConnectivity": {
+      "params": 2,
+      "paramNames": [
+        "providerId",
+        "keyId"
+      ],
+      "returnType": null
+    },
+    "llmTrafficSummary": {
+      "params": 1,
+      "paramNames": [
+        "windowHours"
+      ],
+      "returnType": null
+    },
+    "llmHealthHistory": {
+      "params": 2,
+      "paramNames": [
+        "providerId",
+        "limit"
+      ],
+      "returnType": null
+    },
+    "llmStatsByConfidence": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "llmStatsByPrompt": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "llmStatsCostEfficiency": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "llmStatsExport": {
+      "params": 1,
+      "paramNames": [
+        "format"
+      ],
+      "returnType": null
+    },
+    "llmPmSetCredentials": {
+      "params": 3,
+      "paramNames": [
+        "apiKey",
+        "secret",
+        "passphrase"
+      ],
+      "returnType": null
+    },
+    "llmPmClearCredentials": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "polyrocketWalletSetPk": {
+      "params": 2,
+      "paramNames": [
+        "alias",
+        "pk"
+      ],
+      "returnType": null
+    },
+    "polyrocketWalletClearPk": {
+      "params": 1,
+      "paramNames": [
+        "alias"
+      ],
+      "returnType": null
+    },
+    "secretsStatus": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "schedulerStatus": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "schedulerRunHealthProbeNow": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "schedulerRunDailyBriefNow": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "sendNotification": {
+      "params": 4,
+      "paramNames": [
+        "kind",
+        "title",
+        "body",
+        "prefsEnabled"
+      ],
+      "returnType": null
+    },
+    "requestNotificationPermission": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "notificationPermissionState": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "listAuditLog": {
+      "params": 1,
+      "paramNames": [
+        "limit"
+      ],
+      "returnType": null
+    },
+    "auditCountForActor": {
+      "params": 1,
+      "paramNames": [
+        "actor"
+      ],
+      "returnType": null
+    },
+    "purgeAuditLogNow": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "getAuditRetention": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "setAuditRetention": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "dailyBriefGet": {
+      "params": 1,
+      "paramNames": [
+        "limit"
+      ],
+      "returnType": null
+    },
+    "dailyBriefDismiss": {
+      "params": 1,
+      "paramNames": [
+        "marketId"
+      ],
+      "returnType": null
+    },
+    "dailyBriefRefresh": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "dailyBriefSetPrefs": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "seedDemoData": {
+      "params": 1,
+      "paramNames": [
+        "force"
+      ],
+      "returnType": null
+    },
+    "isSeeded": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "sidecarHealthNow": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "sidecarHealthSnapshot": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "sidecarPredict": {
+      "params": 2,
+      "paramNames": [
+        "markets",
+        "number"
+      ],
+      "returnType": null
+    },
+    "sidecarPredictAsync": {
+      "params": 3,
+      "paramNames": [
+        "markets",
+        "number",
+        "timeoutMs"
+      ],
+      "returnType": null
+    },
+    "onAnalyzeStarted": {
+      "params": 1,
+      "paramNames": [
+        "cb"
+      ],
+      "returnType": null
+    },
+    "onProviderDone": {
+      "params": 1,
+      "paramNames": [
+        "cb"
+      ],
+      "returnType": null
+    },
+    "onConsensusDone": {
+      "params": 1,
+      "paramNames": [
+        "cb"
+      ],
+      "returnType": null
+    },
+    "onAnalyzeFinished": {
+      "params": 1,
+      "paramNames": [
+        "cb"
+      ],
+      "returnType": null
+    },
+    "trainJob": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "onTrainStarted": {
+      "params": 1,
+      "paramNames": [
+        "cb"
+      ],
+      "returnType": null
+    },
+    "onTrainFinished": {
+      "params": 1,
+      "paramNames": [
+        "cb"
+      ],
+      "returnType": null
+    },
+    "promoteModel": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "listPromoteHistory": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "listPromoteHistoryArchive": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "rollbackModel": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "autoPromoteIfBetter": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "promoteAllTrials": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "backtestModel": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "setAutoPromoteConfig": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "getAutoPromoteConfig": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "setTelemetryEnabled": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "getTelemetryEnabled": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "listTelemetryLogs": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "purgeTelemetryLogs": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "getActiveModel": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "schedulerSelfTestNow": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "fillAnalytics": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "clobFeedStatus": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "recordClobSnapshotNow": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "latestClobSnapshot": {
+      "params": 1,
+      "paramNames": [
+        "marketId"
+      ],
+      "returnType": null
+    },
+    "getStorageInfo": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "setStoragePath": {
+      "params": 1,
+      "paramNames": [
+        "path"
+      ],
+      "returnType": null
+    },
+    "resetStoragePath": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "getProxyConfig": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "clearProxyConfig": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "readProxyConfigFile": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "onAutoPromoteFinished": {
+      "params": 1,
+      "paramNames": [
+        "cb"
+      ],
+      "returnType": null
+    }
+  },
+  "typeImports": [
+    "AddCopyTargetArgs",
+    "AddWalletArgs",
+    "AuditEntry",
+    "Bet",
+    "BriefRefreshResult",
+    "ConnectivityTestResult",
+    "CopyEvent",
+    "CopyTarget",
+    "DailyBriefEntry",
+    "DashboardKpis",
+    "EnqueueMirrorArgs",
+    "ExecutorPassResult",
+    "ListBetsArgs",
+    "ListMarketsArgs",
+    "ListMirrorsArgs",
+    "ListSignalsArgs",
+    "LlmAnalysis",
+    "LlmCallLog",
+    "LlmHeatmapCell",
+    "LlmPerformance",
+    "LlmProvider",
+    "LlmProviderKey",
+    "LlmRecommendation",
+    "LlmScatterPoint",
+    "LlmTimeseriesPoint",
+    "LlmTrafficSummary",
+    "Market",
+    "MirrorQueueStats",
+    "MirrorRow",
+    "PaperFill",
+    "PaperPnlSummary",
+    "PlaceJumpArgs",
+    "PlaceSignedArgs",
+    "RunMirrorPassArgs",
+    "SchedulerStatus",
+    "SchedulerTriggerResult",
+    "SecretsStatus",
+    "SetBriefPrefsArgs",
+    "Signal",
+    "UpsertLlmKeyArgs",
+    "UpsertLlmProviderArgs",
+    "ValidateOrderArgsArgs",
+    "Wallet"
+  ],
+  "total": 108
+}

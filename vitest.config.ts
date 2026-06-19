@@ -73,6 +73,19 @@ export default defineConfig({
     //             (4 unhandled rejections)
     //           • ModelLab mock has
     //             zustand-like getState()
+    // v0.67:    73/68/62/74 (580 tests) —
+    //           • Copy.more.test.tsx
+    //             (+5 tests, AddTargetModal
+    //             validation + success + cap)
+    //           • centralize @/ipc mock
+    //             via test-mocks.ts
+    //             (createIpcMock + createPrefsStoreMock)
+    //           • ThemeSwitcher density
+    //             (1.7% → 10.7%)
+    //           • README badges sync
+    //             check in CI (v0.67d)
+    //           • test totals regex
+    //             fix (match `N/**`)
     //
     // We exclude pure-presentation files
     // (BarChart, Sparkline, KpiCard, etc.)
@@ -100,10 +113,10 @@ export default defineConfig({
         '**/*.unused',
       ],
       thresholds: {
-        statements: 72,
+        statements: 73,
         branches: 68,
-        functions: 61,
-        lines: 73,
+        functions: 62,
+        lines: 74,
       },
     },
   },

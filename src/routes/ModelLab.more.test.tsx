@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { createIpcMock, createPrefsStoreMock } from '@/test-mocks';
 
 const mockListPromoteHistory = vi.fn();
 const mockListPromoteHistoryArchive = vi.fn();
@@ -26,7 +27,7 @@ const mockPromoteAllTrials = vi.fn();
 const mockOnTrainStarted = vi.fn();
 const mockOnAutoPromoteFinished = vi.fn();
 
-vi.mock('@/ipc', () => ({
+vi.mock('@/ipc', () => createIpcMock({
   listPromoteHistory: () => mockListPromoteHistory(),
   listPromoteHistoryArchive: () => mockListPromoteHistoryArchive(),
   getActiveModel: () => mockGetActiveModel(),
@@ -41,25 +42,11 @@ vi.mock('@/ipc', () => ({
   promoteAllTrials: () => mockPromoteAllTrials(),
   onTrainStarted: () => mockOnTrainStarted(),
   onAutoPromoteFinished: () => mockOnAutoPromoteFinished(),
-  sendNotification: vi.fn().mockResolvedValue(undefined),
-  requestNotificationPermission: vi.fn().mockResolvedValue(true),
-  listBacktestSamples: vi.fn().mockResolvedValue([]),
-  runBacktest: vi.fn().mockResolvedValue({ brier: 0, calibration: [], predictions: [] }),
 }));
 
-vi.mock('@/stores/prefs-store', () => {
-  // v0.66 — toast-store.ts calls usePrefsStore.getState()
-  // when rendering an error toast. The plain-object mock
-  // breaks that path. Use a zustand-like API with both
-  // hook + getState.
-  const state = {
-    autoPromoteAfterTrain: false,
-    autoPromoteNotify: false,
-  };
-  const usePrefsStore: any = () => state;
-  usePrefsStore.getState = () => state;
-  return { usePrefsStore };
-});
+vi.mock('@/stores/prefs-store', () => ({
+  usePrefsStore: createPrefsStoreMock(),
+}));
 
 import { ModelLab } from '@/routes/ModelLab';
 

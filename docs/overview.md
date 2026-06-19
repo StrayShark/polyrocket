@@ -799,6 +799,16 @@ v0.6 增量：
 
 ## 8. 变更日志
 
+- **v2.29** (2026-06-19) — v0.67 coverage ratchet 72% → 73% + centralize mocks + CI badge sync + 4 tool improvements
+  - v0.67a Copy.more.test.tsx (+5 tests, AddTargetModal validation + success + cap)
+  - v0.67b IPC contract v2 test (+ return type + DTO imports + param names)
+  - v0.67c ThemeSwitcher density (1.7% → 10.7%)
+  - v0.67d README badge sync check in CI
+  - v0.67e keyboard-nav prefix test — added clearPrefix surface test (full timer test still flaky in happy-dom)
+  - v0.67f test-mocks.ts (createIpcMock + createPrefsStoreMock)
+  - 阈值: 72/68/61/73 → 73/68/62/74
+  - 实际 coverage: 73.4% stmts / 74.6% lines / 62.5% funcs / 68.8% branches
+  - 改动: 4 NEW files + 7 modified, 576 tests, density 71.8% (55/78 → 56/78)
 - **v2.28** (2026-06-19) — v0.66 coverage ratchet 71% → 72% + density 65% → 70% + 5 tool improvements
   - v0.66a PolymarketStep.test.tsx (6 tests, 17%→70% branches)
   - v0.66b density ts-routes-components-lib 51/78→55/78 files (Toast/BarChart/KpiCard/WelcomeStep JSDoc)

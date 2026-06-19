@@ -194,10 +194,12 @@ if (DENSITY_BADGE_RE.test(readme)) {
   process.exit(1);
 }
 
-// 4. Test totals line — "319 cargo + 522 vitest + 85 Python = 926/926"
+// 4. Test totals line — "319 cargo + 522 vitest + 85 Python = 926/**"
 //    v0.66f — derived from scripts/count-vitest-tests.mjs
+//    The trailing `/**` is markdown bold close (NOT a count).
 if (vitestCount != null) {
-  const TEST_TOTALS_RE = /\| Test totals \| \*\*\d+ cargo \+ \d+ vitest \+ \d+ Python = \d+\/\d+\*\* \|/;
+  // Match: | Test totals | **N cargo + N vitest + N Python = N/** |
+  const TEST_TOTALS_RE = /\| Test totals \|\s*\*\*\d+ cargo \+ \d+ vitest \+ \d+ Python = \d+\/\*\*\s*\|/;
   // Cargo + python + scripts stay constant; we update vitest + the sum
   const newTestTotals = `| Test totals | **319 cargo + ${vitestCount} vitest + 85 Python = ${319 + vitestCount + 85}/** |`;
   if (TEST_TOTALS_RE.test(readme)) {
