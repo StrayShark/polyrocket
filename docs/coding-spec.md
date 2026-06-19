@@ -2,7 +2,7 @@
 
 > 代码注释 / 文档化规范。**所有新增代码必须遵循此规范；存量代码按 v0.61 计划分轮翻新。**
 
-**版本**：v2.1 · 2026-06-19 (v0.76 final — codegen Phase 1 跑通, dashboard_kpis 标注 + bin + 生成的 TS)
+**版本**：v2.2 · 2026-06-19 (v0.77 final — branches plateau + 58 tests + threshold 86/83/80/87)
 **配套**：[`overview.md`](./overview.md)（5 层架构） · [`polyrocket-modules.md`](./polyrocket-modules.md)（17 模块业务） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 交互流程） · [`polyrocket-v0.69-final.md`](./polyrocket-v0.69-final.md)（CI 修复记录）
 
 ---
