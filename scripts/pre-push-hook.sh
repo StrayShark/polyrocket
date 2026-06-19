@@ -12,7 +12,7 @@
 # Both were removed in v0.73a because they kept the door open
 # for "remote pipeline keeps erroring" — the failure mode where
 # local green but remote red, often from race conditions or a
-# toolchain mismatch (Rust 1.89 vs 1.96, pnpm 9 vs 11, glib-2.0
+# toolchain mismatch (Rust 1.96 pinned, pnpm 9 vs 11, glib-2.0
 # missing on ubuntu-latest). When the local gate is bypassed or
 # short-circuited, the user only learns the truth when GitHub
 # Actions turns red, which wastes 10-15 minutes of remote

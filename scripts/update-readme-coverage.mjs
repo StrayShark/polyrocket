@@ -194,19 +194,76 @@ if (DENSITY_BADGE_RE.test(readme)) {
   process.exit(1);
 }
 
-// 4. Test totals line — "319 cargo + 522 vitest + 85 Python = 926/**"
-//    v0.66f — derived from scripts/count-vitest-tests.mjs
+// 4. Test totals line — "319 cargo + 892 vitest + 85 Python = 1296/**"
+//    v0.66f — vitest derived from scripts/count-vitest-tests.mjs
+//    v0.82 — cargo + python + playwright derived dynamically too
+//    (previously hardcoded — drifted from 319 → 348 etc).
 //    The trailing `/**` is markdown bold close (NOT a count).
-if (vitestCount != null) {
-  // Match: | Test totals | **N cargo + N vitest + N Python = N/** |
-  const TEST_TOTALS_RE = /\| Test totals \|\s*\*\*\d+ cargo \+ \d+ vitest \+ \d+ Python = \d+\/\*\*\s*\|/;
-  // Cargo + python + scripts stay constant; we update vitest + the sum
-  const newTestTotals = `| Test totals | **319 cargo + ${vitestCount} vitest + 85 Python = ${319 + vitestCount + 85}/** |`;
-  if (TEST_TOTALS_RE.test(readme)) {
-    readme = readme.replace(TEST_TOTALS_RE, newTestTotals);
+//
+//    Each sub-count comes from a `--list` style command that
+//    enumerates tests without running them. They're fast
+//    (<5s each) and idempotent. The script exits 0 on a
+//    transient failure for one of these (we keep the existing
+//    totals line) and only exits 1 on a real parse error.
+function countVia(cmd, args, parser) {
+  const r = spawnSync(cmd, args, { cwd: REPO_ROOT, encoding: 'utf8', timeout: 120_000 });
+  if (r.status !== 0) return null;
+  try { return parser(r.stdout); } catch { return null; }
+}
+
+// cargo: `cargo test --lib -- --list` enumerates tests without
+// running them. Output ends with: "N tests, 0 benchmarks".
+// (No "test result: ok. N passed" line because tests don't run.)
+//
+// v0.82 — run from src-tauri/ where Cargo.toml lives. The local
+// CI uses `rustup run 1.89 cargo` to match the CI toolchain; for
+// just listing tests (not running them) the system cargo works
+// because `cargo test --list` doesn't compile the lib.
+const cargoCount = (() => {
+  const r = spawnSync('cargo', ['test', '--lib', '--', '--list'], {
+    cwd: join(REPO_ROOT, 'src-tauri'),
+    encoding: 'utf8',
+    timeout: 60_000,
+  });
+  if (r.status !== 0) return null;
+  // "348 tests, 0 benchmarks"
+  const m = r.stdout.match(/(\d+)\s+tests?,/);
+  if (m) return parseInt(m[1], 10);
+  // Fallback: count "test ..." lines
+  return r.stdout.split('\n').filter((l) => /^\s*\S+::\S+: test\s*$/.test(l)).length;
+})();
+
+// Python (sidecar): `pytest --collect-only -q` prints
+//   "N tests collected in T.Ts"
+const pythonCount = countVia('python3', ['-m', 'pytest', '--collect-only', '-q'], (out) => {
+  const m = out.match(/(\d+)\s+tests?\s+collected/);
+  return m ? parseInt(m[1], 10) : null;
+});
+
+// Playwright: `playwright test --list` prints
+//   "Total: N tests in M files"
+const playwrightCount = countVia('npx', ['playwright', 'test', '--list'], (out) => {
+  const m = out.match(/Total:\s+(\d+)\s+tests?\b/i);
+  return m ? parseInt(m[1], 10) : null;
+});
+
+if (vitestCount != null && cargoCount != null && pythonCount != null) {
+  // v0.82 — include Playwright in the totals. Backwards compat:
+  //   - the regex still matches the 3-component line so old READMEs work
+  //   - the new line has 4 components
+  const pw = playwrightCount ?? 0;
+  const total = cargoCount + vitestCount + pythonCount + pw;
+  const TEST_TOTALS_RE_3 = /\| Test totals \|\s*\*\*\d+ cargo \+ \d+ vitest \+ \d+ Python = \d+\/\*\*\s*\|/;
+  const TEST_TOTALS_RE_4 = /\| Test totals \|\s*\*\*\d+ cargo \+ \d+ vitest \+ \d+ Python \+ \d+ e2e = \d+\/\*\*\s*\|/;
+  const newLine4 = `| Test totals | **${cargoCount} cargo + ${vitestCount} vitest + ${pythonCount} Python + ${pw} e2e = ${total}/** |`;
+  const newLine3 = `| Test totals | **${cargoCount} cargo + ${vitestCount} vitest + ${pythonCount} Python = ${cargoCount + vitestCount + pythonCount}/** |`;
+  if (TEST_TOTALS_RE_4.test(readme)) {
+    readme = readme.replace(TEST_TOTALS_RE_4, newLine4);
+  } else if (TEST_TOTALS_RE_3.test(readme)) {
+    // v0.82 — first migration to 4-component form
+    readme = readme.replace(TEST_TOTALS_RE_3, newLine4);
   }
-  // If the regex doesn't match, just leave the line as-is.
-  // (Could be a custom format in an older README.)
+  // If the regex doesn't match, leave the line as-is.
 }
 
 // ----- Optional: --version flag → also update README "Status" + overview.md
