@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.31 · 2026-06-19 (v0.69 auto-bumped)
+> 版本：v2.32 · 2026-06-19 (v0.70 auto-bumped)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿） · [`coding-spec.md`](./coding-spec.md)（v0.61 注释规范）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
