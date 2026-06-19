@@ -2,7 +2,7 @@
 
 > 代码注释 / 文档化规范。**所有新增代码必须遵循此规范；存量代码按 v0.61 计划分轮翻新。**
 
-**版本**：v1.7 · 2026-06-19 (v0.73 final — CI gate HARDENED + threshold 81/78/73/82 → 82/81/76/84)
+**版本**：v1.8 · 2026-06-19 (v0.74 — Visual Acceptance Gate + class-coverage lint + nav-item CSS 修复)
 **配套**：[`overview.md`](./overview.md)（5 层架构） · [`polyrocket-modules.md`](./polyrocket-modules.md)（17 模块业务） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 交互流程） · [`polyrocket-v0.69-final.md`](./polyrocket-v0.69-final.md)（CI 修复记录）
 
 ---
@@ -314,6 +314,7 @@ def test_efficiency_axiom_holds_at_extremes():
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v1.8 | 2026-06-19 | v0.74: 新增 §12 Visual Acceptance Gate + `scripts/check-class-coverage.mjs` + 修 nav-item 缺失 CSS |
 | v1.7 | 2026-06-19 | v0.73 final: coverage 81.9→82.98% stmts + branches 80.25→81.31% ⭐,threshold 81/78/73/82 → 82/81/76/84 |
 | v1.6 | 2026-06-19 | v0.73a: CI gate HARDENED — 移除 `POLYROCKET_PRE_PUSH_SKIP` env + `--quick`,新增 `.git/CI_VERIFIED` state file,§11 新增完整 policy |
 | v1.5 | 2026-06-19 | v0.72 final: branches 79.2→80.3%(首次 > 80%),threshold 维持 81/78/73/82 |
@@ -629,3 +630,96 @@ chmod +x .git/hooks/pre-push
 - **v0.76+ candidate**:研究 **post-commit hook**,commit 后自动跑 cargo check(后台,不阻塞 commit)。
 
 这些都不影响 §11.1 三条铁律,只是补强。
+
+---
+
+## 12. Visual Acceptance Gate(v0.74d 强制 — 防止 nav-item-class-of-bugs 复发)
+
+### 12.1 背景:v0.74 缺失 CSS 事件
+
+`AppShell.tsx` 从 initial commit (c6ec76b) 起就在 4 处用 `.nav-item` class,
+**但 `src/styles/globals.css` 从未定义过这个 class**。症状:
+
+- sidebar icon 用 SVG 默认 24×24 渲染(没应用 `w-3.5 h-3.5`)
+- 布局 `block` 而非 `flex`,无 padding,无 hover state,无 active 高亮
+- 整个 v0.13 → v0.74(~3 个月) 都在 broken 状态下 push
+- v0.74a 的 18-route console-error audit **没发现**,因为脚本只检查
+  console 输出,不检查视觉渲染
+
+**为什么 typecheck / vitest / CI 都没发现**:
+
+| 检查 | 假阴性原因 |
+|---|---|
+| `tsc --noEmit` | `className="nav-item"` 是 string,语法 OK |
+| `vitest run` | happy-dom 不加载真实 CSS,layout 不真渲染 |
+| `gh actions` 4 jobs | governance / typecheck / cargo / python 都不验证 CSS |
+| 18-route console audit | 只看 `console.error` / `console.warn`,不看 layout |
+| **视觉检查** | **从未做**(没有任何 screenshot diff / Playwright visual) |
+
+### 12.2 三层防御(v0.74d 落地)
+
+| 层 | 工具 | 何时 | 失败影响 |
+|---|---|---|---|
+| **1. 静态 class coverage lint** | `scripts/check-class-coverage.mjs` | pre-push(加进 `run-ci-local.sh`)| 任何 TSX 引用但 CSS 未定义的 class → exit 1 |
+| **2. 真实 browser 渲染** | `pnpm dev` + Playwright 截图 | v0.74d+ 每次提 PR 前手动 | 视觉问题在 commit 前发现 |
+| **3. 自动视觉回归(roadmap)** | Playwright `expect(page).toHaveScreenshot()` | v0.75 candidate | pixel-level diff,任何 layout 漂移 fail |
+
+### 12.3 静态 class coverage lint 用法
+
+```bash
+node scripts/check-class-coverage.mjs            # 列出所有 missing class
+node scripts/check-class-coverage.mjs --strict   # 严格模式(预留)
+```
+
+**lint 行为**:
+- 扫描 `src/**/*.{ts,tsx}` 里所有 `className="..."` 和 `className={cn('...')}` 用到的 token
+- 排除 Tailwind utility(检测:bare `flex/border/center/...`, prefix `text-/bg-/...`, variant `hover:/md:/focus-visible:`, arbitrary `[13px]`)
+- 排除 lucide-react icon class (`lucide-*`)
+- 排除 `active`(`.nav-item.active` 的子状态)
+- 对所有剩余 class,检查 `src/styles/globals.css` + `src/styles/themes.css` + `src/index.css` 里是否有 `.classname {` 选择器
+- 缺失 → exit 1 + 列出全部 missing class
+
+**v0.74c 验证**:`nav-item` 修复后 → 363 文件 / 309 unique class,全部有 CSS。
+如果有人删掉 `.nav-item { ... }` rule,下次跑 lint 会立即报。
+
+### 12.4 视觉验证(手动,每次大 UI 改动后必跑)
+
+```bash
+# 1. 启动 Vite dev
+pnpm dev   # http://localhost:1420
+
+# 2. 截所有 18 个 route 的图(推荐用 Playwright)
+# 至少必截:sidebar(Dashboard) / Settings / Lab / Analysis / Wallets
+# 因为这 5 个覆盖了 AppShell + Modal + List + Form + ErrorState
+
+# 3. 视觉 checklist(看每张图问自己):
+#   - sidebar icon 是否正常显示(14×14,不是 24×24)?
+#   - 文字颜色 / 间距 / 对齐符合 spec v2.2?
+#   - 3 主题切换(Dark/Light/Matrix)都正常?
+#   - 没有 overflow / overlap / 文字截断异常?
+```
+
+**commit 门禁**:任何动 `src/styles/`,`src/components/layout/`,`src/components/feedback/` 的
+commit,**必须**附至少 1 张 Playwright 截图(sidebar 或被改的 component)证明没破。
+
+### 12.5 失败案例总结(从 v0.74c 学到的教训)
+
+1. **TypeScript happy ≠ 视觉 OK**:`className="X"` 是 string,不验证 X 存在
+2. **vitest happy-dom 不渲染真实 CSS**:layout bug 永远抓不到
+3. **Console error 监控 ≠ 视觉监控**:silent visual regression 不会触发 console
+4. **Coverage ratchet 不覆盖 CSS**:8 commits 全部 4/4 CI 绿,但样式一直坏
+5. **用户视觉反馈仍是最后一道防线**:18-route 脚本 + 8 commits 都没发现,人工 review 一眼看出
+
+**结论**:lint(自动化) + 视觉(人工/screenshot) 两层都不能省。Lint 抓 95% 的 case,视觉抓剩下 5% 的 silent regression。
+
+### 12.6 与 §11 CI Gate Policy 的关系
+
+| 触发时机 | 工具 | 拦哪类问题 |
+|---|---|---|
+| pre-commit(v0.74 candidate) | check-class-coverage + tsc | class coverage + TS error |
+| pre-push(已落地) | run-ci-local.sh 4 jobs | governance / L1 / Rust / Python + **class coverage**(v0.74d 加) |
+| post-push GitHub Actions | 4 jobs | 同上,但在 CI runner |
+| 视觉(每 PR 必跑) | Playwright screenshot | silent visual regression |
+
+**lint 必须在 pre-push 跑**:v0.74d 起 `run-ci-local.sh` job 1 governance 增加
+`node scripts/check-class-coverage.mjs` 调用(详见 §6 CI 校验)。

@@ -114,6 +114,11 @@ echo "--- 3-theme contrast (WCAG AA)"
 node scripts/check-theme-contrast.mjs
 echo "--- comment density"
 node scripts/check-comment-density.mjs
+# v0.74d — custom CSS class coverage (catches nav-item-class-of-bugs).
+# Scans all TSX className="..." and className={cn('...')} usage, verifies
+# each "custom" (non-Tailwind) class has a corresponding CSS rule in
+# src/styles/{globals,themes}.css. Exits 1 on missing rules.
+node scripts/check-class-coverage.mjs
 echo "✓ governance guards PASS"
 echo
 
