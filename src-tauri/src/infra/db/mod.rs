@@ -15,8 +15,9 @@
 //! internal use (boot, IPC commands that mutate prefs).
 
 pub mod audit;
-pub mod bets_columns; // v0.50a
-pub mod clob_snapshots; // v0.51a
+pub mod bankroll;  // v0.78 — M11
+pub mod bets_columns;
+pub mod clob_snapshots;
 pub mod paper_fills;
 pub mod pool;
 pub mod price_snapshots;

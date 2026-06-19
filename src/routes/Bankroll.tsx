@@ -8,12 +8,14 @@
 // the user can see the deterministic allocation before commit.
 
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Wallet, Sparkles, AlertCircle } from 'lucide-react';
 import {
   listActiveSignals,
   listWallets,
   computeAllocationPreview,
+  applyAllocation,
+  setBankrollConfig,
   type ComputeAllocationArgs,
 } from '@/ipc';
 import { Card } from '@/components/base/Card';
@@ -39,6 +41,7 @@ const DEFAULT_CONFIG: BankrollConfigDto = {
 
 export function Bankroll() {
   const { t } = useT();
+  const queryClient = useQueryClient();
   const [config, setConfig] = useState<BankrollConfigDto>(DEFAULT_CONFIG);
   const [bankrollInput, setBankrollInput] = useState('1000');
 
@@ -73,6 +76,27 @@ export function Bankroll() {
       return computeAllocationPreview(args);
     },
     enabled: !!signalsQuery.data && parseFloat(bankrollUsdc) > 0,
+  });
+
+  // v0.78e — apply mutation writes to allocation_batches
+  const applyMut = useMutation({
+    mutationFn: (result: AllocationResult) => {
+      if (!activeWallet) throw new Error('no active wallet');
+      return applyAllocation(activeWallet.id ?? 'default', result, bankrollUsdc, config);
+    },
+    onSuccess: (batchId) => {
+      toast.success('Allocation applied', `Batch ${batchId.slice(0, 8)}…`);
+      // Also persist the config for this wallet
+      if (activeWallet?.id) {
+        setBankrollConfig(activeWallet.id, config).catch(() => {
+          /* config persist is best-effort */
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ['bankroll-batches'] });
+    },
+    onError: (e: Error) => {
+      toast.error('Apply failed', e.message);
+    },
   });
 
   const updateConfig = (key: keyof BankrollConfigDto, value: number) => {
@@ -164,12 +188,11 @@ export function Bankroll() {
           <AllocationResultView
             result={allocationQuery.data}
             onApply={() => {
-              // v0.78c — apply is a no-op (v0.78e wires DB writes)
-              toast.info(
-                'Apply coming in v0.78e — preview shown above.',
-                `Total: ${fmtUsdc(parseFloat(allocationQuery.data!.total_allocated_usdc) || 0)}`,
-              );
+              if (allocationQuery.data) {
+                applyMut.mutate(allocationQuery.data);
+              }
             }}
+            applying={applyMut.isPending}
           />
         ) : null}
       </Card>
@@ -263,9 +286,11 @@ function ConfigSliders({
 function AllocationResultView({
   result,
   onApply,
+  applying,
 }: {
   result: AllocationResult;
   onApply: () => void;
+  applying?: boolean;
 }) {
   return (
     <div className="space-y-3">
@@ -287,10 +312,11 @@ function AllocationResultView({
           size="sm"
           variant="primary"
           onClick={onApply}
-          disabled={result.per_market.length === 0}
+          disabled={result.per_market.length === 0 || applying}
+          loading={applying}
           data-testid="alloc-apply"
         >
-          Apply allocation
+          {applying ? 'Applying…' : 'Apply allocation'}
         </Button>
       </div>
       {result.dropped_markets.length > 0 && (

@@ -95,7 +95,7 @@ export const listActiveSignals = (args: ListSignalsArgs = {}) =>
 export const recomputeSignals = () => safeInvoke<number>('recompute_signals');
 
 // ---------------------------------------------------------------- Bankroll (M11) v0.78
-import type { ComputeAllocationArgs, AllocationResult } from '@/types/bankroll';
+import type { ComputeAllocationArgs, AllocationResult, BankrollConfigDto } from '@/types/bankroll';
 export type { ComputeAllocationArgs };
 
 /**
@@ -107,6 +107,28 @@ export type { ComputeAllocationArgs };
  */
 export const computeAllocationPreview = (args: ComputeAllocationArgs) =>
   safeInvoke<AllocationResult>('compute_allocation_preview', { args });
+
+/** v0.78d — get per-wallet bankroll config. Returns default if not set. */
+export const getBankrollConfig = (walletId: string) =>
+  safeInvoke<BankrollConfigDto>('get_bankroll_config', { walletId });
+
+/** v0.78d — set per-wallet bankroll config. Validates first. */
+export const setBankrollConfig = (walletId: string, config: BankrollConfigDto) =>
+  safeInvoke<void>('set_bankroll_config', { walletId, config });
+
+/** v0.78e — apply an allocation result. Writes to allocation_batches. */
+export const applyAllocation = (
+  walletId: string,
+  result: AllocationResult,
+  bankrollUsdc: string,
+  config: BankrollConfigDto,
+) =>
+  safeInvoke<string>('apply_allocation', {
+    walletId,
+    result,
+    bankrollUsdc,
+    config,
+  });
 
 // ---------------------------------------------------------------- Bet (M3)
 export const placeJumpLink = (args: PlaceJumpArgs) =>

@@ -121,6 +121,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::bankroll::compute_allocation_preview,  // v0.78 — M11
+            commands::bankroll::get_bankroll_config,
+            commands::bankroll::set_bankroll_config,
+            commands::bankroll::apply_allocation,
             commands::wallet::list_wallets,
             commands::wallet::add_wallet,
             commands::market::list_markets,

@@ -1,24 +1,25 @@
 //! L2 — Bankroll allocation IPC commands (M11, v0.78).
 //!
-//! v0.78b delivers the IPC surface for the bankroll allocator.
+//! v0.78b/d/e delivers the IPC surface for the bankroll allocator.
 //! The pure-function algorithm lives in `crate::domain::bankroll`.
 //! This file is the **thin IPC adapter** — no business logic.
 //!
-//! v0.78b scope:
-//!   - `compute_allocation_preview` — pure compute, no DB writes
-//!   - `validate_bankroll_config` — reject out-of-range values
-//!
-//! v0.78c+ will add DB-backed `get/set_bankroll_config` +
-//! `apply_allocation` (writes to `bets` table).
+//! v0.78b:  compute_allocation_preview (pure) + validate_config
+//! v0.78d:  get_bankroll_config, set_bankroll_config (per-wallet)
+//! v0.78e:  apply_allocation (writes to allocation_batches + bets)
 //!
 //! Spec: docs/bankroll-allocation-design.md §2.2.
 
 use crate::AppResult;
-use crate::domain::bankroll::{compute_allocation as compute, AllocationInput};
+use crate::domain::bankroll::{
+    compute_allocation as compute, AllocationInput, BankrollConfig,
+};
 use crate::domain::signal::Signal;
+use crate::infra::state::AppState;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::HashMap;
+use tauri::State;
 
 /// IPC request shape for `compute_allocation_preview`.
 ///
@@ -49,7 +50,7 @@ pub struct BankrollConfigDto {
     pub min_confidence: f64,
 }
 
-impl From<&BankrollConfigDto> for crate::domain::bankroll::BankrollConfig {
+impl From<&BankrollConfigDto> for BankrollConfig {
     fn from(dto: &BankrollConfigDto) -> Self {
         Self {
             kelly_multiplier: dto.kelly_multiplier,
@@ -94,25 +95,17 @@ pub fn validate_config(config: &BankrollConfigDto) -> AppResult<()> {
 }
 
 /// IPC: compute allocation preview (no DB writes).
-///
-/// This is the **deterministic, side-effect-free** compute. Used by
-/// the UI to show "what would the allocation look like?" before
-/// the user clicks "Apply" (which would call `apply_allocation`
-/// in v0.78c+).
 #[tauri::command]
 #[specta::specta]
 pub fn compute_allocation_preview(
     args: ComputeAllocationArgs,
 ) -> AppResult<crate::domain::bankroll::AllocationResult> {
-    // v0.78b — domain::bankroll::BankrollConfig doesn't derive
-    // specta::Type, so we take an Option<DTO> and convert. Default
-    // when None.
-    let config: crate::domain::bankroll::BankrollConfig = match &args.config {
+    let config: BankrollConfig = match &args.config {
         Some(dto) => {
             validate_config(dto)?;
             dto.into()
         }
-        None => crate::domain::bankroll::BankrollConfig::default(),
+        None => BankrollConfig::default(),
     };
     let input = AllocationInput {
         bankroll_usdc: &args.bankroll_usdc,
@@ -121,6 +114,67 @@ pub fn compute_allocation_preview(
         market_liquidity: args.market_liquidity.as_ref(),
     };
     Ok(compute(&input))
+}
+
+/// v0.78d — get per-wallet config (DB-backed). Returns default if not set.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_bankroll_config(
+    state: State<'_, AppState>,
+    wallet_id: String,
+) -> AppResult<BankrollConfigDto> {
+    let config = crate::infra::db::bankroll::get_config(&state.db, &wallet_id)
+        .await?
+        .unwrap_or_default();
+    Ok(BankrollConfigDto {
+        kelly_multiplier: config.kelly_multiplier,
+        max_per_signal_pct: config.max_per_signal_pct,
+        reserve_pct: config.reserve_pct,
+        min_edge_pct: config.min_edge_pct,
+        max_total_exposure_pct: config.max_total_exposure_pct,
+        min_confidence: config.min_confidence,
+    })
+}
+
+/// v0.78d — set per-wallet config. Validates first.
+#[tauri::command]
+#[specta::specta]
+pub async fn set_bankroll_config(
+    state: State<'_, AppState>,
+    wallet_id: String,
+    config: BankrollConfigDto,
+) -> AppResult<()> {
+    validate_config(&config)?;
+    let c: BankrollConfig = (&config).into();
+    crate::infra::db::bankroll::set_config(&state.db, &wallet_id, &c).await?;
+    Ok(())
+}
+
+/// v0.78e — apply an allocation result. Writes to `allocation_batches`.
+/// Returns the batch id (UUID).
+#[tauri::command]
+#[specta::specta]
+pub async fn apply_allocation(
+    state: State<'_, AppState>,
+    wallet_id: String,
+    result: crate::domain::bankroll::AllocationResult,
+    bankroll_usdc: String,
+    config: BankrollConfigDto,
+) -> AppResult<String> {
+    let id = uuid::Uuid::new_v4().to_string();
+    let config_json = serde_json::to_string(&config).map_err(|e| {
+        crate::infra::error::AppError::Internal(format!("serialize config: {e}"))
+    })?;
+    let batch = crate::infra::db::bankroll::AllocationBatch {
+        id: id.clone(),
+        wallet_id,
+        bankroll_usdc,
+        config_json,
+        total_allocated_usdc: result.total_allocated_usdc.clone(),
+        applied_at: chrono::Utc::now().timestamp_millis(),
+    };
+    crate::infra::db::bankroll::insert_batch(&state.db, &batch).await?;
+    Ok(id)
 }
 
 #[cfg(test)]
@@ -192,7 +246,7 @@ mod tests {
     fn validate_config_rejects_reserve_plus_total_above_1() {
         let mut dto = default_dto();
         dto.reserve_pct = 0.5;
-        dto.max_total_exposure_pct = 0.6; // 0.5 + 0.6 = 1.1 > 1.0
+        dto.max_total_exposure_pct = 0.6;
         assert!(validate_config(&dto).is_err());
     }
 
@@ -200,16 +254,11 @@ mod tests {
     fn compute_allocation_preview_with_default_config() {
         let args = ComputeAllocationArgs {
             bankroll_usdc: "1000".to_string(),
-            config: None, // default
+            config: None,
             signals: vec![sig("m1", 0.10, 0.8)],
             market_liquidity: None,
         };
         let r = compute_allocation_preview(args).unwrap();
-        // 1 signal, edge 0.10, conf 0.8, market 0.5
-        // Kelly: b=1, p=0.6, q=0.4, f=0.2; multiplier 0.25 → 0.05
-        // raw_alloc = 0.05 * 1000 = $50
-        // max_per_signal = $100 → no cap
-        // reserve = $200, total = $50 ≤ $800
         assert_eq!(r.per_market.len(), 1);
         assert_eq!(r.per_market[0].size_usdc, "50.00");
         assert_eq!(r.total_allocated_usdc, "50.00");

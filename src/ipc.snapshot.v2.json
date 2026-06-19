@@ -686,6 +686,31 @@
         "args"
       ],
       "returnType": null
+    },
+    "getBankrollConfig": {
+      "params": 1,
+      "paramNames": [
+        "walletId"
+      ],
+      "returnType": null
+    },
+    "setBankrollConfig": {
+      "params": 2,
+      "paramNames": [
+        "walletId",
+        "config"
+      ],
+      "returnType": null
+    },
+    "applyAllocation": {
+      "params": 4,
+      "paramNames": [
+        "walletId",
+        "result",
+        "bankrollUsdc",
+        "config"
+      ],
+      "returnType": null
     }
   },
   "typeImports": [
@@ -733,7 +758,8 @@
     "ValidateOrderArgsArgs",
     "Wallet",
     "AllocationResult",
-    "ComputeAllocationArgs"
+    "ComputeAllocationArgs",
+    "BankrollConfigDto"
   ],
-  "total": 108
+  "total": 112
 }

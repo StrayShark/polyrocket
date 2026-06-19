@@ -108,7 +108,13 @@
     "clearProxyConfig": 1,
     "readProxyConfigFile": 1,
     "onAutoPromoteFinished": 1,
-    "computeAllocationPreview": 1
+    "computeAllocationPreview": 1,
+    "applyAllocation": 4,
+    "getBankrollConfig": 1,
+    "setBankrollConfig": 2
   },
-  "total": 109
+  "total": 112,
+  "getBankrollConfig": 1,
+  "setBankrollConfig": 1,
+  "applyAllocation": 1
 }

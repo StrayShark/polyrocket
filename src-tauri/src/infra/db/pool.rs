@@ -53,6 +53,8 @@ pub async fn init_pool(app: &AppHandle) -> AppResult<SqlitePool> {
     super::settings::ensure_table(&pool).await?;
     ensure_copy_mirror_queue(&pool).await?;
     ensure_price_snapshots(&pool).await?;
+    // v0.78 — bankroll allocation tables (M11)
+    super::bankroll::ensure_tables(&pool).await?;
     // v0.51a — clob_snapshots table (real order
     // book per market per timestamp). Idempotent.
     ensure_clob_snapshots(&pool).await?;
