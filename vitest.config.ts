@@ -86,6 +86,17 @@ export default defineConfig({
     //             check in CI (v0.67d)
     //           • test totals regex
     //             fix (match `N/**`)
+    // v0.68:    74/69/63/75 (581 tests) —
+    //           • Analysis.more.test.tsx
+    //             (+5 tests, Run / mount /
+    //             ErrorState paths)
+    //           • @testing-library/user-event
+    //             added as devDep (kept
+    //             as future-option)
+    //           • density polish (5 files
+    //             bumped 4-5% → 10-11%)
+    //           • CI cleanup coverage/ dir
+    //             between runs (v0.68c)
     //
     // We exclude pure-presentation files
     // (BarChart, Sparkline, KpiCard, etc.)
@@ -114,9 +125,9 @@ export default defineConfig({
       ],
       thresholds: {
         statements: 73,
-        branches: 68,
-        functions: 62,
-        lines: 74,
+        branches: 69,
+        functions: 63,
+        lines: 75,
       },
     },
   },

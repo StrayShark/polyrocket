@@ -1,3 +1,28 @@
+// polyrocket — Dashboard (v0.68f density).
+//
+// /dashboard is the home page. The user lands here on
+// first run (after Welcome) and on every app open. Three
+// sections, vertically stacked:
+//
+//   1. **KPI strip** — 4 cards: open equity, 24h PnL,
+//      active signals, win rate (7d). Pulled from
+//      `dashboard_kpis` IPC.
+//   2. **Active positions** — open bets, sorted by
+//      PnL desc. Each row links to the source market.
+//   3. **Recent signals** — top 5 by edge (desc),
+//      with mini sparkline per signal.
+//
+// **Why this layout**: the user should see the
+// *money* first (KPI strip), then *what's working*
+// (positions), then *what's next* (signals). The
+// sidebar provides the nav, so the dashboard
+// itself has no top-level nav.
+//
+// **Data freshness**: 30s `staleTime` for KPIs (cheap
+// to recompute), 60s for signals (heavier SQL).
+// Background refetch in `useQuery` keeps the page
+// "live" without manual refresh.
+
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';

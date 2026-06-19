@@ -1,3 +1,30 @@
+// polyrocket — LlmMgmt (v0.68f density).
+//
+// /llm-mgmt is the LLM provider + key management page.
+// Two concerns, one screen:
+//
+//   1. **Providers** — registered LLM providers (OpenAI,
+//      Anthropic, Google, DeepSeek, custom OpenAI-compatible).
+//      Each provider has a default `api_base` and a list of
+//      keys (one per alias). Health status (ok / slow / down)
+//      is shown per provider. Add via modal, delete via trash icon.
+//
+//   2. **Keys** — per-provider key aliases. Each key has:
+//      - alias (e.g. "prod-1", "trade-A") — human label
+//      - secret — stored in OS keyring, never persisted to disk
+//      - health — last `llm_test_connectivity` result
+//      - rotation strategy (priority / round-robin)
+//
+// **Sidecar topology**: `llm_test_connectivity` runs the
+// actual API call against the key's `api_base`. The
+// response includes `latency_ms` and `error_code` for
+// circuit-breaker logic in the Rust side.
+//
+// **File picker for env import**: the "import from .env"
+// button on the Add Key modal reads an env-style file
+// (`KEY=VALUE` or plain `sk-...`) via `pickFile` +
+// `extractSecretFromEnv`. The keyring is then updated.
+
 import { useState } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { Plus, Trash2, TestTube2, CheckCircle2, XCircle, Key, Database, Eye, EyeOff, FolderSearch } from 'lucide-react';

@@ -1,8 +1,23 @@
-// v0.53b — LlmStep (Step 4 of 6).
+// v0.53b + v0.68f — LlmStep (Step 4 of 6).
 //
 // Add at least one LLM provider. The form mirrors
 // what /llm-mgmt does, but inside the welcome
 // layout. We invoke llmProviderUpsert +
+// llmKeySetSecret + llmTestConnectivity (the same
+// 3-step IPC chain the LLM Mgmt page uses).
+//
+// On success: welcome.setConfigured('llmAtLeastOne', true)
+//
+// **Why a separate component from /llm-mgmt**: the
+// welcome layout is constrained (single column, no
+// sidebar, focus on getting to "configured"). The LLM
+// Mgmt page is the post-setup admin tool. Same IPCs,
+// different framing.
+//
+// **Validation order**: alias first (non-empty),
+// then secret (non-empty), then provider.
+// Failure at any step shows an inline error and
+// does NOT call the IPC.
 // llmKeySetSecret + llmTestConnectivity (the same
 // 3-step IPC chain the LLM Mgmt page uses).
 //

@@ -123,6 +123,15 @@ jobs:
       - name: vitest coverage gate
         run: pnpm test:coverage
 
+      # v0.68c — clean coverage/ between runs to avoid
+      # stale HTML diffing. coverage/ is in .gitignore
+      # (v0.63b) but the runner doesn't clean it; without
+      # this step a partial coverage run can leave stale
+      # files that don't reflect current actuals.
+      - name: clean stale coverage output
+        if: always()
+        run: rm -rf coverage
+
   # ============================================================
   # Rust cargo tests.
   # ============================================================

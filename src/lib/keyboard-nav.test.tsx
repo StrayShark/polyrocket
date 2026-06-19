@@ -21,6 +21,11 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useNavBindings, useKeyboardNav, formatKeys, type KbdBinding } from './keyboard-nav';
 import { withFakeTimersAndState } from '@/test-helpers';
+// v0.68e — added @testing-library/user-event as a devDependency
+// for future keyboard tests. happy-dom currently has issues
+// with user-event's keyboard dispatch (test timeout), so we
+// stick with fireEvent for now. If the project moves to jsdom,
+// user-event's keyboard('g') will work end-to-end.
 
 // ---- (1) useNavBindings -------------------------------------------------
 describe('useNavBindings', () => {
@@ -211,30 +216,25 @@ describe('useKeyboardNav', () => {
   });
 
   it('two-key chord prefix schedules a 1200ms reset timer', () => {
-    // v0.67e — verify the source-level behavior: pressing
-    // `g` (which has 2-key bindings) causes the handler
-    // to register a setTimeout for the 1200ms prefix reset.
+    // v0.68e — try @testing-library/user-event for end-to-end
+    // timer behavior. user-event uses real timers + a more
+    // thorough keyboard simulation than fireEvent.
     //
-    // Why we don't test the END state (pendingPrefix = null
-    // after 1.2s): in happy-dom + React 18, the fake
-    // setTimeout callback's setState is still in a batch
-    // boundary that the microtask flush can't reach. We
-    // tried 4 workarounds (vi.advanceTimersByTime +
-    // Promise.resolve, vi.runAllTimers, vi.useFakeTimers
-    // with explicit toFake list, withFakeTimersAndState
-    // helper) — none propagated. The end-to-end behavior
-    // IS exercised in production by the real timer; the
-    // test verifies the call site (which is the bug-prone
-    // part — forgetting to schedule the timer).
+    // Result in happy-dom: user-event.setup().keyboard('g')
+    // hangs (test timeout). The reason: happy-dom doesn't
+    // implement enough of the DOM/keyboard spec for
+    // user-event to settle the async keyboard dispatch.
+    // We tried with vi.useFakeTimers + advanceTimers wiring;
+    // still hangs. user-event works in real browsers + jsdom
+    // but not happy-dom (per user-event github issue tracker).
     //
-    // If you can get the end-to-end version to work in
-    // happy-dom, please do — that would be a stronger test.
+    // Fallback: source-level assertion via vi.spyOn(setTimeout).
+    // If/when the project switches from happy-dom to jsdom,
+    // this test can switch to user-event for end-to-end coverage.
     const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
     const rig = makeRig();
     rig.fireKey('g');
     expect(rig.pendingPrefix).toBe('g');
-    // The handler should have called setTimeout once,
-    // with delay 1200ms (= PREFIX_TIMEOUT_MS).
     expect(setTimeoutSpy).toHaveBeenCalled();
     const calls = setTimeoutSpy.mock.calls;
     const lastCall = calls[calls.length - 1];

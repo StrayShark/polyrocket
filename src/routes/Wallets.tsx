@@ -1,3 +1,27 @@
+// polyrocket — Wallets (v0.68f density).
+//
+// /wallets is the wallet metadata manager. Two
+// concerns:
+//
+//   1. **List registered wallets** — name, address,
+//      chain_id, type (eoa / smart), last_synced.
+//      Click copy icon → address copied to clipboard.
+//   2. **Add wallet** — modal with 3 fields:
+//      address (0x... 40 hex), label (optional),
+//      chain_id (137 Polygon or 80002 Amoy by default).
+//
+// **File picker (v0.57d+)**: the "import from file"
+// button on the modal reads a JSON file (typical
+// MetaMask/Rabby export), extracts the 0x address
+// via `extractAddressFromJson`, and pre-fills the
+// address field. Saves the user from typing 42
+// hex characters.
+//
+// **Private keys live elsewhere**: this page does
+// NOT handle private keys. Private keys go to
+// `polyrocket_wallet_set_pk` IPC at /settings, which
+// stores in OS keyring under `polyrocket/wallet/<label>`.
+
 import { useState } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { Plus, Wallet as WalletIcon, RefreshCw, Copy as CopyIcon, FolderSearch } from 'lucide-react';

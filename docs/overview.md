@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.28 · 2026-06-18 (v0.66 auto-bumped)
+> 版本：v2.30 · 2026-06-19 (v0.68 coverage ratchet 73% → 74% + density polish + 5 tool improvements)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿） · [`coding-spec.md`](./coding-spec.md)（v0.61 注释规范）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
@@ -799,6 +799,16 @@ v0.6 增量：
 
 ## 8. 变更日志
 
+- **v2.30** (2026-06-19) — v0.68 coverage ratchet 73% → 74% + density polish + 5 tool improvements
+  - v0.68a Analysis.more.test.tsx (+5 tests, Run / mount / ErrorState paths)
+  - v0.68b codegen migration plan (v0.69+ candidate — too risky for unattended session)
+  - v0.68c CI cleanup coverage/ dir between runs
+  - v0.68d PR-based README badge auto-sync (.github/workflows/readme-badges.yml)
+  - v0.68e user-event installed (happy-dom limitation; revert to spy assertion)
+  - v0.68f density polish (LlmMgmt 4.5%→10%, Dashboard 4.7%→10%, LlmStep 4.7%→6%, Wallets 5.1%→10%, PolymarketStep top comment expanded)
+  - 阈值: 73/68/62/74 → 73/69/63/75
+  - 实际 coverage: 73.9% stmts / 75.1% lines / 63.3% funcs / 69.4% branches
+  - 改动: 5 NEW files + 4 modified, 581 tests
 - **v2.29** (2026-06-19) — v0.67 coverage ratchet 72% → 73% + centralize mocks + CI badge sync + 4 tool improvements
   - v0.67a Copy.more.test.tsx (+5 tests, AddTargetModal validation + success + cap)
   - v0.67b IPC contract v2 test (+ return type + DTO imports + param names)
