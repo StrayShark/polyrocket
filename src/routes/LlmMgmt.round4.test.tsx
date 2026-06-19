@@ -16,7 +16,6 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const ml = vi.fn();
-const mts = vi.fn();
 const mss = vi.fn();
 const mtc = vi.fn();
 const mks = vi.fn();

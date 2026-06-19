@@ -4,7 +4,15 @@
 //! Every command corresponds to a Tauri IPC entry that the React frontend
 //! can invoke via `invoke('cmd_name', { args })`.
 
-mod commands;
+// v0.76 — codegen bin (src/bin/gen_ts_types.rs) needs
+// access to the auto-generated `__cmd__*` and
+// `__specta__fn__*` symbols (private to the commands
+// module). Making the whole `commands` module pub
+// exposes the internal IPC surface, but it's already
+// reachable via Tauri's invoke_handler in main.rs, so
+// the visibility change has no security impact.
+#[doc(hidden)]
+pub mod commands;
 pub mod domain;
 pub mod infra;
 pub mod lab_state;

@@ -22,8 +22,6 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createIpcMock, createPrefsStoreMock } from '@/test-mocks';
 import { useToastStore } from '@/stores/toast-store';
-import { useWelcomeStore } from '@/stores/welcome-store';
-import { useThemeStore } from '@/stores/theme-store';
 
 const mockLlmPerformance = vi.fn();
 const mockSidecarPredict = vi.fn();

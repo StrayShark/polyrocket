@@ -38,6 +38,15 @@ rand = "0.8"
 tauri-plugin-notification = "2.0.0-rc.5"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
+# v0.76 — codegen Phase 1: tauri-specta
+# Wraps `#[tauri::command]` with type info, generates
+# TS bindings at build time. See docs/codegen-migration-plan.md.
+# Note: `specta-typescript` MUST match the version tauri-specta
+# pulls in transitively (0.0.12), or the trait `LanguageExt`
+# is satisfied by a different type identity.
+specta = { version = "=2.0.0-rc.25", features = ["derive"] }
+specta-typescript = "0.0.12"
+tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 
 [dev-dependencies]
 mockito = "1"

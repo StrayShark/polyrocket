@@ -1,11 +1,15 @@
 # L1 ↔ L2 Type Generation Migration Plan
 
-> Status: v0.68b stub. Documents the path to full ts-rs /
-> specta codegen. Currently the project uses **hand-written**
-> TS types in `src/types/*.ts` + hand-written L1 wrappers in
-> `src/ipc.ts`. The Drift is caught by `src/lib/ipc-contract-v2.test.ts`
-> (snapshot-based) — but field-level rename / optional → required
-> drift is NOT caught.
+> Status: **v0.76 — Phase 1 (proof of concept) DONE**. Phases 2-5 are
+> next. The project uses **hand-written** TS types in `src/types/*.ts`
+> + hand-written L1 wrappers in `src/ipc.ts` PLUS the v0.76 codegen
+> bin (`src-tauri/src/bin/gen_ts_types.rs`) which generates
+> `src/types/generated/index.ts` for the pilot command (`dashboard_kpis`).
+>
+> Drift is caught by `src/lib/ipc-contract-v2.test.ts` (snapshot-based)
+> for the hand-written surface, and by the v0.76 codegen for the
+> pilot command. Field-level rename / optional → required drift is
+> caught ONLY for the pilot command.
 
 ## Why migrate to codegen
 

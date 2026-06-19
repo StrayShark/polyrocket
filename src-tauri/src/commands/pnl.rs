@@ -8,9 +8,10 @@ use crate::AppResult;
 use crate::infra::error::AppError;
 use crate::infra::state::AppState;
 use serde::{Deserialize, Serialize};
+use specta::Type;
 use tauri::State;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize, Type)]
 pub struct DashboardKpis {
     pub total_equity_usdc: String,
     pub open_pnl_usdc: String,
@@ -23,6 +24,7 @@ pub struct DashboardKpis {
 /// Aggregated KPIs for the Dashboard page.
 /// Computed in Rust for speed — full query stays local.
 #[tauri::command]
+#[specta::specta]
 pub async fn dashboard_kpis(state: State<'_, AppState>) -> AppResult<DashboardKpis> {
     let total_equity: Option<String> =
         sqlx::query_scalar("SELECT COALESCE(SUM(size), '0') FROM bets WHERE status = 'open'")
