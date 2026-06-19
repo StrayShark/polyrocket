@@ -56,7 +56,24 @@ v2 apps. It:
 
 ## Migration steps (5 phases, ~3-4h total)
 
-### Phase 1: deps + first command (45min)
+### Phase 2: verify generated TS matches hand-written (30min) — **v0.76 + v0.81 DONE**
+
+v0.76 Phase 1: Generated `DashboardKpis` interface. Confirmed match
+with hand-written `src/types/shared.ts`.
+
+v0.81 Phase 2: Added 4 bankroll commands to the bin. Now generates
+5 commands + 8 types. Verified `BankrollConfigDto` ↔
+`src/types/bankroll.ts` match (snake_case fields preserved).
+
+**Found during Phase 2**:
+- `thiserror::Error` enums don't derive `specta::Type` — added
+  hand-rolled `impl Type` for `AppError` mapping to `Primitive::str`.
+- i64 fields in `Signal` block codegen (BigInt-forbidden) — use
+  local `*CodegenDto` stub in the bin with i32 placeholders.
+- Tauri State can't be used in standalone bin — use stub `*_codegen`
+  commands that return hardcoded data of the right shape.
+
+### Phase 1: deps + first command (45min) — **v0.76 DONE**
 
 1. Add to `src-tauri/Cargo.toml`:
    ```toml

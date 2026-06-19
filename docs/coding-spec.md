@@ -2,7 +2,7 @@
 
 > 代码注释 / 文档化规范。**所有新增代码必须遵循此规范；存量代码按 v0.61 计划分轮翻新。**
 
-**版本**：v2.3 · 2026-06-19 (v0.78 final — M11 bankroll allocation ship, 5 sub-versions + 27 tests)
+**版本**：v2.4 · 2026-06-19 (v0.79~v0.81 final — bankroll E2E + Playwright + codegen Phase 2)
 **配套**：[`overview.md`](./overview.md)（5 层架构） · [`polyrocket-modules.md`](./polyrocket-modules.md)（17 模块业务） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 交互流程） · [`polyrocket-v0.69-final.md`](./polyrocket-v0.69-final.md)（CI 修复记录）
 
 ---
