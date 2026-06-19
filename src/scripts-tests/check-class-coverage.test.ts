@@ -7,7 +7,7 @@
 //   4. Pass: ignores lucide-* icon classes
 //   5. Pass: handles cn('a', 'b', cond && 'c') template
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';

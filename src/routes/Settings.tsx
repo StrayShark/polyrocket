@@ -10,6 +10,8 @@ import { usePrefsStore } from '@/stores/prefs-store';
 import { toast } from '@/stores/toast-store';
 import { cn } from '@/lib/cn';
 import { useWelcomeStore } from '@/stores/welcome-store';
+import { useLocaleStore, LOCALE_LABEL, SUPPORTED_LOCALES, type Locale } from '@/lib/i18n';
+import { ThemeSwitcher } from '@/components/theme/ThemeSwitcher';
 import {
   getAuditRetention,
   setAuditRetention,
@@ -124,6 +126,13 @@ export function Settings() {
           </div>
         </div>
       </Card>
+
+      {/* v0.74f — appearance settings (theme + language).
+       *       Moved from sidebar footer (AppShell) per user feedback
+       *       "language switch, theme switch should be in Settings".
+       *       Positioned right after the page title so users
+       *       find the most basic UI preference immediately. */}
+      <AppearanceCard />
 
       {/* Trading defaults */}
       <Card title={t('settings.section.trading')} description={t('settings.section.trading_desc')}>
@@ -339,6 +348,80 @@ function ToggleRow({
  *  with `(default)` tag in the hint; any non-default value triggers
  *  a Save that calls `set_audit_retention` IPC, which immediately
  *  purges under the new policy. */
+function AppearanceCard() {
+  // v0.74f — moved from sidebar (AppShell.tsx footer). The user
+  // feedback was: "language switch, theme switch should be in
+  // Settings" — these are not ambient context, they're
+  // preferences the user wants to find and change deliberately.
+  // Putting them in the sidebar footer implied "you might want
+  // to switch this right now" which is the wrong call to action.
+  //
+  // **Two independent settings, one card**:
+  //   - Theme: 3-way segmented (Dark / Light / Matrix), persisted
+  //   - Language: 2-way dropdown (English / 简体中文), persisted
+  // Both go through their own zustand stores with persist
+  // middleware; the page never needs Save — changes are
+  // immediate. The card is therefore "stateless" (no
+  // draft / save / reset).
+  const { t } = useT();
+  return (
+    <Card title={t('settings.appearance.title')} description={t('settings.appearance.desc')}>
+      <div className="space-y-4">
+        {/* Theme picker */}
+        <div>
+          <div className="text-[11px] text-muted mb-1.5">{t('settings.appearance.theme_label')}</div>
+          <ThemeSwitcher />
+        </div>
+        {/* Language picker — inline buttons (we only have 2 locales) */}
+        <div>
+          <div className="text-[11px] text-muted mb-1.5">{t('settings.appearance.language_label')}</div>
+          <LocalePicker />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * `LocalePicker` — internal 2-way locale picker. Uses inline
+ * buttons instead of a dropdown because we only support 2
+ * locales (`en`, `zh`) and segmented control beats dropdown
+ * on click count at 2 options. Mirrors the pattern from
+ * `ThemeSwitcher`.
+ */
+function LocalePicker() {
+  const locale = useLocaleStore((s) => s.locale);
+  const setLocale = useLocaleStore((s) => s.setLocale);
+  return (
+    <div
+      data-testid="locale-picker"
+      className="inline-flex items-center gap-0.5 p-0.5 rounded-md border bg-surface-2 border-border"
+    >
+      {SUPPORTED_LOCALES.map((l: Locale) => {
+        const active = l === locale;
+        return (
+          <button
+            key={l}
+            type="button"
+            onClick={() => setLocale(l)}
+            aria-pressed={active}
+            aria-label={`Switch language to ${LOCALE_LABEL[l]}`}
+            className={cn(
+              'inline-flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors',
+              active
+                ? 'bg-surface text-fg shadow-card'
+                : 'text-muted hover:text-fg hover:bg-surface-hover',
+            )}
+          >
+            <Globe className="w-3 h-3" />
+            <span>{LOCALE_LABEL[l]}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function RetentionCard() {
   const qc = useQueryClient();
   const query = useQuery({

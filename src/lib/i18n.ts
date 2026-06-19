@@ -360,6 +360,11 @@ const en: Dictionary = {
   'notifications.event.settings_link': 'Notification settings',
   // Settings page (v0.14b)
   'settings.title': 'Settings',
+  // v0.74f — appearance card (theme + language picker, moved from sidebar)
+  'settings.appearance.title': 'Appearance',
+  'settings.appearance.desc': 'Theme and language. Changes apply immediately and persist across restarts.',
+  'settings.appearance.theme_label': 'Theme',
+  'settings.appearance.language_label': 'Language',
   'settings.btn.reset': 'Reset',
   'settings.btn.save': 'Save',
   'settings.btn.reset_toast': 'Settings reset to defaults',
@@ -1251,6 +1256,11 @@ const zh: Dictionary = {
   'notifications.event.settings_link': '通知设置',
   // Settings page (v0.14b)
   'settings.title': '设置',
+  // v0.74f — 外观(主题 + 语言,从 sidebar 迁移)
+  'settings.appearance.title': '外观',
+  'settings.appearance.desc': '主题与语言。修改立即生效,重启后保留。',
+  'settings.appearance.theme_label': '主题',
+  'settings.appearance.language_label': '语言',
   'settings.btn.reset': '重置',
   'settings.btn.save': '保存',
   'settings.btn.reset_toast': '设置已重置为默认值',

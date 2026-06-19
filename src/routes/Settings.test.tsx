@@ -137,6 +137,13 @@ vi.mock('@/stores/toast-store', () => ({
 // behavior, not the strings.
 vi.mock('@/lib/i18n', () => ({
   useT: () => ({ t: (k: string) => k, locale: 'en' as const }),
+  // v0.74f — AppearanceCard uses useLocaleStore + constants
+  useLocaleStore: (selector?: unknown) =>
+    typeof selector === 'function'
+      ? selector({ locale: 'en' as const, setLocale: vi.fn() })
+      : { locale: 'en' as const, setLocale: vi.fn() },
+  LOCALE_LABEL: { en: 'English', zh: '简体中文' },
+  SUPPORTED_LOCALES: ['en', 'zh'] as const,
 }));
 
 import { setAutoPromoteConfig } from '@/ipc';

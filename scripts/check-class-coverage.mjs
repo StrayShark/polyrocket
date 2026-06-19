@@ -176,8 +176,15 @@ function walk(dir, out = []) {
     const st = statSync(full);
     if (st.isDirectory()) {
       if (entry === 'node_modules' || entry === '.git' || entry === 'dist' || entry === 'coverage') continue;
+      // v0.74f — skip test files (vitest test-mocks intentionally use
+      // fake class names like 'a', 'b', 'is-active' that don't need CSS).
+      if (entry === '__tests__' || entry === 'tests' || entry.endsWith('.test')) continue;
+      // v0.74f — skip scripts-tests/ dir (linter self-tests use fake classes)
+      if (entry === 'scripts-tests') continue;
       walk(full, out);
     } else if (['.tsx', '.ts', '.jsx', '.js'].includes(extname(entry))) {
+      // v0.74f — skip test files at file level too (.test.ts/.test.tsx)
+      if (entry.endsWith('.test.ts') || entry.endsWith('.test.tsx') || entry.endsWith('.test.mjs')) continue;
       out.push(full);
     }
   }
