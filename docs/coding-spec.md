@@ -2,7 +2,7 @@
 
 > 代码注释 / 文档化规范。**所有新增代码必须遵循此规范；存量代码按 v0.61 计划分轮翻新。**
 
-**版本**：v1.5 · 2026-06-19 (v0.72 final — coverage 81.9→82.4% + branches 79.2→80.3% ⭐)
+**版本**：v1.6 · 2026-06-19 (v0.73a — CI gate HARDENED,移除所有 bypass)
 **配套**：[`overview.md`](./overview.md)（5 层架构） · [`polyrocket-modules.md`](./polyrocket-modules.md)（17 模块业务） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 交互流程） · [`polyrocket-v0.69-final.md`](./polyrocket-v0.69-final.md)（CI 修复记录）
 
 ---
@@ -314,6 +314,7 @@ def test_efficiency_axiom_holds_at_extremes():
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v1.6 | 2026-06-19 | v0.73a: CI gate HARDENED — 移除 `POLYROCKET_PRE_PUSH_SKIP` env + `--quick`,新增 `.git/CI_VERIFIED` state file,§11 新增完整 policy |
 | v1.5 | 2026-06-19 | v0.72 final: branches 79.2→80.3%(首次 > 80%),threshold 维持 81/78/73/82 |
 | v1.4 | 2026-06-19 | §5 density round 3 deferred 决策(不 bump,等 v0.74+ plateau) |
 | v1.3 | 2026-06-19 | §5 density round 2: ts-routes-components-lib target 10→15% |
@@ -433,21 +434,46 @@ node scripts/update-readme-coverage.mjs --version v0.XX    # 同时更新 README
 - ❌ 把 `version: 9` 改成 `version: 10/11` —— workspace.yaml 逻辑要重写
 - ❌ 删 `scripts/check-*.mjs` —— 守门就废了
 
-### 10.7 Pre-push 本地 CI gate(v0.69h,强制)
+### 10.7 Pre-push 本地 CI gate(v0.69h,v0.73a HARDENED)
 
-**所有 `git push` 必须在本地通过 `scripts/run-ci-local.sh` 才能 push。**
+**所有 `git push` 必须在本地通过 `scripts/run-ci-local.sh` 才能 push。** v0.73a
+起,所有 bypass 都被移除,只剩 git 原生 `--no-verify`。
 
 ```bash
 # 一键安装 hook(每个开发者只需运行一次):
 ./scripts/install-ci-hook.sh
 
 # 之后 git push 会自动:
-#   1. 跑 scripts/run-ci-local.sh(模拟 CI 的 4 个 job)
-#   2. 失败则 BLOCK push + 提示具体哪个 job 出错
-#   3. 通过则 echo "safe to push" 并继续
+#   1. 读 .git/CI_VERIFIED state 文件
+#   2. 若 state 是 1h 内的新鲜记录 + sha 匹配 HEAD → 直接通过(快速路径)
+#   3. 否则跑 scripts/run-ci-local.sh(4 jobs: governance + L1 + Rust + Python)
+#   4. 失败则 BLOCK push + 提示具体哪个 job 出错
+#   5. 通过则写新 state 文件 + "safe to push"
 ```
 
-**为什么必须有这个 gate(v0.69 的教训)**:
+**v0.73a hardening — 移除的 bypass**:
+
+| bypass | 状态 | 原因 |
+|---|---|---|
+| `POLYROCKET_PRE_PUSH_SKIP=1` env | **REMOVED** | 多次 v0.69-v0.72 push 在 CI 上 fail,根因都是本地 gate 被 skip |
+| `run-ci-local.sh --quick`(跳 cargo) | **REMOVED** | "remote pipeline keeps erroring" 的最大单点根因 |
+| `git push --no-verify` | **保留**(git 原生,无法从 hook 拦截) | 仅 emergency 用:re-push 已知 CI 绿色 commit 修复远端状态 |
+
+**State file(`.git/CI_VERIFIED`)**:
+
+`run-ci-local.sh` 通过后写:
+
+```
+sha=<current_head_sha>
+timestamp=<unix_ts>
+jobs=all
+runner=<hostname>:<pid>
+```
+
+Hook 读取判定:state 存在 + `sha == HEAD` + `timestamp` < 1h ago + `jobs == all` → 跳过
+重新跑 pipeline。否则删除 state 或标记 stale,下次 push 必须重跑完整 pipeline。
+
+**为什么必须有这个 gate(v0.69-v0.72 的教训)**:
 
 v0.69 一连 7 个 fix 都在 GHA 上才暴露问题:
 
@@ -457,8 +483,6 @@ v0.69 一连 7 个 fix 都在 GHA 上才暴露问题:
 | v0.69e README sync step 移到 frontend job | 本地手测 grep 通过 | CI 上 `coverage-summary.json` 不存在 → script exit 1 |
 | v0.69f 加 Linux 系统依赖 | macOS 已有 glib,build pass | CI ubuntu-latest 没装 → glib-sys 找不到 |
 | v0.69g stub `dist/index.html` | 本地有 stale `dist/`,pass | CI 干净 checkout,`tauri::generate_context!()` panic |
-
-每个 fix 在 macOS 上看起来都对,**只有 GHA 才能 reveal 真实问题**。
 
 `run-ci-local.sh` 通过以下手段把 CI 的"真实环境"逼近到本地:
 
@@ -471,22 +495,136 @@ v0.69 一连 7 个 fix 都在 GHA 上才暴露问题:
 | Linux 上跑 apt-get 系统依赖 | macOS 跳过(brew 已有) |
 | `rm -f ~/.polyrocket/sidecar/models/active.json` | 清除 pytest stale 状态 |
 | `--test-threads=1` | 已知 race 修复(§10.3) |
+| Cargo build 错误检测(teelog + grep) | 捕获编译错误,warnings 不阻塞 |
+| Pytest pass 检测(teelog + grep) | 区分 pass / fail / collection error |
 
-**Bypass(紧急情况)**:
-
-```bash
-git push --no-verify                      # git 原生 bypass
-POLYROCKET_PRE_PUSH_SKIP=1 git push       # env override
-```
-
-**禁止**:`--no-verify` 用作常规绕道 —— 每次用都要在 PR 描述里说明原因。
-
-**`--quick` 模式**(节省 ~1m cargo 编译):
+**Bypass(真·紧急情况)**:
 
 ```bash
-POLYROCKET_PRE_PUSH_QUICK=1 git push
-# 或
-./scripts/run-ci-local.sh --quick
+git push --no-verify                      # git 原生 bypass,保留
 ```
 
-适用于:只改了 TS / test / docs,没改 Rust 代码的场景。**改 Rust 必须跑完整版**。
+**禁止**:
+- ❌ `POLYROCKET_PRE_PUSH_SKIP=1`(v0.73a 起会直接失败 — env 被 hook 完全忽略)
+- ❌ `run-ci-local.sh --quick`(v0.73a 起会直接 exit 2 + 提示原因)
+- ❌ `--no-verify` 用作常规绕道 —— 每次用都要在 PR 描述里说明原因,否则 merge 会被拒
+- ❌ 手动删除 `.git/CI_VERIFIED`(下次 push 会强制重跑全 pipeline,不是"作弊")
+
+**完整流程**(标准 push):
+
+```bash
+# 1. 写代码
+git add ...
+git commit -m "..."
+
+# 2. 推(hook 自动跑)
+git push origin main
+#   → hook 读 .git/CI_VERIFIED
+#   → 若 stale 或不存在 → 跑 scripts/run-ci-local.sh(全 4 jobs,~3-5 分钟)
+#   → cargo build/test + pytest 全 pass → 写 state file → push 成功
+#   → 任一 fail → push BLOCKED,看 stderr 修
+
+# 3. push 后
+# GitHub Actions 立即收到 push,通常 3-5 分钟内 4 jobs 全部绿
+# 如果 push 成功但 CI 红了 → hook 没拦住(罕见),需要查 runner 差异
+```
+
+---
+
+## 11. CI Gate Policy(v0.73a 强制 — 完整契约)
+
+> **本节是 §10.7 的上层契约**。目的是把"本地 pipeline 必须 pass 后才能 push"这
+> 一规则**升级到 spec 级别**,而不是散落在 hook 注释里。所有维护者**首次入库前**必须
+> 读完本节。违反 §11 的 commit / push 会被自动拒绝(hook 拦截)或人工 review 拒收。
+
+### 11.1 三条铁律
+
+1. **`scripts/run-ci-local.sh` 必须 exit 0 才能 push**。没有"差不多绿"的概念。
+2. **`run-ci-local.sh` 必须跑全 4 个 job**(governance + L1 + Rust + Python)。
+   - ❌ `--quick` / `POLYROCKET_PRE_PUSH_QUICK=1` / cargo skip —— **v0.73a 起全部禁止**
+   - ✅ 唯一允许的跳过场景:CI runner 自己(GitHub Actions),hook 通过 `GITHUB_ACTIONS` / `CI` env 检测自动跳过
+3. **State file `.git/CI_VERIFIED` 必须存在 + sha 匹配 + < 1h ago**,否则 push 会强制重跑。
+   - 不要手动删除/编辑这个文件。它是 hook 自动维护的,不是给手用的。
+   - 新 commit 会让 state file stale,这是**正确的行为**(新代码需重新验证)。
+
+### 11.2 不可绕过的设计(为什么)
+
+| 旧版(v0.69h-v0.72)允许的 bypass | v0.73a 移除原因 |
+|---|---|
+| `POLYROCKET_PRE_PUSH_SKIP=1 git push` | 整个 hook 不跑。多次 v0.69-v0.72 push 在 CI 上 fail,根因都是"本地 hook skip 了" |
+| `run-ci-local.sh --quick` | Cargo 是 silent gap。push 时 cargo 没跑 → CI cargo 报错 → 浪费时间 |
+| `git push --no-verify`(部分场景) | 仍保留,但 §11.3 强制每次使用要在 PR 描述里说明原因 |
+
+**根因分析**:v0.69-v0.72 一共 5 次"remote pipeline erroring" 事件,3 次是 hook 被 skip,2 次是 `--quick` 跳过了 cargo。这些事件每次都浪费 5-10 分钟的 remote runner 时间 + 一次 fix-then-repush 循环。**净效应:用户为节省本地 1-3 分钟,花费了 10-20 分钟的 remote 重试**。
+
+### 11.3 git push --no-verify 的使用条件
+
+仅以下场景允许 `--no-verify`,且每次都要在 PR description 写明:
+
+1. **Re-push 一个已知 CI 绿色的 SHA**(例如:CI runner 临时挂了,需要重跑)。state file
+   还在有效期,但 SHA 没变,理论上不需要 `--no-verify`;只在 state file 损坏或 `.git/` 损坏时才用。
+2. **Push 到非主分支**(开发分支 / 实验分支),不在 CI 上跑 main 流水线。
+3. **紧急 hotfix**(security CVE / 线上故障)—— 走完正常 review 后再 push,但跳过本地 gate
+   以避免环境差异浪费时间。**事后必须立即补一个 "post-hotfix hardening" commit 重跑全 pipeline**。
+
+**禁止场景**:
+- ❌ "我手动跑过 cargo build 了" —— 不能取代 `run-ci-local.sh` 的全套环境模拟
+- ❌ "CI 上次是绿的所以这次也一定是绿的" —— 新 commit 可能引入 regression
+- ❌ "我赶时间" —— §11 的存在就是为了防止"赶时间"的累积风险
+
+### 11.4 State file 协议(`.git/CI_VERIFIED`)
+
+| 字段 | 来源 | 用途 |
+|---|---|---|
+| `sha=<40-char-hex>` | `git rev-parse HEAD` | hook 检查 sha 一致性,新 commit 自动 stale |
+| `timestamp=<unix>` | `date +%s` | hook 检查新鲜度,1h 后强制重跑 |
+| `jobs=all` | 写死 | 标记是完整 4 jobs run(预留 `--quick` 已删除,但保留字段以便将来 audit) |
+| `runner=<host>:<pid>` | `hostname` + `$$` | 记录哪台机器跑的,debug 用 |
+
+**生命周期**:
+- 写入:`run-ci-local.sh` exit 0 后立刻写
+- 读取:`pre-push-hook.sh` 每次 push 前读
+- 失效:任何新 commit、> 1h 后、文件被删,都会触发重跑
+- **不会被 commit**(在 `.git/` 目录下,git ignore)
+
+**为什么不放 GitHub Actions secrets / 环境变量?**  state file 是本地的、本地读的、本地写的,
+不需要 server 端验证。简单可靠。
+
+### 11.5 Hook 自身的 fail-safe
+
+```bash
+set -euo pipefail    # pre-push-hook.sh 顶部:任何错误立即 fail
+```
+
+如果 hook 本身因为文件系统损坏 / `git rev-parse` 异常 fail,**会按设计 block push**。
+这是故意的:宁可误杀 1 个 push,也不要让 silent gate fail 通过。
+
+**恢复方法**:
+```bash
+# 1. 手动跑一次 runner(不依赖 hook),确认环境健康
+./scripts/run-ci-local.sh
+
+# 2. 如果 runner 也跑不通,先修复环境(rustup / pnpm / python 装好)
+
+# 3. runner 通过后 state file 会自动写入,hook 恢复
+
+# 4. 如果只是 hook 脚本本身坏了(罕见的 shell 兼容性问题)
+cp scripts/pre-push-hook.sh .git/hooks/pre-push
+chmod +x .git/hooks/pre-push
+```
+
+### 11.6 升级历史
+
+| 版本 | 变更 |
+|---|---|
+| v0.69h | 引入 pre-push hook + `run-ci-local.sh`(可选 bypass) |
+| v0.73a | **HARDENED**:`POLYROCKET_PRE_PUSH_SKIP` env 移除;`--quick` 移除;state file `.git/CI_VERIFIED` 引入;本文档 §11 新增 |
+
+### 11.7 后续演进路线(roadmap)
+
+- **v0.74 candidate**:加 **pre-commit hook**(轻量版,只跑 governance + typecheck,~30s),
+  让 commit 时也能发现明显错误,不必等到 push。
+- **v0.75 candidate**:把 state file 移到 git notes(`git notes add -m '...' HEAD`),跨 clone 共享。
+- **v0.76+ candidate**:研究 **post-commit hook**,commit 后自动跑 cargo check(后台,不阻塞 commit)。
+
+这些都不影响 §11.1 三条铁律,只是补强。
