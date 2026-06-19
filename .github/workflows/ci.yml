@@ -184,6 +184,23 @@ jobs:
         with:
           toolchain: 1.89
 
+      # v0.69g — tauri::generate_context!() macro reads
+      # `../dist/index.html` at compile time (tauri.conf.json
+      # `build.frontendDist`). cargo build --lib / cargo test
+      # --lib don't actually need the real Vite bundle, but
+      # the macro panics if dist/ is missing. Placeholder
+      # index.html with the bare minimum the macro needs
+      # (root div + script tag pointing to nonexistent JS,
+      # which is fine — the lib only reads metadata, not
+      # the bundle contents).
+      - name: stub dist/ for tauri::generate_context!()
+        run: |
+          mkdir -p dist/assets
+          cat > dist/index.html <<'EOF'
+          <!doctype html><html><head><meta charset="utf-8"><title>polyrocket</title></head><body><div id="root"></div><script type="module" src="/assets/main.js"></script></body></html>
+          EOF
+          echo "console.log('stub')" > dist/assets/main.js
+
       - name: cargo build
         run: cd src-tauri && cargo build --lib
 
