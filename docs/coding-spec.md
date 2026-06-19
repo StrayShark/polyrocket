@@ -2,7 +2,7 @@
 
 > 代码注释 / 文档化规范。**所有新增代码必须遵循此规范；存量代码按 v0.61 计划分轮翻新。**
 
-**版本**：v1.6 · 2026-06-19 (v0.73a — CI gate HARDENED,移除所有 bypass)
+**版本**：v1.7 · 2026-06-19 (v0.73 final — CI gate HARDENED + threshold 81/78/73/82 → 82/81/76/84)
 **配套**：[`overview.md`](./overview.md)（5 层架构） · [`polyrocket-modules.md`](./polyrocket-modules.md)（17 模块业务） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 交互流程） · [`polyrocket-v0.69-final.md`](./polyrocket-v0.69-final.md)（CI 修复记录）
 
 ---
@@ -314,6 +314,7 @@ def test_efficiency_axiom_holds_at_extremes():
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v1.7 | 2026-06-19 | v0.73 final: coverage 81.9→82.98% stmts + branches 80.25→81.31% ⭐,threshold 81/78/73/82 → 82/81/76/84 |
 | v1.6 | 2026-06-19 | v0.73a: CI gate HARDENED — 移除 `POLYROCKET_PRE_PUSH_SKIP` env + `--quick`,新增 `.git/CI_VERIFIED` state file,§11 新增完整 policy |
 | v1.5 | 2026-06-19 | v0.72 final: branches 79.2→80.3%(首次 > 80%),threshold 维持 81/78/73/82 |
 | v1.4 | 2026-06-19 | §5 density round 3 deferred 决策(不 bump,等 v0.74+ plateau) |

@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.36 · 2026-06-19 (v0.73a — CI gate HARDENED)
+> 版本：v2.37 · 2026-06-19 (v0.73 final — CI gate HARDENED + threshold 81→82%)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿） · [`coding-spec.md`](./coding-spec.md)（v0.61 注释规范）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
@@ -799,6 +799,13 @@ v0.6 增量：
 
 ## 8. 变更日志
 
+- **v2.37** (2026-06-19) — v0.73 final CI gate HARDENED + coverage ratchet + threshold 81→82%
+  - v0.73a CI gate HARDENED (3 scripts + coding-spec §11 + overview v2.36)
+  - v0.73b Analysis branches 47→82% (+15 tests, 单版本最大单文件 branches 提升)
+  - v0.73c LlmMgmt round 3 87→95% (+11 tests, AddKeyModal import flow)
+  - v0.73d threshold 81/78/73/82 → 82/81/76/84
+  - 实际 coverage: 82.98% stmts / 81.31% branches / 76.64% funcs / 84.37% lines
+  - 改动: 2 NEW test files + 3 modified scripts + 2 modified docs + vitest.config.ts, 793 tests
 - **v2.36** (2026-06-19) — v0.73a CI gate HARDENED — 移除 `POLYROCKET_PRE_PUSH_SKIP` env + `--quick` flag,新增 `.git/CI_VERIFIED` state file
   - `scripts/pre-push-hook.sh`: 移除 `POLYROCKET_PRE_PUSH_SKIP` env 旁路,加 state file 检查 + 大幅强化 blocked banner
   - `scripts/run-ci-local.sh`: 移除 `--quick` flag,加 cargo build error detection + pytest pass detection,success 后写 state file
