@@ -262,7 +262,6 @@ describe('LlmMgmt (AddKeyModal branches — v0.73c)', () => {
     fireEvent.click(eyeBtn!);
     // After click: secret input is type=text
     await waitFor(() => {
-      const textInput = document.querySelector('input[type="text"]');
       // textInput exists for the alias field, but we want to verify the toggle
       expect(eyeBtn).toBeTruthy();
     });
