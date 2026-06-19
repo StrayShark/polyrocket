@@ -104,7 +104,6 @@ vi.mock('@/ipc', () => ({
   computeAllocationPreview: vi.fn(),
   applyAllocation: vi.fn(),
   setBankrollConfig: vi.fn(),
-  getBankrollConfig: (...args: unknown[]) => Promise.resolve(mockGetBankrollConfig(...args)),
   backupDatabase: vi.fn(),
   restoreDatabase: vi.fn(),
   backupExport: vi.fn(),

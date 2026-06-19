@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
     "update:readme-coverage": "node scripts/update-readme-coverage.mjs",
     "check:doc-sync": "node scripts/check-doc-sync.mjs"
   },
@@ -43,6 +44,7 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.0",
     "@tauri-apps/cli": "^2.1.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
