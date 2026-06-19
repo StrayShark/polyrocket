@@ -15,7 +15,7 @@
 | Test totals | **319 cargo + 581 vitest + 85 Python = 985/** |
 | Coverage gate | vitest 73.9% stmts / 69.4% branches / 63.3% funcs / 75.1% lines (`vitest.config.ts`) |
 | Comment density | 5/5 PASS (`scripts/check-comment-density.mjs`) |
-| Status | v0.66 — auto-bumped by update-readme-coverage.mjs |
+| Status | v0.69 — auto-bumped by update-readme-coverage.mjs |
 
 ## What it does
 
