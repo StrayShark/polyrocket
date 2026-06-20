@@ -2,7 +2,7 @@
 
 > 代码注释 / 文档化规范。**所有新增代码必须遵循此规范；存量代码按 v0.61 计划分轮翻新。**
 
-**版本**：v2.7 · 2026-06-20 (v0.86 — custom OptionBigInt/BigIntMap wrappers §14 expanded)
+**版本**：v2.8 · 2026-06-20 (v0.87fix — GHA cross-platform baseline fix; §15.4 updated for snapshotPathTemplate)
 **配套**：[`overview.md`](./overview.md)（5 层架构） · [`polyrocket-modules.md`](./polyrocket-modules.md)（17 模块业务） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 交互流程） · [`polyrocket-v0.69-final.md`](./polyrocket-v0.69-final.md)（CI 修复记录）
 
 ---
@@ -864,10 +864,17 @@ pnpm test:e2e
 
 ### 15.4 baseline PNG 协议
 
-- **首次**:`pnpm test:e2e` 生成 `tests/e2e/bankroll.spec.ts-snapshots/<name>.png`
+- **首次**:`pnpm test:e2e --update-snapshots` 生成 `tests/e2e/__screenshots__/bankroll.spec.ts/<name>-<projectName>.png`(v0.87fix 改用 `snapshotPathTemplate` 去掉 `{platform}` token,见下)
 - **回归**:`toHaveScreenshot()` 拿当前渲染 vs baseline 比对,差 > 0.1% 像素 fail
 - **更新 baseline**:`pnpm test:e2e --update-snapshots`(故意设计成 opt-in 防止误覆盖)
-- **CI 失败时**:artifact 上传 `playwright-report/`(HTML 报告)+ `*-diff.png`(红/绿蒙版)+ `*-actual.png`(当前截图),PR 作者一眼能看出哪个 route/theme 坏了
+- **CI 失败时**:artifact 上传 `playwright-report/`(HTML 报告)+ `tests/e2e/**/*-diff.png`(红/绿蒙版)+ `tests/e2e/**/*-actual.png`(当前截图),PR 作者一眼能看出哪个 route/theme 坏了
+
+**v0.87fix — cross-platform baseline 协议**:
+
+- **问题**:Playwright 默认在 snapshot 文件名里追加 `{platform}` token(macOS → `-darwin`, Linux → `-linux`)。本地 CI 用 macOS arm64 的 puppeteer chrome 生成 `*-chromium-darwin.png`,GHA Linux runner 用 Playwright 自带 chromium 生成 `*-chromium-linux.png`,两边 baseline 不通用 → GHA 全部 fail("snapshot doesn't exist")
+- **修复**:`playwright.config.ts` 加 `snapshotPathTemplate: '{testDir}/__screenshots__/{testFilePath}/{arg}{-projectName}{ext}'`,去掉 `{platform}` token。Mac/Linux 都生成 `<name>-chromium.png`,同一份 baseline 通用
+- **风险**:Mac 和 Linux 的 chromium 渲染有微小 pixel 差异(字体抗锯齿等)。`maxDiffPixelRatio: 0.001`(0.1%) 容差能 catch 大部分,小概率 < 0.1% 跨平台 diff 需要手动 rebaseline
+- **前向兼容**:旧 `bankroll.spec.ts-snapshots/` 目录(`-chromium-darwin.png` 6 张)在 v0.87fix 时被删。新路径 `tests/e2e/__screenshots__/bankroll.spec.ts/`(`-chromium.png` 6 张)是 canonical
 
 ### 15.5 写新 e2e 测试的规范
 

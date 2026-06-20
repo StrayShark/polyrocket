@@ -291,6 +291,7 @@ jobs:
           name: playwright-report
           path: |
             playwright-report/
-            tests/e2e/**/*-diff.png
-            tests/e2e/**/*-actual.png
+            test-results/**/*-actual.png
+            test-results/**/*-diff.png
+            test-results/**/test-failed-1.png
           retention-days: 7

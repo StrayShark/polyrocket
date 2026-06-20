@@ -107,6 +107,14 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
+  // v0.87fix — strip `{platform}` from snapshot path so the same baseline
+  // works on both macOS (local) and Linux (GHA). Default Playwright
+  // template appends -darwin / -linux, causing "snapshot doesn't exist"
+  // errors on cross-platform runs. With this template, both platforms
+  // compare against the same `*-chromium.png`. 0.1% diff tolerance
+  // (per-test maxDiffPixelRatio) handles minor cross-platform pixel diffs.
+  snapshotPathTemplate:
+    '{testDir}/__screenshots__/{testFilePath}/{arg}{-projectName}{ext}',
   projects: [
     {
       name: 'chromium',
