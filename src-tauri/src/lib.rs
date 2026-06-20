@@ -13,6 +13,7 @@
 // the visibility change has no security impact.
 #[doc(hidden)]
 pub mod commands;
+pub mod codegen;
 pub mod domain;
 pub mod infra;
 pub mod lab_state;
