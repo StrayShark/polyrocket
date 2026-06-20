@@ -30,8 +30,9 @@ export const commands = {
 	 *  for this field is therefore limited to the L1 layer
 	 *  (covered by the existing v2 contract test). v0.84+ may
 	 *  add a custom Type impl for serde_json::Value.
+	 *  v0.86b — Option<OptionBigInt<i64>> → TS `bigint | null`
 	 */
-	promoted_at_ms: number | null,
+	promoted_at_ms: bigint | null,
 	weights: (number | null)[] | null,
 	source_path: string,
 } | null, string>(__TAURI_INVOKE("get_active_model_codegen")),
@@ -54,8 +55,9 @@ export type ActiveModelCodegen = {
 	 *  for this field is therefore limited to the L1 layer
 	 *  (covered by the existing v2 contract test). v0.84+ may
 	 *  add a custom Type impl for serde_json::Value.
+	 *  v0.86b — Option<OptionBigInt<i64>> → TS `bigint | null`
 	 */
-	promoted_at_ms: number | null,
+	promoted_at_ms: bigint | null,
 	weights: (number | null)[] | null,
 	source_path: string,
 };
@@ -164,7 +166,8 @@ export type DashboardKpisDto = {
  */
 export type ListMirrorsArgsCodegen = {
 	status: string | null,
-	limit: number | null,
+	/**  v0.86b — Option<OptionBigInt<i64>> → TS `bigint | null`. */
+	limit: bigint | null,
 };
 
 /**
@@ -175,7 +178,8 @@ export type ListMirrorsArgsCodegen = {
 export type ListSignalsArgsCodegen = {
 	min_edge: number | null,
 	category: string | null,
-	limit: number | null,
+	/**  v0.86b — Option<OptionBigInt<i64>> → TS `bigint | null`. */
+	limit: bigint | null,
 };
 
 /**
@@ -213,13 +217,13 @@ export type MirrorRowCodegen = {
 	status: string,
 	created_at: bigint,
 	/**
-	 *  v0.85c — Option<i64> can't be exported as bigint (specta-typescript
-	 *  0.0.12 rejects i64 by default, and the type=BigInt override loses
-	 *  nullability when applied to Option). Fall back to i32 placeholder
-	 *  (drift detection on field set, not on the i64→i32 precision).
+	 *  v0.86b — Option<OptionBigInt<i64>> → TS `bigint | null`
+	 *  (lossless for values that fit in 53 bits). The OptionBigInt
+	 *  wrapper is serde-transparent so wire format is identical to
+	 *  `Option<i64>`. See src-tauri/src/codegen/option_bigint.rs.
 	 */
-	submitted_at: number | null,
-	filled_at: number | null,
+	submitted_at: bigint | null,
+	filled_at: bigint | null,
 	bet_id: string | null,
 };
 
@@ -303,8 +307,12 @@ export type WalletDtoCodegen = {
 	label: string | null,
 	chain_id: number,
 	wallet_type: string,
-	created_at: number,
-	last_synced_at: number | null,
+	/**
+	 *  v0.86b — `created_at: i64` with `#[specta(type = BigInt)]` → TS `bigint`.
+	 *  `last_synced_at: Option<OptionBigInt<i64>>` → TS `bigint | null`.
+	 */
+	created_at: bigint,
+	last_synced_at: bigint | null,
 };
 
 /* Tauri Specta runtime */

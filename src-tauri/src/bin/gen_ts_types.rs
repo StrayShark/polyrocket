@@ -24,6 +24,7 @@
 use polyrocket_lib::commands;
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use polyrocket_lib::codegen::option_bigint::OptionBigInt;
 use specta_typescript::BigInt;
 use tauri_specta::{collect_commands, Builder};
 
@@ -245,7 +246,8 @@ struct ActiveModelCodegen {
     /// for this field is therefore limited to the L1 layer
     /// (covered by the existing v2 contract test). v0.84+ may
     /// add a custom Type impl for serde_json::Value.
-    pub promoted_at_ms: Option<i32>,
+    /// v0.86b — Option<OptionBigInt<i64>> → TS `bigint | null`
+    pub promoted_at_ms: Option<OptionBigInt<i64>>,
     pub weights: Option<Vec<f64>>,
     pub source_path: String,
 }
@@ -279,7 +281,8 @@ async fn get_active_model_codegen() -> Result<Option<ActiveModelCodegen>, String
 struct ListSignalsArgsCodegen {
     pub min_edge: Option<f64>,
     pub category: Option<String>,
-    pub limit: Option<i32>,
+    /// v0.86b — Option<OptionBigInt<i64>> → TS `bigint | null`.
+    pub limit: Option<OptionBigInt<i64>>,
 }
 
 /// v0.84c — codegen stub for `SignalDto`. The real struct has 4× i64
@@ -317,7 +320,8 @@ async fn list_active_signals_codegen(
 #[derive(Serialize, Deserialize, Type, Default)]
 struct ListMirrorsArgsCodegen {
     pub status: Option<String>,
-    pub limit: Option<i32>,
+    /// v0.86b — Option<OptionBigInt<i64>> → TS `bigint | null`.
+    pub limit: Option<OptionBigInt<i64>>,
 }
 
 /// v0.85b — codegen stub for `MirrorRow`. Real has 5× i64 fields
@@ -340,12 +344,12 @@ struct MirrorRowCodegen {
     pub status: String,
     #[specta(type = BigInt)]
     pub created_at: i64,
-    /// v0.85c — Option<i64> can't be exported as bigint (specta-typescript
-    /// 0.0.12 rejects i64 by default, and the type=BigInt override loses
-    /// nullability when applied to Option). Fall back to i32 placeholder
-    /// (drift detection on field set, not on the i64→i32 precision).
-    pub submitted_at: Option<i32>,
-    pub filled_at: Option<i32>,
+    /// v0.86b — Option<OptionBigInt<i64>> → TS `bigint | null`
+    /// (lossless for values that fit in 53 bits). The OptionBigInt
+    /// wrapper is serde-transparent so wire format is identical to
+    /// `Option<i64>`. See src-tauri/src/codegen/option_bigint.rs.
+    pub submitted_at: Option<OptionBigInt<i64>>,
+    pub filled_at: Option<OptionBigInt<i64>>,
     pub bet_id: Option<String>,
 }
 
@@ -368,8 +372,11 @@ struct WalletDtoCodegen {
     pub label: Option<String>,
     pub chain_id: i32,
     pub wallet_type: String,
-    pub created_at: i32,
-    pub last_synced_at: Option<i32>,
+    /// v0.86b — `created_at: i64` with `#[specta(type = BigInt)]` → TS `bigint`.
+    /// `last_synced_at: Option<OptionBigInt<i64>>` → TS `bigint | null`.
+    #[specta(type = BigInt)]
+    pub created_at: i64,
+    pub last_synced_at: Option<OptionBigInt<i64>>,
 }
 
 #[tauri::command]
