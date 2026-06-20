@@ -102,10 +102,14 @@ export type AllocationResult = {
 };
 
 export type AuditRetentionViewCodegen = {
-	retain_recent_ms: number,
-	max_rows: number,
-	min_keep_rows: number,
-	overrides: { [key in string]: number },
+	retain_recent_ms: bigint,
+	max_rows: bigint,
+	min_keep_rows: bigint,
+	/**
+	 *  v0.86c — `BigIntMap<String, i64>` → TS `{ [key: string]: bigint }`.
+	 *  See src-tauri/src/codegen/bigint_map.rs for the wrapper design.
+	 */
+	overrides: { [key in string]: bigint },
 };
 
 /**

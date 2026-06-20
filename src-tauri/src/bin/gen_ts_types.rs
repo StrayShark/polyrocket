@@ -24,6 +24,7 @@
 use polyrocket_lib::commands;
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use polyrocket_lib::codegen::bigint_map::BigIntMap;
 use polyrocket_lib::codegen::option_bigint::OptionBigInt;
 use specta_typescript::BigInt;
 use tauri_specta::{collect_commands, Builder};
@@ -207,19 +208,23 @@ async fn get_mirror_paper_mode_codegen() -> Result<bool, String> {
     Ok(true)
 }
 
-// v0.84b — for AuditRetentionView + ActiveModel (both have i64 fields),
-// we use a `*CodegenDto` stub with i32 placeholders. This is the
-// v0.81 pattern used for `SignalCodegenDto`. Real types stay untouched
-// (no churn for users of these types). Drift detection still works on
-// the stub's field set; the i64→i32 truncation is a known limitation
-// that v0.84+ will address via `Number<i64>` wrapper once the specta
-// serde feature is enabled (TBD).
+// v0.86c — for AuditRetentionView (has 4 i64 fields), the stub uses
+// `BigIntMap<String, i64>` for the map value and `#[specta(type = BigInt)]`
+// for the required i64 scalars. v0.85c had reverted to i32 placeholders
+// because `#[specta(type = BigInt)]` on `HashMap<String, i64>` doesn't
+// recurse into the value type; v0.86c adds the custom `BigIntMap` wrapper
+// to fix that case.
 #[derive(Serialize, Deserialize, Type)]
 struct AuditRetentionViewCodegen {
-    pub retain_recent_ms: i32,
-    pub max_rows: i32,
-    pub min_keep_rows: i32,
-    pub overrides: std::collections::HashMap<String, i32>,
+    #[specta(type = BigInt)]
+    pub retain_recent_ms: i64,
+    #[specta(type = BigInt)]
+    pub max_rows: i64,
+    #[specta(type = BigInt)]
+    pub min_keep_rows: i64,
+    /// v0.86c — `BigIntMap<String, i64>` → TS `{ [key: string]: bigint }`.
+    /// See src-tauri/src/codegen/bigint_map.rs for the wrapper design.
+    pub overrides: BigIntMap<String, i64>,
 }
 
 #[tauri::command]
@@ -230,7 +235,7 @@ async fn get_audit_retention_codegen(
         retain_recent_ms: 0,
         max_rows: 0,
         min_keep_rows: 0,
-        overrides: std::collections::HashMap::new(),
+        overrides: BigIntMap::default(),
     })
 }
 

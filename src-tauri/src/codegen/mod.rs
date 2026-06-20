@@ -4,4 +4,5 @@
 //!
 //! See each submodule for design rationale.
 
+pub mod bigint_map;
 pub mod option_bigint;
