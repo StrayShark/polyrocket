@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.47 · 2026-06-20 (v0.85 auto-bumped)
+> 版本：v2.48 · 2026-06-20 (v0.86 auto-bumped)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿） · [`coding-spec.md`](./coding-spec.md)（v0.61 注释规范）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
@@ -799,6 +799,15 @@ v0.6 增量：
 
 ## 8. 变更日志
 
+- **v2.48** (2026-06-20) — v0.86 BigInt wrappers: 18/18 i64 fields → bigint (100%)
+  - v0.86a `OptionBigInt<T>` wrapper (polyrocket-local): serde-transparent + custom Type impl that maps to TS `bigint | null` via `specta_typescript::define("bigint")`. 4 serde tests.
+  - v0.86b 5 Option<i64> fields converted to `Option<OptionBigInt<i64>>`: ActiveModelCodegen.promoted_at_ms, MirrorRowCodegen.submitted_at/filled_at, ListSignalsArgsCodegen.limit, ListMirrorsArgsCodegen.limit, WalletDtoCodegen.last_synced_at (+created_at i32→i64+BigInt attr).
+  - v0.86c `BigIntMap<K, V>` wrapper (polyrocket-local): same serde-transparent pattern + custom Type impl that maps to TS `{ [key: string]: bigint }`. 3 serde tests. AuditRetentionViewCodegen all 4 fields (3 i64 + map value) → bigint.
+  - **v0.86d: NO-OP** — L1 layer doesn't need `BigInt()` conversion because `JSON.parse` gives `number`, not `bigint`. L1 hand-written types use `number` for i64 fields (correct for runtime). Generated `*Codegen` types use `bigint` for drift detection only. Type-level drift documented in `coding-spec.md §14`.
+  - **Total**: 18/18 i64 fields → bigint (100%) across 8 stub DTOs (was 7/18 = 39% at v0.85c).
+  - 实际 coverage: 86.78/83.99/80.46/87.98 (unchanged — codegen change, +7 cargo tests)
+  - 改动: 2 NEW (option_bigint.rs, bigint_map.rs) + 1 modified (gen_ts_types.rs imports) + 1 regenerated (index.ts), 1361 tests, 5/5 CI jobs green
+  - **v0.87 plan**: coverage round (Audit 70→80%, Copy 75→85%). Optional L1 BigInt() conversion if a code path needs lossless i64 transport.
 - **v2.47** (2026-06-20) — v0.85 partial BigInt support (7 of 18 i64 fields → bigint)
   - v0.85a enable `serde` feature on `specta-typescript` 0.0.12 (gates `BigInt<T>` wrapper Serialize/Deserialize impls). No behavior change.
   - v0.85b `MirrorRowCodegen` (first end-to-end proof): required i64 fields `event_id`, `created_at` → TS `bigint` via `#[specta(type = BigInt)]` attribute. Optional i64 fields `submitted_at`, `filled_at` reverted to `number | null` (type override on Option loses nullability).

@@ -2,7 +2,7 @@
 
 > 代码注释 / 文档化规范。**所有新增代码必须遵循此规范；存量代码按 v0.61 计划分轮翻新。**
 
-**版本**：v2.6 · 2026-06-20 (v0.85 — BigInt support §14 + §15 renumber)
+**版本**：v2.7 · 2026-06-20 (v0.86 — custom OptionBigInt/BigIntMap wrappers §14 expanded)
 **配套**：[`overview.md`](./overview.md)（5 层架构） · [`polyrocket-modules.md`](./polyrocket-modules.md)（17 模块业务） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 交互流程） · [`polyrocket-v0.69-final.md`](./polyrocket-v0.69-final.md)（CI 修复记录）
 
 ---
@@ -747,7 +747,68 @@ OR wrap the field in `BigInt<i64>` (gated behind the `serde` feature).
 
 **L1 layer**: keeps all i64 fields as `number`. JSON.parse gives `number`, not `bigint`. Generated `*Codegen` types use `bigint` only for the 7 fields that successfully converted (39% of i64 fields); the other 11 stay at `number` (i32 placeholder). Runtime is safe because L1 doesn't use the generated types at runtime.
 
-**Next (v0.86)**: custom `OptionBigInt<T>` wrapper that maps to `bigint | null`, to convert the 11 deferred fields.
+**v0.86+ escape hatches (polyrocket-local wrappers)**:
+
+When the official `BigInt<T>` wrapper or `#[specta(type = ...)]` attribute
+doesn't work, write a polyrocket-local wrapper. Two exist in
+`src-tauri/src/codegen/`:
+
+### `OptionBigInt<T>` — maps to TS `bigint | null`
+
+`Option<OptionBigInt<i64>>` serializes the same as `Option<i64>` (the
+inner `OptionBigInt` is transparent to serde), but maps to TS `bigint | null`
+via a custom Type impl that returns
+`DataType::Reference(specta_typescript::define("bigint"))`.
+
+```rust
+#[derive(Serialize, Deserialize, Type)]
+struct Holder {
+    pub field: Option<OptionBigInt<i64>>,
+}
+```
+
+### `BigIntMap<K, V>` — maps to TS `{ [key: K]: bigint }`
+
+`BigIntMap<K, V>` wraps `HashMap<K, V>` (serde-transparent) and maps to
+`DataType::Map(K::definition(), bigint_ref)` in specta.
+
+```rust
+#[derive(Serialize, Deserialize, Type)]
+struct Holder {
+    pub overrides: BigIntMap<String, i64>,
+}
+```
+
+### Design template (new custom wrapper)
+
+```rust
+use serde::{Deserialize, Serialize};
+use specta::Type;
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MyWrapper<T>(pub T);
+
+impl<T> Serialize for MyWrapper<T> where T: Serialize {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(s)
+    }
+}
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for MyWrapper<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        T::deserialize(d).map(Self)
+    }
+}
+impl<T> Type for MyWrapper<T> {
+    fn definition(_: &mut specta::Types) -> specta::datatype::DataType {
+        use specta::datatype::DataType;
+        DataType::Reference(specta_typescript::define("YOUR_TS_TYPE_HERE"))
+    }
+}
+```
+
+Add 3-4 serde round-trip tests (empty / populated / parse / round-trip).
+The TS output is verified end-to-end via `cargo run --bin gen_ts_types`
+(see v0.86b for the BigIntMap example).
 
 ## 15. Playwright e2e CI 门禁(v0.82 新增)
 
