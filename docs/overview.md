@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.48 · 2026-06-20 (v0.86 auto-bumped)
+> 版本：v2.49 · 2026-06-20 (v0.87 auto-bumped)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿） · [`coding-spec.md`](./coding-spec.md)（v0.61 注释规范）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
@@ -799,6 +799,13 @@ v0.6 增量：
 
 ## 8. 变更日志
 
+- **v2.49** (2026-06-20) — v0.87 coverage round: Audit + Copy branch expansion
+  - v0.87a 7 Audit.tsx cell renderer tests: each column's inline cell verified (at, actor, action, result, target null/non-null, ErrorState retry). Audit.tsx stmts 88.37→90.69% (+2.3pp).
+  - v0.87b 6 Copy.tsx additional tests: addTargetMut onError, minEdgePct clamping, paper banner n=0/n>0, clipboard copy, addTargetMut success + invalidate. Copy.tsx stmts 79.54→88.63% (+9.1pp), branches 86.84→92.10% (+5.3pp).
+  - Project: stmts 86.78→87.00% (+0.22pp), branches 83.99→84.10% (+0.11pp), funcs 80.46→80.88% (+0.42pp), lines 87.98→88.17% (+0.19pp).
+  - 阈值 86/83/79/87 (维持, all 4 dims PASS with 1.0/1.1/1.88/1.17pp headroom).
+  - 改动: 2 NEW (Audit.cells.test.tsx, Copy.branches.test.tsx), 1374 tests, 5/5 CI jobs green
+  - **v0.88 plan**: Phase 4 input DTO commands codegen (~10 commands). 阈值 branches bumped 83→84 (84.10 actual, 0.1pp headroom — too tight, defer to v0.88+v0.89 double-bump).
 - **v2.48** (2026-06-20) — v0.86 BigInt wrappers: 18/18 i64 fields → bigint (100%)
   - v0.86a `OptionBigInt<T>` wrapper (polyrocket-local): serde-transparent + custom Type impl that maps to TS `bigint | null` via `specta_typescript::define("bigint")`. 4 serde tests.
   - v0.86b 5 Option<i64> fields converted to `Option<OptionBigInt<i64>>`: ActiveModelCodegen.promoted_at_ms, MirrorRowCodegen.submitted_at/filled_at, ListSignalsArgsCodegen.limit, ListMirrorsArgsCodegen.limit, WalletDtoCodegen.last_synced_at (+created_at i32→i64+BigInt attr).
