@@ -1785,7 +1785,7 @@ pub struct SetAutoPromoteConfigArgs {
 /// `get_auto_promote_config` for the L1 to display
 /// "what the Rust side currently has" (in case the L1
 /// store was reset, e.g. by a hard refresh).
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct AutoPromoteConfigDto {
     pub enabled: bool,
     pub brier_margin: f64,

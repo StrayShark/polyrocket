@@ -139,6 +139,129 @@ async fn get_telemetry_enabled_codegen() -> Result<bool, String> {
 }
 
 // =================================================================
+// v0.84 — Phase 3 batch 2: 5 simple-arg read-only commands
+// =================================================================
+//
+// 3 of these 5 use the real DTOs (no i64 fields):
+//   - get_auto_promote_config → AutoPromoteConfigDto (no i64)
+//   - get_storage_info → StorageInfo (no i64)
+//   - get_mirror_paper_mode → bool (no struct)
+//
+// 2 use `*CodegenDto` stubs because the real types have i64 fields
+// (specta-typescript's default BigInt behavior is Fail). We use
+// `specta_typescript::Number<i64>` which exports as TS `number`
+// (precision loss accepted; safe for Unix ms timestamps within
+// ~285,000 years from epoch).
+//   - get_audit_retention → AuditRetentionViewCodegen (i64 fields)
+//   - get_active_model → ActiveModelCodegen (i64 fields)
+
+#[tauri::command]
+#[specta::specta]
+async fn get_auto_promote_config_codegen(
+) -> Result<polyrocket_lib::commands::sidecar::AutoPromoteConfigDto, String> {
+    Ok(polyrocket_lib::commands::sidecar::AutoPromoteConfigDto {
+        enabled: false,
+        brier_margin: 0.005,
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn get_storage_info_codegen(
+) -> Result<StorageInfoCodegen, String> {
+    Ok(StorageInfoCodegen {
+        default_path: String::new(),
+        current_path: String::new(),
+        is_custom: false,
+        exists: false,
+        writable: false,
+        /// v0.84b — `free_bytes: Option<u64>` in real type is
+        /// BigInt-forbidden. Stub uses `Option<i64>` (signed
+        /// for lossless range to 2^63; bytes fit comfortably).
+        free_bytes: None,
+        restart_required: false,
+    })
+}
+
+/// v0.84b — codegen stub for `StorageInfo`. The real struct has
+/// `free_bytes: Option<u64>` (BigInt-forbidden; even i64 is
+/// forbidden in specta-typescript's default mode). Stub uses
+/// `Option<f64>` (lossy above 2^53 bytes, but disk space in bytes
+/// fits comfortably for ~9 PB before precision loss).
+#[derive(Serialize, Deserialize, Type)]
+struct StorageInfoCodegen {
+    pub default_path: String,
+    pub current_path: String,
+    pub is_custom: bool,
+    pub exists: bool,
+    pub writable: bool,
+    pub free_bytes: Option<f64>,
+    pub restart_required: bool,
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn get_mirror_paper_mode_codegen() -> Result<bool, String> {
+    Ok(true)
+}
+
+// v0.84b — for AuditRetentionView + ActiveModel (both have i64 fields),
+// we use a `*CodegenDto` stub with i32 placeholders. This is the
+// v0.81 pattern used for `SignalCodegenDto`. Real types stay untouched
+// (no churn for users of these types). Drift detection still works on
+// the stub's field set; the i64→i32 truncation is a known limitation
+// that v0.84+ will address via `Number<i64>` wrapper once the specta
+// serde feature is enabled (TBD).
+#[derive(Serialize, Deserialize, Type)]
+struct AuditRetentionViewCodegen {
+    pub retain_recent_ms: i32,
+    pub max_rows: i32,
+    pub min_keep_rows: i32,
+    pub overrides: std::collections::HashMap<String, i32>,
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn get_audit_retention_codegen(
+) -> Result<AuditRetentionViewCodegen, String> {
+    Ok(AuditRetentionViewCodegen {
+        retain_recent_ms: 0,
+        max_rows: 0,
+        min_keep_rows: 0,
+        overrides: std::collections::HashMap::new(),
+    })
+}
+
+#[derive(Serialize, Deserialize, Type)]
+struct ActiveModelCodegen {
+    pub model_version: String,
+    pub best_brier: Option<f64>,
+    /// v0.84b — `best_params: Option<serde_json::Value>` is omitted
+    /// from the codegen stub because `serde_json::Value` doesn't
+    /// implement `specta::Type`. The L1 layer keeps it as
+    /// `Record<string, unknown> | null` in the hand-written
+    /// `ActiveModel` interface (src/ipc.ts:1227). Drift detection
+    /// for this field is therefore limited to the L1 layer
+    /// (covered by the existing v2 contract test). v0.84+ may
+    /// add a custom Type impl for serde_json::Value.
+    pub promoted_at_ms: Option<i32>,
+    pub weights: Option<Vec<f64>>,
+    pub source_path: String,
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn get_active_model_codegen() -> Result<Option<ActiveModelCodegen>, String> {
+    Ok(Some(ActiveModelCodegen {
+        model_version: "logistic-train-stub".to_string(),
+        best_brier: None,
+        promoted_at_ms: None,
+        weights: None,
+        source_path: String::new(),
+    }))
+}
+
+// =================================================================
 // v0.81 — Bankroll commands (Phase 2 — 4 commands)
 // =================================================================
 //
@@ -247,6 +370,12 @@ fn main() {
     let _ = commands::secrets::secrets_status;
     let _ = commands::notify::notification_permission_state;
     let _ = commands::sidecar::get_telemetry_enabled;
+    // v0.84b — Phase 3 batch 2
+    let _ = commands::sidecar::get_auto_promote_config;
+    let _ = commands::storage::get_storage_info;
+    let _ = commands::mirror_executor::get_mirror_paper_mode;
+    let _ = commands::audit::get_audit_retention;
+    let _ = commands::active_model::get_active_model;
 
     let builder: Builder<tauri::Wry> = Builder::new().commands(collect_commands![
         dashboard_kpis_codegen,
@@ -260,6 +389,12 @@ fn main() {
         secrets_status_codegen,
         notification_permission_state_codegen,
         get_telemetry_enabled_codegen,
+        // v0.84b — Phase 3 batch 2
+        get_auto_promote_config_codegen,
+        get_storage_info_codegen,
+        get_mirror_paper_mode_codegen,
+        get_audit_retention_codegen,
+        get_active_model_codegen,
     ]);
 
     // CARGO_MANIFEST_DIR is `src-tauri/`, so the parent is

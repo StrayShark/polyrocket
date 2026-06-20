@@ -14,9 +14,48 @@ export const commands = {
 	secretsStatusCodegen: () => typedError<SecretsStatus, string>(__TAURI_INVOKE("secrets_status_codegen")),
 	notificationPermissionStateCodegen: () => typedError<string, string>(__TAURI_INVOKE("notification_permission_state_codegen")),
 	getTelemetryEnabledCodegen: () => typedError<boolean, string>(__TAURI_INVOKE("get_telemetry_enabled_codegen")),
+	getAutoPromoteConfigCodegen: () => typedError<AutoPromoteConfigDto, string>(__TAURI_INVOKE("get_auto_promote_config_codegen")),
+	getStorageInfoCodegen: () => typedError<StorageInfoCodegen, string>(__TAURI_INVOKE("get_storage_info_codegen")),
+	getMirrorPaperModeCodegen: () => typedError<boolean, string>(__TAURI_INVOKE("get_mirror_paper_mode_codegen")),
+	getAuditRetentionCodegen: () => typedError<AuditRetentionViewCodegen, string>(__TAURI_INVOKE("get_audit_retention_codegen")),
+	getActiveModelCodegen: () => typedError<{
+	model_version: string,
+	best_brier: number | null,
+	/**
+	 *  v0.84b — `best_params: Option<serde_json::Value>` is omitted
+	 *  from the codegen stub because `serde_json::Value` doesn't
+	 *  implement `specta::Type`. The L1 layer keeps it as
+	 *  `Record<string, unknown> | null` in the hand-written
+	 *  `ActiveModel` interface (src/ipc.ts:1227). Drift detection
+	 *  for this field is therefore limited to the L1 layer
+	 *  (covered by the existing v2 contract test). v0.84+ may
+	 *  add a custom Type impl for serde_json::Value.
+	 */
+	promoted_at_ms: number | null,
+	weights: (number | null)[] | null,
+	source_path: string,
+} | null, string>(__TAURI_INVOKE("get_active_model_codegen")),
 };
 
 /* Types */
+export type ActiveModelCodegen = {
+	model_version: string,
+	best_brier: number | null,
+	/**
+	 *  v0.84b — `best_params: Option<serde_json::Value>` is omitted
+	 *  from the codegen stub because `serde_json::Value` doesn't
+	 *  implement `specta::Type`. The L1 layer keeps it as
+	 *  `Record<string, unknown> | null` in the hand-written
+	 *  `ActiveModel` interface (src/ipc.ts:1227). Drift detection
+	 *  for this field is therefore limited to the L1 layer
+	 *  (covered by the existing v2 contract test). v0.84+ may
+	 *  add a custom Type impl for serde_json::Value.
+	 */
+	promoted_at_ms: number | null,
+	weights: (number | null)[] | null,
+	source_path: string,
+};
+
 /**
  *  One allocation for a single market. Multiple signals on the same
  *  market are grouped into a single `AllocationItem` (with
@@ -54,6 +93,24 @@ export type AllocationResult = {
 	per_market: AllocationItem[],
 	/**  Markets dropped due to liquidity (kelly > 0 but couldn't fit). */
 	dropped_markets: string[],
+};
+
+export type AuditRetentionViewCodegen = {
+	retain_recent_ms: number,
+	max_rows: number,
+	min_keep_rows: number,
+	overrides: { [key in string]: number },
+};
+
+/**
+ *  v0.28a — current auto-promote config. Returned by
+ *  `get_auto_promote_config` for the L1 to display
+ *  "what the Rust side currently has" (in case the L1
+ *  store was reset, e.g. by a hard refresh).
+ */
+export type AutoPromoteConfigDto = {
+	enabled: boolean,
+	brier_margin: number | null,
 };
 
 /**
@@ -127,6 +184,23 @@ export type SignalCodegenDto = {
 	confidence: number | null,
 	horizon_hours: number,
 	rationale: string | null,
+};
+
+/**
+ *  v0.84b — codegen stub for `StorageInfo`. The real struct has
+ *  `free_bytes: Option<u64>` (BigInt-forbidden; even i64 is
+ *  forbidden in specta-typescript's default mode). Stub uses
+ *  `Option<f64>` (lossy above 2^53 bytes, but disk space in bytes
+ *  fits comfortably for ~9 PB before precision loss).
+ */
+export type StorageInfoCodegen = {
+	default_path: string,
+	current_path: string,
+	is_custom: boolean,
+	exists: boolean,
+	writable: boolean,
+	free_bytes: number | null,
+	restart_required: boolean,
 };
 
 /* Tauri Specta runtime */

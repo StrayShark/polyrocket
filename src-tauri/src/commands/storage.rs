@@ -27,7 +27,7 @@ use crate::platform::paths;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct StorageInfo {
     /// OS-recommended path (Tauri's
     /// `app_data_dir`). macOS: `~/Library/Application
