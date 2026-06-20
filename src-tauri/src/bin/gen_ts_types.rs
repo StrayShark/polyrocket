@@ -1,4 +1,4 @@
-//! v0.76 / v0.81 — codegen Phase 1 + 2 binary.
+//! v0.76 / v0.81 / v0.84 — codegen Phase 1+2+3 binary.
 //!
 //! Generates TS bindings from `#[tauri::command] + #[specta::specta]`
 //! -annotated commands.
@@ -7,8 +7,14 @@
 //! v0.81 = Phase 2: +4 bankroll commands
 //!   (compute_allocation_preview, get_bankroll_config,
 //!    set_bankroll_config, apply_allocation).
+//! v0.84 = Phase 3: +5 read-only commands (no input DTOs):
+//!   - is_seeded (bool)
+//!   - sidecar_status (SidecarStatus — no i64)
+//!   - secrets_status (SecretsStatus — no i64)
+//!   - notification_permission_state (String)
+//!   - get_telemetry_enabled (bool)
 //!
-//! Phase 3-5 will extend to all 112 IPCs.
+//! Phase 4 (input DTOs) and Phase 5 (build pipeline) are next.
 //!
 //! Run: `cargo run --bin gen_ts_types`
 //! Output: `src/types/generated/index.ts`
@@ -79,6 +85,57 @@ async fn dashboard_kpis_codegen() -> Result<DashboardKpisDto, String> {
         active_signals: 0,
         open_positions: 0,
     })
+}
+
+// =================================================================
+// v0.84 — Phase 3: 5 read-only commands (no i64 fields)
+// =================================================================
+//
+// These stubs use the REAL DTOs from `commands::*` directly so that
+// drift detection works: a Rust field rename / type change will
+// surface as a diff in `src/types/generated/index.ts` (v0.84d will
+// prove this). The stub commands return hardcoded data of the right
+// shape so the codegen can run without a Tauri State.
+
+#[tauri::command]
+#[specta::specta]
+async fn is_seeded_codegen() -> Result<bool, String> {
+    Ok(true)
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn sidecar_status_codegen(
+) -> Result<polyrocket_lib::commands::sidecar::SidecarStatus, String> {
+    Ok(polyrocket_lib::commands::sidecar::SidecarStatus {
+        running: false,
+        pid: None,
+        command: "polyrocket-sidecar".to_string(),
+        last_error: None,
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn secrets_status_codegen(
+) -> Result<polyrocket_lib::commands::secrets::SecretsStatus, String> {
+    Ok(polyrocket_lib::commands::secrets::SecretsStatus {
+        llm_keys: vec![],
+        polymarket: vec![],
+        wallets: vec![],
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn notification_permission_state_codegen() -> Result<String, String> {
+    Ok("default".to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn get_telemetry_enabled_codegen() -> Result<bool, String> {
+    Ok(false)
 }
 
 // =================================================================
@@ -183,6 +240,13 @@ fn main() {
     let _ = commands::bankroll::get_bankroll_config;
     let _ = commands::bankroll::set_bankroll_config;
     let _ = commands::bankroll::apply_allocation;
+    // v0.84 — Phase 3 read-only commands (no State needed, but the
+    // symbols must remain reachable for drift detection).
+    let _ = commands::seed::is_seeded;
+    let _ = commands::sidecar::sidecar_status;
+    let _ = commands::secrets::secrets_status;
+    let _ = commands::notify::notification_permission_state;
+    let _ = commands::sidecar::get_telemetry_enabled;
 
     let builder: Builder<tauri::Wry> = Builder::new().commands(collect_commands![
         dashboard_kpis_codegen,
@@ -190,6 +254,12 @@ fn main() {
         get_bankroll_config_codegen,
         set_bankroll_config_codegen,
         apply_allocation_codegen,
+        // v0.84 — Phase 3 read-only commands
+        is_seeded_codegen,
+        sidecar_status_codegen,
+        secrets_status_codegen,
+        notification_permission_state_codegen,
+        get_telemetry_enabled_codegen,
     ]);
 
     // CARGO_MANIFEST_DIR is `src-tauri/`, so the parent is

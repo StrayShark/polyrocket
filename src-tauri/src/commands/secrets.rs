@@ -222,7 +222,7 @@ pub async fn polyrocket_wallet_clear_pk(
 
 // ---------- Status (no secrets leaked) ----------
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct SecretStatus {
     pub kind: String,    // "llm_key" | "pm_api" | "pm_secret" | "pm_passphrase" | "wallet_pk"
     pub alias: String,   // keyring alias
@@ -230,7 +230,7 @@ pub struct SecretStatus {
     pub label: Option<String>, // human-friendly label for UI
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct SecretsStatus {
     pub llm_keys: Vec<SecretStatus>,
     pub polymarket: Vec<SecretStatus>,

@@ -9,6 +9,11 @@ export const commands = {
 	getBankrollConfigCodegen: (walletId: string) => typedError<BankrollConfigDto, string>(__TAURI_INVOKE("get_bankroll_config_codegen", { walletId })),
 	setBankrollConfigCodegen: (walletId: string, config: BankrollConfigDto) => typedError<null, string>(__TAURI_INVOKE("set_bankroll_config_codegen", { walletId, config })),
 	applyAllocationCodegen: (walletId: string, result: AllocationResult, bankrollUsdc: string, config: BankrollConfigDto) => typedError<string, string>(__TAURI_INVOKE("apply_allocation_codegen", { walletId, result, bankrollUsdc, config })),
+	isSeededCodegen: () => typedError<boolean, string>(__TAURI_INVOKE("is_seeded_codegen")),
+	sidecarStatusCodegen: () => typedError<SidecarStatus, string>(__TAURI_INVOKE("sidecar_status_codegen")),
+	secretsStatusCodegen: () => typedError<SecretsStatus, string>(__TAURI_INVOKE("secrets_status_codegen")),
+	notificationPermissionStateCodegen: () => typedError<string, string>(__TAURI_INVOKE("notification_permission_state_codegen")),
+	getTelemetryEnabledCodegen: () => typedError<boolean, string>(__TAURI_INVOKE("get_telemetry_enabled_codegen")),
 };
 
 /* Types */
@@ -90,6 +95,26 @@ export type DashboardKpisDto = {
 	brier_score: number | null,
 	active_signals: number,
 	open_positions: number,
+};
+
+export type SecretStatus = {
+	kind: string,
+	alias: string,
+	configured: boolean,
+	label: string | null,
+};
+
+export type SecretsStatus = {
+	llm_keys: SecretStatus[],
+	polymarket: SecretStatus[],
+	wallets: SecretStatus[],
+};
+
+export type SidecarStatus = {
+	running: boolean,
+	pid: number | null,
+	command: string,
+	last_error: string | null,
 };
 
 export type SignalCodegenDto = {

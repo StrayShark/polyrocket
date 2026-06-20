@@ -17,6 +17,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
+    "gen:ts": "cd src-tauri && cargo run --bin gen_ts_types",
     "update:readme-coverage": "node scripts/update-readme-coverage.mjs",
     "check:doc-sync": "node scripts/check-doc-sync.mjs"
   },
