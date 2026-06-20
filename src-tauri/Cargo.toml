@@ -45,7 +45,7 @@ tauri-plugin-fs = "2"
 # pulls in transitively (0.0.12), or the trait `LanguageExt`
 # is satisfied by a different type identity.
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
-specta-typescript = "0.0.12"
+specta-typescript = { version = "0.0.12", features = ["serde"] }
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 
 [dev-dependencies]
