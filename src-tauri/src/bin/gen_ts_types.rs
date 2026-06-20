@@ -24,6 +24,7 @@
 use polyrocket_lib::commands;
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use specta_typescript::BigInt;
 use tauri_specta::{collect_commands, Builder};
 
 // v0.81 — codegen-friendly Signal. The real `domain::signal::Signal`
@@ -319,21 +320,26 @@ struct ListMirrorsArgsCodegen {
     pub limit: Option<i32>,
 }
 
-/// v0.84c — codegen stub for `MirrorRow`. Real has 5× i64 fields
+/// v0.85b — codegen stub for `MirrorRow`. Real has 5× i64 fields
 /// (`event_id`, `created_at`, `submitted_at`, `filled_at`, ...).
+/// v0.85+: switched from i32 placeholder to `BigInt<i64>` (lossless
+/// transport for values that fit in 53 bits, marked as TS `bigint`).
+/// The L1 layer (src/ipc.ts) keeps these as `number` for now
+/// (JSON.parse gives `number`, not `bigint`); explicit `BigInt()`
+/// conversion is added in a follow-up.
 #[derive(Serialize, Deserialize, Type)]
 struct MirrorRowCodegen {
     pub id: String,
-    pub event_id: i32,
+    pub event_id: BigInt<i64>,
     pub target_id: String,
     pub market_id: String,
     pub side: String,
     pub size: String,
     pub flipped: bool,
     pub status: String,
-    pub created_at: i32,
-    pub submitted_at: Option<i32>,
-    pub filled_at: Option<i32>,
+    pub created_at: BigInt<i64>,
+    pub submitted_at: Option<BigInt<i64>>,
+    pub filled_at: Option<BigInt<i64>>,
     pub bet_id: Option<String>,
 }
 

@@ -194,21 +194,26 @@ export type MirrorQueueStatsCodegen = {
 };
 
 /**
- *  v0.84c — codegen stub for `MirrorRow`. Real has 5× i64 fields
+ *  v0.85b — codegen stub for `MirrorRow`. Real has 5× i64 fields
  *  (`event_id`, `created_at`, `submitted_at`, `filled_at`, ...).
+ *  v0.85+: switched from i32 placeholder to `BigInt<i64>` (lossless
+ *  transport for values that fit in 53 bits, marked as TS `bigint`).
+ *  The L1 layer (src/ipc.ts) keeps these as `number` for now
+ *  (JSON.parse gives `number`, not `bigint`); explicit `BigInt()`
+ *  conversion is added in a follow-up.
  */
 export type MirrorRowCodegen = {
 	id: string,
-	event_id: number,
+	event_id: bigint,
 	target_id: string,
 	market_id: string,
 	side: string,
 	size: string,
 	flipped: boolean,
 	status: string,
-	created_at: number,
-	submitted_at: number | null,
-	filled_at: number | null,
+	created_at: bigint,
+	submitted_at: bigint | null,
+	filled_at: bigint | null,
 	bet_id: string | null,
 };
 
