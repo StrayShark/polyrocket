@@ -322,24 +322,30 @@ struct ListMirrorsArgsCodegen {
 
 /// v0.85b — codegen stub for `MirrorRow`. Real has 5× i64 fields
 /// (`event_id`, `created_at`, `submitted_at`, `filled_at`, ...).
-/// v0.85+: switched from i32 placeholder to `BigInt<i64>` (lossless
-/// transport for values that fit in 53 bits, marked as TS `bigint`).
-/// The L1 layer (src/ipc.ts) keeps these as `number` for now
-/// (JSON.parse gives `number`, not `bigint`); explicit `BigInt()`
+/// v0.85+: uses `#[specta(type = BigInt)]` attribute to mark i64
+/// fields as TS `bigint` (lossless for values that fit in 53 bits).
+/// The L1 layer (src/types/mirror.ts) keeps these as `number` for
+/// now (JSON.parse gives `number`, not `bigint`); explicit `BigInt()`
 /// conversion is added in a follow-up.
 #[derive(Serialize, Deserialize, Type)]
 struct MirrorRowCodegen {
     pub id: String,
-    pub event_id: BigInt<i64>,
+    #[specta(type = BigInt)]
+    pub event_id: i64,
     pub target_id: String,
     pub market_id: String,
     pub side: String,
     pub size: String,
     pub flipped: bool,
     pub status: String,
-    pub created_at: BigInt<i64>,
-    pub submitted_at: Option<BigInt<i64>>,
-    pub filled_at: Option<BigInt<i64>>,
+    #[specta(type = BigInt)]
+    pub created_at: i64,
+    /// v0.85c — Option<i64> can't be exported as bigint (specta-typescript
+    /// 0.0.12 rejects i64 by default, and the type=BigInt override loses
+    /// nullability when applied to Option). Fall back to i32 placeholder
+    /// (drift detection on field set, not on the i64→i32 precision).
+    pub submitted_at: Option<i32>,
+    pub filled_at: Option<i32>,
     pub bet_id: Option<String>,
 }
 
@@ -379,11 +385,16 @@ async fn list_wallets_codegen() -> Result<Vec<WalletDtoCodegen>, String> {
 /// `n_expired`).
 #[derive(Serialize, Deserialize, Type)]
 struct MirrorQueueStatsCodegen {
-    pub n_pending: i32,
-    pub n_submitted: i32,
-    pub n_filled: i32,
-    pub n_rejected: i32,
-    pub n_expired: i32,
+    #[specta(type = BigInt)]
+    pub n_pending: i64,
+    #[specta(type = BigInt)]
+    pub n_submitted: i64,
+    #[specta(type = BigInt)]
+    pub n_filled: i64,
+    #[specta(type = BigInt)]
+    pub n_rejected: i64,
+    #[specta(type = BigInt)]
+    pub n_expired: i64,
     pub total_exposure_usdc: f64,
     pub headroom_usdc: f64,
 }

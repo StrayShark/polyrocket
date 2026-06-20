@@ -184,11 +184,11 @@ export type ListSignalsArgsCodegen = {
  *  `n_expired`).
  */
 export type MirrorQueueStatsCodegen = {
-	n_pending: number,
-	n_submitted: number,
-	n_filled: number,
-	n_rejected: number,
-	n_expired: number,
+	n_pending: bigint,
+	n_submitted: bigint,
+	n_filled: bigint,
+	n_rejected: bigint,
+	n_expired: bigint,
 	total_exposure_usdc: number | null,
 	headroom_usdc: number | null,
 };
@@ -196,10 +196,10 @@ export type MirrorQueueStatsCodegen = {
 /**
  *  v0.85b — codegen stub for `MirrorRow`. Real has 5× i64 fields
  *  (`event_id`, `created_at`, `submitted_at`, `filled_at`, ...).
- *  v0.85+: switched from i32 placeholder to `BigInt<i64>` (lossless
- *  transport for values that fit in 53 bits, marked as TS `bigint`).
- *  The L1 layer (src/ipc.ts) keeps these as `number` for now
- *  (JSON.parse gives `number`, not `bigint`); explicit `BigInt()`
+ *  v0.85+: uses `#[specta(type = BigInt)]` attribute to mark i64
+ *  fields as TS `bigint` (lossless for values that fit in 53 bits).
+ *  The L1 layer (src/types/mirror.ts) keeps these as `number` for
+ *  now (JSON.parse gives `number`, not `bigint`); explicit `BigInt()`
  *  conversion is added in a follow-up.
  */
 export type MirrorRowCodegen = {
@@ -212,8 +212,14 @@ export type MirrorRowCodegen = {
 	flipped: boolean,
 	status: string,
 	created_at: bigint,
-	submitted_at: bigint | null,
-	filled_at: bigint | null,
+	/**
+	 *  v0.85c — Option<i64> can't be exported as bigint (specta-typescript
+	 *  0.0.12 rejects i64 by default, and the type=BigInt override loses
+	 *  nullability when applied to Option). Fall back to i32 placeholder
+	 *  (drift detection on field set, not on the i64→i32 precision).
+	 */
+	submitted_at: number | null,
+	filled_at: number | null,
 	bet_id: string | null,
 };
 
