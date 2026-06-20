@@ -262,6 +262,141 @@ async fn get_active_model_codegen() -> Result<Option<ActiveModelCodegen>, String
 }
 
 // =================================================================
+// v0.84 — Phase 3 batch 3: 4 Vec-return commands
+// =================================================================
+//
+// All 4 DTOs have i64 fields (BigInt-forbidden). We use `*CodegenDto`
+// stubs with i32 placeholders, following the v0.81 SignalCodegenDto
+// pattern. Real types stay untouched.
+
+// ---------- SignalDto (list_active_signals) ----------
+
+/// v0.84c — codegen stub args. Real `ListSignalsArgs` has
+/// `Option<i64>` (limit), which is BigInt-forbidden. Stub uses
+/// `Option<i32>` (matches the codegen-friendly limit semantics).
+#[derive(Serialize, Deserialize, Type, Default)]
+struct ListSignalsArgsCodegen {
+    pub min_edge: Option<f64>,
+    pub category: Option<String>,
+    pub limit: Option<i32>,
+}
+
+/// v0.84c — codegen stub for `SignalDto`. The real struct has 4× i64
+/// fields (`id`, `computed_at`, `horizon_hours`, ...). Stub uses i32
+/// (drift detection on the field set + names, not on the i64→i32
+/// precision; v0.84+ may switch to BigInt<i64> via serde feature).
+#[derive(Serialize, Deserialize, Type)]
+struct SignalListItemCodegen {
+    pub id: i32,
+    pub market_id: String,
+    pub computed_at: i32,
+    pub model_version: String,
+    pub predicted_prob: f64,
+    pub market_prob: f64,
+    pub edge: f64,
+    pub confidence: f64,
+    pub horizon_hours: i32,
+    pub rationale: Option<String>,
+    pub market_question: Option<String>,
+    pub market_slug: Option<String>,
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn list_active_signals_codegen(
+    _args: ListSignalsArgsCodegen,
+) -> Result<Vec<SignalListItemCodegen>, String> {
+    Ok(vec![])
+}
+
+// ---------- MirrorRow (list_mirrors) ----------
+
+/// v0.84c — codegen stub args. Real `ListMirrorsArgs` has
+/// `Option<i64>` (limit). Stub uses `Option<i32>`.
+#[derive(Serialize, Deserialize, Type, Default)]
+struct ListMirrorsArgsCodegen {
+    pub status: Option<String>,
+    pub limit: Option<i32>,
+}
+
+/// v0.84c — codegen stub for `MirrorRow`. Real has 5× i64 fields
+/// (`event_id`, `created_at`, `submitted_at`, `filled_at`, ...).
+#[derive(Serialize, Deserialize, Type)]
+struct MirrorRowCodegen {
+    pub id: String,
+    pub event_id: i32,
+    pub target_id: String,
+    pub market_id: String,
+    pub side: String,
+    pub size: String,
+    pub flipped: bool,
+    pub status: String,
+    pub created_at: i32,
+    pub submitted_at: Option<i32>,
+    pub filled_at: Option<i32>,
+    pub bet_id: Option<String>,
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn list_mirrors_codegen(
+    _args: ListMirrorsArgsCodegen,
+) -> Result<Vec<MirrorRowCodegen>, String> {
+    Ok(vec![])
+}
+
+// ---------- WalletDto (list_wallets) ----------
+
+/// v0.84c — codegen stub for `WalletDto`. Real has 3× i64 fields
+/// (`chain_id`, `created_at`, `last_synced_at`).
+#[derive(Serialize, Deserialize, Type)]
+struct WalletDtoCodegen {
+    pub id: String,
+    pub address: String,
+    pub label: Option<String>,
+    pub chain_id: i32,
+    pub wallet_type: String,
+    pub created_at: i32,
+    pub last_synced_at: Option<i32>,
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn list_wallets_codegen() -> Result<Vec<WalletDtoCodegen>, String> {
+    Ok(vec![])
+}
+
+// ---------- MirrorQueueStats (mirror_queue_stats) ----------
+
+/// v0.84c — codegen stub for `MirrorQueueStats`. Real has 5× i64
+/// counts (`n_pending`, `n_submitted`, `n_filled`, `n_rejected`,
+/// `n_expired`).
+#[derive(Serialize, Deserialize, Type)]
+struct MirrorQueueStatsCodegen {
+    pub n_pending: i32,
+    pub n_submitted: i32,
+    pub n_filled: i32,
+    pub n_rejected: i32,
+    pub n_expired: i32,
+    pub total_exposure_usdc: f64,
+    pub headroom_usdc: f64,
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn mirror_queue_stats_codegen() -> Result<MirrorQueueStatsCodegen, String> {
+    Ok(MirrorQueueStatsCodegen {
+        n_pending: 0,
+        n_submitted: 0,
+        n_filled: 0,
+        n_rejected: 0,
+        n_expired: 0,
+        total_exposure_usdc: 0.0,
+        headroom_usdc: 0.0,
+    })
+}
+
+// =================================================================
 // v0.81 — Bankroll commands (Phase 2 — 4 commands)
 // =================================================================
 //
@@ -376,6 +511,11 @@ fn main() {
     let _ = commands::mirror_executor::get_mirror_paper_mode;
     let _ = commands::audit::get_audit_retention;
     let _ = commands::active_model::get_active_model;
+    // v0.84c — Phase 3 batch 3
+    let _ = commands::signal::list_active_signals;
+    let _ = commands::mirror_executor::list_mirrors;
+    let _ = commands::wallet::list_wallets;
+    let _ = commands::mirror_executor::mirror_queue_stats;
 
     let builder: Builder<tauri::Wry> = Builder::new().commands(collect_commands![
         dashboard_kpis_codegen,
@@ -395,6 +535,11 @@ fn main() {
         get_mirror_paper_mode_codegen,
         get_audit_retention_codegen,
         get_active_model_codegen,
+        // v0.84c — Phase 3 batch 3
+        list_active_signals_codegen,
+        list_mirrors_codegen,
+        list_wallets_codegen,
+        mirror_queue_stats_codegen,
     ]);
 
     // CARGO_MANIFEST_DIR is `src-tauri/`, so the parent is

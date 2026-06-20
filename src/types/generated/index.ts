@@ -35,6 +35,10 @@ export const commands = {
 	weights: (number | null)[] | null,
 	source_path: string,
 } | null, string>(__TAURI_INVOKE("get_active_model_codegen")),
+	listActiveSignalsCodegen: (args: ListSignalsArgsCodegen) => typedError<SignalListItemCodegen[], string>(__TAURI_INVOKE("list_active_signals_codegen", { args })),
+	listMirrorsCodegen: (args: ListMirrorsArgsCodegen) => typedError<MirrorRowCodegen[], string>(__TAURI_INVOKE("list_mirrors_codegen", { args })),
+	listWalletsCodegen: () => typedError<WalletDtoCodegen[], string>(__TAURI_INVOKE("list_wallets_codegen")),
+	mirrorQueueStatsCodegen: () => typedError<MirrorQueueStatsCodegen, string>(__TAURI_INVOKE("mirror_queue_stats_codegen")),
 };
 
 /* Types */
@@ -154,6 +158,60 @@ export type DashboardKpisDto = {
 	open_positions: number,
 };
 
+/**
+ *  v0.84c — codegen stub args. Real `ListMirrorsArgs` has
+ *  `Option<i64>` (limit). Stub uses `Option<i32>`.
+ */
+export type ListMirrorsArgsCodegen = {
+	status: string | null,
+	limit: number | null,
+};
+
+/**
+ *  v0.84c — codegen stub args. Real `ListSignalsArgs` has
+ *  `Option<i64>` (limit), which is BigInt-forbidden. Stub uses
+ *  `Option<i32>` (matches the codegen-friendly limit semantics).
+ */
+export type ListSignalsArgsCodegen = {
+	min_edge: number | null,
+	category: string | null,
+	limit: number | null,
+};
+
+/**
+ *  v0.84c — codegen stub for `MirrorQueueStats`. Real has 5× i64
+ *  counts (`n_pending`, `n_submitted`, `n_filled`, `n_rejected`,
+ *  `n_expired`).
+ */
+export type MirrorQueueStatsCodegen = {
+	n_pending: number,
+	n_submitted: number,
+	n_filled: number,
+	n_rejected: number,
+	n_expired: number,
+	total_exposure_usdc: number | null,
+	headroom_usdc: number | null,
+};
+
+/**
+ *  v0.84c — codegen stub for `MirrorRow`. Real has 5× i64 fields
+ *  (`event_id`, `created_at`, `submitted_at`, `filled_at`, ...).
+ */
+export type MirrorRowCodegen = {
+	id: string,
+	event_id: number,
+	target_id: string,
+	market_id: string,
+	side: string,
+	size: string,
+	flipped: boolean,
+	status: string,
+	created_at: number,
+	submitted_at: number | null,
+	filled_at: number | null,
+	bet_id: string | null,
+};
+
 export type SecretStatus = {
 	kind: string,
 	alias: string,
@@ -187,6 +245,27 @@ export type SignalCodegenDto = {
 };
 
 /**
+ *  v0.84c — codegen stub for `SignalDto`. The real struct has 4× i64
+ *  fields (`id`, `computed_at`, `horizon_hours`, ...). Stub uses i32
+ *  (drift detection on the field set + names, not on the i64→i32
+ *  precision; v0.84+ may switch to BigInt<i64> via serde feature).
+ */
+export type SignalListItemCodegen = {
+	id: number,
+	market_id: string,
+	computed_at: number,
+	model_version: string,
+	predicted_prob: number | null,
+	market_prob: number | null,
+	edge: number | null,
+	confidence: number | null,
+	horizon_hours: number,
+	rationale: string | null,
+	market_question: string | null,
+	market_slug: string | null,
+};
+
+/**
  *  v0.84b — codegen stub for `StorageInfo`. The real struct has
  *  `free_bytes: Option<u64>` (BigInt-forbidden; even i64 is
  *  forbidden in specta-typescript's default mode). Stub uses
@@ -201,6 +280,20 @@ export type StorageInfoCodegen = {
 	writable: boolean,
 	free_bytes: number | null,
 	restart_required: boolean,
+};
+
+/**
+ *  v0.84c — codegen stub for `WalletDto`. Real has 3× i64 fields
+ *  (`chain_id`, `created_at`, `last_synced_at`).
+ */
+export type WalletDtoCodegen = {
+	id: string,
+	address: string,
+	label: string | null,
+	chain_id: number,
+	wallet_type: string,
+	created_at: number,
+	last_synced_at: number | null,
 };
 
 /* Tauri Specta runtime */
