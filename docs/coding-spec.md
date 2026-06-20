@@ -2,7 +2,7 @@
 
 > 代码注释 / 文档化规范。**所有新增代码必须遵循此规范；存量代码按 v0.61 计划分轮翻新。**
 
-**版本**：v2.5 · 2026-06-20 (v0.82 — Playwright e2e CI gate + Rust 1.96)
+**版本**：v2.6 · 2026-06-20 (v0.85 — BigInt support §14 + §15 renumber)
 **配套**：[`overview.md`](./overview.md)（5 层架构） · [`polyrocket-modules.md`](./polyrocket-modules.md)（17 模块业务） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 交互流程） · [`polyrocket-v0.69-final.md`](./polyrocket-v0.69-final.md)（CI 修复记录）
 
 ---
@@ -728,18 +728,39 @@ commit,**必须**附至少 1 张 Playwright 截图(sidebar 或被改的 componen
 
 ---
 
-## 13. Playwright e2e CI 门禁(v0.82 新增)
+## 14. BigInt support for codegen (v0.85 新增)
+
+**Why**: `specta-typescript` 0.0.12 default mode **rejects** i64/u64/i128/u128
+field export with `bigint_forbidden` (precision loss warning). For
+lossless i64 transport, must use `#[specta(type = BigInt)]` attribute
+OR wrap the field in `BigInt<i64>` (gated behind the `serde` feature).
+
+**How** (3-step setup):
+1. `src-tauri/Cargo.toml`: `specta-typescript = { version = "0.0.12", features = ["serde"] }`
+2. `use specta_typescript::BigInt;` in the codegen tool
+3. On i64 fields: `#[specta(type = BigInt)] pub field: i64` (NOT `pub field: BigInt<i64>` — the wrapper's tuple field is private; can't construct from outside the crate)
+
+**Limitations of v0.85 (current)**:
+- `#[specta(type = BigInt)]` on `Option<i64>` **loses nullability** (override applied to inner type, not the Option wrapper). Fall back to `i32` placeholder for Option fields.
+- `#[specta(type = BigInt)]` doesn't recurse into `HashMap<K, V>` value types. Fall back to `i32` placeholder for HashMap values.
+- Plain `i64` (no attribute) is still rejected. Always use the attribute.
+
+**L1 layer**: keeps all i64 fields as `number`. JSON.parse gives `number`, not `bigint`. Generated `*Codegen` types use `bigint` only for the 7 fields that successfully converted (39% of i64 fields); the other 11 stay at `number` (i32 placeholder). Runtime is safe because L1 doesn't use the generated types at runtime.
+
+**Next (v0.86)**: custom `OptionBigInt<T>` wrapper that maps to `bigint | null`, to convert the 11 deferred fields.
+
+## 15. Playwright e2e CI 门禁(v0.82 新增)
 
 > 本节是 §12 Visual Acceptance Gate 的工程化延伸 —— 把"每 PR 必跑 Playwright"从 v0.74d 的
 > 人工 checklist 升级为 **CI gate**(Job 5 / `e2e` job)。新增/修改任何 L1 路由前必读本节。
 
-### 13.1 为什么是 gate 不是可选
+### 15.1 为什么是 gate 不是可选
 
 v0.80 之前 Playwright 是 on-demand(`pnpm test:e2e` 手动跑),v0.74d 的 §12.4 视觉验证
 清单靠人工 review。两次 silent regression(8 commits 全部 4/4 CI 绿但样式坏了)
 证明:**没有强制执行的检查等于没有检查**。v0.82 把 Playwright 升为 Job 5。
 
-### 13.2 三层浏览器策略
+### 15.2 三层浏览器策略
 
 | 平台 | 策略 | 原因 |
 |---|---|---|
@@ -750,7 +771,7 @@ v0.80 之前 Playwright 是 on-demand(`pnpm test:e2e` 手动跑),v0.74d 的 §12
 **为什么不让 Playwright 装到本地**:装 Playwright 自带 chromium 要 ~200MB,而 macOS dev box
 已经有 puppeteer 的 ~80MB cache。复用是 0 成本的 fast path。
 
-### 13.3 Job 5 实现
+### 15.3 Job 5 实现
 
 **本地** (`scripts/run-ci-local.sh`):
 ```bash
@@ -780,14 +801,14 @@ pnpm test:e2e
       tests/e2e/**/*-actual.png
 ```
 
-### 13.4 baseline PNG 协议
+### 15.4 baseline PNG 协议
 
 - **首次**:`pnpm test:e2e` 生成 `tests/e2e/bankroll.spec.ts-snapshots/<name>.png`
 - **回归**:`toHaveScreenshot()` 拿当前渲染 vs baseline 比对,差 > 0.1% 像素 fail
 - **更新 baseline**:`pnpm test:e2e --update-snapshots`(故意设计成 opt-in 防止误覆盖)
 - **CI 失败时**:artifact 上传 `playwright-report/`(HTML 报告)+ `*-diff.png`(红/绿蒙版)+ `*-actual.png`(当前截图),PR 作者一眼能看出哪个 route/theme 坏了
 
-### 13.5 写新 e2e 测试的规范
+### 15.5 写新 e2e 测试的规范
 
 1. **每条 test 必须设 localStorage 主题** + 等待 `getByTestId` selector visible(参考 `bankroll.spec.ts`)
 2. **`data-theme` override 时机**:React 17+ 在 mount 后从 persist middleware rehydrate,会盖掉 `addInitScript` 的初始值。Fix: `addInitScript` 设 localStorage + `page.evaluate` 在 selector visible 后强制 `setAttribute('data-theme', ...)`
@@ -795,7 +816,7 @@ pnpm test:e2e
 4. **截图前必等 hydration**:`await expect(page.getByTestId('...')).toBeVisible()` 比 `waitForTimeout` 稳定
 5. **console error 必查**:`page.on('console', ...)` + `page.on('pageerror', ...)` 收集,过滤已知 safe 噪声后断言 `expect(errors).toEqual([])`
 
-### 13.6 失败排查流程
+### 15.6 失败排查流程
 
 ```
 # 1. 重新生成 baseline (only if change is intentional)

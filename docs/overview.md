@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.45 · 2026-06-20 (v0.83 auto-bumped)
+> 版本：v2.47 · 2026-06-20 (v0.85 auto-bumped)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿） · [`coding-spec.md`](./coding-spec.md)（v0.61 注释规范）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
@@ -799,6 +799,15 @@ v0.6 增量：
 
 ## 8. 变更日志
 
+- **v2.47** (2026-06-20) — v0.85 partial BigInt support (7 of 18 i64 fields → bigint)
+  - v0.85a enable `serde` feature on `specta-typescript` 0.0.12 (gates `BigInt<T>` wrapper Serialize/Deserialize impls). No behavior change.
+  - v0.85b `MirrorRowCodegen` (first end-to-end proof): required i64 fields `event_id`, `created_at` → TS `bigint` via `#[specta(type = BigInt)]` attribute. Optional i64 fields `submitted_at`, `filled_at` reverted to `number | null` (type override on Option loses nullability).
+  - v0.85c extend to all required i64 fields: `MirrorQueueStatsCodegen` 5× n_* counts → `bigint`. 11 other i64 fields (mostly Option + HashMap values) stay at i32 placeholder — specta-typescript 0.0.12 doesn't recurse type override into Option<T> or HashMap<K, V> values. **7/18 i64 fields → bigint** (39%).
+  - Generated `*Codegen` types: `bigint` for the 7 fields, `number | null` (i32) for the 11 deferred. L1 layer (`src/types/*.ts`) keeps all as `number` — runtime JSON.parse gives `number`, not `bigint`. **No L1 churn this round**; runtime safe.
+  - Drift detector: ✓ zero diff. Codegen pipeline works end-to-end with `BigInt` attribute.
+  - 实际 coverage: 86.78/83.99/80.46/87.98 (unchanged — codegen change, no new component tests)
+  - 改动: 1 modified (Cargo.toml feature) + 1 modified (gen_ts_types.rs BigInt attribute) + 1 regenerated (index.ts), 1354 tests, 5/5 CI jobs green
+  - **v0.86 plan**: custom `OptionBigInt<T>` wrapper (~50 lines Rust + 5 lines TS) for the 11 deferred Option/HashMap fields. After that, all 18 i64 fields will be lossless `bigint` in TS.
 - **v2.46** (2026-06-20) — v0.84 codegen Phase 3: +14 read-only commands + drift detector
   - v0.84a +5 no-arg commands (is_seeded, sidecar_status, secrets_status, notification_permission_state, get_telemetry_enabled) — added `Deserialize, Type` to 2 DTOs (SidecarStatus, SecretStatus+SecretsStatus)
   - v0.84b +5 simple-arg commands (get_auto_promote_config, get_storage_info, get_mirror_paper_mode, get_audit_retention, get_active_model) — mix of real DTOs and `*CodegenDto` stubs (BigInt-forbidden i64/u64 fields)
