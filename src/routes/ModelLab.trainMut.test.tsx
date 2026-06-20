@@ -147,7 +147,7 @@ describe('ModelLab trainMut branches (v0.83c)', () => {
       const err = toasts.find((t) => t.kind === 'error');
       expect(err).toBeTruthy();
       // detail may be undefined in the store; check title or detail
-      const text = `${err?.title ?? ''} ${err?.detail ?? ''}`;
+      const text = `${err?.title ?? ''} ${err?.body ?? ''}`;
       expect(text).toMatch(/Training failed/);
     });
     // lastCandidate should NOT be set → model-last-candidate testid absent
@@ -163,7 +163,7 @@ describe('ModelLab trainMut branches (v0.83c)', () => {
       const { toasts } = useToastStore.getState();
       const err = toasts.find((t) => t.kind === 'error');
       expect(err).toBeTruthy();
-      const text = `${err?.title ?? ''} ${err?.detail ?? ''}`;
+      const text = `${err?.title ?? ''} ${err?.body ?? ''}`;
       expect(text).toMatch(/Training failed|network timeout/);
     });
   });
