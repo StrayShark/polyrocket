@@ -102,6 +102,26 @@ else
   echo "[pre-push] No CI_VERIFIED state found — running full local pipeline..."
 fi
 
+# ----- v0.87fix — GHA CI gate ----------------------------------------
+# Query GitHub Actions for the last run on this branch. Block the push
+# if the previous GHA run on this commit failed. Catches the
+# "local green but remote red" failure mode (e.g. v0.87's cross-
+# platform baseline mismatch that local CI couldn't catch).
+
+if [ "${POLYROCKET_PRE_PUSH_SKIP_GHA:-0}" != "1" ]; then
+  if [ -f "$REPO_ROOT/scripts/check-gha-ci.sh" ]; then
+    if ! "$REPO_ROOT/scripts/check-gha-ci.sh"; then
+      echo
+      echo "================================================================"
+      echo "[pre-push] ✗ GHA CI check FAILED — push BLOCKED"
+      echo "================================================================"
+      exit 1
+    fi
+  else
+    echo "[pre-push] WARN: scripts/check-gha-ci.sh not found — skipping GHA check"
+  fi
+fi
+
 # ----- Run the local pipeline -----------------------------------------
 echo
 if "$RUNNER"; then
