@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.44 · 2026-06-19 (v0.82 auto-bumped)
+> 版本：v2.46 · 2026-06-20 (v0.84 auto-bumped)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿） · [`coding-spec.md`](./coding-spec.md)（v0.61 注释规范）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
@@ -799,6 +799,16 @@ v0.6 增量：
 
 ## 8. 变更日志
 
+- **v2.46** (2026-06-20) — v0.84 codegen Phase 3: +14 read-only commands + drift detector
+  - v0.84a +5 no-arg commands (is_seeded, sidecar_status, secrets_status, notification_permission_state, get_telemetry_enabled) — added `Deserialize, Type` to 2 DTOs (SidecarStatus, SecretStatus+SecretsStatus)
+  - v0.84b +5 simple-arg commands (get_auto_promote_config, get_storage_info, get_mirror_paper_mode, get_audit_retention, get_active_model) — mix of real DTOs and `*CodegenDto` stubs (BigInt-forbidden i64/u64 fields)
+  - v0.84c +4 Vec-return commands (list_active_signals, list_mirrors, list_wallets, mirror_queue_stats) — all stub DTOs (real DTOs have i64)
+  - v0.84d `scripts/check-codegen-drift.mjs` NEW (242 lines) — runs codegen, diffs against committed, catches type/field/command add/remove/rename/type-change. Manual demo verified: rename `SecretStatus.kind` → `kind_label` → 2 drift(s) detected.
+  - v0.84e docs: codegen-migration-plan.md Phase 3 marked done + this ship log + README auto-sync
+  - **总 codegen exports**: 5 → 19 commands (+14); 8 → 19 types (+11). 19/112 IPCs drift-protected (17%; was 4.5% at v0.81).
+  - 实际 coverage: 86.15/83.24/79.93/87.35 (未变 — 没有新增 component test)
+  - 改动: 1 NEW (drift detector) + 6 modified (4 脚本/配置 + 2 docs), 1333 tests, 5/5 CI jobs green
+  - **i64/u64 stub pattern**: 7 commands use `*CodegenDto` with i32/f64 placeholders for i64/u64 fields (BigInt-forbidden by specta-typescript 0.0.12 default). v0.85+ will switch to `Number<i64>` wrapper via `serde` feature.
 - **v2.44** (2026-06-20) — v0.82 Playwright e2e wired as CI gate (Job 5) + Rust 1.89→1.96 (specta dep) + 4-component test totals
   - v0.82a `playwright.config.ts` cross-platform (puppeteer cache on macOS, Playwright chromium on Linux, env override)
   - v0.82b `scripts/run-ci-local.sh` Job 5 (Playwright e2e); header [N/5] renumber + state file unchanged

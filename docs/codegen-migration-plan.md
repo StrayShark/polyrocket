@@ -1,15 +1,19 @@
 # L1 ↔ L2 Type Generation Migration Plan
 
-> Status: **v0.76 — Phase 1 (proof of concept) DONE**. Phases 2-5 are
-> next. The project uses **hand-written** TS types in `src/types/*.ts`
-> + hand-written L1 wrappers in `src/ipc.ts` PLUS the v0.76 codegen
-> bin (`src-tauri/src/bin/gen_ts_types.rs`) which generates
-> `src/types/generated/index.ts` for the pilot command (`dashboard_kpis`).
+> Status: **v0.84 — Phases 1+2+3 DONE**. Phases 4-5 are next.
+> The project uses **hand-written** TS types in `src/types/*.ts` for
+> the broader surface, PLUS the v0.76 codegen bin
+> (`src-tauri/src/bin/gen_ts_types.rs`) which generates
+> `src/types/generated/index.ts` for 19 read-only commands (5 from
+> v0.76+v0.81, +14 from v0.84 a/b/c).
 >
-> Drift is caught by `src/lib/ipc-contract-v2.test.ts` (snapshot-based)
-> for the hand-written surface, and by the v0.76 codegen for the
-> pilot command. Field-level rename / optional → required drift is
-> caught ONLY for the pilot command.
+> Drift is caught by:
+>   - `src/lib/ipc-contract-v2.test.ts` (snapshot-based) for the
+>     hand-written surface (function names, param types, return types)
+>   - `scripts/check-codegen-drift.mjs` (v0.84d) for the codegen
+>     surface (field-level rename / type / optional drift on the 19
+>     commands)
+>   - v0.84+ will close the BigInt (i64/u64) gap via Number<i64> wrapper
 
 ## Why migrate to codegen
 
@@ -129,12 +133,59 @@ snake_case (Rust serde default). We'd need to either:
 
 The snake_case path is simpler — fewer source changes.
 
-### Phase 3: migrate a batch of read-only commands (1h)
+### Phase 3: migrate a batch of read-only commands (1h) — **v0.84 DONE**
 
-Pick 10 read-only commands (no input DTOs) and migrate
-them to `#[tauri_specta::specta]`. Run codegen. Replace the
-matching `src/ipc.ts` wrappers with imports from
-`src/types/generated/`.
+v0.84 added 14 read-only commands to the codegen bin (3 sub-versions
+a/b/c + drift detector in d):
+
+**v0.84a (5 commands, no BigInt)**:
+- `is_seeded` (bool)
+- `sidecar_status` (real `SidecarStatus` DTO)
+- `secrets_status` (real `SecretsStatus` DTO with nested `SecretStatus`)
+- `notification_permission_state` (String)
+- `get_telemetry_enabled` (bool)
+
+**v0.84b (5 commands, mix real + stub DTOs)**:
+- `get_auto_promote_config` (real `AutoPromoteConfigDto`)
+- `get_storage_info` (`StorageInfoCodegen` stub — real has `u64 free_bytes`)
+- `get_mirror_paper_mode` (bool)
+- `get_audit_retention` (`AuditRetentionViewCodegen` stub — 3× i64)
+- `get_active_model` (`ActiveModelCodegen` stub — Option<i64> + omitted `best_params: serde_json::Value`)
+
+**v0.84c (4 commands, all stub DTOs)**:
+- `list_active_signals` (`SignalListItemCodegen`)
+- `list_mirrors` (`MirrorRowCodegen`)
+- `list_wallets` (`WalletDtoCodegen`)
+- `mirror_queue_stats` (`MirrorQueueStatsCodegen`)
+
+**v0.84d**: drift detector `scripts/check-codegen-drift.mjs` catches:
+- Type added/removed
+- Field added/removed/renamed
+- Field type changed
+- Command added/removed
+- Command signature changed
+
+**Total codegen exports (v0.84 final)**: 19 commands + 19 types
+(was 5 + 8 at v0.81).
+
+**Known limitations (planned v0.84+)**:
+- i64/u64 fields use i32/f64 in stub DTOs (precision loss; planned
+  `Number<i64>` wrapper via specta-typescript's `serde` feature)
+- `serde_json::Value` fields are omitted from stubs (no `specta::Type`
+  impl; L1 keeps hand-written `Record<string, unknown>`)
+- `u64 free_bytes` in `StorageInfo` uses `Option<f64>` (lossy above 2^53)
+
+**Drift demo (v0.84d manual)**:
+1. Renamed `SecretStatus.kind` → `SecretStatus.kind_label` in Rust
+2. Ran `pnpm check:codegen-drift` → "2 drift(s) detected"
+3. Reverted → "no drift (zero diff)"
+
+**Why this matters**:
+- Hand-written types catch "function added/removed" but miss
+  "field added/removed" (manual DTO sync misses constantly)
+- Codegen + drift detector catches 4 of 5 drift types in the table
+  below; the 5th (BigInt precision) is a v0.84+ roadmap item
+- 19 of 112 IPCs are now drift-protected (was 5 at v0.81)
 
 ### Phase 4: migrate commands with input DTOs (1h)
 
