@@ -2,7 +2,7 @@
 
 > 代码注释 / 文档化规范。**所有新增代码必须遵循此规范；存量代码按 v0.61 计划分轮翻新。**
 
-**版本**：v2.18 · 2026-06-21 (v0.101 — codegen Phase 4 batch 7: +13 LLM stats + scheduler commands, codegen 35→48 = 43% of 112 IPCs)
+**版本**：v2.19 · 2026-06-22 (v0.102 — coverage round 11 (Settings handler invocation) + codegen Phase 4 batch 8 (+6 commands: degradation + audit purge + 4 daily_brief), codegen 48→54 = 48% of 112 IPCs)
 **配套**：[`overview.md`](./overview.md)（5 层架构） · [`polyrocket-modules.md`](./polyrocket-modules.md)（17 模块业务） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 交互流程） · [`polyrocket-v0.69-final.md`](./polyrocket-v0.69-final.md)（CI 修复记录）
 
 ---
