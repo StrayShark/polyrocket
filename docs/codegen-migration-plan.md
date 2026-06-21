@@ -1,6 +1,6 @@
 # L1 ↔ L2 Type Generation Migration Plan
 
-> Status: **v0.84 — Phases 1+2+3 DONE**. Phases 4-5 are next.
+> Status: **v0.88 — Phases 1+2+3+4 DONE**. Phase 5 (build pipeline) is next.
 > The project uses **hand-written** TS types in `src/types/*.ts` for
 > the broader surface, PLUS the v0.76 codegen bin
 > (`src-tauri/src/bin/gen_ts_types.rs`) which generates
