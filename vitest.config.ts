@@ -108,6 +108,26 @@ export default defineConfig({
     //           LlmMgmt round 4 + Wallets
     //           round 3. Headroom 0.19/0.64/
     //           0.9/0.54pp — branches tight.
+    // v0.76-v0.83: 86/83/79/87 — coverage
+    //              gate ratchet to current
+    //              values. v0.76 (Bankroll),
+    //              v0.77 (Stats), v0.78
+    //              (Copy/PnL), v0.79 (Wallets),
+    //              v0.80 (Theme timing), v0.81
+    //              (M11), v0.82 (e2e), v0.83
+    //              (ModelLab branches + Copy
+    //              + Audit). See per-version
+    //              ship logs.
+    // v0.89:     87/84/81/88 (960 tests) —
+    //           coverage gate ratchet round 4.
+    //           +47 tests across v0.89a Bankroll
+    //           branches +18, v0.89b Trade +
+    //           MarketDetail +9, v0.89c
+    //           Notifications +7, +13 from
+    //           other test file rounds.
+    //           Current headroom 0.46/1.39/
+    //           0.61/0.64pp — all 4 dims
+    //           pass cleanly.
     //
     // We exclude pure-presentation files
     // (BarChart, Sparkline, KpiCard, etc.)
@@ -135,10 +155,10 @@ export default defineConfig({
         '**/*.unused',
       ],
       thresholds: {
-        statements: 86,
-        branches: 83,
-        functions: 79,
-        lines: 87,
+        statements: 87,
+        branches: 84,
+        functions: 81,
+        lines: 88,
       },
     },
   },

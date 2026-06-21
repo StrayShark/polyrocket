@@ -2,7 +2,7 @@
 
 > 代码注释 / 文档化规范。**所有新增代码必须遵循此规范；存量代码按 v0.61 计划分轮翻新。**
 
-**版本**：v2.11 · 2026-06-21 (v0.88 — codegen Phase 4 input DTO commands DONE; +13 commands drift-protected (17% → 28%); codegen-migration-plan.md Phase 4 marked done)
+**版本**：v2.12 · 2026-06-21 (v0.89 — coverage ratchet round 4: 86/83/79/87 → 87/84/81/88; +34 tests across Bankroll/Trade/MarketDetail/Notifications)
 **配套**：[`overview.md`](./overview.md)（5 层架构） · [`polyrocket-modules.md`](./polyrocket-modules.md)（17 模块业务） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 交互流程） · [`polyrocket-v0.69-final.md`](./polyrocket-v0.69-final.md)（CI 修复记录）
 
 ---
@@ -315,6 +315,7 @@ def test_efficiency_axiom_holds_at_extremes():
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v2.11 | 2026-06-21 | v0.88: codegen Phase 4 输入 DTO commands DONE — 5 sub-versions (a/b/c/d/e) 加 13 commands (add_wallet / set_telemetry_enabled / set_mirror_paper_mode / add_copy_target / enqueue_mirror / place_signed_order / place_jump_link / set_audit_retention / upsert_llm_provider / set_auto_promote_config / llm_analyze / run_mirror_executor_pass + place_jump_link codegen stub) drift-protected。17% → 28% codegen coverage (19 → 31 commands drift-protected / 112 IPCs)。v0.86b OptionBigInt wrapper 在 Phase 4 实战验证(input `Option<i64>` + nested Vec<LlmRecommendationDtoCodegen> 都正常)。`docs/codegen-migration-plan.md` Phase 4 标 DONE。 |
+| v2.12 | 2026-06-21 | v0.89: coverage ratchet round 4 — 阈值 86/83/79/87 → 87/84/81/88 (+1pp on all 4 dims)。3 sub-versions (a/b/c) + final = 4 commits, 3 new test files (+34 tests): Bankroll.branches.test.tsx (+18, 36.36→88.63% branches — biggest single-route jump in project history), Trade.MarketDetail.branches.test.tsx (+9, Trade 66.66→100% + MarketDetail 72.72→90.9% branches), Notifications.branches.test.tsx (+7, 66.66→100% on all 4 dims, file maxed)。Coverage 87.46/85.39/81.61/88.64,headroom 0.46/1.39/0.61/0.64pp。Test count 944→960 (+16)。ModelLab fn 59→75 deferred to v0.91 (useTrainProgress custom hook refactor)。`vitest.config.ts` thresholds block + history comment updated; `docs/overview.md` v2.52→v2.53 changelog entry added. 详细见 `docs/polyrocket-v0.89-final.md` ship log。 |
 | v2.10 | 2026-06-21 | v0.87fix3: GitHub Actions CI 全部移除 — `.github/workflows/` 5 个 workflows + `scripts/check-gha-ci.sh` + cron `v0.87fix-gha-watch` 全部删除。Local CI 5-job pipeline 成为唯一 pre-push gate。理由:跨平台像素 diff 是 structural mismatch,容差 bump 是 band-aid,长期维护成本不抵跨平台验证收益。§10.4 / §11.1 / §15 删 GHA-specific sections / 改 historical 注释。 |
 | v2.9 | 2026-06-21 | v0.87fix2: Playwright `maxDiffPixelRatio` 0.001→0.005 — GHA Linux Chromium pixel diff 9749 px / 0.02 ratio (20× over 0.001) was failing 6/7 e2e tests. 0.5% 容差 (~5× 仍 strict) covers 字体抗锯齿 + scrollbar micro-diffs. §15.4 新增 v0.87fix2 子节解释 trade-off. |
 | v2.8 | 2026-06-20 | v0.87fix: GHA pre-push gate + cross-platform baseline PNG protocol (`snapshotPathTemplate` strips `{platform}`); §15.4 updated for `__screenshots__/<spec>/<name>-chromium.png` path. |
