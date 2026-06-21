@@ -1319,6 +1319,166 @@ async fn llm_stats_export_codegen(
     Ok(String::new())
 }
 
+// =================================================================
+// v0.101c — Phase 4 batch 7 part 3: LLM traffic_summary + 4 scheduler
+//                     commands (5 read-only + 2 trigger + 1 self_test)
+// =================================================================
+//
+// Drift detection for the L1 "LLM Mgmt traffic" panel and the
+// Settings "Scheduler" + "Self Test" cards. trigger commands
+// return Result<TriggerResult, String> just like the real ones;
+// self_test returns SchedulerSelfTest sync (no State needed).
+
+/// v0.101c — args for `llm_traffic_summary`. Matches real `TrafficArgs`.
+#[derive(Serialize, Deserialize, Type)]
+struct TrafficArgsCodegen {
+    pub window: Option<String>,
+    pub provider_id: Option<String>,
+}
+
+/// v0.101c — LlmTrafficSummary shape. Many i64 fields use
+/// `#[specta(type = BigInt)]` for lossless export (real counts
+/// can exceed 2^32 in long windows).
+#[derive(Serialize, Deserialize, Type)]
+struct LlmTrafficSummaryCodegen {
+    pub provider_id: String,
+    pub window: String,
+    #[specta(type = BigInt)]
+    pub calls_total: i64,
+    #[specta(type = BigInt)]
+    pub calls_success: i64,
+    #[specta(type = BigInt)]
+    pub calls_failed: i64,
+    pub success_rate: f64,
+    pub avg_latency_ms: f64,
+    pub p95_latency_ms: f64,
+    #[specta(type = BigInt)]
+    pub total_tokens_in: i64,
+    #[specta(type = BigInt)]
+    pub total_tokens_out: i64,
+    pub total_cost_cents: f64,
+    #[specta(type = BigInt)]
+    pub rate_limit_hits: i64,
+    #[specta(type = BigInt)]
+    pub delta_calls_last_window: i64,
+    pub delta_cost_last_window: f64,
+}
+
+/// v0.101c — codegen stub for `llm_traffic_summary`.
+#[tauri::command]
+#[specta::specta]
+async fn llm_traffic_summary_codegen(
+    _args: TrafficArgsCodegen,
+) -> Result<Vec<LlmTrafficSummaryCodegen>, String> {
+    Ok(vec![])
+}
+
+/// v0.101c — SchedulerStatus shape. next_brief_run_at_unix_ms uses
+/// `#[specta(type = BigInt)]` for lossless timestamp.
+#[derive(Serialize, Deserialize, Type)]
+struct SchedulerStatusCodegen {
+    /// v0.101c — placeholder (real impl uses u64). Stub uses u32
+    /// because specta-typescript forbids u64 raw.
+    pub health_probe_interval_sec: u32,
+    pub daily_brief_hour_utc: u32,
+    pub daily_brief_tz_offset_min: i32,
+    /// v0.101c — placeholder (real impl uses u64). Stub uses u32.
+    pub anomaly_window_sec: u32,
+    #[specta(type = BigInt)]
+    pub next_brief_run_at_unix_ms: i64,
+}
+
+/// v0.101c — codegen stub for `scheduler_status`.
+#[tauri::command]
+#[specta::specta]
+async fn scheduler_status_codegen(
+) -> Result<SchedulerStatusCodegen, String> {
+    Ok(SchedulerStatusCodegen {
+        health_probe_interval_sec: 0,
+        daily_brief_hour_utc: 0,
+        daily_brief_tz_offset_min: 0,
+        anomaly_window_sec: 0,
+        next_brief_run_at_unix_ms: 0,
+    })
+}
+
+/// v0.101c — TriggerResult shape. triggered_at_unix_ms uses
+/// `#[specta(type = BigInt)]`.
+#[derive(Serialize, Deserialize, Type)]
+struct TriggerResultCodegen {
+    #[specta(type = BigInt)]
+    pub triggered_at_unix_ms: i64,
+    pub kind: String,
+    pub ok: bool,
+    pub error: Option<String>,
+}
+
+/// v0.101c — codegen stub for `scheduler_run_health_probe_now`.
+#[tauri::command]
+#[specta::specta]
+async fn scheduler_run_health_probe_now_codegen(
+) -> Result<TriggerResultCodegen, String> {
+    Ok(TriggerResultCodegen {
+        triggered_at_unix_ms: 0,
+        kind: "health_probe".to_string(),
+        ok: false,
+        error: None,
+    })
+}
+
+/// v0.101c — codegen stub for `scheduler_run_daily_brief_now`.
+#[tauri::command]
+#[specta::specta]
+async fn scheduler_run_daily_brief_now_codegen(
+) -> Result<TriggerResultCodegen, String> {
+    Ok(TriggerResultCodegen {
+        triggered_at_unix_ms: 0,
+        kind: "daily_brief".to_string(),
+        ok: false,
+        error: None,
+    })
+}
+
+/// v0.101c — LoopStatus shape. Real type uses `&'static str` for
+/// `name` but stub uses `String` because specta handles `&'static str`
+/// fine but we want to keep the codegen stub self-contained.
+#[derive(Serialize, Deserialize, Type)]
+struct LoopStatusCodegen {
+    pub name: String,
+    #[specta(type = BigInt)]
+    pub last_tick_unix_ms: u64,
+    /// v0.101c — placeholder (real impl uses Option<u64>). Stub
+    /// uses Option<u32> because specta-typescript forbids u64 in
+    /// Option even with #[specta(type = BigInt)].
+    pub age_ms: Option<u32>,
+    pub healthy: bool,
+}
+
+/// v0.101c — SchedulerSelfTest shape. matches real SchedulerSelfTest.
+#[derive(Serialize, Deserialize, Type)]
+struct SchedulerSelfTestCodegen {
+    #[specta(type = BigInt)]
+    pub process_started_at_unix: u64,
+    #[specta(type = BigInt)]
+    pub checked_at_unix_ms: u64,
+    pub all_healthy: bool,
+    pub loops: Vec<LoopStatusCodegen>,
+}
+
+/// v0.101c — codegen stub for `scheduler_self_test_now`. Real
+/// impl is sync (not async) — it just reads atomics.
+#[tauri::command]
+#[specta::specta]
+async fn scheduler_self_test_now_codegen(
+) -> Result<SchedulerSelfTestCodegen, String> {
+    Ok(SchedulerSelfTestCodegen {
+        process_started_at_unix: 0,
+        checked_at_unix_ms: 0,
+        all_healthy: true,
+        loops: vec![],
+    })
+}
+
 fn main() {
     // Keep the original command symbols alive (in case the linker
     // would optimize them out as unused — they're used by the
@@ -1374,6 +1534,12 @@ fn main() {
     let _ = commands::llm_mgmt::llm_stats_by_prompt;
     let _ = commands::llm_mgmt::llm_stats_cost_efficiency;
     let _ = commands::llm_mgmt::llm_stats_export;
+    // v0.101c — Phase 4 batch 7 part 3: LLM traffic + scheduler (5 commands)
+    let _ = commands::llm_mgmt::llm_traffic_summary;
+    let _ = commands::scheduler::scheduler_status;
+    let _ = commands::scheduler::scheduler_run_health_probe_now;
+    let _ = commands::scheduler::scheduler_run_daily_brief_now;
+    let _ = commands::scheduler::scheduler_self_test_now;
 
     let builder: Builder<tauri::Wry> = Builder::new().commands(collect_commands![
         dashboard_kpis_codegen,
@@ -1430,6 +1596,12 @@ fn main() {
         llm_stats_by_prompt_codegen,
         llm_stats_cost_efficiency_codegen,
         llm_stats_export_codegen,
+        // v0.101c — Phase 4 batch 7 part 3: LLM traffic + scheduler (5 commands)
+        llm_traffic_summary_codegen,
+        scheduler_status_codegen,
+        scheduler_run_health_probe_now_codegen,
+        scheduler_run_daily_brief_now_codegen,
+        scheduler_self_test_now_codegen,
     ]);
 
     // CARGO_MANIFEST_DIR is `src-tauri/`, so the parent is

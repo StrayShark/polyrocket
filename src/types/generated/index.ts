@@ -92,6 +92,19 @@ export const commands = {
 	 *  (CSV or JSON) the L1 layer saves via tauri-plugin-fs.
 	 */
 	llmStatsExportCodegen: (args: ExportStatsArgsCodegen) => typedError<string, string>(__TAURI_INVOKE("llm_stats_export_codegen", { args })),
+	/**  v0.101c — codegen stub for `llm_traffic_summary`. */
+	llmTrafficSummaryCodegen: (args: TrafficArgsCodegen) => typedError<LlmTrafficSummaryCodegen[], string>(__TAURI_INVOKE("llm_traffic_summary_codegen", { args })),
+	/**  v0.101c — codegen stub for `scheduler_status`. */
+	schedulerStatusCodegen: () => typedError<SchedulerStatusCodegen, string>(__TAURI_INVOKE("scheduler_status_codegen")),
+	/**  v0.101c — codegen stub for `scheduler_run_health_probe_now`. */
+	schedulerRunHealthProbeNowCodegen: () => typedError<TriggerResultCodegen, string>(__TAURI_INVOKE("scheduler_run_health_probe_now_codegen")),
+	/**  v0.101c — codegen stub for `scheduler_run_daily_brief_now`. */
+	schedulerRunDailyBriefNowCodegen: () => typedError<TriggerResultCodegen, string>(__TAURI_INVOKE("scheduler_run_daily_brief_now_codegen")),
+	/**
+	 *  v0.101c — codegen stub for `scheduler_self_test_now`. Real
+	 *  impl is sync (not async) — it just reads atomics.
+	 */
+	schedulerSelfTestNowCodegen: () => typedError<SchedulerSelfTestCodegen, string>(__TAURI_INVOKE("scheduler_self_test_now_codegen")),
 };
 
 /* Types */
@@ -535,6 +548,45 @@ export type LlmStatsTimeseriesPointCodegen = {
 };
 
 /**
+ *  v0.101c — LlmTrafficSummary shape. Many i64 fields use
+ *  `#[specta(type = BigInt)]` for lossless export (real counts
+ *  can exceed 2^32 in long windows).
+ */
+export type LlmTrafficSummaryCodegen = {
+	provider_id: string,
+	window: string,
+	calls_total: bigint,
+	calls_success: bigint,
+	calls_failed: bigint,
+	success_rate: number | null,
+	avg_latency_ms: number | null,
+	p95_latency_ms: number | null,
+	total_tokens_in: bigint,
+	total_tokens_out: bigint,
+	total_cost_cents: number | null,
+	rate_limit_hits: bigint,
+	delta_calls_last_window: bigint,
+	delta_cost_last_window: number | null,
+};
+
+/**
+ *  v0.101c — LoopStatus shape. Real type uses `&'static str` for
+ *  `name` but stub uses `String` because specta handles `&'static str`
+ *  fine but we want to keep the codegen stub self-contained.
+ */
+export type LoopStatusCodegen = {
+	name: string,
+	last_tick_unix_ms: bigint,
+	/**
+	 *  v0.101c — placeholder (real impl uses Option<u64>). Stub
+	 *  uses Option<u32> because specta-typescript forbids u64 in
+	 *  Option even with #[specta(type = BigInt)].
+	 */
+	age_ms: number | null,
+	healthy: boolean,
+};
+
+/**
  *  v0.84c — codegen stub for `MirrorQueueStats`. Real has 5× i64
  *  counts (`n_pending`, `n_submitted`, `n_filled`, `n_rejected`,
  *  `n_expired`).
@@ -630,6 +682,31 @@ export type PromoteHistoryEntryCodegen = {
 export type RunMirrorPassArgsCodegen = {
 	key_alias: string,
 	wallet_id: string,
+};
+
+/**  v0.101c — SchedulerSelfTest shape. matches real SchedulerSelfTest. */
+export type SchedulerSelfTestCodegen = {
+	process_started_at_unix: bigint,
+	checked_at_unix_ms: bigint,
+	all_healthy: boolean,
+	loops: LoopStatusCodegen[],
+};
+
+/**
+ *  v0.101c — SchedulerStatus shape. next_brief_run_at_unix_ms uses
+ *  `#[specta(type = BigInt)]` for lossless timestamp.
+ */
+export type SchedulerStatusCodegen = {
+	/**
+	 *  v0.101c — placeholder (real impl uses u64). Stub uses u32
+	 *  because specta-typescript forbids u64 raw.
+	 */
+	health_probe_interval_sec: number,
+	daily_brief_hour_utc: number,
+	daily_brief_tz_offset_min: number,
+	/**  v0.101c — placeholder (real impl uses u64). Stub uses u32. */
+	anomaly_window_sec: number,
+	next_brief_run_at_unix_ms: bigint,
 };
 
 export type SecretStatus = {
@@ -766,6 +843,23 @@ export type StorageInfoCodegen = {
 	writable: boolean,
 	free_bytes: number | null,
 	restart_required: boolean,
+};
+
+/**  v0.101c — args for `llm_traffic_summary`. Matches real `TrafficArgs`. */
+export type TrafficArgsCodegen = {
+	window: string | null,
+	provider_id: string | null,
+};
+
+/**
+ *  v0.101c — TriggerResult shape. triggered_at_unix_ms uses
+ *  `#[specta(type = BigInt)]`.
+ */
+export type TriggerResultCodegen = {
+	triggered_at_unix_ms: bigint,
+	kind: string,
+	ok: boolean,
+	error: string | null,
 };
 
 /**
