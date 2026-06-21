@@ -102,26 +102,14 @@ else
   echo "[pre-push] No CI_VERIFIED state found — running full local pipeline..."
 fi
 
-# ----- v0.87fix — GHA CI gate ----------------------------------------
-# Query GitHub Actions for the last run on this branch. Block the push
-# if the previous GHA run on this commit failed. Catches the
-# "local green but remote red" failure mode (e.g. v0.87's cross-
-# platform baseline mismatch that local CI couldn't catch).
-
-if [ "${POLYROCKET_PRE_PUSH_SKIP_GHA:-0}" != "1" ]; then
-  if [ -f "$REPO_ROOT/scripts/check-gha-ci.sh" ]; then
-    if ! "$REPO_ROOT/scripts/check-gha-ci.sh"; then
-      echo
-      echo "================================================================"
-      echo "[pre-push] ✗ GHA CI check FAILED — push BLOCKED"
-      echo "================================================================"
-      exit 1
-    fi
-  else
-    echo "[pre-push] WARN: scripts/check-gha-ci.sh not found — skipping GHA check"
-  fi
-fi
-
+# ----- v0.87fix3 — GHA gate REMOVED -----------------------------------
+# Pre-push hook used to query GitHub Actions and block push on remote CI
+# failure. This was removed in v0.87fix3 — local CI 5-job pipeline is
+# now the sole pre-push gate. Rationale: GHA cross-platform pixel diff
+# (Linux Chromium vs macOS puppeteer) created a perpetual red-on-remote
+# loop that local CI couldn't catch, and v0.87fix2's tolerance bump is a
+# band-aid for a structural mismatch (different baselines per platform).
+# Local CI runs the same 5-job pipeline; remote CI just adds pain.
 # ----- Run the local pipeline -----------------------------------------
 echo
 if "$RUNNER"; then

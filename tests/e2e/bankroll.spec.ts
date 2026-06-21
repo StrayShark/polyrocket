@@ -3,7 +3,7 @@
 // Spec: docs/coding-spec.md §12 (v0.74d Visual Acceptance Gate).
 //
 // v0.82: this is now a CI gate (Job 5 in `run-ci-local.sh`, the
-// `e2e` job in `.github/workflows/ci.yml`). It runs on every push
+// `e2e` job in local CI — see `scripts/run-ci-local.sh` Job 5). It runs on every push
 // to main, not just on-demand.
 //
 // **What this test does**:

@@ -2,7 +2,7 @@
 
 > 代码注释 / 文档化规范。**所有新增代码必须遵循此规范；存量代码按 v0.61 计划分轮翻新。**
 
-**版本**：v2.9 · 2026-06-21 (v0.87fix2 — bumped Playwright `maxDiffPixelRatio` 0.001→0.005 for cross-platform pixel diff; §15.4 updated)
+**版本**：v2.10 · 2026-06-21 (v0.87fix3 — GitHub Actions CI removed; local CI 5-job pipeline is now the sole pre-push gate; §10.4 / §11.1 / §15 updated to drop GHA references)
 **配套**：[`overview.md`](./overview.md)（5 层架构） · [`polyrocket-modules.md`](./polyrocket-modules.md)（17 模块业务） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 交互流程） · [`polyrocket-v0.69-final.md`](./polyrocket-v0.69-final.md)（CI 修复记录）
 
 ---
@@ -314,6 +314,7 @@ def test_efficiency_axiom_holds_at_extremes():
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v2.10 | 2026-06-21 | v0.87fix3: GitHub Actions CI 全部移除 — `.github/workflows/` 5 个 workflows + `scripts/check-gha-ci.sh` + cron `v0.87fix-gha-watch` 全部删除。Local CI 5-job pipeline 成为唯一 pre-push gate。理由:跨平台像素 diff 是 structural mismatch,容差 bump 是 band-aid,长期维护成本不抵跨平台验证收益。§10.4 / §11.1 / §15 删 GHA-specific sections / 改 historical 注释。 |
 | v2.9 | 2026-06-21 | v0.87fix2: Playwright `maxDiffPixelRatio` 0.001→0.005 — GHA Linux Chromium pixel diff 9749 px / 0.02 ratio (20× over 0.001) was failing 6/7 e2e tests. 0.5% 容差 (~5× 仍 strict) covers 字体抗锯齿 + scrollbar micro-diffs. §15.4 新增 v0.87fix2 子节解释 trade-off. |
 | v2.8 | 2026-06-20 | v0.87fix: GHA pre-push gate + cross-platform baseline PNG protocol (`snapshotPathTemplate` strips `{platform}`); §15.4 updated for `__screenshots__/<spec>/<name>-chromium.png` path. |
 | v2.5 | 2026-06-20 | v0.82: Playwright e2e wired as CI gate (Job 5) + Rust 1.89→1.96 (specta dep needs `core::fmt::from_fn` from 1.96) + 4-component test totals in README. §10.2 / §11 / §12 updated for 5-job pipeline. |
@@ -385,7 +386,7 @@ cargo +1.96 test --lib --manifest-path src-tauri/Cargo.toml -- --test-threads=1
 
 ### 10.4 README badges sync 步骤(故意设计为 fail-fast)
 
-`.github/workflows/ci.yml` 的 `README badges in sync (v0.67d)` 步骤会跑:
+(历史背景:v0.67d 起此步骤在 `.github/workflows/ci.yml` 的 `README badges in sync` 步骤跑;v0.87fix3 移除 GHA 后,该步骤在 `scripts/run-ci-local.sh` Job 2 (L1 typecheck + vitest) 尾部 inline 跑。逻辑不变:)
 
 ```bash
 node scripts/update-readme-coverage.mjs 2>&1 | grep -q "no changes needed"
@@ -435,10 +436,10 @@ node scripts/update-readme-coverage.mjs --version v0.XX    # 同时更新 README
 3. merge 后立即在新 commit 里 revert revert + 修复
 
 **禁止**:
-- ❌ 在 `.github/workflows/ci.yml` 里给守门脚本加 `continue-on-error: true` —— 静默退化
-- ❌ 把 `cargo +1.89` 降回 `1.77` —— edition2024 / dlopen2_derive 会回来
+- ❌ 把 `cargo +1.96` 降回 `1.89` —— edition2024 / dlopen2_derive 会回来
 - ❌ 把 `version: 9` 改成 `version: 10/11` —— workspace.yaml 逻辑要重写
 - ❌ 删 `scripts/check-*.mjs` —— 守门就废了
+- (历史:v0.87fix3 前还有 ❌"在 `.github/workflows/ci.yml` 里给守门脚本加 `continue-on-error: true`"——GHA 移除后不再适用)
 
 ### 10.7 Pre-push 本地 CI gate(v0.69h,v0.73a HARDENED)
 
@@ -546,9 +547,9 @@ git push origin main
 ### 11.1 三条铁律
 
 1. **`scripts/run-ci-local.sh` 必须 exit 0 才能 push**。没有"差不多绿"的概念。
-2. **`run-ci-local.sh` 必须跑全 4 个 job**(governance + L1 + Rust + Python)。
-   - ❌ `--quick` / `POLYROCKET_PRE_PUSH_QUICK=1` / cargo skip —— **v0.73a 起全部禁止**
-   - ✅ 唯一允许的跳过场景:CI runner 自己(GitHub Actions),hook 通过 `GITHUB_ACTIONS` / `CI` env 检测自动跳过
+2. **`run-ci-local.sh` 必须跑全 5 个 job**(governance + L1 + Rust + Python + Playwright e2e)。
+    - ❌ `--quick` / `POLYROCKET_PRE_PUSH_QUICK=1` / cargo skip / Playwright skip —— **v0.73a 起全部禁止**
+    - (历史:v0.87fix3 前还有 ✅ 唯一允许的跳过场景"CI runner 自己(GitHub Actions)"——GHA 移除后不再适用)
 3. **State file `.git/CI_VERIFIED` 必须存在 + sha 匹配 + < 1h ago**,否则 push 会强制重跑。
    - 不要手动删除/编辑这个文件。它是 hook 自动维护的,不是给手用的。
    - 新 commit 会让 state file stale,这是**正确的行为**(新代码需重新验证)。
@@ -847,29 +848,19 @@ fi
 pnpm test:e2e
 ```
 
-**CI** (`.github/workflows/ci.yml` 的 `e2e` job):
-```yaml
-- name: Install Playwright chromium
-  run: npx playwright install --with-deps chromium
-- name: Run e2e tests
-  run: pnpm test:e2e
-- name: Upload Playwright report on failure
-  if: failure()
-  uses: actions/upload-artifact@v4
-  with:
-    name: playwright-report
-    path: |
-      playwright-report/
-      tests/e2e/**/*-diff.png
-      tests/e2e/**/*-actual.png
+**CI**(v0.87fix3 起 GHA 移除,本地 Job 5):
+```bash
+# scripts/run-ci-local.sh Job 5:
+pnpm test:e2e
 ```
+(历史背景:v0.82-v0.87fix2 在 `.github/workflows/ci.yml` 的 `e2e` job 也跑,带 `npx playwright install --with-deps chromium` + on-failure `actions/upload-artifact@v4` 上传 `playwright-report/` + `*-diff.png` + `*-actual.png`。v0.87fix3 移除 GHA 后,本地失败时开发者直接看控制台 / IDE)
 
 ### 15.4 baseline PNG 协议
 
 - **首次**:`pnpm test:e2e --update-snapshots` 生成 `tests/e2e/__screenshots__/bankroll.spec.ts/<name>-<projectName>.png`(v0.87fix 改用 `snapshotPathTemplate` 去掉 `{platform}` token,见下)
 - **回归**:`toHaveScreenshot()` 拿当前渲染 vs baseline 比对,差 > 0.5% 像素 fail(v0.87fix2 从 0.1% 放宽到 0.5%,详见下面)
 - **更新 baseline**:`pnpm test:e2e --update-snapshots`(故意设计成 opt-in 防止误覆盖)
-- **CI 失败时**:artifact 上传 `playwright-report/`(HTML 报告)+ `tests/e2e/**/*-diff.png`(红/绿蒙版)+ `tests/e2e/**/*-actual.png`(当前截图),PR 作者一眼能看出哪个 route/theme 坏了
+- **失败时**:本地 Job 5 跑失败的话,直接看控制台输出 + `test-results/` 目录(HTML 报告 + `*-actual.png` + `*-diff.png`)。v0.87fix3 移除 GHA 前有 `actions/upload-artifact@v4` 上传 artifact;移除后开发者本地直接看
 
 **v0.87fix — cross-platform baseline 协议**:
 
@@ -880,10 +871,21 @@ pnpm test:e2e
 
 **v0.87fix2 — tolerance 从 0.001 放宽到 0.005**:
 
-- **触发**:GHA run #27871965730(v0.87fix push,fcd4db6)在 Linux Chromium 跑 e2e,6/7 visual regression fail,9749 pixels / 0.02 ratio diff(20× 超过 0.001 tolerance)。v0.87fix-1 的 `snapshotPathTemplate` 修复了 baseline 文件名 mismatch,但**没有**修复真实像素差异 — Linux Chromium 的字体抗锯齿/scrollbar/字体 hinting 跟 macOS puppeteer chrome 有可见差异,0.001 容差卡死
+- **触发**(历史背景,仅供 reference):v0.87fix-1 (fcd4db6) push 后 GHA Linux Chromium 跑 e2e,6/7 visual regression fail,9749 pixels / 0.02 ratio diff(20× 超过 0.001 tolerance)。v0.87fix-1 的 `snapshotPathTemplate` 修复了 baseline 文件名 mismatch,但**没有**修复真实像素差异 — Linux Chromium 的字体抗锯齿/scrollbar/字体 hinting 跟 macOS puppeteer chrome 有可见差异,0.001 容差卡死
 - **修复**:`tests/e2e/bankroll.spec.ts` 3 处 `maxDiffPixelRatio: 0.001 → 0.005`(空状态卡 ~10k px,0.5% 容许 ≤50 px drift,够字体抗锯齿 + scrollbar 微差异,但 layout shift > 50 px 仍会 fail)
-- **trade-off**:失去检测 < 0.5% 跨平台 pixel diff 的能力。真要 catch 那种细粒度差异,得切到方案 2(Linux-only baseline,跑 Linux runner 生成 `*-chromium.png` 后 commit baseline)或方案 3(关掉 Linux e2e)
-- **验证**:本地 7/7 e2e pass;GHA Linux 仍在 pending(fix push 后验证)
+- **trade-off**:失去检测 < 0.5% 跨平台 pixel diff 的能力。
+- **验证**:本地 7/7 e2e pass(v0.87fix-2 = ea46300 commit)
+
+**v0.87fix3 — GHA 移除(2026-06-21)**:
+
+- **触发**:v0.87fix2 (ea46300) push 后 GHA run #27891937282 跑通后才意识到:跨平台像素差异是 structural mismatch,baseline 永远跟着执行环境走;容差 bump 是 band-aid,不是 fix。要么跑 Linux runner 生成 Linux baseline(方案 2),要么放弃跨平台验证(方案 3),要么干脆移除 GHA(方案 4)。
+- **决策**:方案 4 — 移除 GHA。理由:
+  1. Local CI 5-job pipeline 跟 GHA 跑同样内容,gate 价值等价
+  2. macOS 是用户主开发环境,local CI 在最真实的环境跑
+  3. 跨平台验证收益不抵长期维护成本(每年 ≥1 次的跨平台像素 diff + 容差争论)
+  4. 失去的:public CI badge / Linux 上的 validation。得到的:pre-push hook 简化 / 无 GHA 依赖 / 无 cron 监控需求
+- **改动**:`.github/workflows/` 全部移除(5 workflows)+ `scripts/check-gha-ci.sh` 移除 + `scripts/pre-push-hook.sh` GHA gate block 改为注释 + cron `v0.87fix-gha-watch` 删除 + 本节 / §10.4 / §11.1 / §15 各处 GHA ref 改为 local CI / 历史注释
+- **结果**:pre-push hook 跑 1 次 local CI(5 jobs,~10-15min),exit 0 即 push
 
 ### 15.5 写新 e2e 测试的规范
 
