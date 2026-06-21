@@ -105,6 +105,24 @@ export const commands = {
 	 *  impl is sync (not async) — it just reads atomics.
 	 */
 	schedulerSelfTestNowCodegen: () => typedError<SchedulerSelfTestCodegen, string>(__TAURI_INVOKE("scheduler_self_test_now_codegen")),
+	/**
+	 *  v0.102b — codegen stub for `degradation_check_now`. Returns
+	 *  () — the side effect is firing a telemetry event.
+	 */
+	degradationCheckNowCodegen: (args: DegradationCheckNowArgsCodegen) => typedError<null, string>(__TAURI_INVOKE("degradation_check_now_codegen", { args })),
+	/**
+	 *  v0.102b — codegen stub for `purge_audit_log_now`. Returns
+	 *  `usize` count of purged rows.
+	 */
+	purgeAuditLogNowCodegen: () => typedError<number, string>(__TAURI_INVOKE("purge_audit_log_now_codegen")),
+	/**  v0.102b — codegen stub for `daily_brief_get`. */
+	dailyBriefGetCodegen: (args: BriefGetArgsCodegen) => typedError<DailyBriefEntryCodegen[], string>(__TAURI_INVOKE("daily_brief_get_codegen", { args })),
+	/**  v0.102b — codegen stub for `daily_brief_refresh`. */
+	dailyBriefRefreshCodegen: () => typedError<BriefRefreshResultCodegen, string>(__TAURI_INVOKE("daily_brief_refresh_codegen")),
+	/**  v0.102b — codegen stub for `daily_brief_dismiss`. */
+	dailyBriefDismissCodegen: (args: BriefDismissArgsCodegen) => typedError<boolean, string>(__TAURI_INVOKE("daily_brief_dismiss_codegen", { args })),
+	/**  v0.102b — codegen stub for `daily_brief_set_prefs`. */
+	dailyBriefSetPrefsCodegen: (args: SetBriefPrefsArgsCodegen) => typedError<null, string>(__TAURI_INVOKE("daily_brief_set_prefs_codegen", { args })),
 };
 
 /* Types */
@@ -280,6 +298,42 @@ export type BetDtoCodegen = {
 /**  Side of the bet (Yes/No token on a prediction market). */
 export type BetSide = "Yes" | "No";
 
+/**  v0.102b — args for `daily_brief_dismiss`. Market ID only. */
+export type BriefDismissArgsCodegen = {
+	market_id: string,
+};
+
+/**  v0.102b — args for `daily_brief_get`. Matches real `BriefGetArgs`. */
+export type BriefGetArgsCodegen = {
+	/**
+	 *  v0.102b — placeholder (real impl uses Option<i64>).
+	 *  Stub uses Option<u32>.
+	 */
+	limit: number | null,
+	/**
+	 *  v0.102b — placeholder (real impl uses Option<i64>).
+	 *  Stub uses Option<u32> (kept for back-compat with old callers).
+	 */
+	max_items: number | null,
+};
+
+/**  v0.102b — BriefRefreshResult shape. */
+export type BriefRefreshResultCodegen = {
+	computed_at: bigint,
+	/**  v0.102b — placeholder (real impl uses i64). Stub uses i32. */
+	n_items: number,
+};
+
+/**  v0.102b — BriefWeights shape (nested struct). */
+export type BriefWeightsCodegen = {
+	w1: number | null,
+	w2: number | null,
+	w3: number | null,
+	w4: number | null,
+	w5: number | null,
+	w6: number | null,
+};
+
 export type CappedReason = 
 /**  Allocation was capped by `max_per_signal_pct`. */
 "PerSignalCap" | 
@@ -310,6 +364,30 @@ export type CopyTargetDtoCodegen = {
 	created_at: bigint,
 };
 
+/**
+ *  v0.102b — DailyBriefEntry shape. timestamps use
+ *  `#[specta(type = BigInt)]` for lossless export; counts use i32.
+ */
+export type DailyBriefEntryCodegen = {
+	market_id: string,
+	market_question: string,
+	market_category: string,
+	market_end_date: bigint,
+	market_liquidity: string | null,
+	market_volume_24h: string | null,
+	/**  v0.102b — placeholder (real impl uses i64). Stub uses i32. */
+	rank: number,
+	match_score: number | null,
+	score_breakdown: string | null,
+	edge: number | null,
+	confidence: number | null,
+	consensus_side: string | null,
+	consensus_strength: number | null,
+	computed_at: bigint,
+	expires_at: bigint,
+	dismissed: boolean,
+};
+
 export type DashboardKpisDto = {
 	total_equity_usdc: string,
 	open_pnl_usdc: string,
@@ -318,6 +396,9 @@ export type DashboardKpisDto = {
 	active_signals: number,
 	open_positions: number,
 };
+
+/**  v0.102b — empty args (DegradationCheckNowArgs in real impl). */
+export type DegradationCheckNowArgsCodegen = Record<string, never>;
 
 /**
  *  v0.88b — codegen stub args for `enqueue_mirror`. Real
@@ -742,6 +823,19 @@ export type SetAuditRetentionArgsCodegen = {
 export type SetAutoPromoteConfigArgs = {
 	enabled: boolean | null,
 	brier_margin: number | null,
+};
+
+/**
+ *  v0.102b — args for `daily_brief_set_prefs`. Matches real
+ *  `SetBriefPrefsArgs`. Nested Option<BriefWeights>.
+ */
+export type SetBriefPrefsArgsCodegen = {
+	user_id: string,
+	weights: BriefWeightsCodegen | null,
+	/**  v0.102b — placeholder (real impl uses Option<i64>). */
+	max_items: number | null,
+	min_liquidity: string | null,
+	categories: string[] | null,
 };
 
 /**

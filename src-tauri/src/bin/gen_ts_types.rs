@@ -1479,6 +1479,157 @@ async fn scheduler_self_test_now_codegen(
     })
 }
 
+// =================================================================
+// v0.102b — Phase 4 batch 8: degradation + audit purge +
+//                     daily_brief (6 read-only / write commands)
+// =================================================================
+//
+// Drift detection for the L1 Settings "Degradation", "Audit
+// retention purge now", and the Dashboard "Daily Brief" panel.
+// daily_brief_set_prefs uses an inner struct (BriefWeights) —
+// nested Type is supported by specta.
+
+// ---------- degradation_check_now ----------
+/// v0.102b — empty args (DegradationCheckNowArgs in real impl).
+#[derive(Serialize, Deserialize, Type, Default)]
+struct DegradationCheckNowArgsCodegen {}
+
+/// v0.102b — codegen stub for `degradation_check_now`. Returns
+/// () — the side effect is firing a telemetry event.
+#[tauri::command]
+#[specta::specta]
+async fn degradation_check_now_codegen(
+    _args: DegradationCheckNowArgsCodegen,
+) -> Result<(), String> {
+    Ok(())
+}
+
+// ---------- purge_audit_log_now ----------
+/// v0.102b — codegen stub for `purge_audit_log_now`. Returns
+/// `usize` count of purged rows.
+#[tauri::command]
+#[specta::specta]
+async fn purge_audit_log_now_codegen() -> Result<u32, String> {
+    Ok(0)
+}
+
+// ---------- daily_brief_get ----------
+/// v0.102b — args for `daily_brief_get`. Matches real `BriefGetArgs`.
+#[derive(Serialize, Deserialize, Type, Default)]
+struct BriefGetArgsCodegen {
+    /// v0.102b — placeholder (real impl uses Option<i64>).
+    /// Stub uses Option<u32>.
+    pub limit: Option<u32>,
+    /// v0.102b — placeholder (real impl uses Option<i64>).
+    /// Stub uses Option<u32> (kept for back-compat with old callers).
+    pub max_items: Option<u32>,
+}
+
+/// v0.102b — DailyBriefEntry shape. timestamps use
+/// `#[specta(type = BigInt)]` for lossless export; counts use i32.
+#[derive(Serialize, Deserialize, Type)]
+struct DailyBriefEntryCodegen {
+    pub market_id: String,
+    pub market_question: String,
+    pub market_category: String,
+    #[specta(type = BigInt)]
+    pub market_end_date: i64,
+    pub market_liquidity: Option<String>,
+    pub market_volume_24h: Option<String>,
+    /// v0.102b — placeholder (real impl uses i64). Stub uses i32.
+    pub rank: i32,
+    pub match_score: f64,
+    pub score_breakdown: Option<String>,
+    pub edge: Option<f64>,
+    pub confidence: Option<f64>,
+    pub consensus_side: Option<String>,
+    pub consensus_strength: Option<f64>,
+    #[specta(type = BigInt)]
+    pub computed_at: i64,
+    #[specta(type = BigInt)]
+    pub expires_at: i64,
+    pub dismissed: bool,
+}
+
+/// v0.102b — codegen stub for `daily_brief_get`.
+#[tauri::command]
+#[specta::specta]
+async fn daily_brief_get_codegen(
+    _args: BriefGetArgsCodegen,
+) -> Result<Vec<DailyBriefEntryCodegen>, String> {
+    Ok(vec![])
+}
+
+// ---------- daily_brief_refresh ----------
+/// v0.102b — BriefRefreshResult shape.
+#[derive(Serialize, Deserialize, Type)]
+struct BriefRefreshResultCodegen {
+    #[specta(type = BigInt)]
+    pub computed_at: i64,
+    /// v0.102b — placeholder (real impl uses i64). Stub uses i32.
+    pub n_items: i32,
+}
+
+/// v0.102b — codegen stub for `daily_brief_refresh`.
+#[tauri::command]
+#[specta::specta]
+async fn daily_brief_refresh_codegen(
+) -> Result<BriefRefreshResultCodegen, String> {
+    Ok(BriefRefreshResultCodegen {
+        computed_at: 0,
+        n_items: 0,
+    })
+}
+
+// ---------- daily_brief_dismiss ----------
+/// v0.102b — args for `daily_brief_dismiss`. Market ID only.
+#[derive(Serialize, Deserialize, Type, Default)]
+struct BriefDismissArgsCodegen {
+    pub market_id: String,
+}
+
+/// v0.102b — codegen stub for `daily_brief_dismiss`.
+#[tauri::command]
+#[specta::specta]
+async fn daily_brief_dismiss_codegen(
+    _args: BriefDismissArgsCodegen,
+) -> Result<bool, String> {
+    Ok(true)
+}
+
+// ---------- daily_brief_set_prefs ----------
+/// v0.102b — BriefWeights shape (nested struct).
+#[derive(Serialize, Deserialize, Type)]
+struct BriefWeightsCodegen {
+    pub w1: f64,
+    pub w2: f64,
+    pub w3: f64,
+    pub w4: f64,
+    pub w5: f64,
+    pub w6: f64,
+}
+
+/// v0.102b — args for `daily_brief_set_prefs`. Matches real
+/// `SetBriefPrefsArgs`. Nested Option<BriefWeights>.
+#[derive(Serialize, Deserialize, Type)]
+struct SetBriefPrefsArgsCodegen {
+    pub user_id: String,
+    pub weights: Option<BriefWeightsCodegen>,
+    /// v0.102b — placeholder (real impl uses Option<i64>).
+    pub max_items: Option<u32>,
+    pub min_liquidity: Option<String>,
+    pub categories: Option<Vec<String>>,
+}
+
+/// v0.102b — codegen stub for `daily_brief_set_prefs`.
+#[tauri::command]
+#[specta::specta]
+async fn daily_brief_set_prefs_codegen(
+    _args: SetBriefPrefsArgsCodegen,
+) -> Result<(), String> {
+    Ok(())
+}
+
 fn main() {
     // Keep the original command symbols alive (in case the linker
     // would optimize them out as unused — they're used by the
@@ -1540,6 +1691,13 @@ fn main() {
     let _ = commands::scheduler::scheduler_run_health_probe_now;
     let _ = commands::scheduler::scheduler_run_daily_brief_now;
     let _ = commands::scheduler::scheduler_self_test_now;
+    // v0.102b — Phase 4 batch 8: degradation + audit purge + daily_brief (6 commands)
+    let _ = commands::scheduler::degradation_check_now;
+    let _ = commands::audit::purge_audit_log_now;
+    let _ = commands::brief::daily_brief_get;
+    let _ = commands::brief::daily_brief_refresh;
+    let _ = commands::brief::daily_brief_dismiss;
+    let _ = commands::brief::daily_brief_set_prefs;
 
     let builder: Builder<tauri::Wry> = Builder::new().commands(collect_commands![
         dashboard_kpis_codegen,
@@ -1602,6 +1760,13 @@ fn main() {
         scheduler_run_health_probe_now_codegen,
         scheduler_run_daily_brief_now_codegen,
         scheduler_self_test_now_codegen,
+        // v0.102b — Phase 4 batch 8: degradation + audit purge + daily_brief (6 commands)
+        degradation_check_now_codegen,
+        purge_audit_log_now_codegen,
+        daily_brief_get_codegen,
+        daily_brief_refresh_codegen,
+        daily_brief_dismiss_codegen,
+        daily_brief_set_prefs_codegen,
     ]);
 
     // CARGO_MANIFEST_DIR is `src-tauri/`, so the parent is
