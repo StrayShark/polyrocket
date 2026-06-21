@@ -673,6 +673,76 @@ async fn place_jump_link_codegen(
     Ok("https://polymarket.com/event/_stub_".to_string())
 }
 
+// =================================================================
+// v0.88d — Phase 4 batch 4: Settings + ModelLab + LlmMgmt
+// =================================================================
+//
+// Drift detection for `set_audit_retention`, `set_auto_promote_config`,
+// `upsert_llm_provider`.
+
+/// v0.88d — codegen stub args for `set_audit_retention`. Real
+/// `SetAuditRetentionArgs` (commands/audit.rs) has 3× Option<i64>;
+/// OptionBigInt wrapper (v0.86b) gives lossless transport.
+#[derive(Serialize, Deserialize, Type)]
+struct SetAuditRetentionArgsCodegen {
+    pub retain_recent_ms: Option<OptionBigInt<i64>>,
+    pub max_rows: Option<OptionBigInt<i64>>,
+    pub min_keep_rows: Option<OptionBigInt<i64>>,
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn set_audit_retention_codegen(
+    _args: SetAuditRetentionArgsCodegen,
+) -> Result<u32, String> {
+    // v0.88d — stub. Real impl writes retention policy + runs an
+    // immediate purge, returns the count of purged rows. We return 0
+    // since the codegen bin can't construct DB state. u32 instead of
+    // usize because specta-typescript forbids usize export.
+    Ok(0)
+}
+
+/// v0.88d — codegen stub for `upsert_llm_provider`. Takes
+/// `LlmProviderDto` directly (not nested under args) — same shape as
+/// the real command. `timeout_ms: i64` needs BigInt handling.
+#[derive(Serialize, Deserialize, Type)]
+struct LlmProviderDtoCodegen {
+    pub id: String,
+    pub display_name: String,
+    pub enabled: bool,
+    pub api_base: Option<String>,
+    pub key_alias: String,
+    pub default_model: String,
+    #[specta(type = BigInt)]
+    pub timeout_ms: i64,
+    pub cost_per_1k_in: Option<f64>,
+    pub cost_per_1k_out: Option<f64>,
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn upsert_llm_provider_codegen(
+    _provider: LlmProviderDtoCodegen,
+) -> Result<(), String> {
+    // v0.88d — stub. Real impl does INSERT ... ON CONFLICT UPDATE.
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn set_auto_promote_config_codegen(
+    args: polyrocket_lib::commands::sidecar::SetAutoPromoteConfigArgs,
+) -> Result<polyrocket_lib::commands::sidecar::AutoPromoteConfigDto, String> {
+    // v0.88d — stub. Real impl reads current config, applies the
+    // partial update, writes back. We return the default config so
+    // the codegen exports the right return type.
+    let _ = args;
+    Ok(polyrocket_lib::commands::sidecar::AutoPromoteConfigDto {
+        enabled: false,
+        brier_margin: 0.005,
+    })
+}
+
 // ---------- MirrorQueueStats (mirror_queue_stats) ----------
 
 /// v0.84c — codegen stub for `MirrorQueueStats`. Real has 5× i64
@@ -838,6 +908,10 @@ fn main() {
     // v0.88c — Phase 4 batch 3 (Trade route, input DTOs)
     let _ = commands::bet::place_signed_order;
     let _ = commands::bet::place_jump_link;
+    // v0.88d — Phase 4 batch 4 (Settings / ModelLab / LlmMgmt)
+    let _ = commands::audit::set_audit_retention;
+    let _ = commands::llm::upsert_llm_provider;
+    let _ = commands::sidecar::set_auto_promote_config;
 
     let builder: Builder<tauri::Wry> = Builder::new().commands(collect_commands![
         dashboard_kpis_codegen,
@@ -872,6 +946,10 @@ fn main() {
         // v0.88c — Phase 4 batch 3 (Trade route, input DTOs)
         place_signed_order_codegen,
         place_jump_link_codegen,
+        // v0.88d — Phase 4 batch 4 (Settings / ModelLab / LlmMgmt)
+        set_audit_retention_codegen,
+        upsert_llm_provider_codegen,
+        set_auto_promote_config_codegen,
     ]);
 
     // CARGO_MANIFEST_DIR is `src-tauri/`, so the parent is

@@ -47,6 +47,9 @@ export const commands = {
 	enqueueMirrorCodegen: (args: EnqueueMirrorArgsCodegen) => typedError<MirrorRowCodegen, string>(__TAURI_INVOKE("enqueue_mirror_codegen", { args })),
 	placeSignedOrderCodegen: (args: PlaceSignedArgsCodegen) => typedError<BetDtoCodegen, string>(__TAURI_INVOKE("place_signed_order_codegen", { args })),
 	placeJumpLinkCodegen: (args: PlaceJumpArgsCodegen) => typedError<string, string>(__TAURI_INVOKE("place_jump_link_codegen", { args })),
+	setAuditRetentionCodegen: (args: SetAuditRetentionArgsCodegen) => typedError<number, string>(__TAURI_INVOKE("set_audit_retention_codegen", { args })),
+	upsertLlmProviderCodegen: (provider: LlmProviderDtoCodegen) => typedError<null, string>(__TAURI_INVOKE("upsert_llm_provider_codegen", { provider })),
+	setAutoPromoteConfigCodegen: (args: SetAutoPromoteConfigArgs) => typedError<AutoPromoteConfigDto, string>(__TAURI_INVOKE("set_auto_promote_config_codegen", { args })),
 };
 
 /* Types */
@@ -280,6 +283,23 @@ export type ListSignalsArgsCodegen = {
 };
 
 /**
+ *  v0.88d — codegen stub for `upsert_llm_provider`. Takes
+ *  `LlmProviderDto` directly (not nested under args) — same shape as
+ *  the real command. `timeout_ms: i64` needs BigInt handling.
+ */
+export type LlmProviderDtoCodegen = {
+	id: string,
+	display_name: string,
+	enabled: boolean,
+	api_base: string | null,
+	key_alias: string,
+	default_model: string,
+	timeout_ms: bigint,
+	cost_per_1k_in: number | null,
+	cost_per_1k_out: number | null,
+};
+
+/**
  *  v0.84c — codegen stub for `MirrorQueueStats`. Real has 5× i64
  *  counts (`n_pending`, `n_submitted`, `n_filled`, `n_rejected`,
  *  `n_expired`).
@@ -369,6 +389,28 @@ export type SecretsStatus = {
 	llm_keys: SecretStatus[],
 	polymarket: SecretStatus[],
 	wallets: SecretStatus[],
+};
+
+/**
+ *  v0.88d — codegen stub args for `set_audit_retention`. Real
+ *  `SetAuditRetentionArgs` (commands/audit.rs) has 3× Option<i64>;
+ *  OptionBigInt wrapper (v0.86b) gives lossless transport.
+ */
+export type SetAuditRetentionArgsCodegen = {
+	retain_recent_ms: bigint | null,
+	max_rows: bigint | null,
+	min_keep_rows: bigint | null,
+};
+
+/**
+ *  v0.28a — args for `set_auto_promote_config`. Both fields
+ *  are optional: `None` means "leave unchanged" so the L1
+ *  can update only the field the user changed in the UI
+ *  (e.g. just the toggle, not the margin).
+ */
+export type SetAutoPromoteConfigArgs = {
+	enabled: boolean | null,
+	brier_margin: number | null,
 };
 
 /**

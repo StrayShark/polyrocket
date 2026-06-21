@@ -1775,7 +1775,7 @@ pub async fn list_promote_history_archive(
 /// are optional: `None` means "leave unchanged" so the L1
 /// can update only the field the user changed in the UI
 /// (e.g. just the toggle, not the margin).
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, specta::Type)]
 pub struct SetAutoPromoteConfigArgs {
     pub enabled: Option<bool>,
     pub brier_margin: Option<f64>,
