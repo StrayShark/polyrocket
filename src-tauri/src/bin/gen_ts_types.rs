@@ -1217,6 +1217,108 @@ async fn llm_stats_decision_codegen(
     Ok(vec![])
 }
 
+// =================================================================
+// v0.101b — Phase 4 batch 7 part 2: LLM stats by_confidence
+//                     + by_prompt + cost_efficiency + export (4 commands)
+// =================================================================
+//
+// Continuation of v0.101a batch 7 — covers the L1 "LLM Management"
+// page's confidence / prompt / cost panels + the CSV/JSON export.
+
+/// v0.101b — args for `llm_stats_by_confidence`. Matches real `StatsByConfidenceArgs`.
+#[derive(Serialize, Deserialize, Type)]
+struct StatsByConfidenceArgsCodegen {
+    pub provider_id: Option<String>,
+    /// v0.101b — placeholder (real impl uses Option<i64>). Stub uses Option<u32>.
+    pub window_days: Option<u32>,
+}
+
+/// v0.101b — LlmStatsConfidenceBand shape.
+#[derive(Serialize, Deserialize, Type)]
+struct LlmStatsConfidenceBandCodegen {
+    pub provider_id: String,
+    pub band: String,
+    /// v0.101b — placeholder (real impl uses i64). Stub uses i32.
+    pub n: i32,
+    pub win_rate: f64,
+    pub avg_pnl: f64,
+}
+
+/// v0.101b — codegen stub for `llm_stats_by_confidence`.
+#[tauri::command]
+#[specta::specta]
+async fn llm_stats_by_confidence_codegen(
+    _args: StatsByConfidenceArgsCodegen,
+) -> Result<Vec<LlmStatsConfidenceBandCodegen>, String> {
+    Ok(vec![])
+}
+
+/// v0.101b — args for `llm_stats_by_prompt`. Matches real `StatsByPromptArgs`.
+#[derive(Serialize, Deserialize, Type)]
+struct StatsByPromptArgsCodegen {
+    pub prompt_version: String,
+    /// v0.101b — placeholder (real impl uses Option<i64>). Stub uses Option<u32>.
+    pub window_days: Option<u32>,
+}
+
+/// v0.101b — LlmStatsByPrompt shape.
+#[derive(Serialize, Deserialize, Type)]
+struct LlmStatsByPromptCodegen {
+    pub provider_id: String,
+    pub prompt_version: String,
+    /// v0.101b — placeholder (real impl uses i64). Stub uses i32.
+    pub n_recommendations: i32,
+    pub n_evaluated: i32,
+    pub win_rate: f64,
+    pub brier: f64,
+}
+
+/// v0.101b — codegen stub for `llm_stats_by_prompt`.
+#[tauri::command]
+#[specta::specta]
+async fn llm_stats_by_prompt_codegen(
+    _args: StatsByPromptArgsCodegen,
+) -> Result<Vec<LlmStatsByPromptCodegen>, String> {
+    Ok(vec![])
+}
+
+/// v0.101b — LlmStatsCostEfficiency shape.
+#[derive(Serialize, Deserialize, Type)]
+struct LlmStatsCostEfficiencyCodegen {
+    pub provider_id: String,
+    pub total_cost_cents: f64,
+    pub total_pnl: f64,
+    pub efficiency: f64,
+    pub win_rate: f64,
+}
+
+/// v0.101b — codegen stub for `llm_stats_cost_efficiency`.
+#[tauri::command]
+#[specta::specta]
+async fn llm_stats_cost_efficiency_codegen(
+    window_days: Option<u32>,
+) -> Result<Vec<LlmStatsCostEfficiencyCodegen>, String> {
+    Ok(vec![])
+}
+
+/// v0.101b — args for `llm_stats_export`. Matches real `ExportStatsArgs`.
+#[derive(Serialize, Deserialize, Type)]
+struct ExportStatsArgsCodegen {
+    pub format: String,
+    /// v0.101b — placeholder (real impl uses Option<i64>). Stub uses Option<u32>.
+    pub window_days: Option<u32>,
+}
+
+/// v0.101b — codegen stub for `llm_stats_export`. Returns string
+/// (CSV or JSON) the L1 layer saves via tauri-plugin-fs.
+#[tauri::command]
+#[specta::specta]
+async fn llm_stats_export_codegen(
+    _args: ExportStatsArgsCodegen,
+) -> Result<String, String> {
+    Ok(String::new())
+}
+
 fn main() {
     // Keep the original command symbols alive (in case the linker
     // would optimize them out as unused — they're used by the
@@ -1266,6 +1368,12 @@ fn main() {
     let _ = commands::llm::llm_stats_scatter;
     let _ = commands::llm::llm_stats_timeseries;
     let _ = commands::llm::llm_stats_decision;
+    // v0.101b — Phase 4 batch 7 part 2: LLM stats by_confidence + by_prompt
+    //                                                  + cost_efficiency + export
+    let _ = commands::llm_mgmt::llm_stats_by_confidence;
+    let _ = commands::llm_mgmt::llm_stats_by_prompt;
+    let _ = commands::llm_mgmt::llm_stats_cost_efficiency;
+    let _ = commands::llm_mgmt::llm_stats_export;
 
     let builder: Builder<tauri::Wry> = Builder::new().commands(collect_commands![
         dashboard_kpis_codegen,
@@ -1317,6 +1425,11 @@ fn main() {
         llm_stats_scatter_codegen,
         llm_stats_timeseries_codegen,
         llm_stats_decision_codegen,
+        // v0.101b — Phase 4 batch 7 part 2: LLM stats (4 more)
+        llm_stats_by_confidence_codegen,
+        llm_stats_by_prompt_codegen,
+        llm_stats_cost_efficiency_codegen,
+        llm_stats_export_codegen,
     ]);
 
     // CARGO_MANIFEST_DIR is `src-tauri/`, so the parent is

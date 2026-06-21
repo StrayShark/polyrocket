@@ -81,6 +81,17 @@ export const commands = {
 	llmStatsTimeseriesCodegen: (windowDays: number | null) => typedError<LlmStatsTimeseriesPointCodegen[], string>(__TAURI_INVOKE("llm_stats_timeseries_codegen", { windowDays })),
 	/**  v0.101a — codegen stub for `llm_stats_decision`. */
 	llmStatsDecisionCodegen: (windowDays: number | null) => typedError<LlmDecisionStatsCodegen[], string>(__TAURI_INVOKE("llm_stats_decision_codegen", { windowDays })),
+	/**  v0.101b — codegen stub for `llm_stats_by_confidence`. */
+	llmStatsByConfidenceCodegen: (args: StatsByConfidenceArgsCodegen) => typedError<LlmStatsConfidenceBandCodegen[], string>(__TAURI_INVOKE("llm_stats_by_confidence_codegen", { args })),
+	/**  v0.101b — codegen stub for `llm_stats_by_prompt`. */
+	llmStatsByPromptCodegen: (args: StatsByPromptArgsCodegen) => typedError<LlmStatsByPromptCodegen[], string>(__TAURI_INVOKE("llm_stats_by_prompt_codegen", { args })),
+	/**  v0.101b — codegen stub for `llm_stats_cost_efficiency`. */
+	llmStatsCostEfficiencyCodegen: (windowDays: number | null) => typedError<LlmStatsCostEfficiencyCodegen[], string>(__TAURI_INVOKE("llm_stats_cost_efficiency_codegen", { windowDays })),
+	/**
+	 *  v0.101b — codegen stub for `llm_stats_export`. Returns string
+	 *  (CSV or JSON) the L1 layer saves via tauri-plugin-fs.
+	 */
+	llmStatsExportCodegen: (args: ExportStatsArgsCodegen) => typedError<string, string>(__TAURI_INVOKE("llm_stats_export_codegen", { args })),
 };
 
 /* Types */
@@ -322,6 +333,13 @@ export type ExecutorPassResultCodegen = {
 	headroom: number | null,
 };
 
+/**  v0.101b — args for `llm_stats_export`. Matches real `ExportStatsArgs`. */
+export type ExportStatsArgsCodegen = {
+	format: string,
+	/**  v0.101b — placeholder (real impl uses Option<i64>). Stub uses Option<u32>. */
+	window_days: number | null,
+};
+
 export type ListAuditLogArgsCodegen = {
 	limit: number,
 	actor: string | null,
@@ -452,6 +470,17 @@ export type LlmRecommendationDtoCodegen = {
 	parse_error: string | null,
 };
 
+/**  v0.101b — LlmStatsByPrompt shape. */
+export type LlmStatsByPromptCodegen = {
+	provider_id: string,
+	prompt_version: string,
+	/**  v0.101b — placeholder (real impl uses i64). Stub uses i32. */
+	n_recommendations: number,
+	n_evaluated: number,
+	win_rate: number | null,
+	brier: number | null,
+};
+
 /**  v0.101a — LlmStatsCell shape. Counts use i32 (drift detect only). */
 export type LlmStatsCellCodegen = {
 	provider_id: string,
@@ -463,6 +492,25 @@ export type LlmStatsCellCodegen = {
 	win_rate: number | null,
 	avg_pnl: number | null,
 	brier: number | null,
+};
+
+/**  v0.101b — LlmStatsConfidenceBand shape. */
+export type LlmStatsConfidenceBandCodegen = {
+	provider_id: string,
+	band: string,
+	/**  v0.101b — placeholder (real impl uses i64). Stub uses i32. */
+	n: number,
+	win_rate: number | null,
+	avg_pnl: number | null,
+};
+
+/**  v0.101b — LlmStatsCostEfficiency shape. */
+export type LlmStatsCostEfficiencyCodegen = {
+	provider_id: string,
+	total_cost_cents: number | null,
+	total_pnl: number | null,
+	efficiency: number | null,
+	win_rate: number | null,
 };
 
 /**  v0.101a — LlmStatsScatterPoint shape. */
@@ -686,6 +734,20 @@ export type StatsArgsCodegen = {
 	 *  v0.101a — window_days placeholder (real impl uses Option<i64>
 	 *  wrapped in OptionBigInt). Stub uses Option<u32> for ts export.
 	 */
+	window_days: number | null,
+};
+
+/**  v0.101b — args for `llm_stats_by_confidence`. Matches real `StatsByConfidenceArgs`. */
+export type StatsByConfidenceArgsCodegen = {
+	provider_id: string | null,
+	/**  v0.101b — placeholder (real impl uses Option<i64>). Stub uses Option<u32>. */
+	window_days: number | null,
+};
+
+/**  v0.101b — args for `llm_stats_by_prompt`. Matches real `StatsByPromptArgs`. */
+export type StatsByPromptArgsCodegen = {
+	prompt_version: string,
+	/**  v0.101b — placeholder (real impl uses Option<i64>). Stub uses Option<u32>. */
 	window_days: number | null,
 };
 
