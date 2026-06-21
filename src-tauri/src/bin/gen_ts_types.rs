@@ -561,6 +561,118 @@ async fn enqueue_mirror_codegen(
     })
 }
 
+// =================================================================
+// v0.88c — Phase 4 batch 3: 2 Trade-route commands (input DTOs)
+// =================================================================
+//
+// Drift detection for `place_signed_order` and `place_jump_link`.
+// Real commands live in commands/bet.rs.
+
+/// v0.88c — codegen stub for `BetDto`. Real has 3× i64 fields
+/// (`placed_at`, `settled_at`, `signal_id`). Reuses v0.86b's
+/// OptionBigInt wrapper pattern.
+#[derive(Serialize, Deserialize, Type)]
+struct BetDtoCodegen {
+    pub id: String,
+    pub wallet_id: String,
+    pub market_id: String,
+    /// v0.88c — `signal_id: Option<i64>` → `Option<OptionBigInt<i64>>`
+    /// (TS `bigint | null`). Lossless for values within 53 bits.
+    pub signal_id: Option<OptionBigInt<i64>>,
+    pub mode: String,
+    pub side: String,
+    pub size: String,
+    pub price: f64,
+    pub shares: String,
+    #[specta(type = BigInt)]
+    pub placed_at: i64,
+    pub settled_at: Option<OptionBigInt<i64>>,
+    pub pnl: Option<String>,
+    pub status: String,
+    pub tx_hash: Option<String>,
+    pub notes: Option<String>,
+    pub order_type: String,
+    pub limit_price: Option<f64>,
+    pub stop_price: Option<f64>,
+    pub post_only: bool,
+}
+
+/// v0.88c — codegen stub args for `place_signed_order`. Real
+/// `PlaceSignedArgs` (commands/bet.rs) has `signal_id: Option<i64>`
+/// → BigInt wrapper for lossless transport.
+#[derive(Serialize, Deserialize, Type)]
+struct PlaceSignedArgsCodegen {
+    pub market_id: String,
+    pub wallet_id: String,
+    pub side: String,
+    pub price: f64,
+    pub size: String,
+    pub signal_id: Option<OptionBigInt<i64>>,
+    pub key_alias: String,
+    pub order_type: Option<String>,
+    pub limit_price: Option<f64>,
+    pub stop_price: Option<f64>,
+    pub post_only: bool,
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn place_signed_order_codegen(
+    _args: PlaceSignedArgsCodegen,
+) -> Result<BetDtoCodegen, String> {
+    // v0.88c — stub. Real impl in commands/bet.rs validates +
+    // signs + inserts bets row + returns BetDto. We return hardcoded
+    // shape with placed_at=0 / signal_id=None / settled_at=None
+    // (consistent with a "just placed, not yet settled" bet).
+    Ok(BetDtoCodegen {
+        id: "00000000-0000-0000-0000-000000000000".to_string(),
+        wallet_id: String::new(),
+        market_id: String::new(),
+        signal_id: None,
+        mode: "manual".to_string(),
+        side: String::new(),
+        size: String::new(),
+        price: 0.0,
+        shares: String::new(),
+        placed_at: 0,
+        settled_at: None,
+        pnl: None,
+        status: "open".to_string(),
+        tx_hash: None,
+        notes: None,
+        order_type: "market".to_string(),
+        limit_price: None,
+        stop_price: None,
+        post_only: false,
+    })
+}
+
+/// v0.88c — codegen stub args for `place_jump_link`. Same shape as
+/// PlaceSignedArgs but without the order_type / limit_price /
+/// stop_price / post_only fields. signal_id: Option<i64> → BigInt.
+#[derive(Serialize, Deserialize, Type)]
+struct PlaceJumpArgsCodegen {
+    pub market_slug: String,
+    pub market_id: String,
+    pub wallet_id: String,
+    pub side: String,
+    pub size: String,
+    pub price: f64,
+    pub signal_id: Option<OptionBigInt<i64>>,
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn place_jump_link_codegen(
+    args: PlaceJumpArgsCodegen,
+) -> Result<String, String> {
+    // v0.88c — stub. Real impl returns a polymarket.com jump URL
+    // built from args.market_slug + args.side + args.price. We return
+    // a hardcoded URL so the codegen exports the right return type.
+    let _ = args;
+    Ok("https://polymarket.com/event/_stub_".to_string())
+}
+
 // ---------- MirrorQueueStats (mirror_queue_stats) ----------
 
 /// v0.84c — codegen stub for `MirrorQueueStats`. Real has 5× i64
@@ -723,6 +835,9 @@ fn main() {
     // v0.88b — Phase 4 batch 2 (Copy route, input DTOs)
     let _ = commands::copy::add_copy_target;
     let _ = commands::mirror_executor::enqueue_mirror;
+    // v0.88c — Phase 4 batch 3 (Trade route, input DTOs)
+    let _ = commands::bet::place_signed_order;
+    let _ = commands::bet::place_jump_link;
 
     let builder: Builder<tauri::Wry> = Builder::new().commands(collect_commands![
         dashboard_kpis_codegen,
@@ -754,6 +869,9 @@ fn main() {
         // v0.88b — Phase 4 batch 2 (Copy route, input DTOs)
         add_copy_target_codegen,
         enqueue_mirror_codegen,
+        // v0.88c — Phase 4 batch 3 (Trade route, input DTOs)
+        place_signed_order_codegen,
+        place_jump_link_codegen,
     ]);
 
     // CARGO_MANIFEST_DIR is `src-tauri/`, so the parent is

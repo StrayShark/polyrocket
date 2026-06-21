@@ -45,6 +45,8 @@ export const commands = {
 	setMirrorPaperModeCodegen: (args: SetMirrorPaperModeArgsCodegen) => typedError<boolean, string>(__TAURI_INVOKE("set_mirror_paper_mode_codegen", { args })),
 	addCopyTargetCodegen: (args: AddCopyTargetArgsCodegen) => typedError<CopyTargetDtoCodegen, string>(__TAURI_INVOKE("add_copy_target_codegen", { args })),
 	enqueueMirrorCodegen: (args: EnqueueMirrorArgsCodegen) => typedError<MirrorRowCodegen, string>(__TAURI_INVOKE("enqueue_mirror_codegen", { args })),
+	placeSignedOrderCodegen: (args: PlaceSignedArgsCodegen) => typedError<BetDtoCodegen, string>(__TAURI_INVOKE("place_signed_order_codegen", { args })),
+	placeJumpLinkCodegen: (args: PlaceJumpArgsCodegen) => typedError<string, string>(__TAURI_INVOKE("place_jump_link_codegen", { args })),
 };
 
 /* Types */
@@ -168,6 +170,37 @@ export type BankrollConfigDto = {
 	min_confidence: number | null,
 };
 
+/**
+ *  v0.88c — codegen stub for `BetDto`. Real has 3× i64 fields
+ *  (`placed_at`, `settled_at`, `signal_id`). Reuses v0.86b's
+ *  OptionBigInt wrapper pattern.
+ */
+export type BetDtoCodegen = {
+	id: string,
+	wallet_id: string,
+	market_id: string,
+	/**
+	 *  v0.88c — `signal_id: Option<i64>` → `Option<OptionBigInt<i64>>`
+	 *  (TS `bigint | null`). Lossless for values within 53 bits.
+	 */
+	signal_id: bigint | null,
+	mode: string,
+	side: string,
+	size: string,
+	price: number | null,
+	shares: string,
+	placed_at: bigint,
+	settled_at: bigint | null,
+	pnl: string | null,
+	status: string,
+	tx_hash: string | null,
+	notes: string | null,
+	order_type: string,
+	limit_price: number | null,
+	stop_price: number | null,
+	post_only: boolean,
+};
+
 /**  Side of the bet (Yes/No token on a prediction market). */
 export type BetSide = "Yes" | "No";
 
@@ -289,6 +322,40 @@ export type MirrorRowCodegen = {
 	submitted_at: bigint | null,
 	filled_at: bigint | null,
 	bet_id: string | null,
+};
+
+/**
+ *  v0.88c — codegen stub args for `place_jump_link`. Same shape as
+ *  PlaceSignedArgs but without the order_type / limit_price /
+ *  stop_price / post_only fields. signal_id: Option<i64> → BigInt.
+ */
+export type PlaceJumpArgsCodegen = {
+	market_slug: string,
+	market_id: string,
+	wallet_id: string,
+	side: string,
+	size: string,
+	price: number | null,
+	signal_id: bigint | null,
+};
+
+/**
+ *  v0.88c — codegen stub args for `place_signed_order`. Real
+ *  `PlaceSignedArgs` (commands/bet.rs) has `signal_id: Option<i64>`
+ *  → BigInt wrapper for lossless transport.
+ */
+export type PlaceSignedArgsCodegen = {
+	market_id: string,
+	wallet_id: string,
+	side: string,
+	price: number | null,
+	size: string,
+	signal_id: bigint | null,
+	key_alias: string,
+	order_type: string | null,
+	limit_price: number | null,
+	stop_price: number | null,
+	post_only: boolean,
 };
 
 export type SecretStatus = {
