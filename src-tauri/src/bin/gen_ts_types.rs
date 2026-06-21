@@ -1,4 +1,4 @@
-//! v0.76 / v0.81 / v0.84 — codegen Phase 1+2+3 binary.
+//! v0.76 / v0.81 / v0.84 / v0.88 — codegen Phase 1+2+3+4 binary.
 //!
 //! Generates TS bindings from `#[tauri::command] + #[specta::specta]`
 //! -annotated commands.
@@ -7,14 +7,13 @@
 //! v0.81 = Phase 2: +4 bankroll commands
 //!   (compute_allocation_preview, get_bankroll_config,
 //!    set_bankroll_config, apply_allocation).
-//! v0.84 = Phase 3: +5 read-only commands (no input DTOs):
-//!   - is_seeded (bool)
-//!   - sidecar_status (SidecarStatus — no i64)
-//!   - secrets_status (SecretsStatus — no i64)
-//!   - notification_permission_state (String)
-//!   - get_telemetry_enabled (bool)
+//! v0.84 = Phase 3: +14 read-only commands (no input DTOs).
+//! v0.88 = Phase 4: input DTO commands. v0.88a adds 3 simple shape:
+//!   - add_wallet → AddWalletArgsCodegen + WalletDtoCodegen
+//!   - set_telemetry_enabled → SetTelemetryEnabledArgsCodegen
+//!   - set_mirror_paper_mode → SetMirrorPaperModeArgsCodegen
 //!
-//! Phase 4 (input DTOs) and Phase 5 (build pipeline) are next.
+//! Phase 5 (build pipeline: drift detector → pnpm build) is next.
 //!
 //! Run: `cargo run --bin gen_ts_types`
 //! Output: `src/types/generated/index.ts`
@@ -390,6 +389,88 @@ async fn list_wallets_codegen() -> Result<Vec<WalletDtoCodegen>, String> {
     Ok(vec![])
 }
 
+// =================================================================
+// v0.88a — Phase 4 batch 1: 3 input-DTO commands (simple shape)
+// =================================================================
+//
+// Drift detection for input DTOs. The real commands live in
+// `commands/wallet.rs` / `commands/sidecar.rs` /
+// `commands/mirror_executor.rs` — these stubs exist purely so the
+// codegen can run and the drift detector can catch any future
+// rename/type change in the real args DTOs. L1 still calls the real
+// commands (`add_wallet` / `set_telemetry_enabled` /
+// `set_mirror_paper_mode`) — the `_codegen` suffix here is a marker
+// for the codegen surface, not an L1-callable IPC.
+
+/// v0.88a — codegen stub args for `add_wallet`. Real
+/// `AddWalletArgs` (commands/wallet.rs:26) has `chain_id: Option<i64>`;
+/// we truncate to i32 since chain IDs are small (Polygon mainnet = 137,
+/// fits comfortably). A future drift in `label`/`address`/`wallet_type`
+/// types or in `chain_id`'s Option-ness will surface here.
+#[derive(Serialize, Deserialize, Type)]
+struct AddWalletArgsCodegen {
+    pub address: String,
+    pub label: Option<String>,
+    pub chain_id: Option<i32>,
+    pub wallet_type: Option<String>,
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn add_wallet_codegen(
+    _args: AddWalletArgsCodegen,
+) -> Result<WalletDtoCodegen, String> {
+    // v0.88a — stub. Real impl in commands/wallet.rs:55 inserts row +
+    // returns the created WalletDto. We return a hardcoded shape so
+    // the codegen can export the type signature.
+    Ok(WalletDtoCodegen {
+        id: "00000000-0000-0000-0000-000000000000".to_string(),
+        address: String::new(),
+        label: None,
+        chain_id: 137,
+        wallet_type: "eoa".to_string(),
+        created_at: 0,
+        last_synced_at: None,
+    })
+}
+
+/// v0.88a — codegen stub args for `set_telemetry_enabled`. Real
+/// `SetTelemetryEnabledArgs` (commands/sidecar.rs:1857) wraps a single
+/// `enabled: bool`. We mirror that shape exactly so the codegen
+/// signature matches what L1 sends.
+#[derive(Serialize, Deserialize, Type)]
+struct SetTelemetryEnabledArgsCodegen {
+    pub enabled: bool,
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn set_telemetry_enabled_codegen(
+    args: SetTelemetryEnabledArgsCodegen,
+) -> Result<bool, String> {
+    Ok(args.enabled)
+}
+
+/// v0.88a — codegen stub args for `set_mirror_paper_mode`. Real
+/// `SetMirrorPaperModeArgs` (commands/mirror_executor.rs:162) wraps a
+/// single `enabled: bool`. Same pattern as `set_telemetry_enabled`.
+#[derive(Serialize, Deserialize, Type)]
+struct SetMirrorPaperModeArgsCodegen {
+    pub enabled: bool,
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn set_mirror_paper_mode_codegen(
+    _args: SetMirrorPaperModeArgsCodegen,
+) -> Result<bool, String> {
+    // v0.88a — stub. Real impl in commands/mirror_executor.rs:174
+    // takes State<'_,'_, AppState> and writes to state.mirror_paper_mode
+    // (an Arc<Mutex<bool>>). State can't be constructed in a bin
+    // context, so we return hardcoded data of the right shape.
+    Ok(true)
+}
+
 // ---------- MirrorQueueStats (mirror_queue_stats) ----------
 
 /// v0.84c — codegen stub for `MirrorQueueStats`. Real has 5× i64
@@ -545,6 +626,10 @@ fn main() {
     let _ = commands::mirror_executor::list_mirrors;
     let _ = commands::wallet::list_wallets;
     let _ = commands::mirror_executor::mirror_queue_stats;
+    // v0.88a — Phase 4 batch 1 (input DTOs, simple shape)
+    let _ = commands::wallet::add_wallet;
+    let _ = commands::sidecar::set_telemetry_enabled;
+    let _ = commands::mirror_executor::set_mirror_paper_mode;
 
     let builder: Builder<tauri::Wry> = Builder::new().commands(collect_commands![
         dashboard_kpis_codegen,
@@ -569,6 +654,10 @@ fn main() {
         list_mirrors_codegen,
         list_wallets_codegen,
         mirror_queue_stats_codegen,
+        // v0.88a — Phase 4 batch 1 (input DTOs, simple shape)
+        add_wallet_codegen,
+        set_telemetry_enabled_codegen,
+        set_mirror_paper_mode_codegen,
     ]);
 
     // CARGO_MANIFEST_DIR is `src-tauri/`, so the parent is

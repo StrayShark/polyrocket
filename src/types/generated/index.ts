@@ -40,6 +40,9 @@ export const commands = {
 	listMirrorsCodegen: (args: ListMirrorsArgsCodegen) => typedError<MirrorRowCodegen[], string>(__TAURI_INVOKE("list_mirrors_codegen", { args })),
 	listWalletsCodegen: () => typedError<WalletDtoCodegen[], string>(__TAURI_INVOKE("list_wallets_codegen")),
 	mirrorQueueStatsCodegen: () => typedError<MirrorQueueStatsCodegen, string>(__TAURI_INVOKE("mirror_queue_stats_codegen")),
+	addWalletCodegen: (args: AddWalletArgsCodegen) => typedError<WalletDtoCodegen, string>(__TAURI_INVOKE("add_wallet_codegen", { args })),
+	setTelemetryEnabledCodegen: (args: SetTelemetryEnabledArgsCodegen) => typedError<boolean, string>(__TAURI_INVOKE("set_telemetry_enabled_codegen", { args })),
+	setMirrorPaperModeCodegen: (args: SetMirrorPaperModeArgsCodegen) => typedError<boolean, string>(__TAURI_INVOKE("set_mirror_paper_mode_codegen", { args })),
 };
 
 /* Types */
@@ -60,6 +63,20 @@ export type ActiveModelCodegen = {
 	promoted_at_ms: bigint | null,
 	weights: (number | null)[] | null,
 	source_path: string,
+};
+
+/**
+ *  v0.88a — codegen stub args for `add_wallet`. Real
+ *  `AddWalletArgs` (commands/wallet.rs:26) has `chain_id: Option<i64>`;
+ *  we truncate to i32 since chain IDs are small (Polygon mainnet = 137,
+ *  fits comfortably). A future drift in `label`/`address`/`wallet_type`
+ *  types or in `chain_id`'s Option-ness will surface here.
+ */
+export type AddWalletArgsCodegen = {
+	address: string,
+	label: string | null,
+	chain_id: number | null,
+	wallet_type: string | null,
 };
 
 /**
@@ -242,6 +259,25 @@ export type SecretsStatus = {
 	llm_keys: SecretStatus[],
 	polymarket: SecretStatus[],
 	wallets: SecretStatus[],
+};
+
+/**
+ *  v0.88a — codegen stub args for `set_mirror_paper_mode`. Real
+ *  `SetMirrorPaperModeArgs` (commands/mirror_executor.rs:162) wraps a
+ *  single `enabled: bool`. Same pattern as `set_telemetry_enabled`.
+ */
+export type SetMirrorPaperModeArgsCodegen = {
+	enabled: boolean,
+};
+
+/**
+ *  v0.88a — codegen stub args for `set_telemetry_enabled`. Real
+ *  `SetTelemetryEnabledArgs` (commands/sidecar.rs:1857) wraps a single
+ *  `enabled: bool`. We mirror that shape exactly so the codegen
+ *  signature matches what L1 sends.
+ */
+export type SetTelemetryEnabledArgsCodegen = {
+	enabled: boolean,
 };
 
 export type SidecarStatus = {
