@@ -5,8 +5,17 @@
 // is the dialog plugin (v0.54a); the parser is
 // pure (no IO), so we test it directly here.
 
-import { describe, it, expect } from 'vitest';
-import { extractSecretFromEnv } from './env-file';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { extractSecretFromEnv, readFileText } from './env-file';
+
+// v0.97 — mock @tauri-apps/plugin-fs so the dynamic import
+// inside readFileText resolves to a known impl in tests.
+const { mockReadTextFile } = vi.hoisted(() => ({
+  mockReadTextFile: vi.fn(),
+}));
+vi.mock('@tauri-apps/plugin-fs', () => ({
+  readTextFile: (...args: unknown[]) => mockReadTextFile(...args),
+}));
 
 describe('extractSecretFromEnv (v0.57d)', () => {
   it('extracts the value of a simple KEY=VALUE pair', () => {
@@ -69,5 +78,23 @@ SECOND=second-value
     expect(
       extractSecretFromEnv('   OPENAI_API_KEY   =   sk-trim  '),
     ).toBe('sk-trim');
+  });
+});
+
+describe('readFileText (v0.97)', () => {
+  beforeEach(() => {
+    mockReadTextFile.mockReset();
+  });
+
+  it('reads via Tauri plugin when available', async () => {
+    mockReadTextFile.mockResolvedValue('OPENAI_API_KEY=sk-tauri');
+    const out = await readFileText('/path/to/file');
+    expect(out).toBe('OPENAI_API_KEY=sk-tauri');
+    expect(mockReadTextFile).toHaveBeenCalledWith('/path/to/file');
+  });
+
+  it('returns the content as a string', async () => {
+    mockReadTextFile.mockResolvedValue('hello world');
+    expect(await readFileText('/x')).toBe('hello world');
   });
 });
