@@ -50,6 +50,8 @@ export const commands = {
 	setAuditRetentionCodegen: (args: SetAuditRetentionArgsCodegen) => typedError<number, string>(__TAURI_INVOKE("set_audit_retention_codegen", { args })),
 	upsertLlmProviderCodegen: (provider: LlmProviderDtoCodegen) => typedError<null, string>(__TAURI_INVOKE("upsert_llm_provider_codegen", { provider })),
 	setAutoPromoteConfigCodegen: (args: SetAutoPromoteConfigArgs) => typedError<AutoPromoteConfigDto, string>(__TAURI_INVOKE("set_auto_promote_config_codegen", { args })),
+	llmAnalyzeCodegen: (args: LlmAnalyzeArgsCodegen) => typedError<LlmAnalysisDtoCodegen, string>(__TAURI_INVOKE("llm_analyze_codegen", { args })),
+	runMirrorExecutorPassCodegen: (args: RunMirrorPassArgsCodegen) => typedError<ExecutorPassResultCodegen, string>(__TAURI_INVOKE("run_mirror_executor_pass_codegen", { args })),
 };
 
 /* Types */
@@ -261,6 +263,19 @@ export type EnqueueMirrorArgsCodegen = {
 };
 
 /**
+ *  v0.88e — codegen stub for `ExecutorPassResult`. Real has no i64
+ *  fields (just Vec<String>, Vec<(String, RejectReason)>, two f64).
+ *  Reuses the real type via specta::Type derive — but currently the
+ *  real type doesn't have `Type`. We mirror the shape in a stub.
+ */
+export type ExecutorPassResultCodegen = {
+	picked: string[],
+	rejected: ([string, string])[],
+	current_exposure: number | null,
+	headroom: number | null,
+};
+
+/**
  *  v0.84c — codegen stub args. Real `ListMirrorsArgs` has
  *  `Option<i64>` (limit). Stub uses `Option<i32>`.
  */
@@ -283,6 +298,41 @@ export type ListSignalsArgsCodegen = {
 };
 
 /**
+ *  v0.88e — codegen stub for `LlmAnalysisDto`. Real has 4× i64 fields
+ *  (`signal_id`, `requested_at`, `completed_at`, `total_latency_ms`)
+ *  + nested Vec<LlmRecommendationDto>. This exercises the
+ *  OptionBigInt + nested struct codegen path end-to-end.
+ */
+export type LlmAnalysisDtoCodegen = {
+	id: string,
+	market_id: string,
+	signal_id: bigint | null,
+	prompt_version: string,
+	requested_at: bigint,
+	completed_at: bigint | null,
+	status: string,
+	consensus_predicted: number | null,
+	consensus_side: string | null,
+	consensus_conf: number | null,
+	total_latency_ms: bigint | null,
+	cost_cents: number | null,
+	triggered_by: string,
+	recommendations: LlmRecommendationDtoCodegen[],
+};
+
+/**
+ *  v0.88e — codegen stub args for `llm_analyze`. Real `AnalyzeArgs`
+ *  has `signal_id: Option<i64>` → OptionBigInt; other fields are simple.
+ */
+export type LlmAnalyzeArgsCodegen = {
+	market_id: string,
+	signal_id: bigint | null,
+	prompt_version: string | null,
+	provider_ids: string[] | null,
+	triggered_by: string | null,
+};
+
+/**
  *  v0.88d — codegen stub for `upsert_llm_provider`. Takes
  *  `LlmProviderDto` directly (not nested under args) — same shape as
  *  the real command. `timeout_ms: i64` needs BigInt handling.
@@ -297,6 +347,29 @@ export type LlmProviderDtoCodegen = {
 	timeout_ms: bigint,
 	cost_per_1k_in: number | null,
 	cost_per_1k_out: number | null,
+};
+
+/**
+ *  v0.88e — codegen stub for `LlmRecommendationDto`. Real has 4× i64
+ *  fields (`id`, `latency_ms`, `tokens_in`, `tokens_out`). The 3
+ *  Option<i64> use OptionBigInt; the bare `id: i64` uses
+ *  `specta(type = BigInt)`.
+ */
+export type LlmRecommendationDtoCodegen = {
+	id: bigint,
+	analysis_id: string,
+	provider_id: string,
+	provider_name: string,
+	predicted_prob: number | null,
+	side: string | null,
+	confidence: number | null,
+	reasoning: string | null,
+	latency_ms: bigint | null,
+	tokens_in: bigint | null,
+	tokens_out: bigint | null,
+	cost_cents: number | null,
+	parse_ok: boolean,
+	parse_error: string | null,
 };
 
 /**
@@ -376,6 +449,15 @@ export type PlaceSignedArgsCodegen = {
 	limit_price: number | null,
 	stop_price: number | null,
 	post_only: boolean,
+};
+
+/**
+ *  v0.88e — codegen stub args for `run_mirror_executor_pass`. Real
+ *  `RunPassArgs` has no i64 fields (just 2× String).
+ */
+export type RunMirrorPassArgsCodegen = {
+	key_alias: string,
+	wallet_id: string,
 };
 
 export type SecretStatus = {

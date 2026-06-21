@@ -743,6 +743,136 @@ async fn set_auto_promote_config_codegen(
     })
 }
 
+// =================================================================
+// v0.88e — Phase 4 batch 5: complex nested DTOs (LLM + mirror executor)
+// =================================================================
+//
+// Drift detection for `llm_analyze` and `run_mirror_executor_pass`.
+// These have nested Vec<i64> + multiple Option<i64> fields, exercising
+// the BigInt wrappers end-to-end (OptionBigInt + BigIntMap not needed
+// here — just OptionBigInt for Option<i64> and `specta(type=BigInt)`
+// for bare i64).
+
+/// v0.88e — codegen stub for `LlmRecommendationDto`. Real has 4× i64
+/// fields (`id`, `latency_ms`, `tokens_in`, `tokens_out`). The 3
+/// Option<i64> use OptionBigInt; the bare `id: i64` uses
+/// `specta(type = BigInt)`.
+#[derive(Serialize, Deserialize, Type)]
+struct LlmRecommendationDtoCodegen {
+    #[specta(type = BigInt)]
+    pub id: i64,
+    pub analysis_id: String,
+    pub provider_id: String,
+    pub provider_name: String,
+    pub predicted_prob: Option<f64>,
+    pub side: Option<String>,
+    pub confidence: Option<f64>,
+    pub reasoning: Option<String>,
+    pub latency_ms: Option<OptionBigInt<i64>>,
+    pub tokens_in: Option<OptionBigInt<i64>>,
+    pub tokens_out: Option<OptionBigInt<i64>>,
+    pub cost_cents: Option<f64>,
+    pub parse_ok: bool,
+    pub parse_error: Option<String>,
+}
+
+/// v0.88e — codegen stub for `LlmAnalysisDto`. Real has 4× i64 fields
+/// (`signal_id`, `requested_at`, `completed_at`, `total_latency_ms`)
+/// + nested Vec<LlmRecommendationDto>. This exercises the
+/// OptionBigInt + nested struct codegen path end-to-end.
+#[derive(Serialize, Deserialize, Type)]
+struct LlmAnalysisDtoCodegen {
+    pub id: String,
+    pub market_id: String,
+    pub signal_id: Option<OptionBigInt<i64>>,
+    pub prompt_version: String,
+    #[specta(type = BigInt)]
+    pub requested_at: i64,
+    pub completed_at: Option<OptionBigInt<i64>>,
+    pub status: String,
+    pub consensus_predicted: Option<f64>,
+    pub consensus_side: Option<String>,
+    pub consensus_conf: Option<f64>,
+    pub total_latency_ms: Option<OptionBigInt<i64>>,
+    pub cost_cents: Option<f64>,
+    pub triggered_by: String,
+    pub recommendations: Vec<LlmRecommendationDtoCodegen>,
+}
+
+/// v0.88e — codegen stub args for `llm_analyze`. Real `AnalyzeArgs`
+/// has `signal_id: Option<i64>` → OptionBigInt; other fields are simple.
+#[derive(Serialize, Deserialize, Type)]
+struct LlmAnalyzeArgsCodegen {
+    pub market_id: String,
+    pub signal_id: Option<OptionBigInt<i64>>,
+    pub prompt_version: Option<String>,
+    pub provider_ids: Option<Vec<String>>,
+    pub triggered_by: Option<String>,
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn llm_analyze_codegen(
+    _args: LlmAnalyzeArgsCodegen,
+) -> Result<LlmAnalysisDtoCodegen, String> {
+    // v0.88e — stub. Real impl dispatches to enabled providers,
+    // gathers responses, writes llm_analyses + llm_recommendations
+    // rows, returns the aggregated DTO. We return hardcoded shape
+    // with empty recommendations vec.
+    Ok(LlmAnalysisDtoCodegen {
+        id: "00000000-0000-0000-0000-000000000000".to_string(),
+        market_id: String::new(),
+        signal_id: None,
+        prompt_version: String::new(),
+        requested_at: 0,
+        completed_at: None,
+        status: "completed".to_string(),
+        consensus_predicted: None,
+        consensus_side: None,
+        consensus_conf: None,
+        total_latency_ms: None,
+        cost_cents: None,
+        triggered_by: "user:anonymous".to_string(),
+        recommendations: vec![],
+    })
+}
+
+/// v0.88e — codegen stub for `ExecutorPassResult`. Real has no i64
+/// fields (just Vec<String>, Vec<(String, RejectReason)>, two f64).
+/// Reuses the real type via specta::Type derive — but currently the
+/// real type doesn't have `Type`. We mirror the shape in a stub.
+#[derive(Serialize, Deserialize, Type)]
+struct ExecutorPassResultCodegen {
+    pub picked: Vec<String>,
+    pub rejected: Vec<(String, String)>, // (market_id, reject_reason)
+    pub current_exposure: f64,
+    pub headroom: f64,
+}
+
+/// v0.88e — codegen stub args for `run_mirror_executor_pass`. Real
+/// `RunPassArgs` has no i64 fields (just 2× String).
+#[derive(Serialize, Deserialize, Type)]
+struct RunMirrorPassArgsCodegen {
+    pub key_alias: String,
+    pub wallet_id: String,
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn run_mirror_executor_pass_codegen(
+    _args: RunMirrorPassArgsCodegen,
+) -> Result<ExecutorPassResultCodegen, String> {
+    // v0.88e — stub. Real impl reads mirror queue, picks orders that
+    // pass size + horizon + exposure filters, submits signed orders,
+    // returns ExecutorPassResult. We return hardcoded empty result.
+    Ok(ExecutorPassResultCodegen {
+        picked: vec![],
+        rejected: vec![],
+        current_exposure: 0.0,
+        headroom: 0.0,
+    })
+}
+
 // ---------- MirrorQueueStats (mirror_queue_stats) ----------
 
 /// v0.84c — codegen stub for `MirrorQueueStats`. Real has 5× i64
@@ -912,6 +1042,9 @@ fn main() {
     let _ = commands::audit::set_audit_retention;
     let _ = commands::llm::upsert_llm_provider;
     let _ = commands::sidecar::set_auto_promote_config;
+    // v0.88e — Phase 4 batch 5 (complex nested DTOs)
+    let _ = commands::llm::llm_analyze;
+    let _ = commands::mirror_executor::run_mirror_executor_pass;
 
     let builder: Builder<tauri::Wry> = Builder::new().commands(collect_commands![
         dashboard_kpis_codegen,
@@ -950,6 +1083,9 @@ fn main() {
         set_audit_retention_codegen,
         upsert_llm_provider_codegen,
         set_auto_promote_config_codegen,
+        // v0.88e — Phase 4 batch 5 (complex nested DTOs)
+        llm_analyze_codegen,
+        run_mirror_executor_pass_codegen,
     ]);
 
     // CARGO_MANIFEST_DIR is `src-tauri/`, so the parent is
