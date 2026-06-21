@@ -52,6 +52,27 @@ export const commands = {
 	setAutoPromoteConfigCodegen: (args: SetAutoPromoteConfigArgs) => typedError<AutoPromoteConfigDto, string>(__TAURI_INVOKE("set_auto_promote_config_codegen", { args })),
 	llmAnalyzeCodegen: (args: LlmAnalyzeArgsCodegen) => typedError<LlmAnalysisDtoCodegen, string>(__TAURI_INVOKE("llm_analyze_codegen", { args })),
 	runMirrorExecutorPassCodegen: (args: RunMirrorPassArgsCodegen) => typedError<ExecutorPassResultCodegen, string>(__TAURI_INVOKE("run_mirror_executor_pass_codegen", { args })),
+	/**
+	 *  v0.98 — codegen stub for `list_bets`. Real return type
+	 *  is `Vec<BetDto>`. Empty stub.
+	 */
+	listBetsCodegen: (args: ListBetsArgsCodegen) => typedError<BetDtoCodegen[], string>(__TAURI_INVOKE("list_bets_codegen", { args })),
+	/**
+	 *  v0.98 — codegen stub for `list_audit_log`. Real return
+	 *  type is `Vec<AuditEntry>`. Empty stub.
+	 */
+	listAuditLogCodegen: (args: ListAuditLogArgsCodegen) => typedError<AuditEntryDtoCodegen[], string>(__TAURI_INVOKE("list_audit_log_codegen", { args })),
+	/**
+	 *  v0.98 — codegen stub for `list_copy_targets`. Real
+	 *  return type is `Vec<CopyTarget>`. Empty stub.
+	 */
+	listCopyTargetsCodegen: () => typedError<CopyTargetDtoCodegen[], string>(__TAURI_INVOKE("list_copy_targets_codegen")),
+	/**
+	 *  v0.98 — codegen stub for `list_promote_history`. Real
+	 *  return type is `PromoteHistoryResult` (uses existing
+	 *  `listPromoteHistory` from v0.76). Empty stub.
+	 */
+	listPromoteHistoryCodegen: () => typedError<ListPromoteHistoryCodegen, string>(__TAURI_INVOKE("list_promote_history_codegen")),
 };
 
 /* Types */
@@ -139,6 +160,18 @@ export type AllocationResult = {
 	dropped_markets: string[],
 };
 
+export type AuditEntryDtoCodegen = {
+	/**
+	 *  v0.98 — placeholder (real impl uses i64 with `#[specta(type = BigInt)]`
+	 *  or `Option<OptionBigInt<i64>>` for the optional case). Stub
+	 *  uses i32 since audit IDs are bounded by history size.
+	 */
+	id: number,
+	actor: string,
+	action: string,
+	payload: string,
+};
+
 export type AuditRetentionViewCodegen = {
 	retain_recent_ms: bigint,
 	max_rows: bigint,
@@ -173,6 +206,12 @@ export type BankrollConfigDto = {
 	min_edge_pct: number | null,
 	max_total_exposure_pct: number | null,
 	min_confidence: number | null,
+};
+
+export type BestParamsCodegen = {
+	w0: number | null,
+	w1: number | null,
+	w2: number | null,
 };
 
 /**
@@ -275,6 +314,22 @@ export type ExecutorPassResultCodegen = {
 	headroom: number | null,
 };
 
+export type ListAuditLogArgsCodegen = {
+	limit: number,
+	actor: string | null,
+	action: string | null,
+	/**
+	 *  v0.98 — placeholder (real impl uses Option<i64> wrapped in
+	 *  OptionBigInt). Stub uses Option<u32> for ts export.
+	 */
+	since_ms: number | null,
+};
+
+export type ListBetsArgsCodegen = {
+	limit: number,
+	status: string | null,
+};
+
 /**
  *  v0.84c — codegen stub args. Real `ListMirrorsArgs` has
  *  `Option<i64>` (limit). Stub uses `Option<i32>`.
@@ -283,6 +338,13 @@ export type ListMirrorsArgsCodegen = {
 	status: string | null,
 	/**  v0.86b — Option<OptionBigInt<i64>> → TS `bigint | null`. */
 	limit: bigint | null,
+};
+
+export type ListPromoteHistoryCodegen = {
+	ok: boolean,
+	message: string,
+	count: number,
+	entries: PromoteHistoryEntryCodegen[],
 };
 
 /**
@@ -449,6 +511,16 @@ export type PlaceSignedArgsCodegen = {
 	limit_price: number | null,
 	stop_price: number | null,
 	post_only: boolean,
+};
+
+export type PromoteHistoryEntryCodegen = {
+	job_id: string,
+	model_version: string,
+	promoted_at_ms: bigint,
+	best_brier: number | null,
+	best_params: BestParamsCodegen,
+	trial_index: number,
+	reason: string,
 };
 
 /**

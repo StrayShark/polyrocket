@@ -226,6 +226,65 @@ struct AuditRetentionViewCodegen {
     pub overrides: BigIntMap<String, i64>,
 }
 
+// v0.98 — DTO stubs for the 4 new commands.
+// Each mirrors the real Rust type but uses i32 / String
+// placeholders for fields that would be i64 / u64 / Decimal
+// in the real impl (which we skip in the codegen stub).
+
+#[derive(Serialize, Deserialize, Type)]
+struct ListBetsArgsCodegen {
+    pub limit: i32,
+    pub status: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Type)]
+struct ListAuditLogArgsCodegen {
+    pub limit: i32,
+    pub actor: Option<String>,
+    pub action: Option<String>,
+    /// v0.98 — placeholder (real impl uses Option<i64> wrapped in
+    /// OptionBigInt). Stub uses Option<u32> for ts export.
+    pub since_ms: Option<u32>,
+}
+
+#[derive(Serialize, Deserialize, Type)]
+struct AuditEntryDtoCodegen {
+    /// v0.98 — placeholder (real impl uses i64 with `#[specta(type = BigInt)]`
+    /// or `Option<OptionBigInt<i64>>` for the optional case). Stub
+    /// uses i32 since audit IDs are bounded by history size.
+    pub id: i32,
+    pub actor: String,
+    pub action: String,
+    pub payload: String,
+}
+
+#[derive(Serialize, Deserialize, Type)]
+struct ListPromoteHistoryCodegen {
+    pub ok: bool,
+    pub message: String,
+    pub count: i32,
+    pub entries: Vec<PromoteHistoryEntryCodegen>,
+}
+
+#[derive(Serialize, Deserialize, Type)]
+struct PromoteHistoryEntryCodegen {
+    pub job_id: String,
+    pub model_version: String,
+    #[specta(type = BigInt)]
+    pub promoted_at_ms: i64,
+    pub best_brier: f64,
+    pub best_params: BestParamsCodegen,
+    pub trial_index: i32,
+    pub reason: String,
+}
+
+#[derive(Serialize, Deserialize, Type)]
+struct BestParamsCodegen {
+    pub w0: f64,
+    pub w1: f64,
+    pub w2: f64,
+}
+
 #[tauri::command]
 #[specta::specta]
 async fn get_audit_retention_codegen(
@@ -991,7 +1050,7 @@ async fn set_bankroll_config_codegen(
 
 #[tauri::command]
 #[specta::specta]
-async fn apply_allocation_codegen(
+ async fn apply_allocation_codegen(
     _wallet_id: String,
     _result: polyrocket_lib::domain::bankroll::AllocationResult,
     _bankroll_usdc: String,
@@ -999,6 +1058,58 @@ async fn apply_allocation_codegen(
 ) -> Result<String, polyrocket_lib::infra::error::AppError> {
     // v0.81 — stub. Real impl writes to allocation_batches + bets.
     Ok("00000000-0000-0000-0000-000000000000".to_string())
+}
+
+// =================================================================
+// v0.98 — Phase 4 batch 6: 4 more read-only list commands
+// =================================================================
+//
+// Drift detection for the read-only list endpoints used by
+// /history, /audit, /copy, and the ModelLab history panel.
+// Each stub returns a hardcoded empty array of the right
+// shape; the drift detector catches any future rename / type
+// change in the real DTOs. L1 still calls the real commands.
+
+/// v0.98 — codegen stub for `list_bets`. Real return type
+/// is `Vec<BetDto>`. Empty stub.
+#[tauri::command]
+#[specta::specta]
+async fn list_bets_codegen(
+    _args: ListBetsArgsCodegen,
+) -> Result<Vec<BetDtoCodegen>, String> {
+    Ok(vec![])
+}
+
+/// v0.98 — codegen stub for `list_audit_log`. Real return
+/// type is `Vec<AuditEntry>`. Empty stub.
+#[tauri::command]
+#[specta::specta]
+async fn list_audit_log_codegen(
+    _args: ListAuditLogArgsCodegen,
+) -> Result<Vec<AuditEntryDtoCodegen>, String> {
+    Ok(vec![])
+}
+
+/// v0.98 — codegen stub for `list_copy_targets`. Real
+/// return type is `Vec<CopyTarget>`. Empty stub.
+#[tauri::command]
+#[specta::specta]
+async fn list_copy_targets_codegen() -> Result<Vec<CopyTargetDtoCodegen>, String> {
+    Ok(vec![])
+}
+
+/// v0.98 — codegen stub for `list_promote_history`. Real
+/// return type is `PromoteHistoryResult` (uses existing
+/// `listPromoteHistory` from v0.76). Empty stub.
+#[tauri::command]
+#[specta::specta]
+async fn list_promote_history_codegen() -> Result<ListPromoteHistoryCodegen, String> {
+    Ok(ListPromoteHistoryCodegen {
+        ok: true,
+        message: "ok".to_string(),
+        count: 0,
+        entries: vec![],
+    })
 }
 
 fn main() {
@@ -1086,6 +1197,11 @@ fn main() {
         // v0.88e — Phase 4 batch 5 (complex nested DTOs)
         llm_analyze_codegen,
         run_mirror_executor_pass_codegen,
+        // v0.98 — Phase 4 batch 6: 4 more read-only list commands
+        list_bets_codegen,
+        list_audit_log_codegen,
+        list_copy_targets_codegen,
+        list_promote_history_codegen,
     ]);
 
     // CARGO_MANIFEST_DIR is `src-tauri/`, so the parent is
