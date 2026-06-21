@@ -121,10 +121,10 @@ export function Settings() {
             <h2 className="text-[13px] font-semibold text-fg">{t('settings.title')}</h2>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" iconLeft={<RotateCcw className="w-3 h-3" />} onClick={reset}>
+            <Button data-testid="prefs-reset-btn" variant="ghost" size="sm" iconLeft={<RotateCcw className="w-3 h-3" />} onClick={reset}>
               {t('settings.btn.reset')}
             </Button>
-            <Button variant="primary" size="sm" iconLeft={<Save className="w-3 h-3" />} onClick={save} disabled={!dirty}>
+            <Button data-testid="prefs-save-btn" variant="primary" size="sm" iconLeft={<Save className="w-3 h-3" />} onClick={save} disabled={!dirty}>
               {t('settings.btn.save')}
             </Button>
           </div>
@@ -174,6 +174,7 @@ export function Settings() {
       {/* Copy trading */}
       <Card title={t('settings.section.copy')} description={t('settings.section.copy_desc')}>
         <ToggleRow
+          data-testid="copy-trading-toggle"
           icon={Database}
           label={t('settings.field.copy_enabled')}
           hint={t('settings.field.copy_enabled_hint')}
@@ -185,6 +186,7 @@ export function Settings() {
       {/* Advanced */}
       <Card title={t('settings.section.advanced')} description={t('settings.section.advanced_desc')}>
         <ToggleRow
+          data-testid="advanced-stats-toggle"
           icon={Eye}
           label={t('settings.field.advanced_stats')}
           hint={t('settings.field.advanced_stats_hint')}
@@ -330,15 +332,17 @@ function ToggleRow({
   hint,
   checked,
   onChange,
+  'data-testid': testId,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   hint?: string;
   checked: boolean;
   onChange: (v: boolean) => void;
+  'data-testid'?: string;
 }) {
   return (
-    <div className="flex items-start gap-3 py-1">
+    <div className="flex items-start gap-3 py-1" data-testid={testId}>
       <Icon className="w-4 h-4 text-muted mt-0.5" />
       <div className="flex-1">
         <div className="text-[12px] text-fg">{label}</div>
