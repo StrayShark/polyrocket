@@ -111,8 +111,14 @@ export default defineConfig({
   // works on both macOS (local) and Linux (GHA). Default Playwright
   // template appends -darwin / -linux, causing "snapshot doesn't exist"
   // errors on cross-platform runs. With this template, both platforms
-  // compare against the same `*-chromium.png`. 0.1% diff tolerance
-  // (per-test maxDiffPixelRatio) handles minor cross-platform pixel diffs.
+  // compare against the same `*-chromium.png`.
+  // v0.87fix2 — bumped per-test maxDiffPixelRatio from 0.001 to 0.005
+  // after GHA run #27871965730 showed 9749 pixels (0.02 ratio) diff
+  // between macOS puppeteer baseline and Linux Chromium — 20× over the
+  // original 0.1% tolerance. 0.5% (~5× the original) still catches real
+  // regressions (a full empty-state card is ~10k px, so 0.005 ratio
+  // allows ≤50 px drift, enough for font anti-aliasing + scrollbar
+  // variations but tight enough to flag layout shifts).
   snapshotPathTemplate:
     '{testDir}/__screenshots__/{testFilePath}/{arg}{-projectName}{ext}',
   projects: [

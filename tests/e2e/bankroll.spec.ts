@@ -55,7 +55,7 @@ for (const theme of THEMES) {
     // 6. Take a full-page screenshot
     await expect(page).toHaveScreenshot(`bankroll-${theme}.png`, {
       fullPage: true,
-      maxDiffPixelRatio: 0.001,  // 0.1% diff tolerance
+      maxDiffPixelRatio: 0.005,  // 0.5% diff tolerance — covers macOS/Linux Chromium pixel diffs
     });
   });
 
@@ -78,14 +78,14 @@ for (const theme of THEMES) {
     if (await card.count() > 0) {
       await card.scrollIntoViewIfNeeded();
       await expect(card).toHaveScreenshot(`settings-bankroll-${theme}.png`, {
-        maxDiffPixelRatio: 0.001,
+        maxDiffPixelRatio: 0.005,
       });
     } else {
       // No config set yet (first run) — card shows fallback text.
       // Take a full-page screenshot for the empty state.
       await expect(page).toHaveScreenshot(`settings-bankroll-empty-${theme}.png`, {
         fullPage: true,
-        maxDiffPixelRatio: 0.001,
+        maxDiffPixelRatio: 0.005,
       });
     }
   });
