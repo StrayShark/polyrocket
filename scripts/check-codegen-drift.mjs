@@ -51,6 +51,10 @@ const GENERATED_PATH = join(REPO_ROOT, 'src/types/generated/index.ts');
  * Regenerate the TS bindings by running the bin. The bin is
  * `cargo run --bin gen_ts_types` which writes to src/types/generated/.
  * We save the current content to a temp file first, then diff after.
+ *
+ * v0.90 — uses `scripts/gen-ts-with-stub.sh` wrapper which handles
+ * the dist/ stub needed by `tauri::generate_context!()` on a clean
+ * checkout (the lib build panics without dist/).
  */
 function regenerateAndDiff() {
   // 1. Save current generated content (the "expected" baseline)
@@ -62,10 +66,12 @@ function regenerateAndDiff() {
   const expected = readFileSync(GENERATED_PATH, 'utf8');
 
   // 2. Run the bin (will write to the same path)
+  // v0.90 — invoke the wrapper script (handles dist/ stub)
+  const wrapper = join(REPO_ROOT, 'scripts', 'gen-ts-with-stub.sh');
   const tmp = mkdtempSync(join(tmpdir(), 'codegen-drift-'));
   const logPath = join(tmp, 'codegen.log');
-  const r = spawnSync('cargo', ['run', '--bin', 'gen_ts_types', '--quiet'], {
-    cwd: join(REPO_ROOT, 'src-tauri'),
+  const r = spawnSync('bash', [wrapper], {
+    cwd: REPO_ROOT,
     encoding: 'utf8',
     timeout: 180_000,
   });

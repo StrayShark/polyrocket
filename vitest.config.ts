@@ -142,6 +142,7 @@ export default defineConfig({
       include: [
         'src/components/feedback/**/*.{ts,tsx}',
         'src/components/welcome/**/*.{ts,tsx}',
+        'src/hooks/**/*.{ts,tsx}',
         'src/lib/**/*.{ts,tsx}',
         'src/routes/**/*.{ts,tsx}',
         'src/stores/**/*.{ts,tsx}',

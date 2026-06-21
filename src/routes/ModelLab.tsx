@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FlaskConical, GitBranch, Play, CheckCircle2, XCircle, Clock, Sparkles, ArrowUpCircle, Archive, GitCompare } from 'lucide-react';
 import {
@@ -15,7 +15,6 @@ import {
   requestNotificationPermission,
   listPromoteHistory,
   listPromoteHistoryArchive,
-  type TrainStartedEvent,
 } from '@/ipc';
 import { PromoteHistoryArchive } from '@/components/feedback/PromoteHistoryArchive';
 import { ModelComparison } from '@/components/feedback/ModelComparison';
@@ -35,6 +34,10 @@ import { fmtPct } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import { toast } from '@/stores/toast-store';
 import { usePrefsStore } from '@/stores/prefs-store';
+// v0.91 — extracted the train-progress state machine
+// out of ModelLab so the deferred v0.83 branch coverage
+// gap is now testable in isolation.
+import { useTrainProgress } from '@/hooks/useTrainProgress';
 
 /**
  * `/model-lab` 路由 —— model 训练 + 提升 + 实验管理。
@@ -103,13 +106,19 @@ export function ModelLab() {
   // pattern as v0.15c Analysis page: the Rust `train_job`
   // IPC emits `train_job:started` BEFORE returning, so we
   // can't get the job_id from the IPC return value. We
-  // listen for the next `started` event after the user
-  // clicks Train, capture the id, and pass it to
-  // `TrainProgress`. On `finished`, we toast the result
-  // and invalidate the per-version query (a successful
-  // train writes a new candidate.json; once promoted
-  // the per-version list updates).
-  const [activeTrainJobId, setActiveTrainJobId] = useState<string | null>(null);
+  // v0.91 — train progress state machine extracted into
+  // useTrainProgress hook (src/hooks/useTrainProgress.ts).
+  // The hook encapsulates the activeTrainJobId state,
+  // expectedTrainRef (for race-condition protection), and
+  // the train:started event listener subscription with
+  // strict-mode double-mount cleanup.
+  //
+  // Caller pattern: call markExpected() BEFORE
+  // trainMut.mutate(); the next train:started event will
+  // populate activeTrainJobId.
+  const { activeTrainJobId, markExpected, clearActive } = useTrainProgress({
+    onTrainStarted,
+  });
   // v0.34a — archive modal open state. Local state,
   // not persisted. Resets to false on remount.
   const [archiveOpen, setArchiveOpen] = useState(false);
@@ -123,21 +132,6 @@ export function ModelLab() {
   // is per-model: pick one entry, click "Backtest",
   // the modal opens with that model_version pre-filled.
   const [backtestTarget, setBacktestTarget] = useState<string | null>(null);
-  const expectedTrainRef = useRef<boolean>(false);
-  useEffect(() => {
-    let cancelled = false;
-    const unsubStarted = onTrainStarted((e: TrainStartedEvent) => {
-      if (cancelled) return;
-      if (expectedTrainRef.current) {
-        setActiveTrainJobId(e.job_id);
-        expectedTrainRef.current = false;
-      }
-    });
-    return () => {
-      cancelled = true;
-      unsubStarted.then((u) => u()).catch(() => { /* ignore */ });
-    };
-  }, []);
 
   // v0.28c — listen for `auto_promote:finished` events.
   // When a background auto-promote completes (because
@@ -288,13 +282,15 @@ export function ModelLab() {
         toast.error(t('train.toast.failed'), r.message ?? undefined);
         setLastCandidate(null);
       }
-      setActiveTrainJobId(null);
+      // v0.91 — use hook's clearActive() instead of direct setState.
+      clearActive();
       queryClient.invalidateQueries({ queryKey: ['llm-performance'] });
       queryClient.invalidateQueries({ queryKey: ['sidecar-active-model'] });
     },
     onError: (e: Error) => {
       toast.error(t('train.toast.failed'), e.message);
-      setActiveTrainJobId(null);
+      // v0.91 — use hook's clearActive() instead of direct setState.
+      clearActive();
     },
   });
 
@@ -515,7 +511,9 @@ export function ModelLab() {
                 // listen for the next `started` event and
                 // capture the id. The flag ensures we only
                 // capture events triggered by THIS click.
-                expectedTrainRef.current = true;
+                // v0.91 — use hook's markExpected() instead of
+                // direct ref mutation.
+                markExpected();
                 trainMut.mutate();
               }}
             >

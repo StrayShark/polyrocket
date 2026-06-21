@@ -149,6 +149,17 @@ else
   echo "✗ README badges DRIFT — run: node scripts/update-readme-coverage.mjs"
   exit 1
 fi
+# v0.90 — codegen drift check (Phase 5 build pipeline integration).
+# Catches Rust DTO field renames / type changes that aren't reflected
+# in src/types/generated/index.ts. ~30-60s on clean build, ~1-2s on
+# incremental (cargo sees no Rust changes).
+echo "--- codegen drift check (v0.90 — Phase 5)"
+if pnpm check:codegen-drift 2>&1 | tail -1 | grep -q "no drift\|no structural drift"; then
+  echo "✓ codegen in sync"
+else
+  echo "✗ codegen DRIFT — run: pnpm gen:ts && git add src/types/generated/"
+  exit 1
+fi
 # Clean up coverage/ (matches CI's 'if: always() rm -rf coverage')
 rm -rf coverage
 echo "✓ L1 typecheck + vitest PASS"

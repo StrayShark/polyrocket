@@ -1,11 +1,12 @@
 # L1 ↔ L2 Type Generation Migration Plan
 
-> Status: **v0.88 — Phases 1+2+3+4 DONE**. Phase 5 (build pipeline) is next.
+> Status: **v0.90 — Phases 1+2+3+4+5 DONE**. Codegen is now wired into the
+> build pipeline (`pnpm build` / `pnpm tauri:build` auto-regenerate + diff).
 > The project uses **hand-written** TS types in `src/types/*.ts` for
 > the broader surface, PLUS the v0.76 codegen bin
 > (`src-tauri/src/bin/gen_ts_types.rs`) which generates
-> `src/types/generated/index.ts` for 19 read-only commands (5 from
-> v0.76+v0.81, +14 from v0.84 a/b/c).
+> `src/types/generated/index.ts` for **31 commands** (5 from v0.76+v0.81,
+> +14 from v0.84 a/b/c, +13 from v0.88 a-e).
 >
 > Drift is caught by:
 >   - `src/lib/ipc-contract-v2.test.ts` (snapshot-based) for the
@@ -196,11 +197,50 @@ The harder ones (e.g. `place_signed_order` takes a
 - Annotate with `#[tauri_specta::specta]`
 - Test that the codegen produces a matching TS interface
 
-### Phase 5: make it part of the build (30min)
+### Phase 5: make it part of the build (30min) — **v0.90 DONE**
 
-- `package.json`: add `"gen:ts": "cd src-tauri && cargo run --bin gen_ts_types"`
-- `scripts/check-doc-sync.mjs`: check that `src/types/generated/` is committed
-- CI: run `pnpm gen:ts` + check no diff in generated/
+v0.90 wires the codegen into the build pipeline so drift is caught at
+`pnpm build` time, not just in CI/local CI:
+
+- `scripts/gen-ts-with-stub.sh` (NEW): wraps `cargo run --bin gen_ts_types`
+  with the `dist/` stub setup/teardown (same pattern as
+  `scripts/run-ci-local.sh:178-187`). The lib build's
+  `tauri::generate_context!()` macro panics without `dist/`, so the
+  wrapper creates a minimal stub before invoking cargo and removes it
+  afterwards. Cost: ~30-60s (cargo build + specta export), cached on
+  incremental builds.
+- `package.json`:
+  - `gen:ts` → `bash scripts/gen-ts-with-stub.sh` (was direct `cargo run`)
+  - `build` → `pnpm gen:ts && tsc -b && vite build` (auto-regenerate)
+  - `tauri:build` → `pnpm gen:ts && tauri build` (auto-regenerate)
+  - `build:dev` / `tauri:build:dev` → fast paths (skip codegen)
+- `scripts/check-codegen-drift.mjs`: updated to call the wrapper instead
+  of direct `cargo run`. The drift detector's CI behavior is unchanged;
+  it just no longer needs dist/ to exist externally.
+
+**Why a separate `build:dev` / `tauri:build:dev`?**: the 30-60s cargo
+build dominates the inner dev loop. Hot iteration uses `pnpm dev` (no
+codegen). The fast path is for cases where the user wants to validate
+the production build artifacts (e.g. before committing Rust changes)
+without paying the codegen cost twice.
+
+**How drift surfaces**:
+- If you change a Rust DTO and forget to commit `src/types/generated/index.ts`:
+  - `pnpm build` regenerates the file with new content
+  - vite picks up the change and rebuilds
+  - The file appears as `git diff` after build
+  - On `git push`, the pre-push hook's `cargo test --lib` job re-runs
+    codegen + diff (added in v0.82/v0.84d) and fails the push
+- If you change the Rust codegen bin itself:
+  - Same flow; pre-push hook catches it
+- If you're on a clean checkout (no `dist/`):
+  - Wrapper script handles stub creation transparently
+
+**Cost**:
+- Incremental build: ~1-2s (cargo sees nothing changed, just runs the
+  bin which re-exports)
+- Clean build: ~30-60s (cargo builds the bin from scratch)
+- Drift check (CI): ~30-60s (full re-export + diff parse)
 
 ## What's NOT in v0.68b
 
