@@ -1112,6 +1112,111 @@ async fn list_promote_history_codegen() -> Result<ListPromoteHistoryCodegen, Str
     })
 }
 
+// =================================================================
+// v0.101a — Phase 4 batch 7: LLM stats heatmap + scatter
+//                     + timeseries + decision (4 read-only commands)
+// =================================================================
+//
+// Drift detection for the L1 "LLM Performance" page. Each
+// stub returns an empty Vec; the drift detector catches any
+// future rename / type change in the real DTOs. i64 fields
+// use either `#[specta(type = BigInt)]` (timestamps) or
+// `i32` placeholder (counts) following the v0.98 pattern.
+
+/// v0.101a — args for `llm_stats_heatmap`. Matches real `StatsArgs`.
+#[derive(Serialize, Deserialize, Type)]
+struct StatsArgsCodegen {
+    pub provider_id: Option<String>,
+    pub category: Option<String>,
+    /// v0.101a — window_days placeholder (real impl uses Option<i64>
+    /// wrapped in OptionBigInt). Stub uses Option<u32> for ts export.
+    pub window_days: Option<u32>,
+}
+
+/// v0.101a — LlmStatsCell shape. Counts use i32 (drift detect only).
+#[derive(Serialize, Deserialize, Type)]
+struct LlmStatsCellCodegen {
+    pub provider_id: String,
+    pub provider_name: String,
+    pub category: String,
+    /// v0.101a — placeholder (real impl uses i64). Stub uses i32.
+    pub n_recommendations: i32,
+    pub n_evaluated: i32,
+    pub win_rate: Option<f64>,
+    pub avg_pnl: Option<f64>,
+    pub brier: Option<f64>,
+}
+
+/// v0.101a — codegen stub for `llm_stats_heatmap`.
+#[tauri::command]
+#[specta::specta]
+async fn llm_stats_heatmap_codegen(
+    _args: StatsArgsCodegen,
+) -> Result<Vec<LlmStatsCellCodegen>, String> {
+    Ok(vec![])
+}
+
+/// v0.101a — LlmStatsScatterPoint shape.
+#[derive(Serialize, Deserialize, Type)]
+struct LlmStatsScatterPointCodegen {
+    pub provider_id: String,
+    pub provider_name: String,
+    /// v0.101a — placeholder (real impl uses i64). Stub uses i32.
+    pub n_evaluated: i32,
+    pub win_rate: f64,
+    pub total_pnl: f64,
+    pub avg_pnl: f64,
+}
+
+/// v0.101a — codegen stub for `llm_stats_scatter`.
+#[tauri::command]
+#[specta::specta]
+async fn llm_stats_scatter_codegen(
+    window_days: Option<u32>,
+) -> Result<Vec<LlmStatsScatterPointCodegen>, String> {
+    Ok(vec![])
+}
+
+/// v0.101a — LlmStatsTimeseriesPoint shape.
+#[derive(Serialize, Deserialize, Type)]
+struct LlmStatsTimeseriesPointCodegen {
+    pub provider_id: String,
+    pub bucket: String,
+    /// v0.101a — placeholder (real impl uses i64). Stub uses i32.
+    pub n_evaluated: i32,
+    pub win_rate: f64,
+    pub brier: f64,
+}
+
+/// v0.101a — codegen stub for `llm_stats_timeseries`.
+#[tauri::command]
+#[specta::specta]
+async fn llm_stats_timeseries_codegen(
+    window_days: Option<u32>,
+) -> Result<Vec<LlmStatsTimeseriesPointCodegen>, String> {
+    Ok(vec![])
+}
+
+/// v0.101a — LlmDecisionStats shape.
+#[derive(Serialize, Deserialize, Type)]
+struct LlmDecisionStatsCodegen {
+    pub category: String,
+    pub decision_type: String,
+    /// v0.101a — placeholder (real impl uses i64). Stub uses i32.
+    pub n: i32,
+    pub win_rate: f64,
+    pub avg_pnl: f64,
+}
+
+/// v0.101a — codegen stub for `llm_stats_decision`.
+#[tauri::command]
+#[specta::specta]
+async fn llm_stats_decision_codegen(
+    window_days: Option<u32>,
+) -> Result<Vec<LlmDecisionStatsCodegen>, String> {
+    Ok(vec![])
+}
+
 fn main() {
     // Keep the original command symbols alive (in case the linker
     // would optimize them out as unused — they're used by the
@@ -1156,6 +1261,11 @@ fn main() {
     // v0.88e — Phase 4 batch 5 (complex nested DTOs)
     let _ = commands::llm::llm_analyze;
     let _ = commands::mirror_executor::run_mirror_executor_pass;
+    // v0.101a — Phase 4 batch 7: LLM stats heatmap + scatter + timeseries + decision
+    let _ = commands::llm::llm_stats_heatmap;
+    let _ = commands::llm::llm_stats_scatter;
+    let _ = commands::llm::llm_stats_timeseries;
+    let _ = commands::llm::llm_stats_decision;
 
     let builder: Builder<tauri::Wry> = Builder::new().commands(collect_commands![
         dashboard_kpis_codegen,
@@ -1202,6 +1312,11 @@ fn main() {
         list_audit_log_codegen,
         list_copy_targets_codegen,
         list_promote_history_codegen,
+        // v0.101a — Phase 4 batch 7: LLM stats (4 read-only commands)
+        llm_stats_heatmap_codegen,
+        llm_stats_scatter_codegen,
+        llm_stats_timeseries_codegen,
+        llm_stats_decision_codegen,
     ]);
 
     // CARGO_MANIFEST_DIR is `src-tauri/`, so the parent is

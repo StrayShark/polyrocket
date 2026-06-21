@@ -73,6 +73,14 @@ export const commands = {
 	 *  `listPromoteHistory` from v0.76). Empty stub.
 	 */
 	listPromoteHistoryCodegen: () => typedError<ListPromoteHistoryCodegen, string>(__TAURI_INVOKE("list_promote_history_codegen")),
+	/**  v0.101a — codegen stub for `llm_stats_heatmap`. */
+	llmStatsHeatmapCodegen: (args: StatsArgsCodegen) => typedError<LlmStatsCellCodegen[], string>(__TAURI_INVOKE("llm_stats_heatmap_codegen", { args })),
+	/**  v0.101a — codegen stub for `llm_stats_scatter`. */
+	llmStatsScatterCodegen: (windowDays: number | null) => typedError<LlmStatsScatterPointCodegen[], string>(__TAURI_INVOKE("llm_stats_scatter_codegen", { windowDays })),
+	/**  v0.101a — codegen stub for `llm_stats_timeseries`. */
+	llmStatsTimeseriesCodegen: (windowDays: number | null) => typedError<LlmStatsTimeseriesPointCodegen[], string>(__TAURI_INVOKE("llm_stats_timeseries_codegen", { windowDays })),
+	/**  v0.101a — codegen stub for `llm_stats_decision`. */
+	llmStatsDecisionCodegen: (windowDays: number | null) => typedError<LlmDecisionStatsCodegen[], string>(__TAURI_INVOKE("llm_stats_decision_codegen", { windowDays })),
 };
 
 /* Types */
@@ -394,6 +402,16 @@ export type LlmAnalyzeArgsCodegen = {
 	triggered_by: string | null,
 };
 
+/**  v0.101a — LlmDecisionStats shape. */
+export type LlmDecisionStatsCodegen = {
+	category: string,
+	decision_type: string,
+	/**  v0.101a — placeholder (real impl uses i64). Stub uses i32. */
+	n: number,
+	win_rate: number | null,
+	avg_pnl: number | null,
+};
+
 /**
  *  v0.88d — codegen stub for `upsert_llm_provider`. Takes
  *  `LlmProviderDto` directly (not nested under args) — same shape as
@@ -432,6 +450,40 @@ export type LlmRecommendationDtoCodegen = {
 	cost_cents: number | null,
 	parse_ok: boolean,
 	parse_error: string | null,
+};
+
+/**  v0.101a — LlmStatsCell shape. Counts use i32 (drift detect only). */
+export type LlmStatsCellCodegen = {
+	provider_id: string,
+	provider_name: string,
+	category: string,
+	/**  v0.101a — placeholder (real impl uses i64). Stub uses i32. */
+	n_recommendations: number,
+	n_evaluated: number,
+	win_rate: number | null,
+	avg_pnl: number | null,
+	brier: number | null,
+};
+
+/**  v0.101a — LlmStatsScatterPoint shape. */
+export type LlmStatsScatterPointCodegen = {
+	provider_id: string,
+	provider_name: string,
+	/**  v0.101a — placeholder (real impl uses i64). Stub uses i32. */
+	n_evaluated: number,
+	win_rate: number | null,
+	total_pnl: number | null,
+	avg_pnl: number | null,
+};
+
+/**  v0.101a — LlmStatsTimeseriesPoint shape. */
+export type LlmStatsTimeseriesPointCodegen = {
+	provider_id: string,
+	bucket: string,
+	/**  v0.101a — placeholder (real impl uses i64). Stub uses i32. */
+	n_evaluated: number,
+	win_rate: number | null,
+	brier: number | null,
 };
 
 /**
@@ -624,6 +676,17 @@ export type SignalListItemCodegen = {
 	rationale: string | null,
 	market_question: string | null,
 	market_slug: string | null,
+};
+
+/**  v0.101a — args for `llm_stats_heatmap`. Matches real `StatsArgs`. */
+export type StatsArgsCodegen = {
+	provider_id: string | null,
+	category: string | null,
+	/**
+	 *  v0.101a — window_days placeholder (real impl uses Option<i64>
+	 *  wrapped in OptionBigInt). Stub uses Option<u32> for ts export.
+	 */
+	window_days: number | null,
 };
 
 /**
