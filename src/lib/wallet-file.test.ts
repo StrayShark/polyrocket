@@ -69,4 +69,31 @@ describe('extractAddressFromJson (v0.57d)', () => {
     const content = JSON.stringify({ address: '0xABCDEF' + '0'.repeat(34) });
     expect(extractAddressFromJson(content)).toBe('0xABCDEF' + '0'.repeat(34));
   });
+
+  it('handles plain JSON string (parses to a string, not object) — v0.96', () => {
+    // Some wallets export just the address as a top-level string.
+    // The string is a valid JSON value, but the parser needs to
+    // handle the "obj is a string" branch.
+    const addr = '0x' + 'f'.repeat(40);
+    expect(extractAddressFromJson(JSON.stringify(addr))).toBe(addr);
+  });
+
+  it('handles JSON null (parses to null, falls through to return null) — v0.96', () => {
+    expect(extractAddressFromJson('null')).toBe(null);
+  });
+
+  it('handles JSON array at top level (walks array for address) — v0.96', () => {
+    const addr = '0x' + 'a'.repeat(40);
+    const content = JSON.stringify([addr]);
+    expect(extractAddressFromJson(content)).toBe(addr);
+  });
+
+  it('handles custom field name (not in standard list) — v0.96', () => {
+    // The "fallback walk" iterates Object.values when no standard
+    // field name matches. A custom field "myCustomKey" should
+    // still be found.
+    const addr = '0x' + 'b'.repeat(40);
+    const content = JSON.stringify({ myCustomKey: addr });
+    expect(extractAddressFromJson(content)).toBe(addr);
+  });
 });
