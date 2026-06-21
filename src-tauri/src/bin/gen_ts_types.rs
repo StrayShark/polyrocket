@@ -471,6 +471,96 @@ async fn set_mirror_paper_mode_codegen(
     Ok(true)
 }
 
+// =================================================================
+// v0.88b — Phase 4 batch 2: 2 Copy-route commands (input DTOs)
+// =================================================================
+//
+// Drift detection for `add_copy_target` and `enqueue_mirror`. Real
+// commands live in commands/copy.rs and commands/mirror_executor.rs.
+
+/// v0.88b — codegen stub for `CopyTargetDto`. Real has `created_at: i64`
+/// which specta-typescript forbids (BigInt); use OptionBigInt wrapper
+/// (v0.86b) → TS `bigint | null`. Same pattern as WalletDtoCodegen.
+#[derive(Serialize, Deserialize, Type)]
+struct CopyTargetDtoCodegen {
+    pub id: String,
+    pub address: String,
+    pub label: Option<String>,
+    pub enabled: bool,
+    pub allocation_cap: Option<String>,
+    pub min_edge: f64,
+    #[specta(type = BigInt)]
+    pub created_at: i64,
+}
+
+/// v0.88b — codegen stub args for `add_copy_target`. Real
+/// `AddCopyTargetArgs` (commands/copy.rs) has no i64 fields — all
+/// plain string/f64. Codegen shape is identical to real.
+#[derive(Serialize, Deserialize, Type)]
+struct AddCopyTargetArgsCodegen {
+    pub address: String,
+    pub label: Option<String>,
+    pub allocation_cap: Option<String>,
+    pub min_edge: Option<f64>,
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn add_copy_target_codegen(
+    _args: AddCopyTargetArgsCodegen,
+) -> Result<CopyTargetDtoCodegen, String> {
+    // v0.88b — stub. Real impl in commands/copy.rs:68 inserts row +
+    // returns the created CopyTargetDto. We return hardcoded shape.
+    Ok(CopyTargetDtoCodegen {
+        id: "00000000-0000-0000-0000-000000000000".to_string(),
+        address: String::new(),
+        label: None,
+        enabled: true,
+        allocation_cap: None,
+        min_edge: 0.05,
+        created_at: 0,
+    })
+}
+
+/// v0.88b — codegen stub args for `enqueue_mirror`. Real
+/// `EnqueueArgs` (commands/mirror_executor.rs) has `event_id: i64`;
+/// we use BigInt<i64> attribute (v0.85c pattern) → TS `bigint`.
+#[derive(Serialize, Deserialize, Type)]
+struct EnqueueMirrorArgsCodegen {
+    #[specta(type = BigInt)]
+    pub event_id: i64,
+    pub target_id: String,
+    pub market_id: String,
+    pub side: String,
+    pub size: String,
+    pub flipped: bool,
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn enqueue_mirror_codegen(
+    _args: EnqueueMirrorArgsCodegen,
+) -> Result<MirrorRowCodegen, String> {
+    // v0.88b — stub. Real impl in commands/mirror_executor.rs:76
+    // inserts into copy_mirror_queue + returns MirrorRow. We return
+    // hardcoded shape; MirrorRowCodegen reuses v0.86b's BigInt
+    // wrappers for submitted_at / filled_at.
+    Ok(MirrorRowCodegen {
+        id: String::new(),
+        event_id: 0,
+        target_id: String::new(),
+        market_id: String::new(),
+        side: String::new(),
+        size: String::new(),
+        flipped: false,
+        status: "pending".to_string(),
+        created_at: 0,
+        submitted_at: None,
+        filled_at: None,
+        bet_id: None,
+    })
+}
+
 // ---------- MirrorQueueStats (mirror_queue_stats) ----------
 
 /// v0.84c — codegen stub for `MirrorQueueStats`. Real has 5× i64
@@ -630,6 +720,9 @@ fn main() {
     let _ = commands::wallet::add_wallet;
     let _ = commands::sidecar::set_telemetry_enabled;
     let _ = commands::mirror_executor::set_mirror_paper_mode;
+    // v0.88b — Phase 4 batch 2 (Copy route, input DTOs)
+    let _ = commands::copy::add_copy_target;
+    let _ = commands::mirror_executor::enqueue_mirror;
 
     let builder: Builder<tauri::Wry> = Builder::new().commands(collect_commands![
         dashboard_kpis_codegen,
@@ -658,6 +751,9 @@ fn main() {
         add_wallet_codegen,
         set_telemetry_enabled_codegen,
         set_mirror_paper_mode_codegen,
+        // v0.88b — Phase 4 batch 2 (Copy route, input DTOs)
+        add_copy_target_codegen,
+        enqueue_mirror_codegen,
     ]);
 
     // CARGO_MANIFEST_DIR is `src-tauri/`, so the parent is

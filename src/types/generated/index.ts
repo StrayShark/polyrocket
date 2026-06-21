@@ -43,6 +43,8 @@ export const commands = {
 	addWalletCodegen: (args: AddWalletArgsCodegen) => typedError<WalletDtoCodegen, string>(__TAURI_INVOKE("add_wallet_codegen", { args })),
 	setTelemetryEnabledCodegen: (args: SetTelemetryEnabledArgsCodegen) => typedError<boolean, string>(__TAURI_INVOKE("set_telemetry_enabled_codegen", { args })),
 	setMirrorPaperModeCodegen: (args: SetMirrorPaperModeArgsCodegen) => typedError<boolean, string>(__TAURI_INVOKE("set_mirror_paper_mode_codegen", { args })),
+	addCopyTargetCodegen: (args: AddCopyTargetArgsCodegen) => typedError<CopyTargetDtoCodegen, string>(__TAURI_INVOKE("add_copy_target_codegen", { args })),
+	enqueueMirrorCodegen: (args: EnqueueMirrorArgsCodegen) => typedError<MirrorRowCodegen, string>(__TAURI_INVOKE("enqueue_mirror_codegen", { args })),
 };
 
 /* Types */
@@ -63,6 +65,18 @@ export type ActiveModelCodegen = {
 	promoted_at_ms: bigint | null,
 	weights: (number | null)[] | null,
 	source_path: string,
+};
+
+/**
+ *  v0.88b — codegen stub args for `add_copy_target`. Real
+ *  `AddCopyTargetArgs` (commands/copy.rs) has no i64 fields — all
+ *  plain string/f64. Codegen shape is identical to real.
+ */
+export type AddCopyTargetArgsCodegen = {
+	address: string,
+	label: string | null,
+	allocation_cap: string | null,
+	min_edge: number | null,
 };
 
 /**
@@ -172,6 +186,21 @@ export type ComputeAllocationArgsCodegen = {
 	market_liquidity: { [key in string]: string } | null,
 };
 
+/**
+ *  v0.88b — codegen stub for `CopyTargetDto`. Real has `created_at: i64`
+ *  which specta-typescript forbids (BigInt); use OptionBigInt wrapper
+ *  (v0.86b) → TS `bigint | null`. Same pattern as WalletDtoCodegen.
+ */
+export type CopyTargetDtoCodegen = {
+	id: string,
+	address: string,
+	label: string | null,
+	enabled: boolean,
+	allocation_cap: string | null,
+	min_edge: number | null,
+	created_at: bigint,
+};
+
 export type DashboardKpisDto = {
 	total_equity_usdc: string,
 	open_pnl_usdc: string,
@@ -179,6 +208,20 @@ export type DashboardKpisDto = {
 	brier_score: number | null,
 	active_signals: number,
 	open_positions: number,
+};
+
+/**
+ *  v0.88b — codegen stub args for `enqueue_mirror`. Real
+ *  `EnqueueArgs` (commands/mirror_executor.rs) has `event_id: i64`;
+ *  we use BigInt<i64> attribute (v0.85c pattern) → TS `bigint`.
+ */
+export type EnqueueMirrorArgsCodegen = {
+	event_id: bigint,
+	target_id: string,
+	market_id: string,
+	side: string,
+	size: string,
+	flipped: boolean,
 };
 
 /**
