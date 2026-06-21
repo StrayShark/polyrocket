@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { retryDelayMs, shouldRetry, MAX_RETRY_ATTEMPTS } from './retry-policy';
+import { retryDelayMs, shouldRetry, MAX_RETRY_ATTEMPTS, applyRetryPolicy } from './retry-policy';
 import type { AppErrorShape } from './invoke-safe';
 
 const retryable = (retryable: boolean): AppErrorShape => ({
@@ -62,5 +62,24 @@ describe('retryDelayMs', () => {
     }
     // At least 9 of 10 should differ
     expect(sameCount).toBeLessThan(10);
+  });
+});
+
+describe('applyRetryPolicy (v0.95)', () => {
+  it('sets queries default options: refetchOnWindowFocus false, retry=shouldRetry, retryDelay=retryDelayMs, staleTime 30s', () => {
+    const client = {
+      setDefaultOptions: (opts: unknown) => {
+        // Stash the options for assertion
+        (client as unknown as { opts: unknown }).opts = opts;
+      },
+    } as unknown as Parameters<typeof applyRetryPolicy>[0];
+    applyRetryPolicy(client);
+    const opts = (client as unknown as { opts: { queries: Record<string, unknown>; mutations: Record<string, unknown> } }).opts;
+    expect(opts.queries.refetchOnWindowFocus).toBe(false);
+    expect(opts.queries.retry).toBe(shouldRetry);
+    expect(opts.queries.retryDelay).toBe(retryDelayMs);
+    expect(opts.queries.staleTime).toBe(30_000);
+    // Mutations should not auto-retry
+    expect(opts.mutations.retry).toBe(false);
   });
 });

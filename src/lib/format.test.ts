@@ -12,6 +12,13 @@ import {
   fmtDate,
   fmtDateTime,
   fmtAddress,
+  fmtUsdc,
+  fmtPct,
+  fmtPctInt,
+  fmtEdge,
+  fmtConfidence,
+  fmtLatency,
+  fmtCents,
 } from './format';
 
 describe('formatRetentionAge (v0.13c — existing)', () => {
@@ -86,5 +93,81 @@ describe('fmtAddress (v0.94)', () => {
   it('truncates long addresses with head…tail', () => {
     const addr = '0x1234567890abcdef1234567890abcdef12345678';
     expect(fmtAddress(addr)).toBe('0x1234…5678');
+  });
+});
+
+describe('numeric formatters (v0.95)', () => {
+  it('fmtUsdc returns em-dash for null / undefined / non-finite', () => {
+    expect(fmtUsdc(null)).toBe('—');
+    expect(fmtUsdc(undefined)).toBe('—');
+    expect(fmtUsdc('not a number')).toBe('—');
+  });
+
+  it('fmtUsdc formats number with 2 decimal places', () => {
+    expect(fmtUsdc(123.45)).toBe('123.45');
+    expect(fmtUsdc('100')).toBe('100.00');
+  });
+
+  it('fmtPct returns em-dash for null / undefined / non-finite', () => {
+    expect(fmtPct(null)).toBe('—');
+    expect(fmtPct(undefined)).toBe('—');
+    expect(fmtPct(Infinity)).toBe('—');
+  });
+
+  it('fmtPct formats 0.15 as "15.0%"', () => {
+    expect(fmtPct(0.15)).toBe('15.0%');
+  });
+
+  it('fmtPct signed=true adds + prefix for positive', () => {
+    expect(fmtPct(0.15, true)).toBe('+15.0%');
+  });
+
+  it('fmtPct signed=true omits + for negative', () => {
+    expect(fmtPct(-0.15, true)).toBe('-15.0%');
+  });
+
+  it('fmtPctInt formats 0.5 as "50%" (no decimal)', () => {
+    expect(fmtPctInt(0.5)).toBe('50%');
+  });
+
+  it('fmtPctInt returns em-dash for null', () => {
+    expect(fmtPctInt(null)).toBe('—');
+  });
+
+  it('fmtEdge always has +/- prefix', () => {
+    expect(fmtEdge(0.15)).toBe('+15.0%');
+    expect(fmtEdge(-0.15)).toBe('-15.0%');
+  });
+
+  it('fmtEdge returns em-dash for null', () => {
+    expect(fmtEdge(null)).toBe('—');
+  });
+
+  it('fmtConfidence returns em-dash for null', () => {
+    expect(fmtConfidence(null)).toBe('—');
+  });
+
+  it('fmtConfidence formats 0.85 as "85.0%"', () => {
+    expect(fmtConfidence(0.85)).toBe('85.0%');
+  });
+
+  it('fmtLatency formats < 1000 as ms', () => {
+    expect(fmtLatency(123)).toBe('123ms');
+  });
+
+  it('fmtLatency formats >= 1000 as seconds with 1 decimal', () => {
+    expect(fmtLatency(1500)).toBe('1.5s');
+  });
+
+  it('fmtLatency returns em-dash for null', () => {
+    expect(fmtLatency(null)).toBe('—');
+  });
+
+  it('fmtCents converts cents to dollars (100 → $1.00)', () => {
+    expect(fmtCents(100)).toBe('$1.00');
+  });
+
+  it('fmtCents returns em-dash for null', () => {
+    expect(fmtCents(null)).toBe('—');
   });
 });

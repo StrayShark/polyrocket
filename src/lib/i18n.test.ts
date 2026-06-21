@@ -1,5 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
-import { translate, SUPPORTED_LOCALES, LOCALE_LABEL } from './i18n';
+// @vitest-environment happy-dom
+
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { renderHook } from '@testing-library/react';
+import { useT, useLocaleStore, SUPPORTED_LOCALES, LOCALE_LABEL, translate } from './i18n';
 
 describe('translate', () => {
   it('returns the en value for known keys', () => {
@@ -369,5 +372,25 @@ describe('LOCALE_LABEL', () => {
     for (const l of SUPPORTED_LOCALES) {
       expect(LOCALE_LABEL[l].length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('useT (v0.95)', () => {
+  beforeEach(() => {
+    // Reset the zustand store between tests
+    useLocaleStore.setState({ locale: 'en' });
+  });
+
+  it('returns locale + t helper', () => {
+    const { result } = renderHook(() => useT());
+    expect(result.current.locale).toBe('en');
+    expect(typeof result.current.t).toBe('function');
+  });
+
+  it('t() translates a known key in the current locale', () => {
+    useLocaleStore.setState({ locale: 'zh' });
+    const { result } = renderHook(() => useT());
+    // The page.title key is in both locales
+    expect(result.current.t('page.title')).toBeTruthy();
   });
 });
