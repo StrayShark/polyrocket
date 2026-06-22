@@ -97,4 +97,39 @@ describe('readFileText (v0.97)', () => {
     mockReadTextFile.mockResolvedValue('hello world');
     expect(await readFileText('/x')).toBe('hello world');
   });
+
+  // v0.106 — coverage ramp. Cover the web-fetch fallback (lines 51-55)
+  // when the Tauri plugin throws.
+  it('falls back to fetch when Tauri plugin throws (covers lines 51-55)', async () => {
+    mockReadTextFile.mockRejectedValue(new Error('not in Tauri'));
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => 'OPENAI_API_KEY=sk-fetched',
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
+    try {
+      const out = await readFileText('/path/to/file');
+      expect(out).toBe('OPENAI_API_KEY=sk-fetched');
+      expect(mockFetch).toHaveBeenCalledWith('/path/to/file');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('fetch fallback throws when response not ok (covers line 52-54 error branch)', async () => {
+    mockReadTextFile.mockRejectedValue(new Error('not in Tauri'));
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      text: async () => '',
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
+    try {
+      await expect(readFileText('/missing')).rejects.toThrow('HTTP 404');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

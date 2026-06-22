@@ -156,8 +156,8 @@ export default defineConfig({
         '**/*.unused',
       ],
       thresholds: {
-        statements: 88,
-        branches: 85,
+        statements: 90,
+        branches: 87,
         functions: 82,
         lines: 89,
       },

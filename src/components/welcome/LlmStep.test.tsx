@@ -95,6 +95,54 @@ describe('LlmStep', () => {
     expect(args?.api_base).toBe('https://qianfan.baidubce.com/v2');
   });
 
+  // v0.106 — coverage ramp round 15. Cover the 4 missing branches in kind()
+  //   switch (openai/anthropic/google/deepseek). Each test clicks the
+  //   corresponding provider button and asserts the upsert kind.
+  it('Google add uses kind="google" (covers LlmStep.tsx:122)', async () => {
+    mockLlmKeyUpsert.mockResolvedValue({ id: 'k-google' });
+    mockLlmKeySetSecret.mockResolvedValue(undefined);
+    mockLlmTestConnectivity.mockResolvedValue({ ok: true, latency_ms: 200 });
+    render(<LlmStep welcome={makeWelcome()} />);
+    fireEvent.click(screen.getByTestId('welcome-llm-provider-google'));
+    fireEvent.change(screen.getByTestId('welcome-llm-secret'), { target: { value: 'AIza-test' } });
+    fireEvent.click(screen.getByTestId('welcome-llm-add'));
+    await waitFor(() => {
+      expect(mockLlmProviderUpsert).toHaveBeenCalled();
+    });
+    const args = mockLlmProviderUpsert.mock.calls[0]?.[0] as { kind: string } | undefined;
+    expect(args?.kind).toBe('google');
+  });
+
+  it('DeepSeek add uses kind="deepseek" (covers LlmStep.tsx:123)', async () => {
+    mockLlmKeyUpsert.mockResolvedValue({ id: 'k-deepseek' });
+    mockLlmKeySetSecret.mockResolvedValue(undefined);
+    mockLlmTestConnectivity.mockResolvedValue({ ok: true, latency_ms: 200 });
+    render(<LlmStep welcome={makeWelcome()} />);
+    fireEvent.click(screen.getByTestId('welcome-llm-provider-deepseek'));
+    fireEvent.change(screen.getByTestId('welcome-llm-secret'), { target: { value: 'sk-deepseek' } });
+    fireEvent.click(screen.getByTestId('welcome-llm-add'));
+    await waitFor(() => {
+      expect(mockLlmProviderUpsert).toHaveBeenCalled();
+    });
+    const args = mockLlmProviderUpsert.mock.calls[0]?.[0] as { kind: string } | undefined;
+    expect(args?.kind).toBe('deepseek');
+  });
+
+  it('Anthropic add uses kind="anthropic" (covers LlmStep.tsx:121)', async () => {
+    mockLlmKeyUpsert.mockResolvedValue({ id: 'k-anthropic' });
+    mockLlmKeySetSecret.mockResolvedValue(undefined);
+    mockLlmTestConnectivity.mockResolvedValue({ ok: true, latency_ms: 200 });
+    render(<LlmStep welcome={makeWelcome()} />);
+    fireEvent.click(screen.getByTestId('welcome-llm-provider-anthropic'));
+    fireEvent.change(screen.getByTestId('welcome-llm-secret'), { target: { value: 'sk-anthropic' } });
+    fireEvent.click(screen.getByTestId('welcome-llm-add'));
+    await waitFor(() => {
+      expect(mockLlmProviderUpsert).toHaveBeenCalled();
+    });
+    const args = mockLlmProviderUpsert.mock.calls[0]?.[0] as { kind: string } | undefined;
+    expect(args?.kind).toBe('anthropic');
+  });
+
   it('clicking Qwen preset + Add uses qwen provider_id with Aliyun base', async () => {
     mockLlmKeyUpsert.mockResolvedValue({ id: 'k-new', provider_id: 'qwen', alias: 'prod-1', keyring_alias: '', enabled: true, priority: 1, weight: 1, last_used_at: null, last_error: null, last_error_at: null, total_calls: 0, total_errors: 0, notes: null });
     mockLlmKeySetSecret.mockResolvedValue(undefined);

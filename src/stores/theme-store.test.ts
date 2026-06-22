@@ -45,4 +45,16 @@ describe('useThemeStore', () => {
     useThemeStore.getState().cycleTheme();
     expect(useThemeStore.getState().theme).toBe('dark');
   });
+
+  // v0.106 — coverage ramp. Cover applyToDom (lines 23-26) and the
+  // onRehydrateStorage branch (line 51: `if (state?.theme) applyToDom(...)`).
+  it('setTheme applies data-theme attribute to <html>', () => {
+    useThemeStore.getState().setTheme('matrix');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('matrix');
+  });
+
+  it('setTheme to light applies data-theme="light"', () => {
+    useThemeStore.getState().setTheme('light');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+  });
 });
