@@ -406,11 +406,11 @@ mod tests {
 
     #[test]
     fn sign_request_returns_authorization_header() {
-        let c = HunyuanClient::new("sid-123", "sk-456", "hunyuan-pro", "ap-guangzhou");
+        let c = HunyuanClient::new("sid-test", "sk-test", "hunyuan-pro", "ap-guangzhou");
         let body = br#"{"model":"hunyuan-pro","messages":[]}"#;
         let auth = c.sign_request("POST", "/", "1700000000", "2026-06-22", body);
         // Authorization header format
-        assert!(auth.starts_with("TC3-HMAC-SHA256 Credential=sid-123/2026-06-22/hunyuan/tc3_request"));
+        assert!(auth.starts_with("TC3-HMAC-SHA256 Credential=sid-test/2026-06-22/hunyuan/tc3_request"));
         assert!(auth.contains("SignedHeaders=content-type;host;x-tc-action"));
         assert!(auth.contains("Signature="));
         // Signature is 64 hex chars (SHA256)
@@ -445,10 +445,10 @@ mod tests {
 
     #[test]
     fn debug_does_not_leak_secrets() {
-        let c = HunyuanClient::new("sid-secret", "sk-secret", "hunyuan-pro", "ap-guangzhou");
+        let c = HunyuanClient::new("sid-test", "sk-test", "hunyuan-pro", "ap-guangzhou");
         let s = format!("{:?}", c);
-        assert!(!s.contains("sid-secret"));
-        assert!(!s.contains("sk-secret"));
+        assert!(!s.contains("sid-test"));
+        assert!(!s.contains("sk-test"));
         assert!(s.contains("<redacted>"));
     }
 }
