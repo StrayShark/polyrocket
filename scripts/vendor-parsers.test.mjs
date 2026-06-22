@@ -81,9 +81,10 @@ describe('extractGlm', () => {
 });
 
 describe('extractMiniMax', () => {
-  it('extracts MiniMax-M2.7 and abab-7', () => {
+  it('extracts MiniMax-M2.7 and abab-7 (preserves mixed-case brand)', () => {
     const html = `<li>MiniMax-M2.7</li><li>MiniMax-Text-01</li><li>abab-7</li>`;
     const r = extractMiniMax(html);
+    // §15.7 table uses mixed-case "MiniMax"; preserve it.
     assert.ok(r.some((x) => x.startsWith('MiniMax-')));
     assert.ok(r.some((x) => x.startsWith('abab-')));
   });
