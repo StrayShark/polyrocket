@@ -1704,6 +1704,177 @@ async fn llm_provider_delete_codegen(
     Ok(())
 }
 
+// =================================================================
+// v0.103b2 — Phase 4 batch 9 part 2: LLM key CRUD + connectivity
+//                      + health + performance (7 commands)
+// =================================================================
+//
+// Continuation of v0.103b part 1 — covers the rest of the LLM
+// management surface: key CRUD, connectivity testing, health
+// history, and aggregate performance.
+
+/// v0.103b2 — LlmProviderKeyDto shape. Count fields use i32.
+#[derive(Serialize, Deserialize, Type)]
+struct LlmProviderKeyDtoCodegen {
+    pub id: String,
+    pub provider_id: String,
+    pub alias: String,
+    pub keyring_alias: String,
+    pub enabled: bool,
+    /// v0.103b2 — placeholder (real impl uses i64). Stub uses i32.
+    pub priority: i32,
+    pub weight: i32,
+    /// v0.103b2 — timestamp (real impl uses Option<i64>). i32 placeholder.
+    pub last_used_at: Option<i32>,
+    pub last_error: Option<String>,
+    /// v0.103b2 — timestamp (real impl uses Option<i64>). i32 placeholder.
+    pub last_error_at: Option<i32>,
+    pub total_calls: i32,
+    pub total_errors: i32,
+    pub notes: Option<String>,
+}
+
+/// v0.103b2 — codegen stub for `llm_key_list`.
+#[tauri::command]
+#[specta::specta]
+async fn llm_key_list_codegen(
+    _provider_id: Option<String>,
+) -> Result<Vec<LlmProviderKeyDtoCodegen>, String> {
+    Ok(vec![])
+}
+
+/// v0.103b2 — args for `llm_key_upsert`. Nested LlmProviderKeyDto.
+#[derive(Serialize, Deserialize, Type)]
+struct KeyUpsertArgsCodegen {
+    pub key: LlmProviderKeyDtoCodegen,
+    /// Plaintext secret (optional). When provided, written to OS
+    /// keyring; when None, only metadata is upserted.
+    pub secret: Option<String>,
+}
+
+/// v0.103b2 — codegen stub for `llm_key_upsert`.
+#[tauri::command]
+#[specta::specta]
+async fn llm_key_upsert_codegen(
+    _args: KeyUpsertArgsCodegen,
+) -> Result<(), String> {
+    Ok(())
+}
+
+/// v0.103b2 — args for `llm_key_set_secret`.
+#[derive(Serialize, Deserialize, Type)]
+struct KeySetSecretArgsCodegen {
+    pub key_id: String,
+    pub secret: String,
+}
+
+/// v0.103b2 — codegen stub for `llm_key_set_secret`.
+#[tauri::command]
+#[specta::specta]
+async fn llm_key_set_secret_codegen(
+    _args: KeySetSecretArgsCodegen,
+) -> Result<(), String> {
+    Ok(())
+}
+
+/// v0.103b2 — codegen stub for `llm_key_delete`.
+#[tauri::command]
+#[specta::specta]
+async fn llm_key_delete_codegen(
+    _key_id: String,
+) -> Result<(), String> {
+    Ok(())
+}
+
+/// v0.103b2 — args for `llm_test_connectivity`.
+#[derive(Serialize, Deserialize, Type)]
+struct TestConnectivityArgsCodegen {
+    pub provider_id: String,
+    pub key_id: Option<String>,
+}
+
+/// v0.103b2 — ConnectivityTestResult shape. status fields use
+/// i32 placeholders for counts.
+#[derive(Serialize, Deserialize, Type)]
+struct ConnectivityTestResultCodegen {
+    pub provider_id: String,
+    pub success: bool,
+    /// v0.103b2 — placeholder (real impl uses Option<i64>).
+    pub latency_ms: Option<i32>,
+    /// v0.103b2 — placeholder (real impl uses Option<i64>).
+    pub http_status: Option<i32>,
+    pub model_used: String,
+    pub error_code: Option<String>,
+    pub error_message: Option<String>,
+}
+
+/// v0.103b2 — codegen stub for `llm_test_connectivity`.
+#[tauri::command]
+#[specta::specta]
+async fn llm_test_connectivity_codegen(
+    _args: TestConnectivityArgsCodegen,
+) -> Result<ConnectivityTestResultCodegen, String> {
+    Ok(ConnectivityTestResultCodegen {
+        provider_id: String::new(),
+        success: false,
+        latency_ms: None,
+        http_status: None,
+        model_used: String::new(),
+        error_code: None,
+        error_message: None,
+    })
+}
+
+/// v0.103b2 — LlmHealthCheckDto shape. timestamps use i32 placeholders.
+#[derive(Serialize, Deserialize, Type)]
+struct LlmHealthCheckDtoCodegen {
+    /// v0.103b2 — placeholder (real impl uses i64). i32.
+    pub id: i32,
+    pub provider_id: String,
+    /// v0.103b2 — timestamp placeholder (real impl uses i64). i32.
+    pub checked_at: i32,
+    pub trigger: String,
+    pub success: bool,
+    pub latency_ms: Option<i32>,
+    pub http_status: Option<i32>,
+    pub error_code: Option<String>,
+    pub error_message: Option<String>,
+}
+
+/// v0.103b2 — codegen stub for `llm_health_history`.
+#[tauri::command]
+#[specta::specta]
+async fn llm_health_history_codegen(
+    _provider_id: String,
+    _limit: Option<u32>,
+) -> Result<Vec<LlmHealthCheckDtoCodegen>, String> {
+    Ok(vec![])
+}
+
+/// v0.103b2 — LlmPerformanceRow shape. Count fields use i32.
+#[derive(Serialize, Deserialize, Type)]
+struct LlmPerformanceRowCodegen {
+    pub provider_id: String,
+    pub provider_name: String,
+    /// v0.103b2 — placeholder (real impl uses i64). i32.
+    pub n_recommendations: i32,
+    pub n_evaluated: i32,
+    pub win_rate: f64,
+    pub brier: f64,
+    pub avg_confidence: f64,
+    pub total_cost_cents: f64,
+}
+
+/// v0.103b2 — codegen stub for `llm_performance`.
+#[tauri::command]
+#[specta::specta]
+async fn llm_performance_codegen(
+    _window_days: Option<u32>,
+    _category: Option<String>,
+) -> Result<Vec<LlmPerformanceRowCodegen>, String> {
+    Ok(vec![])
+}
+
 fn main() {
     // Keep the original command symbols alive (in case the linker
     // would optimize them out as unused — they're used by the
@@ -1776,6 +1947,14 @@ fn main() {
     let _ = commands::llm_mgmt::llm_provider_list;
     let _ = commands::llm_mgmt::llm_provider_upsert;
     let _ = commands::llm_mgmt::llm_provider_delete;
+    // v0.103b2 — Phase 4 batch 9 part 2: LLM key CRUD + connectivity + health + performance (7 commands)
+    let _ = commands::llm_mgmt::llm_key_list;
+    let _ = commands::llm_mgmt::llm_key_upsert;
+    let _ = commands::llm_mgmt::llm_key_set_secret;
+    let _ = commands::llm_mgmt::llm_key_delete;
+    let _ = commands::llm_mgmt::llm_test_connectivity;
+    let _ = commands::llm_mgmt::llm_health_history;
+    let _ = commands::llm::llm_performance;
 
     let builder: Builder<tauri::Wry> = Builder::new().commands(collect_commands![
         dashboard_kpis_codegen,
@@ -1849,6 +2028,14 @@ fn main() {
         llm_provider_list_codegen,
         llm_provider_upsert_codegen,
         llm_provider_delete_codegen,
+        // v0.103b2 — Phase 4 batch 9 part 2: LLM key CRUD + connectivity + health + performance (7 commands)
+        llm_key_list_codegen,
+        llm_key_upsert_codegen,
+        llm_key_set_secret_codegen,
+        llm_key_delete_codegen,
+        llm_test_connectivity_codegen,
+        llm_health_history_codegen,
+        llm_performance_codegen,
     ]);
 
     // CARGO_MANIFEST_DIR is `src-tauri/`, so the parent is

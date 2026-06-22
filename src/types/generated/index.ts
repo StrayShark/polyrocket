@@ -132,6 +132,20 @@ export const commands = {
 	llmProviderUpsertCodegen: (provider: LlmProviderDtoFullCodegen) => typedError<null, string>(__TAURI_INVOKE("llm_provider_upsert_codegen", { provider })),
 	/**  v0.103b — codegen stub for `llm_provider_delete`. */
 	llmProviderDeleteCodegen: (providerId: string) => typedError<null, string>(__TAURI_INVOKE("llm_provider_delete_codegen", { providerId })),
+	/**  v0.103b2 — codegen stub for `llm_key_list`. */
+	llmKeyListCodegen: (providerId: string | null) => typedError<LlmProviderKeyDtoCodegen[], string>(__TAURI_INVOKE("llm_key_list_codegen", { providerId })),
+	/**  v0.103b2 — codegen stub for `llm_key_upsert`. */
+	llmKeyUpsertCodegen: (args: KeyUpsertArgsCodegen) => typedError<null, string>(__TAURI_INVOKE("llm_key_upsert_codegen", { args })),
+	/**  v0.103b2 — codegen stub for `llm_key_set_secret`. */
+	llmKeySetSecretCodegen: (args: KeySetSecretArgsCodegen) => typedError<null, string>(__TAURI_INVOKE("llm_key_set_secret_codegen", { args })),
+	/**  v0.103b2 — codegen stub for `llm_key_delete`. */
+	llmKeyDeleteCodegen: (keyId: string) => typedError<null, string>(__TAURI_INVOKE("llm_key_delete_codegen", { keyId })),
+	/**  v0.103b2 — codegen stub for `llm_test_connectivity`. */
+	llmTestConnectivityCodegen: (args: TestConnectivityArgsCodegen) => typedError<ConnectivityTestResultCodegen, string>(__TAURI_INVOKE("llm_test_connectivity_codegen", { args })),
+	/**  v0.103b2 — codegen stub for `llm_health_history`. */
+	llmHealthHistoryCodegen: (providerId: string, limit: number | null) => typedError<LlmHealthCheckDtoCodegen[], string>(__TAURI_INVOKE("llm_health_history_codegen", { providerId, limit })),
+	/**  v0.103b2 — codegen stub for `llm_performance`. */
+	llmPerformanceCodegen: (windowDays: number | null, category: string | null) => typedError<LlmPerformanceRowCodegen[], string>(__TAURI_INVOKE("llm_performance_codegen", { windowDays, category })),
 };
 
 /* Types */
@@ -359,6 +373,22 @@ export type ComputeAllocationArgsCodegen = {
 };
 
 /**
+ *  v0.103b2 — ConnectivityTestResult shape. status fields use
+ *  i32 placeholders for counts.
+ */
+export type ConnectivityTestResultCodegen = {
+	provider_id: string,
+	success: boolean,
+	/**  v0.103b2 — placeholder (real impl uses Option<i64>). */
+	latency_ms: number | null,
+	/**  v0.103b2 — placeholder (real impl uses Option<i64>). */
+	http_status: number | null,
+	model_used: string,
+	error_code: string | null,
+	error_message: string | null,
+};
+
+/**
  *  v0.88b — codegen stub for `CopyTargetDto`. Real has `created_at: i64`
  *  which specta-typescript forbids (BigInt); use OptionBigInt wrapper
  *  (v0.86b) → TS `bigint | null`. Same pattern as WalletDtoCodegen.
@@ -441,6 +471,22 @@ export type ExportStatsArgsCodegen = {
 	format: string,
 	/**  v0.101b — placeholder (real impl uses Option<i64>). Stub uses Option<u32>. */
 	window_days: number | null,
+};
+
+/**  v0.103b2 — args for `llm_key_set_secret`. */
+export type KeySetSecretArgsCodegen = {
+	key_id: string,
+	secret: string,
+};
+
+/**  v0.103b2 — args for `llm_key_upsert`. Nested LlmProviderKeyDto. */
+export type KeyUpsertArgsCodegen = {
+	key: LlmProviderKeyDtoCodegen,
+	/**
+	 *  Plaintext secret (optional). When provided, written to OS
+	 *  keyring; when None, only metadata is upserted.
+	 */
+	secret: string | null,
 };
 
 export type ListAuditLogArgsCodegen = {
@@ -533,6 +579,34 @@ export type LlmDecisionStatsCodegen = {
 	avg_pnl: number | null,
 };
 
+/**  v0.103b2 — LlmHealthCheckDto shape. timestamps use i32 placeholders. */
+export type LlmHealthCheckDtoCodegen = {
+	/**  v0.103b2 — placeholder (real impl uses i64). i32. */
+	id: number,
+	provider_id: string,
+	/**  v0.103b2 — timestamp placeholder (real impl uses i64). i32. */
+	checked_at: number,
+	trigger: string,
+	success: boolean,
+	latency_ms: number | null,
+	http_status: number | null,
+	error_code: string | null,
+	error_message: string | null,
+};
+
+/**  v0.103b2 — LlmPerformanceRow shape. Count fields use i32. */
+export type LlmPerformanceRowCodegen = {
+	provider_id: string,
+	provider_name: string,
+	/**  v0.103b2 — placeholder (real impl uses i64). i32. */
+	n_recommendations: number,
+	n_evaluated: number,
+	win_rate: number | null,
+	brier: number | null,
+	avg_confidence: number | null,
+	total_cost_cents: number | null,
+};
+
 /**
  *  v0.88d — codegen stub for `upsert_llm_provider`. Takes
  *  `LlmProviderDto` directly (not nested under args) — same shape as
@@ -588,6 +662,26 @@ export type LlmProviderDtoFullCodegen = {
 	 */
 	last_health_check_at: number | null,
 	last_health_error: string | null,
+	notes: string | null,
+};
+
+/**  v0.103b2 — LlmProviderKeyDto shape. Count fields use i32. */
+export type LlmProviderKeyDtoCodegen = {
+	id: string,
+	provider_id: string,
+	alias: string,
+	keyring_alias: string,
+	enabled: boolean,
+	/**  v0.103b2 — placeholder (real impl uses i64). Stub uses i32. */
+	priority: number,
+	weight: number,
+	/**  v0.103b2 — timestamp (real impl uses Option<i64>). i32 placeholder. */
+	last_used_at: number | null,
+	last_error: string | null,
+	/**  v0.103b2 — timestamp (real impl uses Option<i64>). i32 placeholder. */
+	last_error_at: number | null,
+	total_calls: number,
+	total_errors: number,
 	notes: string | null,
 };
 
@@ -987,6 +1081,12 @@ export type StorageInfoCodegen = {
 	writable: boolean,
 	free_bytes: number | null,
 	restart_required: boolean,
+};
+
+/**  v0.103b2 — args for `llm_test_connectivity`. */
+export type TestConnectivityArgsCodegen = {
+	provider_id: string,
+	key_id: string | null,
 };
 
 /**  v0.101c — args for `llm_traffic_summary`. Matches real `TrafficArgs`. */
