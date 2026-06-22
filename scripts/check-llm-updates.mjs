@@ -27,66 +27,45 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { VENDOR_EXTRACTORS } from './vendor-parsers.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..');
 const SECTION_15_7_PATH = join(REPO_ROOT, 'docs/polyrocket-llm-management.md');
 
-// v0.112 — 6 个国产 provider 的厂商文档 URL + 抓取 regex 模板。
-// **注意**: regex 只抓 "<...>-<ver>" 形式的 model ID (e.g. `qwen3.7-max` /
-//   `glm-5.2` / `ernie-5.0`),不抓 legacy 型号 / preview / fine-tune。
-//
-// 各家厂商页面结构差异大,regex 是 best-effort。后续 v0.112.x 可换成
-// cheerio + 厂商-specific HTML 解析。
+// v0.115 — 6 个国产 provider 的厂商文档 URL。
+// **Extraction logic** moved to `vendor-parsers.mjs` (per-vendor 函数 + registry)。
+// 这里只列元数据 (id / name / url),extract step 走 VENDOR_EXTRACTORS[id]。
 const PROVIDERS = [
   {
     id: 'qwen',
     name: '通义千问',
     url: 'https://help.aliyun.com/zh/model-studio/getting-started/models',
-    // 匹配: qwen3.7-max / qwen3.6-flash / qwen2.5-max-preview 等
-    // 排除: qwen-vl-max (多模态, 不在 default_model 范围)
-    regex: /qwen(\d+[\.\-]\d+)[\-_]([a-z0-9\-]+)/gi,
-    versionFromMatch: (m) => `qwen${m[1]}-${m[2]}`,
   },
   {
     id: 'doubao',
     name: '豆包',
     url: 'https://www.volcengine.com/docs/82379',
-    // 匹配: doubao-seed-2-0-pro-260215 / doubao-1-5-pro-32k 等
-    regex: /doubao[\-_]([a-z0-9\-]+)/gi,
-    versionFromMatch: (m) => `doubao-${m[1]}`,
   },
   {
     id: 'kimi',
     name: 'Kimi',
     url: 'https://platform.moonshot.cn/docs/intro',
-    // 匹配: kimi-k2.7-code / kimi-k2-0711-preview 等
-    regex: /kimi[\-_](k?[\d\.]+[\-_][a-z0-9\-]+)/gi,
-    versionFromMatch: (m) => `kimi-${m[1]}`,
   },
   {
     id: 'glm',
     name: '智谱 GLM',
     url: 'https://open.bigmodel.cn/cn/guide/start/model-overview',
-    // 匹配: glm-5.2 / glm-4-plus / glm-4-9b 等
-    regex: /glm[\-_]([\d\.]+[\-_a-z0-9]*)/gi,
-    versionFromMatch: (m) => `glm-${m[1]}`,
   },
   {
     id: 'MiniMax',
     name: 'MiniMax',
     url: 'https://api.minimax.chat/document',
-    // 匹配: MiniMax-M2.7 / MiniMax-Text-01 / abab-7 等
-    regex: /MiniMax[\-_]([A-Za-z][\d\.]+[\-_a-zA-Z0-9]*)/gi,
-    versionFromMatch: (m) => `MiniMax-${m[1]}`,
   },
   {
     id: 'ernie',
     name: '文心一言 ERNIE',
     url: 'https://cloud.baidu.com/doc/WENXINWORKSHOP/s/hk7k8k4ru',
-    // 匹配: ernie-5.0 / ernie-4.5 / ernie-3.5-8k 等
-    regex: /ernie[\-_]([\d\.]+[\-_a-z0-9]*)/gi,
-    versionFromMatch: (m) => `ernie-${m[1]}`,
   },
 ];
 
@@ -138,20 +117,14 @@ async function fetchUrl(url, { offline = false, fixture = null } = {}) {
   return res.text();
 }
 
-// Extract model candidates from page HTML using provider's regex.
-function extractCandidates(html, provider) {
-  const seen = new Set();
-  const out = [];
-  let m;
-  // Reset regex state (g flag requires this)
-  provider.regex.lastIndex = 0;
-  while ((m = provider.regex.exec(html)) !== null) {
-    const id = provider.versionFromMatch(m);
-    if (seen.has(id)) continue;
-    seen.add(id);
-    out.push(id);
+// Extract model candidates from page HTML using the per-vendor extractor.
+function extractCandidates(html, providerId) {
+  const extractor = VENDOR_EXTRACTORS[providerId];
+  if (!extractor) {
+    console.warn(`no extractor for provider ${providerId}, returning []`);
+    return [];
   }
-  return out;
+  return extractor(html);
 }
 
 // Filter candidates to "stable" (no preview / experimental / turbo).
@@ -219,7 +192,7 @@ async function main() {
       results[p.id] = { error: e.message, provider: p.name, url: p.url };
       continue;
     }
-    const candidates = extractCandidates(html, p);
+    const candidates = extractCandidates(html, p.id);
     const newest = pickNewest(candidates);
     results[p.id] = {
       provider: p.name,

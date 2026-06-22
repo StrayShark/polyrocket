@@ -12,7 +12,7 @@
 |---|---|
 | Bundle id | `com.polyrocket.app` |
 | Stack | Tauri 2 · React 18 · TypeScript · Rust · SQLite · Python (sidecar) |
-| Test totals | **355 cargo + 1072 vitest + 86 Python + 7 e2e = 1520/** |
+| Test totals | **393 cargo + 1102 vitest + 86 Python + 7 e2e = 1588/** |
 | Coverage gate | vitest 90.3% stmts / 87.0% branches / 85.6% funcs / 91.4% lines (`vitest.config.ts`) |
 | Comment density | 5/5 PASS (`scripts/check-comment-density.mjs`) |
 | Status | v0.87 — auto-bumped by update-readme-coverage.mjs |
