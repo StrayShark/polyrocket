@@ -24,6 +24,7 @@ pub mod google;
 pub mod openai;
 pub mod custom;
 pub mod ernie_native;
+pub mod hunyuan;
 pub mod progress;
 pub mod prompts;
 
@@ -33,6 +34,7 @@ pub use google::GoogleClient;
 pub use openai::OpenAIClient;
 pub use custom::CustomClient;
 pub use ernie_native::ErnieNativeClient;
+pub use hunyuan::HunyuanClient;
 pub use dispatch::{CallLog, DispatchOutcome, KeyHandle, RetryPolicy, dispatch};
 pub use progress::{
     AnalyzeFinishedEvent, AnalyzeStartedEvent, ConsensusDoneEvent, ProviderDoneEvent,
