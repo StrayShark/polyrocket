@@ -1630,6 +1630,80 @@ async fn daily_brief_set_prefs_codegen(
     Ok(())
 }
 
+// =================================================================
+// v0.103b — Phase 4 batch 9 part 1: LLM provider CRUD (4 commands)
+// =================================================================
+//
+// Drift detection for the L1 "LLM Management" page. The real
+// LlmProviderDto has 25+ fields — we use `i32` placeholders for
+// count/time fields and `#[specta(type = BigInt)]` for the
+// last_health_check_at timestamp.
+
+/// v0.103b — full LlmProviderDto shape. Many i64 fields use i32
+/// placeholders (drift detection only, L1 stays on `number`).
+/// Note: the v0.88d `LlmProviderDtoCodegen` (smaller, for
+/// upsert_llm_provider) already exists; we use `LlmProviderDtoFullCodegen`
+/// here to avoid name collision.
+#[derive(Serialize, Deserialize, Type)]
+struct LlmProviderDtoFullCodegen {
+    pub id: String,
+    pub display_name: String,
+    pub provider_kind: String,
+    pub request_format: String,
+    pub supports_streaming: bool,
+    pub enabled: bool,
+    pub api_base: Option<String>,
+    pub key_alias: String,
+    pub default_model: String,
+    /// v0.103b — placeholder (real impl uses i64). Stub uses i32.
+    pub timeout_ms: i32,
+    pub request_timeout_ms: i32,
+    pub max_retries: i32,
+    pub cost_per_1k_in: Option<f64>,
+    pub cost_per_1k_out: Option<f64>,
+    pub rate_limit_rpm: Option<i32>,
+    pub rate_limit_tpm: Option<i32>,
+    pub quota_daily_cents: Option<f64>,
+    pub quota_monthly_cents: Option<f64>,
+    pub key_rotation_strategy: String,
+    pub health_status: String,
+    pub health_latency_p50_ms: Option<i32>,
+    pub health_latency_p95_ms: Option<i32>,
+    /// v0.103b — timestamp (real impl uses Option<i64>). We use i32
+    /// placeholder (drift detection only) — Option<i64> would need
+    /// OptionBigInt for full lossless export.
+    pub last_health_check_at: Option<i32>,
+    pub last_health_error: Option<String>,
+    pub notes: Option<String>,
+}
+
+/// v0.103b — codegen stub for `llm_provider_list`.
+#[tauri::command]
+#[specta::specta]
+async fn llm_provider_list_codegen(
+) -> Result<Vec<LlmProviderDtoFullCodegen>, String> {
+    Ok(vec![])
+}
+
+/// v0.103b — codegen stub for `llm_provider_upsert`. Takes
+/// the full LlmProviderDto.
+#[tauri::command]
+#[specta::specta]
+async fn llm_provider_upsert_codegen(
+    _provider: LlmProviderDtoFullCodegen,
+) -> Result<(), String> {
+    Ok(())
+}
+
+/// v0.103b — codegen stub for `llm_provider_delete`.
+#[tauri::command]
+#[specta::specta]
+async fn llm_provider_delete_codegen(
+    _provider_id: String,
+) -> Result<(), String> {
+    Ok(())
+}
+
 fn main() {
     // Keep the original command symbols alive (in case the linker
     // would optimize them out as unused — they're used by the
@@ -1698,6 +1772,10 @@ fn main() {
     let _ = commands::brief::daily_brief_refresh;
     let _ = commands::brief::daily_brief_dismiss;
     let _ = commands::brief::daily_brief_set_prefs;
+    // v0.103b — Phase 4 batch 9 part 1: LLM provider CRUD (4 commands)
+    let _ = commands::llm_mgmt::llm_provider_list;
+    let _ = commands::llm_mgmt::llm_provider_upsert;
+    let _ = commands::llm_mgmt::llm_provider_delete;
 
     let builder: Builder<tauri::Wry> = Builder::new().commands(collect_commands![
         dashboard_kpis_codegen,
@@ -1767,6 +1845,10 @@ fn main() {
         daily_brief_refresh_codegen,
         daily_brief_dismiss_codegen,
         daily_brief_set_prefs_codegen,
+        // v0.103b — Phase 4 batch 9 part 1: LLM provider CRUD (4 commands)
+        llm_provider_list_codegen,
+        llm_provider_upsert_codegen,
+        llm_provider_delete_codegen,
     ]);
 
     // CARGO_MANIFEST_DIR is `src-tauri/`, so the parent is

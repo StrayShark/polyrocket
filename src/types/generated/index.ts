@@ -123,6 +123,15 @@ export const commands = {
 	dailyBriefDismissCodegen: (args: BriefDismissArgsCodegen) => typedError<boolean, string>(__TAURI_INVOKE("daily_brief_dismiss_codegen", { args })),
 	/**  v0.102b — codegen stub for `daily_brief_set_prefs`. */
 	dailyBriefSetPrefsCodegen: (args: SetBriefPrefsArgsCodegen) => typedError<null, string>(__TAURI_INVOKE("daily_brief_set_prefs_codegen", { args })),
+	/**  v0.103b — codegen stub for `llm_provider_list`. */
+	llmProviderListCodegen: () => typedError<LlmProviderDtoFullCodegen[], string>(__TAURI_INVOKE("llm_provider_list_codegen")),
+	/**
+	 *  v0.103b — codegen stub for `llm_provider_upsert`. Takes
+	 *  the full LlmProviderDto.
+	 */
+	llmProviderUpsertCodegen: (provider: LlmProviderDtoFullCodegen) => typedError<null, string>(__TAURI_INVOKE("llm_provider_upsert_codegen", { provider })),
+	/**  v0.103b — codegen stub for `llm_provider_delete`. */
+	llmProviderDeleteCodegen: (providerId: string) => typedError<null, string>(__TAURI_INVOKE("llm_provider_delete_codegen", { providerId })),
 };
 
 /* Types */
@@ -539,6 +548,47 @@ export type LlmProviderDtoCodegen = {
 	timeout_ms: bigint,
 	cost_per_1k_in: number | null,
 	cost_per_1k_out: number | null,
+};
+
+/**
+ *  v0.103b — full LlmProviderDto shape. Many i64 fields use i32
+ *  placeholders (drift detection only, L1 stays on `number`).
+ *  Note: the v0.88d `LlmProviderDtoCodegen` (smaller, for
+ *  upsert_llm_provider) already exists; we use `LlmProviderDtoFullCodegen`
+ *  here to avoid name collision.
+ */
+export type LlmProviderDtoFullCodegen = {
+	id: string,
+	display_name: string,
+	provider_kind: string,
+	request_format: string,
+	supports_streaming: boolean,
+	enabled: boolean,
+	api_base: string | null,
+	key_alias: string,
+	default_model: string,
+	/**  v0.103b — placeholder (real impl uses i64). Stub uses i32. */
+	timeout_ms: number,
+	request_timeout_ms: number,
+	max_retries: number,
+	cost_per_1k_in: number | null,
+	cost_per_1k_out: number | null,
+	rate_limit_rpm: number | null,
+	rate_limit_tpm: number | null,
+	quota_daily_cents: number | null,
+	quota_monthly_cents: number | null,
+	key_rotation_strategy: string,
+	health_status: string,
+	health_latency_p50_ms: number | null,
+	health_latency_p95_ms: number | null,
+	/**
+	 *  v0.103b — timestamp (real impl uses Option<i64>). We use i32
+	 *  placeholder (drift detection only) — Option<i64> would need
+	 *  OptionBigInt for full lossless export.
+	 */
+	last_health_check_at: number | null,
+	last_health_error: string | null,
+	notes: string | null,
 };
 
 /**
