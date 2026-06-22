@@ -188,6 +188,27 @@ impl HunyuanClient {
         )
     }
 
+    /// Convert unix timestamp (seconds) to UTC date string `YYYY-MM-DD`.
+    /// v0.113.1 — 用算法实现避免 chrono feature dep。
+    /// (年-月-日 Gregorian calendar,1970 epoch)
+    pub fn date_string_unix(unix_secs: i64) -> String {
+        // Days since 1970-01-01
+        let days = unix_secs.div_euclid(86400);
+        // Civil-from-days algorithm by Howard Hinnant (public domain).
+        // Reference: http://howardhinnant.github.io/date_algorithms.html
+        let z = days + 719468;
+        let era = if z >= 0 { z } else { z - 146096 } / 146097;
+        let doe = (z - era * 146097) as u64;
+        let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+        let y = yoe as i64 + era * 400;
+        let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+        let mp = (5 * doy + 2) / 153;
+        let d = doy - (153 * mp + 2) / 5 + 1;
+        let m = if mp < 10 { mp + 3 } else { mp - 9 };
+        let y = if m <= 2 { y + 1 } else { y };
+        format!("{:04}-{:02}-{:02}", y, m, d)
+    }
+
     /// Compute the final Authorization header value.
     /// 这是 TC3 spec 核心 — 4 步:
     ///   1. 拼 canonical request
@@ -246,13 +267,9 @@ impl LlmClient for HunyuanClient {
     ) -> Result<CallOutcome, CallError> {
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
         let timestamp = now.as_secs().to_string();
-        // date format YYYY-MM-DD (UTC)
-        let secs = now.as_secs();
-        let days = secs / 86400;
-        // epoch date 1970-01-01. 简化: 用 secs % 86400 / 3600 算 hour,等等.
-        // 实际生产用 chrono, 这里用 days 算 "since epoch",只为了 canonical scope.
-        // 完整实现需要 chrono feature,这里 minimal.
-        let date = format!("1970-01-{:02}", (days % 28) + 1);  // placeholder, v0.113.1 用 chrono
+        // v0.113.1 — use chrono for canonical date format (YYYY-MM-DD, UTC).
+        // Production: TC3 spec requires exact date in CredentialScope.
+        let date = Self::date_string_unix(now.as_secs() as i64);
 
         let body = HunyuanRequest {
             model: self.model.clone(),
@@ -450,5 +467,41 @@ mod tests {
         assert!(!s.contains("sid-test"));
         assert!(!s.contains("sk-test"));
         assert!(s.contains("<redacted>"));
+    }
+
+    // v0.113.1 — date_string_unix tests (replaces chrono placeholder)
+    #[test]
+    fn date_string_unix_epoch_is_1970_01_01() {
+        assert_eq!(HunyuanClient::date_string_unix(0), "1970-01-01");
+    }
+
+    #[test]
+    fn date_string_unix_one_day_later() {
+        assert_eq!(HunyuanClient::date_string_unix(86400), "1970-01-02");
+    }
+
+    #[test]
+    fn date_string_unix_year_2000() {
+        // 2000-01-01 = 946684800 unix seconds
+        assert_eq!(HunyuanClient::date_string_unix(946684800), "2000-01-01");
+    }
+
+    #[test]
+    fn date_string_unix_year_2024_leap_day() {
+        // 2024-02-29 = 1709164800 unix seconds
+        assert_eq!(HunyuanClient::date_string_unix(1709164800), "2024-02-29");
+    }
+
+    #[test]
+    fn date_string_unix_year_2026_current() {
+        // 2026-06-22 = 1782144000 unix seconds (approx)
+        let d = HunyuanClient::date_string_unix(1782144000);
+        assert!(d.starts_with("2026-"));
+    }
+
+    #[test]
+    fn date_string_unix_negative_pre_epoch() {
+        // 1969-12-31 = -86400 unix seconds
+        assert_eq!(HunyuanClient::date_string_unix(-86400), "1969-12-31");
     }
 }

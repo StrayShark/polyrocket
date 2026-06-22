@@ -16,7 +16,12 @@
 //! 讯飞鉴权 3 件套(相比 OpenAI 1 个 key、ERNIE 2 件套、腾讯 2 件套)。
 
 use crate::domain::llm::{CallError, CallOutcome, CallRequest, CostRate, LlmClient, ProviderKind, err};
+use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
+use tokio::time::timeout;
+use tokio_tungstenite::tungstenite::Message as WsMessage;
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 const SPARK_HOST: &str = "spark-api.xf-yun.com";
 const SPARK_PATH_V1_1: &str = "/v1.1/chat";
