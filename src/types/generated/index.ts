@@ -162,6 +162,21 @@ export const commands = {
 	stopSidecarCodegen: () => typedError<SidecarStatusCodegen, string>(__TAURI_INVOKE("stop_sidecar_codegen")),
 	/**  v0.104b — codegen stub for `polyrocket_wallet_set_pk`. */
 	polyrocketWalletSetPkCodegen: (args: WalletSetPkArgsCodegen) => typedError<null, string>(__TAURI_INVOKE("polyrocket_wallet_set_pk_codegen", { args })),
+	/**
+	 *  v0.105b — codegen stub for `audit_count_for_actor`. Returns
+	 *  `i64` (real impl), stub uses i32 placeholder.
+	 */
+	auditCountForActorCodegen: (actor: string) => typedError<number, string>(__TAURI_INVOKE("audit_count_for_actor_codegen", { actor })),
+	/**  v0.105b — codegen stub for `rollback_model`. */
+	rollbackModelCodegen: (args: RollbackModelArgsCodegen) => typedError<RollbackResultCodegen, string>(__TAURI_INVOKE("rollback_model_codegen", { args })),
+	/**  v0.105b — codegen stub for `auto_promote_if_better`. */
+	autoPromoteIfBetterCodegen: (args: AutoPromoteIfBetterArgsCodegen) => typedError<AutoPromoteIfBetterResultCodegen, string>(__TAURI_INVOKE("auto_promote_if_better_codegen", { args })),
+	/**  v0.105b — codegen stub for `backtest_model`. */
+	backtestModelCodegen: (args: BacktestModelArgsCodegen) => typedError<BacktestResultCodegen, string>(__TAURI_INVOKE("backtest_model_codegen", { args })),
+	/**  v0.105b — codegen stub for `promote_model`. */
+	promoteModelCodegen: (args: PromoteModelArgsCodegen) => typedError<PromoteModelResultCodegen, string>(__TAURI_INVOKE("promote_model_codegen", { args })),
+	/**  v0.105b — codegen stub for `promote_all_trials`. */
+	promoteAllTrialsCodegen: () => typedError<PromoteAllTrialsResultCodegen, string>(__TAURI_INVOKE("promote_all_trials_codegen")),
 };
 
 /* Types */
@@ -281,6 +296,64 @@ export type AuditRetentionViewCodegen = {
 export type AutoPromoteConfigDto = {
 	enabled: boolean,
 	brier_margin: number | null,
+};
+
+/**  v0.105b — AutoPromoteIfBetterArgs shape. */
+export type AutoPromoteIfBetterArgsCodegen = {
+	/**  v0.105b — placeholder (real impl uses f64). brier_margin default 0.005. */
+	brier_margin: number | null,
+	/**  v0.105b — placeholder (real impl uses Option<u32>). Stub uses Option<u32>. */
+	trial_index: number | null,
+};
+
+/**  v0.105b — AutoPromoteIfBetterResult shape. */
+export type AutoPromoteIfBetterResultCodegen = {
+	promoted: boolean,
+	skipped: boolean,
+	reason: string,
+	candidate_brier: number | null,
+	active_brier: number | null,
+	margin: number | null,
+	model_version: string | null,
+	/**
+	 *  v0.105b — timestamp placeholder (real impl uses Option<i64>).
+	 *  BigInt for lossless export.
+	 */
+	promoted_at_ms: bigint,
+	message: string | null,
+};
+
+/**  v0.105b — BacktestModelArgs shape. Nested Vec<BacktestSample>. */
+export type BacktestModelArgsCodegen = {
+	model_version: string,
+	samples: BacktestSampleCodegen[],
+};
+
+/**  v0.105b — BacktestResult shape. */
+export type BacktestResultCodegen = {
+	ok: boolean,
+	model_version: string,
+	/**  v0.105b — placeholder (real impl uses usize). Stub uses u32. */
+	sample_count: number,
+	brier_mean: number | null,
+	brier_breakdown: (number | null)[],
+	/**  5 calibration buckets in [0, 1]. Each is a Vec<f64>. */
+	calibration: ((number | null)[])[],
+	/**  v0.105b — placeholder (real impl uses usize). Stub uses u32. */
+	n_winners: number,
+	winners: string[],
+	/**  v0.105b — placeholder (real impl uses usize). Stub uses u32. */
+	n_losers: number,
+	losers: string[],
+	message: string | null,
+};
+
+/**  v0.105b — BacktestSample shape. All f64. */
+export type BacktestSampleCodegen = {
+	price: number | null,
+	market_age_hours: number | null,
+	outcome: number | null,
+	label: string | null,
 };
 
 /**
@@ -906,6 +979,15 @@ export type PlaceSignedArgsCodegen = {
 	post_only: boolean,
 };
 
+/**  v0.105b — PromoteAllTrialsResult shape. */
+export type PromoteAllTrialsResultCodegen = {
+	ok: boolean,
+	message: string,
+	/**  v0.105b — placeholder (real impl uses usize). Stub uses u32. */
+	count: number,
+	results: PromoteTrialResultCodegen[],
+};
+
 export type PromoteHistoryEntryCodegen = {
 	job_id: string,
 	model_version: string,
@@ -914,6 +996,50 @@ export type PromoteHistoryEntryCodegen = {
 	best_params: BestParamsCodegen,
 	trial_index: number,
 	reason: string,
+};
+
+/**  v0.105b — PromoteModelArgs shape. */
+export type PromoteModelArgsCodegen = {
+	model_version: string | null,
+	/**  v0.105b — placeholder (real impl uses Option<u32>). */
+	trial_index: number | null,
+};
+
+/**  v0.105b — PromoteModelResult shape. */
+export type PromoteModelResultCodegen = {
+	ok: boolean,
+	message: string,
+	/**  v0.105b — placeholder (real impl uses Option<i64>). */
+	promoted_at_ms: bigint,
+	model_version: string | null,
+	best_brier: number | null,
+};
+
+/**  v0.105b — PromoteTrialResult shape (used by promote_all_trials). */
+export type PromoteTrialResultCodegen = {
+	trial_index: number,
+	promoted: boolean,
+	message: string | null,
+	model_version: string | null,
+	promoted_at_ms: bigint,
+};
+
+/**  v0.105b — RollbackModelArgs shape. */
+export type RollbackModelArgsCodegen = {
+	model_version: string,
+};
+
+/**  v0.105b — RollbackResult shape. timestamp uses BigInt. */
+export type RollbackResultCodegen = {
+	rolled_back: boolean,
+	status: string,
+	previous_path: string | null,
+	active_path: string | null,
+	/**
+	 *  v0.105b — timestamp placeholder (real impl uses Option<i64>).
+	 *  BigInt for lossless export.
+	 */
+	rolled_back_at_ms: bigint,
 };
 
 /**

@@ -2077,6 +2077,233 @@ async fn polyrocket_wallet_set_pk_codegen(
     Ok(())
 }
 
+// =================================================================
+// v0.105b — Phase 4 batch 11: audit + promote + backtest (6 commands)
+// =================================================================
+//
+// Drift detection for the L1 Audit/ModeLab/Backtest panels. Includes
+// nested BacktestSample in BacktestModelArgs and heavy timestamp usage.
+
+// ---------- audit_count_for_actor ----------
+/// v0.105b — codegen stub for `audit_count_for_actor`. Returns
+/// `i64` (real impl), stub uses i32 placeholder.
+#[tauri::command]
+#[specta::specta]
+async fn audit_count_for_actor_codegen(
+    _actor: String,
+) -> Result<u32, String> {
+    Ok(0)
+}
+
+// ---------- rollback_model ----------
+/// v0.105b — RollbackModelArgs shape.
+#[derive(Serialize, Deserialize, Type, Default)]
+struct RollbackModelArgsCodegen {
+    pub model_version: String,
+}
+
+/// v0.105b — RollbackResult shape. timestamp uses BigInt.
+#[derive(Serialize, Deserialize, Type)]
+struct RollbackResultCodegen {
+    pub rolled_back: bool,
+    pub status: String,
+    pub previous_path: Option<String>,
+    pub active_path: Option<String>,
+    /// v0.105b — timestamp placeholder (real impl uses Option<i64>).
+    /// BigInt for lossless export.
+    #[specta(type = BigInt)]
+    pub rolled_back_at_ms: Option<i64>,
+}
+
+/// v0.105b — codegen stub for `rollback_model`.
+#[tauri::command]
+#[specta::specta]
+async fn rollback_model_codegen(
+    _args: RollbackModelArgsCodegen,
+) -> Result<RollbackResultCodegen, String> {
+    Ok(RollbackResultCodegen {
+        rolled_back: false,
+        status: String::new(),
+        previous_path: None,
+        active_path: None,
+        rolled_back_at_ms: None,
+    })
+}
+
+// ---------- auto_promote_if_better ----------
+/// v0.105b — AutoPromoteIfBetterArgs shape.
+#[derive(Serialize, Deserialize, Type, Default)]
+struct AutoPromoteIfBetterArgsCodegen {
+    /// v0.105b — placeholder (real impl uses f64). brier_margin default 0.005.
+    pub brier_margin: f64,
+    /// v0.105b — placeholder (real impl uses Option<u32>). Stub uses Option<u32>.
+    pub trial_index: Option<u32>,
+}
+
+/// v0.105b — AutoPromoteIfBetterResult shape.
+#[derive(Serialize, Deserialize, Type)]
+struct AutoPromoteIfBetterResultCodegen {
+    pub promoted: bool,
+    pub skipped: bool,
+    pub reason: String,
+    pub candidate_brier: Option<f64>,
+    pub active_brier: Option<f64>,
+    pub margin: f64,
+    pub model_version: Option<String>,
+    /// v0.105b — timestamp placeholder (real impl uses Option<i64>).
+    /// BigInt for lossless export.
+    #[specta(type = BigInt)]
+    pub promoted_at_ms: Option<i64>,
+    pub message: Option<String>,
+}
+
+/// v0.105b — codegen stub for `auto_promote_if_better`.
+#[tauri::command]
+#[specta::specta]
+async fn auto_promote_if_better_codegen(
+    _args: AutoPromoteIfBetterArgsCodegen,
+) -> Result<AutoPromoteIfBetterResultCodegen, String> {
+    Ok(AutoPromoteIfBetterResultCodegen {
+        promoted: false,
+        skipped: false,
+        reason: String::new(),
+        candidate_brier: None,
+        active_brier: None,
+        margin: 0.005,
+        model_version: None,
+        promoted_at_ms: None,
+        message: None,
+    })
+}
+
+// ---------- backtest_model ----------
+/// v0.105b — BacktestSample shape. All f64.
+#[derive(Serialize, Deserialize, Type)]
+struct BacktestSampleCodegen {
+    pub price: f64,
+    pub market_age_hours: f64,
+    pub outcome: f64,
+    pub label: Option<String>,
+}
+
+/// v0.105b — BacktestModelArgs shape. Nested Vec<BacktestSample>.
+#[derive(Serialize, Deserialize, Type)]
+struct BacktestModelArgsCodegen {
+    pub model_version: String,
+    pub samples: Vec<BacktestSampleCodegen>,
+}
+
+/// v0.105b — BacktestResult shape.
+#[derive(Serialize, Deserialize, Type)]
+struct BacktestResultCodegen {
+    pub ok: bool,
+    pub model_version: String,
+    /// v0.105b — placeholder (real impl uses usize). Stub uses u32.
+    pub sample_count: u32,
+    pub brier_mean: Option<f64>,
+    pub brier_breakdown: Vec<f64>,
+    /// 5 calibration buckets in [0, 1]. Each is a Vec<f64>.
+    pub calibration: Vec<Vec<f64>>,
+    /// v0.105b — placeholder (real impl uses usize). Stub uses u32.
+    pub n_winners: u32,
+    pub winners: Vec<String>,
+    /// v0.105b — placeholder (real impl uses usize). Stub uses u32.
+    pub n_losers: u32,
+    pub losers: Vec<String>,
+    pub message: Option<String>,
+}
+
+/// v0.105b — codegen stub for `backtest_model`.
+#[tauri::command]
+#[specta::specta]
+async fn backtest_model_codegen(
+    _args: BacktestModelArgsCodegen,
+) -> Result<BacktestResultCodegen, String> {
+    Ok(BacktestResultCodegen {
+        ok: false,
+        model_version: String::new(),
+        sample_count: 0,
+        brier_mean: None,
+        brier_breakdown: vec![],
+        calibration: vec![],
+        n_winners: 0,
+        winners: vec![],
+        n_losers: 0,
+        losers: vec![],
+        message: None,
+    })
+}
+
+// ---------- promote_model + promote_all_trials ----------
+/// v0.105b — PromoteModelArgs shape.
+#[derive(Serialize, Deserialize, Type, Default)]
+struct PromoteModelArgsCodegen {
+    pub model_version: Option<String>,
+    /// v0.105b — placeholder (real impl uses Option<u32>).
+    pub trial_index: Option<u32>,
+}
+
+/// v0.105b — PromoteModelResult shape.
+#[derive(Serialize, Deserialize, Type)]
+struct PromoteModelResultCodegen {
+    pub ok: bool,
+    pub message: String,
+    /// v0.105b — placeholder (real impl uses Option<i64>).
+    #[specta(type = BigInt)]
+    pub promoted_at_ms: Option<i64>,
+    pub model_version: Option<String>,
+    pub best_brier: Option<f64>,
+}
+
+/// v0.105b — codegen stub for `promote_model`.
+#[tauri::command]
+#[specta::specta]
+async fn promote_model_codegen(
+    _args: PromoteModelArgsCodegen,
+) -> Result<PromoteModelResultCodegen, String> {
+    Ok(PromoteModelResultCodegen {
+        ok: false,
+        message: String::new(),
+        promoted_at_ms: None,
+        model_version: None,
+        best_brier: None,
+    })
+}
+
+/// v0.105b — PromoteTrialResult shape (used by promote_all_trials).
+#[derive(Serialize, Deserialize, Type)]
+struct PromoteTrialResultCodegen {
+    pub trial_index: i32,
+    pub promoted: bool,
+    pub message: Option<String>,
+    pub model_version: Option<String>,
+    #[specta(type = BigInt)]
+    pub promoted_at_ms: Option<i64>,
+}
+
+/// v0.105b — PromoteAllTrialsResult shape.
+#[derive(Serialize, Deserialize, Type)]
+struct PromoteAllTrialsResultCodegen {
+    pub ok: bool,
+    pub message: String,
+    /// v0.105b — placeholder (real impl uses usize). Stub uses u32.
+    pub count: u32,
+    pub results: Vec<PromoteTrialResultCodegen>,
+}
+
+/// v0.105b — codegen stub for `promote_all_trials`.
+#[tauri::command]
+#[specta::specta]
+async fn promote_all_trials_codegen(
+) -> Result<PromoteAllTrialsResultCodegen, String> {
+    Ok(PromoteAllTrialsResultCodegen {
+        ok: false,
+        message: String::new(),
+        count: 0,
+        results: vec![],
+    })
+}
+
 fn main() {
     // Keep the original command symbols alive (in case the linker
     // would optimize them out as unused — they're used by the
@@ -2166,6 +2393,13 @@ fn main() {
     let _ = commands::sidecar::start_sidecar;
     let _ = commands::sidecar::stop_sidecar;
     let _ = commands::secrets::polyrocket_wallet_set_pk;
+    // v0.105b — Phase 4 batch 11: audit + promote + backtest (6 commands)
+    let _ = commands::audit::audit_count_for_actor;
+    let _ = commands::sidecar::rollback_model;
+    let _ = commands::sidecar::auto_promote_if_better;
+    let _ = commands::sidecar::backtest_model;
+    let _ = commands::sidecar::promote_model;
+    let _ = commands::sidecar::promote_all_trials;
 
     let builder: Builder<tauri::Wry> = Builder::new().commands(collect_commands![
         dashboard_kpis_codegen,
@@ -2256,6 +2490,13 @@ fn main() {
         start_sidecar_codegen,
         stop_sidecar_codegen,
         polyrocket_wallet_set_pk_codegen,
+        // v0.105b — Phase 4 batch 11: audit + promote + backtest (6 commands)
+        audit_count_for_actor_codegen,
+        rollback_model_codegen,
+        auto_promote_if_better_codegen,
+        backtest_model_codegen,
+        promote_model_codegen,
+        promote_all_trials_codegen,
     ]);
 
     // CARGO_MANIFEST_DIR is `src-tauri/`, so the parent is
