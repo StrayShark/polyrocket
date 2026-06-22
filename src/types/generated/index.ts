@@ -146,6 +146,22 @@ export const commands = {
 	llmHealthHistoryCodegen: (providerId: string, limit: number | null) => typedError<LlmHealthCheckDtoCodegen[], string>(__TAURI_INVOKE("llm_health_history_codegen", { providerId, limit })),
 	/**  v0.103b2 — codegen stub for `llm_performance`. */
 	llmPerformanceCodegen: (windowDays: number | null, category: string | null) => typedError<LlmPerformanceRowCodegen[], string>(__TAURI_INVOKE("llm_performance_codegen", { windowDays, category })),
+	/**  v0.104b — codegen stub for `train_job`. Takes TrainJobArgs. */
+	trainJobCodegen: (args: TrainJobArgsCodegen) => typedError<TrainResultCodegen, string>(__TAURI_INVOKE("train_job_codegen", { args })),
+	/**  v0.104b — codegen stub for `sync_markets`. Returns row count. */
+	syncMarketsCodegen: () => typedError<number, string>(__TAURI_INVOKE("sync_markets_codegen")),
+	/**  v0.104b — codegen stub for `recompute_signals`. Returns row count. */
+	recomputeSignalsCodegen: () => typedError<number, string>(__TAURI_INVOKE("recompute_signals_codegen")),
+	/**  v0.104b — codegen stub for `sidecar_health_now`. */
+	sidecarHealthNowCodegen: () => typedError<SidecarHealthSnapshotCodegen, string>(__TAURI_INVOKE("sidecar_health_now_codegen")),
+	/**  v0.104b — codegen stub for `sidecar_health_snapshot`. */
+	sidecarHealthSnapshotCodegen: () => typedError<SidecarHealthSnapshotCodegen, string>(__TAURI_INVOKE("sidecar_health_snapshot_codegen")),
+	/**  v0.104b — codegen stub for `start_sidecar`. */
+	startSidecarCodegen: (args: StartSidecarArgsCodegen) => typedError<SidecarStatusCodegen, string>(__TAURI_INVOKE("start_sidecar_codegen", { args })),
+	/**  v0.104b — codegen stub for `stop_sidecar`. */
+	stopSidecarCodegen: () => typedError<SidecarStatusCodegen, string>(__TAURI_INVOKE("stop_sidecar_codegen")),
+	/**  v0.104b — codegen stub for `polyrocket_wallet_set_pk`. */
+	polyrocketWalletSetPkCodegen: (args: WalletSetPkArgsCodegen) => typedError<null, string>(__TAURI_INVOKE("polyrocket_wallet_set_pk_codegen", { args })),
 };
 
 /* Types */
@@ -1001,7 +1017,35 @@ export type SetTelemetryEnabledArgsCodegen = {
 	enabled: boolean,
 };
 
+/**  v0.104b — SidecarHealthKind enum. */
+export type SidecarHealthKindCodegen = "Ok" | "Failed" | "Unknown";
+
+/**  v0.104b — SidecarHealthRow shape. */
+export type SidecarHealthRowCodegen = {
+	/**  v0.104b — placeholder (real impl uses i64). BigInt for lossless. */
+	at_ms: bigint,
+	kind: SidecarHealthKindCodegen,
+	error: string | null,
+};
+
+/**  v0.104b — SidecarHealthSnapshot shape. 5 i64 fields use BigInt. */
+export type SidecarHealthSnapshotCodegen = {
+	last_24h: SidecarHealthRowCodegen[],
+	success_count: bigint,
+	failure_count: bigint,
+	last_success_at_ms: bigint,
+	last_failure_at_ms: bigint,
+};
+
 export type SidecarStatus = {
+	running: boolean,
+	pid: number | null,
+	command: string,
+	last_error: string | null,
+};
+
+/**  v0.104b — SidecarStatus shape. `pid: Option<u32>` is fine. */
+export type SidecarStatusCodegen = {
 	running: boolean,
 	pid: number | null,
 	command: string,
@@ -1039,6 +1083,12 @@ export type SignalListItemCodegen = {
 	rationale: string | null,
 	market_question: string | null,
 	market_slug: string | null,
+};
+
+/**  v0.104b — args for `start_sidecar`. */
+export type StartSidecarArgsCodegen = {
+	path: string | null,
+	auto_restart: boolean | null,
 };
 
 /**  v0.101a — args for `llm_stats_heatmap`. Matches real `StatsArgs`. */
@@ -1096,6 +1146,53 @@ export type TrafficArgsCodegen = {
 };
 
 /**
+ *  v0.104b — args for `train_job`. Real TrainJobArgs has
+ *  n_trials: Option<u32>, epochs: Option<u32>, timeout_ms: Option<u64>.
+ *  Stub uses u32 placeholders (BigInt-forbidden workaround for u64).
+ */
+export type TrainJobArgsCodegen = {
+	n_trials: number | null,
+	epochs: number | null,
+	/**
+	 *  v0.104b — placeholder (real impl uses Option<u64>).
+	 *  Stub uses Option<u32>.
+	 */
+	timeout_ms: number | null,
+};
+
+/**  v0.104b — TrainResult shape. */
+export type TrainResultCodegen = {
+	job_id: string,
+	status: string,
+	best_brier: number | null,
+	/**
+	 *  v0.104b — best_params is Option<serde_json::Value> in real impl.
+	 *  Stub uses Option<String> (drift detection only).
+	 */
+	best_params: string | null,
+	trials: TrainTrialDtoCodegen[],
+	/**  v0.104b — duration_ms (real impl uses i64). i32 placeholder. */
+	duration_ms: number,
+	candidate_path: string | null,
+	message: string | null,
+};
+
+/**  v0.104b — TrainTrialDto shape. Count fields use i32. */
+export type TrainTrialDtoCodegen = {
+	/**  v0.104b — placeholder (real impl uses i64). i32. */
+	trial_index: number,
+	/**  v0.104b — placeholder (real impl uses i64). i32. */
+	duration_ms: number,
+	brier: number | null,
+	/**
+	 *  v0.104b — params is serde_json::Value in real impl.
+	 *  Stub uses String (drift detection only — L1 keeps as
+	 *  `Record<string, unknown>`).
+	 */
+	params: string,
+};
+
+/**
  *  v0.101c — TriggerResult shape. triggered_at_unix_ms uses
  *  `#[specta(type = BigInt)]`.
  */
@@ -1122,6 +1219,13 @@ export type WalletDtoCodegen = {
 	 */
 	created_at: bigint,
 	last_synced_at: bigint | null,
+};
+
+/**  v0.104b — args for `polyrocket_wallet_set_pk`. Real WalletSetPkArgs. */
+export type WalletSetPkArgsCodegen = {
+	private_key: string,
+	address: string,
+	alias: string | null,
 };
 
 /* Tauri Specta runtime */

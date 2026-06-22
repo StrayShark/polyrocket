@@ -1875,6 +1875,208 @@ async fn llm_performance_codegen(
     Ok(vec![])
 }
 
+// =================================================================
+// v0.104b — Phase 4 batch 10: sidecar lifecycle + train +
+//                     markets + wallet key mgmt (8 commands)
+// =================================================================
+//
+// Drift detection for the L1 ModelLab / Settings / Wallets panels.
+// Includes complex TrainResult (with nested TrainTrialDto + serde_json::Value)
+// and SidecarHealthSnapshot (5 i64 fields).
+
+/// v0.104b — TrainTrialDto shape. Count fields use i32.
+#[derive(Serialize, Deserialize, Type)]
+struct TrainTrialDtoCodegen {
+    /// v0.104b — placeholder (real impl uses i64). i32.
+    pub trial_index: i32,
+    /// v0.104b — placeholder (real impl uses i64). i32.
+    pub duration_ms: i32,
+    pub brier: f64,
+    /// v0.104b — params is serde_json::Value in real impl.
+    /// Stub uses String (drift detection only — L1 keeps as
+    /// `Record<string, unknown>`).
+    pub params: String,
+}
+
+/// v0.104b — TrainResult shape.
+#[derive(Serialize, Deserialize, Type)]
+struct TrainResultCodegen {
+    pub job_id: String,
+    pub status: String,
+    pub best_brier: Option<f64>,
+    /// v0.104b — best_params is Option<serde_json::Value> in real impl.
+    /// Stub uses Option<String> (drift detection only).
+    pub best_params: Option<String>,
+    pub trials: Vec<TrainTrialDtoCodegen>,
+    /// v0.104b — duration_ms (real impl uses i64). i32 placeholder.
+    pub duration_ms: i32,
+    pub candidate_path: Option<String>,
+    pub message: Option<String>,
+}
+
+/// v0.104b — codegen stub for `train_job`. Takes TrainJobArgs.
+#[tauri::command]
+#[specta::specta]
+async fn train_job_codegen(
+    _args: TrainJobArgsCodegen,
+) -> Result<TrainResultCodegen, String> {
+    Ok(TrainResultCodegen {
+        job_id: String::new(),
+        status: "completed".to_string(),
+        best_brier: None,
+        best_params: None,
+        trials: vec![],
+        duration_ms: 0,
+        candidate_path: None,
+        message: None,
+    })
+}
+
+/// v0.104b — args for `train_job`. Real TrainJobArgs has
+/// n_trials: Option<u32>, epochs: Option<u32>, timeout_ms: Option<u64>.
+/// Stub uses u32 placeholders (BigInt-forbidden workaround for u64).
+#[derive(Serialize, Deserialize, Type, Default)]
+struct TrainJobArgsCodegen {
+    pub n_trials: Option<u32>,
+    pub epochs: Option<u32>,
+    /// v0.104b — placeholder (real impl uses Option<u64>).
+    /// Stub uses Option<u32>.
+    pub timeout_ms: Option<u32>,
+}
+
+/// v0.104b — codegen stub for `sync_markets`. Returns row count.
+#[tauri::command]
+#[specta::specta]
+async fn sync_markets_codegen() -> Result<u32, String> {
+    Ok(0)
+}
+
+/// v0.104b — codegen stub for `recompute_signals`. Returns row count.
+#[tauri::command]
+#[specta::specta]
+async fn recompute_signals_codegen() -> Result<u32, String> {
+    Ok(0)
+}
+
+/// v0.104b — SidecarHealthKind enum.
+#[derive(Serialize, Deserialize, Type)]
+enum SidecarHealthKindCodegen {
+    Ok,
+    Failed,
+    Unknown,
+}
+
+/// v0.104b — SidecarHealthRow shape.
+#[derive(Serialize, Deserialize, Type)]
+struct SidecarHealthRowCodegen {
+    /// v0.104b — placeholder (real impl uses i64). BigInt for lossless.
+    #[specta(type = BigInt)]
+    pub at_ms: i64,
+    pub kind: SidecarHealthKindCodegen,
+    pub error: Option<String>,
+}
+
+/// v0.104b — SidecarHealthSnapshot shape. 5 i64 fields use BigInt.
+#[derive(Serialize, Deserialize, Type)]
+struct SidecarHealthSnapshotCodegen {
+    pub last_24h: Vec<SidecarHealthRowCodegen>,
+    #[specta(type = BigInt)]
+    pub success_count: i64,
+    #[specta(type = BigInt)]
+    pub failure_count: i64,
+    #[specta(type = BigInt)]
+    pub last_success_at_ms: Option<i64>,
+    #[specta(type = BigInt)]
+    pub last_failure_at_ms: Option<i64>,
+}
+
+/// v0.104b — codegen stub for `sidecar_health_now`.
+#[tauri::command]
+#[specta::specta]
+async fn sidecar_health_now_codegen(
+) -> Result<SidecarHealthSnapshotCodegen, String> {
+    Ok(SidecarHealthSnapshotCodegen {
+        last_24h: vec![],
+        success_count: 0,
+        failure_count: 0,
+        last_success_at_ms: None,
+        last_failure_at_ms: None,
+    })
+}
+
+/// v0.104b — codegen stub for `sidecar_health_snapshot`.
+#[tauri::command]
+#[specta::specta]
+async fn sidecar_health_snapshot_codegen(
+) -> Result<SidecarHealthSnapshotCodegen, String> {
+    Ok(SidecarHealthSnapshotCodegen {
+        last_24h: vec![],
+        success_count: 0,
+        failure_count: 0,
+        last_success_at_ms: None,
+        last_failure_at_ms: None,
+    })
+}
+
+/// v0.104b — SidecarStatus shape. `pid: Option<u32>` is fine.
+#[derive(Serialize, Deserialize, Type)]
+struct SidecarStatusCodegen {
+    pub running: bool,
+    pub pid: Option<u32>,
+    pub command: String,
+    pub last_error: Option<String>,
+}
+
+/// v0.104b — args for `start_sidecar`.
+#[derive(Serialize, Deserialize, Type, Default)]
+struct StartSidecarArgsCodegen {
+    pub path: Option<String>,
+    pub auto_restart: Option<bool>,
+}
+
+/// v0.104b — codegen stub for `start_sidecar`.
+#[tauri::command]
+#[specta::specta]
+async fn start_sidecar_codegen(
+    _args: StartSidecarArgsCodegen,
+) -> Result<SidecarStatusCodegen, String> {
+    Ok(SidecarStatusCodegen {
+        running: false,
+        pid: None,
+        command: String::new(),
+        last_error: None,
+    })
+}
+
+/// v0.104b — codegen stub for `stop_sidecar`.
+#[tauri::command]
+#[specta::specta]
+async fn stop_sidecar_codegen() -> Result<SidecarStatusCodegen, String> {
+    Ok(SidecarStatusCodegen {
+        running: false,
+        pid: None,
+        command: String::new(),
+        last_error: None,
+    })
+}
+
+/// v0.104b — args for `polyrocket_wallet_set_pk`. Real WalletSetPkArgs.
+#[derive(Serialize, Deserialize, Type, Default)]
+struct WalletSetPkArgsCodegen {
+    pub private_key: String,
+    pub address: String,
+    pub alias: Option<String>,
+}
+
+/// v0.104b — codegen stub for `polyrocket_wallet_set_pk`.
+#[tauri::command]
+#[specta::specta]
+async fn polyrocket_wallet_set_pk_codegen(
+    _args: WalletSetPkArgsCodegen,
+) -> Result<(), String> {
+    Ok(())
+}
+
 fn main() {
     // Keep the original command symbols alive (in case the linker
     // would optimize them out as unused — they're used by the
@@ -1955,6 +2157,15 @@ fn main() {
     let _ = commands::llm_mgmt::llm_test_connectivity;
     let _ = commands::llm_mgmt::llm_health_history;
     let _ = commands::llm::llm_performance;
+    // v0.104b — Phase 4 batch 10: sidecar + train + markets + wallet (8 commands)
+    let _ = commands::sidecar::train_job;
+    let _ = commands::market::sync_markets;
+    let _ = commands::signal::recompute_signals;
+    let _ = commands::sidecar_health::sidecar_health_now;
+    let _ = commands::sidecar_health::sidecar_health_snapshot;
+    let _ = commands::sidecar::start_sidecar;
+    let _ = commands::sidecar::stop_sidecar;
+    let _ = commands::secrets::polyrocket_wallet_set_pk;
 
     let builder: Builder<tauri::Wry> = Builder::new().commands(collect_commands![
         dashboard_kpis_codegen,
@@ -2036,6 +2247,15 @@ fn main() {
         llm_test_connectivity_codegen,
         llm_health_history_codegen,
         llm_performance_codegen,
+        // v0.104b — Phase 4 batch 10: sidecar + train + markets + wallet (8 commands)
+        train_job_codegen,
+        sync_markets_codegen,
+        recompute_signals_codegen,
+        sidecar_health_now_codegen,
+        sidecar_health_snapshot_codegen,
+        start_sidecar_codegen,
+        stop_sidecar_codegen,
+        polyrocket_wallet_set_pk_codegen,
     ]);
 
     // CARGO_MANIFEST_DIR is `src-tauri/`, so the parent is
