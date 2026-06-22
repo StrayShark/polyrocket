@@ -575,6 +575,8 @@ fn provider_kind_from_id(id: &str) -> ProviderKind {
         "anthropic" => ProviderKind::Anthropic,
         "google" => ProviderKind::Google,
         "deepseek" => ProviderKind::Deepseek,
+        // v0.110 — 国产 OpenAI 兼容大模型 (5 个)
+        "qwen" | "doubao" | "kimi" | "glm" | "MiniMax" => ProviderKind::OpenaiCompat,
         "openai_compat" | "custom" => ProviderKind::OpenaiCompat,
         "anthropic_compat" => ProviderKind::AnthropicCompat,
         _ => ProviderKind::Openai,

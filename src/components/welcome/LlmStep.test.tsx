@@ -54,13 +54,70 @@ describe('LlmStep', () => {
     mockLlmKeySetSecret.mockReset();
     mockLlmTestConnectivity.mockReset();
   });
-  it('renders all 5 provider buttons (openai/anthropic/google/deepseek/custom)', () => {
+  it('renders all 10 provider buttons (5 original + 5 Chinese LLM presets)', () => {
     render(<LlmStep welcome={makeWelcome()} />);
+    // Original 5
     expect(screen.getByTestId('welcome-llm-provider-openai')).toBeInTheDocument();
     expect(screen.getByTestId('welcome-llm-provider-anthropic')).toBeInTheDocument();
     expect(screen.getByTestId('welcome-llm-provider-google')).toBeInTheDocument();
     expect(screen.getByTestId('welcome-llm-provider-deepseek')).toBeInTheDocument();
     expect(screen.getByTestId('welcome-llm-provider-custom')).toBeInTheDocument();
+    // v0.110 — Chinese LLM presets (5)
+    expect(screen.getByTestId('welcome-llm-provider-qwen')).toBeInTheDocument();
+    expect(screen.getByTestId('welcome-llm-provider-doubao')).toBeInTheDocument();
+    expect(screen.getByTestId('welcome-llm-provider-kimi')).toBeInTheDocument();
+    expect(screen.getByTestId('welcome-llm-provider-glm')).toBeInTheDocument();
+    expect(screen.getByTestId('welcome-llm-provider-MiniMax')).toBeInTheDocument();
+  });
+
+  it('clicking Qwen preset + Add uses qwen provider_id with Aliyun base', async () => {
+    mockLlmKeyUpsert.mockResolvedValue({ id: 'k-new', provider_id: 'qwen', alias: 'prod-1', keyring_alias: '', enabled: true, priority: 1, weight: 1, last_used_at: null, last_error: null, last_error_at: null, total_calls: 0, total_errors: 0, notes: null });
+    mockLlmKeySetSecret.mockResolvedValue(undefined);
+    mockLlmTestConnectivity.mockResolvedValue({ ok: true, latency_ms: 200, http_status: 200, model_used: 'qwen3-max', error_code: null, error_message: null });
+    render(<LlmStep welcome={makeWelcome()} />);
+    fireEvent.click(screen.getByTestId('welcome-llm-provider-qwen'));
+    fireEvent.change(screen.getByTestId('welcome-llm-alias'), { target: { value: 'aliyun-1' } });
+    fireEvent.change(screen.getByTestId('welcome-llm-secret'), { target: { value: 'sk-test' } });
+    fireEvent.click(screen.getByTestId('welcome-llm-add'));
+    await waitFor(() => {
+      expect(mockLlmKeyUpsert).toHaveBeenCalled();
+    });
+    const args = mockLlmKeyUpsert.mock.calls[0]?.[0] as { provider_id: string; alias: string };
+    expect(args.provider_id).toBe('qwen');
+    expect(args.alias).toBe('aliyun-1');
+  });
+
+  it('clicking Doubao preset + Add uses doubao provider_id', async () => {
+    mockLlmKeyUpsert.mockResolvedValue({ id: 'k-new', provider_id: 'doubao', alias: 'prod-1', keyring_alias: '', enabled: true, priority: 1, weight: 1, last_used_at: null, last_error: null, last_error_at: null, total_calls: 0, total_errors: 0, notes: null });
+    mockLlmKeySetSecret.mockResolvedValue(undefined);
+    mockLlmTestConnectivity.mockResolvedValue({ ok: true, latency_ms: 150, http_status: 200, model_used: 'doubao-1-5-pro', error_code: null, error_message: null });
+    render(<LlmStep welcome={makeWelcome()} />);
+    fireEvent.click(screen.getByTestId('welcome-llm-provider-doubao'));
+    fireEvent.change(screen.getByTestId('welcome-llm-alias'), { target: { value: 'volc-1' } });
+    fireEvent.change(screen.getByTestId('welcome-llm-secret'), { target: { value: 'volc-test' } });
+    fireEvent.click(screen.getByTestId('welcome-llm-add'));
+    await waitFor(() => {
+      expect(mockLlmKeyUpsert).toHaveBeenCalled();
+    });
+    const args = mockLlmKeyUpsert.mock.calls[0]?.[0] as { provider_id: string };
+    expect(args.provider_id).toBe('doubao');
+  });
+
+  it('provider hint text shows for Chinese presets but not for OpenAI', async () => {
+    render(<LlmStep welcome={makeWelcome()} />);
+    // OpenAI has no hint
+    expect(screen.queryByTestId('welcome-llm-provider-hint')).not.toBeInTheDocument();
+    // Click Qwen — hint should appear
+    fireEvent.click(screen.getByTestId('welcome-llm-provider-qwen'));
+    await waitFor(() => {
+      const hint = screen.getByTestId('welcome-llm-provider-hint');
+      expect(hint.textContent).toMatch(/Qwen3/);
+    });
+    // Click OpenAI again — hint should disappear
+    fireEvent.click(screen.getByTestId('welcome-llm-provider-openai'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('welcome-llm-provider-hint')).not.toBeInTheDocument();
+    });
   });
 
   it('clicking a provider button changes selection', () => {

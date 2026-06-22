@@ -2,7 +2,7 @@
 
 > 代码注释 / 文档化规范。**所有新增代码必须遵循此规范；存量代码按 v0.61 计划分轮翻新。**
 
-**版本**：v2.22 · 2026-06-22 (v0.105 — coverage round 14 (PromoteHistory rollback + selection: 2 thresholds crossed: fn 85% + lines 91%) + codegen Phase 4 batch 11 (6 commands: audit + promote + backtest), codegen 72→78 = 70% of 112 IPCs)
+**版本**：v2.23 · 2026-06-22 (v0.110 — 优先支持国产大模型最新版本: 5 个 Tier 1 OpenAI 兼容 provider (Qwen / Doubao / Kimi / GLM / MiniMax) 加到 /welcome LLM step + provider id 映射到 OpenaiCompat)
 **配套**：[`overview.md`](./overview.md)（5 层架构） · [`polyrocket-modules.md`](./polyrocket-modules.md)（17 模块业务） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 交互流程） · [`polyrocket-v0.69-final.md`](./polyrocket-v0.69-final.md)（CI 修复记录）
 
 ---

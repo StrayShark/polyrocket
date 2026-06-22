@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.63 · 2026-06-22 (v0.105 — coverage round 14 (PromoteHistory rollback + selection: 2 thresholds crossed: fn 85% + lines 91%) + codegen Phase 4 batch 11 (6 commands: audit_count + rollback + auto_promote + backtest + promote), codegen 72→78 = 70% of 112 IPCs)
+> 版本：v2.64 · 2026-06-22 (v0.110 — 优先支持国产大模型最新版本: 5 个 Tier 1 OpenAI 兼容 provider (Qwen / Doubao / Kimi / GLM / MiniMax) 加到 /welcome LLM step + 国产 provider id 映射到 OpenaiCompat 在 Rust 侧,新增 `docs/llm-providers.md`)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿） · [`coding-spec.md`](./coding-spec.md)（v0.61 注释规范）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储

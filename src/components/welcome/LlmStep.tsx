@@ -38,15 +38,32 @@ import { toast } from '@/stores/toast-store';
 import { Key, Plus, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
+// v0.110 — Chinese LLM provider presets (Tier 1: OpenAI-compatible).
+//
+// All 5 use the OpenAI `chat/completions` protocol, so they're
+// dispatched through `CustomClient(OpenaiCompat)` in
+// `src-tauri/src/domain/llm/custom.rs`. Users only need to
+// paste their API key + select the preset — no manual base URL.
+//
+// To add a new Chinese OpenAI-compatible provider, append a
+// new entry below. The provider_id maps 1:1 to
+// `ProviderKind::as_str()` (passed through to the Rust side).
 const PROVIDERS: Array<{
-  id: 'openai' | 'anthropic' | 'google' | 'deepseek' | 'custom';
+  id: 'openai' | 'anthropic' | 'google' | 'deepseek' | 'qwen' | 'doubao' | 'kimi' | 'glm' | 'MiniMax' | 'custom';
   label: string;
   defaultBase: string;
+  hint?: string;
 }> = [
   { id: 'openai', label: 'OpenAI', defaultBase: 'https://api.openai.com/v1' },
   { id: 'anthropic', label: 'Anthropic', defaultBase: 'https://api.anthropic.com' },
   { id: 'google', label: 'Google', defaultBase: 'https://generativelanguage.googleapis.com' },
   { id: 'deepseek', label: 'DeepSeek', defaultBase: 'https://api.deepseek.com' },
+  // v0.110 — 国产大模型 Tier 1 (5 个 OpenAI 兼容 providers)
+  { id: 'qwen',     label: '通义千问 Qwen',    defaultBase: 'https://dashscope.aliyuncs.com/compatible-mode/v1', hint: 'Alibaba · Qwen3-Max/Plus/72B/32B/8B' },
+  { id: 'doubao',   label: '豆包 Doubao',       defaultBase: 'https://ark.cn-beijing.volces.com/api/v3',          hint: '字节火山 · Doubao-1.5-Pro/Lite' },
+  { id: 'kimi',     label: 'Kimi (Moonshot)',   defaultBase: 'https://api.moonshot.cn/v1',                        hint: '月之暗面 · kimi-k2 / Moonshot-v1-128k' },
+  { id: 'glm',      label: '智谱 GLM',          defaultBase: 'https://open.bigmodel.cn/api/paas/v4',              hint: 'BigModel · GLM-4.5 / GLM-4-Plus' },
+  { id: 'MiniMax',  label: 'MiniMax',          defaultBase: 'https://api.minimax.chat/v1',                  hint: 'MiniMax-Text-01 / abab-7' },
   { id: 'custom', label: 'Custom (OpenAI-compatible)', defaultBase: '' },
 ];
 
@@ -134,6 +151,7 @@ export function LlmStep({
                 type="button"
                 onClick={() => setProvider(p)}
                 data-testid={`welcome-llm-provider-${p.id}`}
+                title={p.hint ?? p.label}
                 className={cn(
                   'h-7 px-2 rounded text-[11px] font-medium border transition-colors',
                   provider.id === p.id
@@ -145,6 +163,15 @@ export function LlmStep({
               </button>
             ))}
           </div>
+          {/* v0.110 — Selected provider hint (only shown for Chinese providers with hints) */}
+          {provider.hint && (
+            <div
+              className="text-[10px] text-muted mt-1.5 font-mono"
+              data-testid="welcome-llm-provider-hint"
+            >
+              {provider.hint}
+            </div>
+          )}
         </Field>
         <Field label={t('welcome.llm_alias')}>
           <Input
