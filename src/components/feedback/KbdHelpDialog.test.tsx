@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
-import { KbdHelpDialog } from './KbdHelpDialog';
+import { render, screen, within, renderHook, act } from '@testing-library/react';
+import { KbdHelpDialog, useKbdHelpDialog } from './KbdHelpDialog';
 import type { KbdBinding } from '@/lib/keyboard-nav';
 
 const bindings: KbdBinding[] = [
@@ -43,5 +43,20 @@ describe('KbdHelpDialog', () => {
   it('does not render when closed', () => {
     render(<KbdHelpDialog bindings={bindings} open={false} onClose={() => {}} />);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  // v0.116 — coverage ramp round 16. Cover useKbdHelpDialog hook
+  // (lines 78-82: useState + openDialog / closeDialog).
+  it('useKbdHelpDialog: openDialog sets open=true, closeDialog sets open=false', () => {
+    const { result } = renderHook(() => useKbdHelpDialog());
+    expect(result.current.open).toBe(false);
+    act(() => {
+      result.current.openDialog();
+    });
+    expect(result.current.open).toBe(true);
+    act(() => {
+      result.current.closeDialog();
+    });
+    expect(result.current.open).toBe(false);
   });
 });

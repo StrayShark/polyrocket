@@ -150,6 +150,26 @@ describe('prefs-io (v0.36a)', () => {
       };
       expect(() => parsePrefsFromString(JSON.stringify(bad))).toThrow(/copyTradingEnabled/);
     });
+
+    // v0.116 — coverage ramp round 16. Cover lines 199, 209, 219, 264
+    // (the type-check throw branches in prefs-io).
+    it('rejects wrong type for autoPromoteSkippedNotify', () => {
+      const bad = {
+        version: PREFS_EXPORT_VERSION,
+        exported_at_ms: 1,
+        prefs: { ...FULL_PREFS, autoPromoteSkippedNotify: 'true' as unknown as boolean },
+      };
+      expect(() => parsePrefsFromString(JSON.stringify(bad))).toThrow(/autoPromoteSkippedNotify/);
+    });
+
+    it('rejects wrong type for mirrorPaperMode', () => {
+      const bad = {
+        version: PREFS_EXPORT_VERSION,
+        exported_at_ms: 1,
+        prefs: { ...FULL_PREFS, mirrorPaperMode: 1 as unknown as boolean },
+      };
+      expect(() => parsePrefsFromString(JSON.stringify(bad))).toThrow(/mirrorPaperMode/);
+    });
   });
 
   describe('readFileAsText', () => {
