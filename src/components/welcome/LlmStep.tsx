@@ -58,12 +58,21 @@ const PROVIDERS: Array<{
   { id: 'anthropic', label: 'Anthropic', defaultBase: 'https://api.anthropic.com' },
   { id: 'google', label: 'Google', defaultBase: 'https://generativelanguage.googleapis.com' },
   { id: 'deepseek', label: 'DeepSeek', defaultBase: 'https://api.deepseek.com' },
-  // v0.110 — 国产大模型 Tier 1 (5 个 OpenAI 兼容 providers)
-  { id: 'qwen',     label: '通义千问 Qwen',    defaultBase: 'https://dashscope.aliyuncs.com/compatible-mode/v1', hint: 'Alibaba · Qwen3-Max/Plus/72B/32B/8B' },
-  { id: 'doubao',   label: '豆包 Doubao',       defaultBase: 'https://ark.cn-beijing.volces.com/api/v3',          hint: '字节火山 · Doubao-1.5-Pro/Lite' },
-  { id: 'kimi',     label: 'Kimi (Moonshot)',   defaultBase: 'https://api.moonshot.cn/v1',                        hint: '月之暗面 · kimi-k2 / Moonshot-v1-128k' },
-  { id: 'glm',      label: '智谱 GLM',          defaultBase: 'https://open.bigmodel.cn/api/paas/v4',              hint: 'BigModel · GLM-4.5 / GLM-4-Plus' },
-  { id: 'MiniMax',  label: 'MiniMax',          defaultBase: 'https://api.minimax.chat/v1',                  hint: 'MiniMax-Text-01 / abab-7' },
+  // v0.110 — 国产大模型 Tier 1 (5 个 OpenAI 兼容 providers)。
+  // v0.110+ — hint 字段不写具体 model ID（厂商发版会过时）。
+  // 默认 model ID 由 maintainer 按 §15.6 checklist 跟进到最新 stable。
+  // 用户首次添加 provider 后，可在 `/llm-mgmt` 路由改 `default_model` 字段切到任意版本。
+  // 最新模型 ID 见各家厂商模型列表：
+  //   Qwen  → https://help.aliyun.com/zh/model-studio/developer-reference/model-overview
+  //   Doubao → https://www.volcengine.com/docs/82379
+  //   Kimi  → https://platform.moonshot.cn/docs/intro
+  //   GLM   → https://open.bigmodel.cn/dev/api
+  //   MiniMax → https://api.minimax.chat/document
+  { id: 'qwen',     label: '通义千问 Qwen',    defaultBase: 'https://dashscope.aliyuncs.com/compatible-mode/v1', hint: 'Alibaba 阿里云百炼' },
+  { id: 'doubao',   label: '豆包 Doubao',       defaultBase: 'https://ark.cn-beijing.volces.com/api/v3',          hint: '字节火山引擎' },
+  { id: 'kimi',     label: 'Kimi (Moonshot)',   defaultBase: 'https://api.moonshot.cn/v1',                        hint: '月之暗面 Moonshot AI' },
+  { id: 'glm',      label: '智谱 GLM',          defaultBase: 'https://open.bigmodel.cn/api/paas/v4',              hint: '智谱 BigModel' },
+  { id: 'MiniMax',  label: 'MiniMax',          defaultBase: 'https://api.minimax.chat/v1',                  hint: 'MiniMax 稀宇科技' },
   { id: 'custom', label: 'Custom (OpenAI-compatible)', defaultBase: '' },
 ];
 

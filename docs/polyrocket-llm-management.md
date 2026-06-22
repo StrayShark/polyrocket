@@ -1,9 +1,9 @@
 # polyrocket — LLM 管理模块需求 (LMN)
 
-> 版本：v1.1 · 2026-06-16
+> 版本：v1.3 · 2026-06-22
 > 配套：[`polyrocket-llm-analysis.md`](./polyrocket-llm-analysis.md)（M10 业务） · [`polyrocket-modules.md`](./polyrocket-modules.md)（模块全景）
 > 模块代号：**M11 — LLM Management**
-> 状态：v0.2 路线
+> 状态：v0.2 路线 + §15 LLM 最新版本承诺 (v0.110+)
 
 ---
 
@@ -679,8 +679,106 @@ DAILY_BRIEF_TOP_N=8                         # 默认 8
 
 ---
 
+## 15. LLM 最新版本承诺与跟进策略（v0.110+ 重点）
+
+**承诺**：polyrocket 默认对接 **各家国产大模型的最新版本**。任何一个上游厂商发布新版本（GLM-5.2 / Qwen4 / Doubao-2 / kimi-k3 / MiniMax-Text-02 等），polyrocket 在 **2 周内**完成以下跟进。
+
+### 15.1 为什么这是硬性策略
+
+用户的核心需求是「用最新最强的国产 LLM 做 Polymarket 预测」。如果 polyrocket 锁死在 GLM-4.5 / Qwen3-Max 这类 2025 年的旧版本，会带来两个直接问题：
+
+1. **预测质量落后**：GLM-5.2 相对 4.5 在推理 + 长上下文 + 中文金融术语上有显著提升（旧模型无 WebSearch / Tool Use / 1M context 等新能力）
+2. **Benchmark 漂移**：用户拿 polyrocket 输出跟厂商最新 demo 对比会以为我们 bug
+
+### 15.2 跟进 SLA
+
+| 阶段 | 时间 | 谁负责 | 动作 |
+|---|---|---|---|
+| **D+0**：厂商发版 | — | — | 厂商 release notes / 官方公告 |
+| **D+3**：评估 | Maintainer | 看 release notes + benchmark 变化 + 新能力（function call / vision / context window） | 决定是否纳入 polyrocket |
+| **D+7**：落地 | Maintainer | (a) `llmStep.tsx` PROVIDERS 数组更新 `default_model` 字段 (b) `docs/llm-providers.md` 对照表更新 (c) `/llm-mgmt` 路由新增 "Latest version" 链接指向厂商公告 (d) CHANGELOG / ship log | 一键切到新模型 |
+| **D+14**：验证 | CI + 用户反馈 | 跑 connectivity test + 1 轮 M10 多 LLM 投票 baseline 对比 | 决定是否回滚或继续 |
+
+### 15.3 数据流：模型版本在 polyrocket 的存储路径
+
+```
+厂商官网 (智谱 / 阿里 / 字节 / 月之暗面 / MiniMax)
+   ↓
+docs/llm-providers.md (版本对照表 — 用户可见)
+   ↓
+src/components/welcome/LlmStep.tsx (PROVIDERS.defaultModel — 用户初始选择)
+   ↓
+SQLite llm_providers.default_model (持久化 — 用户运行时实际调用的模型)
+   ↓
+Rust dispatch → http POST { model: default_model } → 厂商 API
+```
+
+`default_model` 字段已经在 v0.86 设计好支持 per-provider 配置，**不需要 schema migration**。跟进流程只涉及修改 `LlmStep.tsx` 的默认值 + `llm-providers.md` 文档。
+
+### 15.4 UI 上的版本透明性
+
+在 `/llm-management` 页面（v0.2 计划）每个 provider 卡片要显示：
+
+```
+┌─ Alibaba 通义千问 (Qwen) ────────────────────┐
+│  current model: qwen4-max-20260615            │
+│  latest from vendor:  [→] (打开 Qwen 模型列表)│
+│  last-updated:       2026-06-22              │
+│  health: ● ok · 245ms                        │
+└──────────────────────────────────────────────┘
+```
+
+- `current model` 字段直接显示 SQLite 里 `default_model` 的值
+- `latest from vendor` 链接到厂商模型列表页 (Qwen → `https://help.aliyun.com/zh/model-studio/developer-reference/model-overview` / GLM → `https://open.bigmodel.cn/dev/api` / 等)
+- 用户在卡片上直接点击 Edit → 改 model ID → 一键保存
+
+### 15.5 自动检测（v0.3+ 路线）
+
+**当前手动** (v0.110)：用户或 maintainer 手工改 default_model + 跑 connectivity test。
+
+**未来自动** (v0.3 路线)：
+- L1 启动时拉一次厂商的 `/v1/models` 端点（OpenAI compat 都有这 endpoint）
+- 对比 `current_model` 跟 vendor 最新 stable / preview model
+- 弹 toast: "新模型 Qwen4-Max-20260615 可用，[查看] [切换]"
+- 用户点 [切换] → 写 SQLite + 跑 connectivity test
+
+### 15.6 厂商版本追踪 checklist
+
+每次新版本发布，maintainer 走一次这个 checklist：
+
+- [ ] `LlmStep.tsx` PROVIDERS[i].defaultBase 不变（端点通常不变）
+- [ ] `LlmStep.tsx` PROVIDERS[i].hint 更新 (新模型名 + 厂商 changelog 日期)
+- [ ] `docs/llm-providers.md` §1 表格 + §3 各 provider notes 更新
+- [ ] `docs/polyrocket-llm-management.md` §15.3 数据流图版本号更新（如有）
+- [ ] `src-tauri/src/commands/llm_mgmt.rs` 若厂商改 endpoint / auth header / request shape 才需要改 (例如 Doubao 加 v4 端点)
+- [ ] `src/components/welcome/LlmStep.test.tsx` "renders all 10 providers" 测试断言更新 (provider 数量变了)
+- [ ] `scripts/run-ci-local.sh` 跑通，105+ 测试 5/5 绿
+- [ ] `git push` (用户说了再推)
+
+### 15.7 当前最新版本 (v0.110 起，需用户告知后填入)
+
+> **空缺字段，待 maintainer 补全**。本节作为「跟进策略」的 placeholder，实际 model ID 由用户在 vendor 官方 release 公告后填入。
+
+| Provider | 当前 `default_model` (placeholder) | 厂商最新公告 | D+0 公告日期 |
+|---|---|---|---|
+| Qwen (通义千问) | _待填_ | [Qwen 模型列表](https://help.aliyun.com/zh/model-studio/developer-reference/model-overview) | _待填_ |
+| Doubao (豆包) | _待填_ | [豆包模型列表](https://www.volcengine.com/docs/82379) | _待填_ |
+| Kimi (Moonshot) | _待填_ | [Moonshot 模型列表](https://platform.moonshot.cn/docs/intro) | _待填_ |
+| GLM (智谱) | _待填_ (例: `glm-5.2`) | [BigModel 模型列表](https://open.bigmodel.cn/dev/api) | _待填_ |
+| MiniMax | _待填_ | [MiniMax 模型列表](https://api.minimax.chat/document) | _待填_ |
+
+**填表流程**：
+1. 用户跑 5 个厂商官网，抄最新 stable model ID
+2. 更新 `default_model` 字段 (上面这行)
+3. 同步更新 `LlmStep.tsx` PROVIDERS (UI 初始值)
+4. 更新 `docs/llm-providers.md` §3 各家 notes
+5. 跑 CI，跑 connectivity test，commit + ship log
+
+---
+
 ## 变更日志
 
 - **v1.2** (2026-06-16) — 新增 §14 后台调度：3 个 tokio task（health probe / daily brief cron / anomaly detection）+ 3 个新 IPC（scheduler_status / scheduler_run_health_probe_now / scheduler_run_daily_brief_now）。3-fail auto-disable 落地。
+- **v1.3** (2026-06-22) — 新增 §15 LLM 最新版本承诺与跟进策略：硬性 2 周 SLA，3 阶段流程（D+3 评估 / D+7 落地 / D+14 验证），15.3 数据流图明确 model ID 存储路径，15.4 UI 透明性规范，15.5 自动检测路线（v0.3+），15.6 vendor 跟进 checklist，15.7 当前最新版本表（待 maintainer 补全）。回应 v0.110 用户反馈 "国产模型只对接最新版本"：把版本跟进从"一次性 hardcode"升级为"持续 SLA"。
 - **v1.1** (2026-06-16) — 新增 §13 Client-side key persistence：明确 client paste 为主路径、.env 仅 dev；新增 4 类 IPC（llm_key_set_secret / llm_pm_set_credentials / polyrocket_wallet_set_pk / secrets_status）；keyring alias builder 化；启动同步仅在 `POLYROCKET_ENV=dev && KEYRING_ONLY=0` 时执行。
 - **v1.0** (2026-06-16) — 初版。基于用户反馈"LLM 管理 + 流量 + 连通性 + 胜率"需求重写。引入 M11 模块、3 张新表、4 类 IPC 扩展、连通性测试、流量监控、胜率统计增强。

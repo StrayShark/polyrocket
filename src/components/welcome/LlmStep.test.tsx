@@ -111,7 +111,7 @@ describe('LlmStep', () => {
     fireEvent.click(screen.getByTestId('welcome-llm-provider-qwen'));
     await waitFor(() => {
       const hint = screen.getByTestId('welcome-llm-provider-hint');
-      expect(hint.textContent).toMatch(/Qwen3/);
+      expect(hint.textContent).toMatch(/Alibaba/);
     });
     // Click OpenAI again — hint should disappear
     fireEvent.click(screen.getByTestId('welcome-llm-provider-openai'));
