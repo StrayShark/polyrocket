@@ -572,6 +572,20 @@ fn client_for(kind: ProviderKind, api_base: Option<&str>, model: &str) -> Arc<dy
                 Arc::new(CustomClient::new_openai_compat(base, model))
             }
         }
+        // v0.111.1 — ERNIE native. 我们在 dispatch 之前已经 fetch 了 keyring
+        // secret (格式 `ak:sk`),构造 client 时 model 已知,ak+sk 通过
+        // `set_secret` setter 后置,call 时再 set。
+        // 这里先返回占位 client,实际 dispatch 路径会改用
+        // `ErnieNativeClient::from_secret`。
+        ProviderKind::ErnieNative => {
+            // Placeholder — 实际 v0.111.1 dispatch 走 special path,这个 arm 不会
+            // 触达 (dispatch caller should match on ErnieNative before reaching here).
+            Arc::new(OpenAIClient::new("https://api.openai.com/v1"))  // fallback
+        }
+        // v0.113 / v0.114 — Hunyuan / Spark stub (deferred to dedicated rounds).
+        ProviderKind::Hunyuan | ProviderKind::Spark => {
+            Arc::new(OpenAIClient::new("https://api.openai.com/v1"))  // fallback
+        }
     }
 }
 
@@ -772,6 +786,12 @@ fn kind_for_provider_id(id: &str) -> ProviderKind {
         // v0.111 — ERNIE 百度千帆 (走 OpenAI 兼容 v2 endpoint,
         //   `qianfan.baidubce.com/v2/...` with `bce-v3/ALTAK-...` API key)
         "ernie" => ProviderKind::OpenaiCompat,
+        // v0.111.1 — ERNIE 百度千帆 native AK/SK 协议 (老 `wenxinworkshop/chat/{model}`)
+        "ernie_native" => ProviderKind::ErnieNative,
+        // v0.113 — Hunyuan 混元 (TC3-HMAC-SHA256)
+        "hunyuan" => ProviderKind::Hunyuan,
+        // v0.114 — Spark 讯飞 (WebSocket)
+        "spark" => ProviderKind::Spark,
         "custom" | "openai_compat" => ProviderKind::OpenaiCompat,
         "anthropic_compat" => ProviderKind::AnthropicCompat,
         _ => ProviderKind::Openai, // safe default

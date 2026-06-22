@@ -522,6 +522,12 @@ async fn probe_one_provider(
                 Arc::new(CustomClient::new_openai_compat(base, &p.default_model))
             }
         }
+        // v0.111.1 / v0.113 / v0.114 — health probe 不直接支持 (需要 special secret)
+        ProviderKind::ErnieNative | ProviderKind::Hunyuan | ProviderKind::Spark => {
+            // Health probe fallback — 走 OpenAI 客户端 (会失败但不会 panic,scheduler 看
+            // 到 error 就 skip 这个 provider)。
+            Arc::new(OpenAIClient::new("https://api.openai.com/v1"))
+        }
     };
     let req = crate::domain::llm::CallRequest::new(&p.default_model)
         .max_tokens(1)
@@ -579,6 +585,12 @@ fn provider_kind_from_id(id: &str) -> ProviderKind {
         "qwen" | "doubao" | "kimi" | "glm" | "MiniMax" => ProviderKind::OpenaiCompat,
         // v0.111 — ERNIE 百度千帆 (OpenAI 兼容 v2 endpoint)
         "ernie" => ProviderKind::OpenaiCompat,
+        // v0.111.1 — ERNIE native AK/SK
+        "ernie_native" => ProviderKind::ErnieNative,
+        // v0.113 — Hunyuan
+        "hunyuan" => ProviderKind::Hunyuan,
+        // v0.114 — Spark
+        "spark" => ProviderKind::Spark,
         "openai_compat" | "custom" => ProviderKind::OpenaiCompat,
         "anthropic_compat" => ProviderKind::AnthropicCompat,
         _ => ProviderKind::Openai,

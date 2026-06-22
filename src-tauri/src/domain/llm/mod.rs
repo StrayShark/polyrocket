@@ -23,6 +23,7 @@ pub mod dispatch;
 pub mod google;
 pub mod openai;
 pub mod custom;
+pub mod ernie_native;
 pub mod progress;
 pub mod prompts;
 
@@ -31,6 +32,7 @@ pub use deepseek::DeepSeekClient;
 pub use google::GoogleClient;
 pub use openai::OpenAIClient;
 pub use custom::CustomClient;
+pub use ernie_native::ErnieNativeClient;
 pub use dispatch::{CallLog, DispatchOutcome, KeyHandle, RetryPolicy, dispatch};
 pub use progress::{
     AnalyzeFinishedEvent, AnalyzeStartedEvent, ConsensusDoneEvent, ProviderDoneEvent,
@@ -61,6 +63,13 @@ pub enum ProviderKind {
     Deepseek,
     OpenaiCompat,
     AnthropicCompat,
+    /// v0.111.1 — ERNIE 百度千帆 native AK/SK 协议
+    /// (`wenxinworkshop/chat/{model}` + OAuth2 access_token)
+    ErnieNative,
+    /// v0.113 — Hunyuan 混元 TC3-HMAC-SHA256 协议
+    Hunyuan,
+    /// v0.114 — Spark 讯飞 WebSocket 协议
+    Spark,
 }
 
 impl ProviderKind {
@@ -72,6 +81,9 @@ impl ProviderKind {
             Self::Deepseek => "deepseek",
             Self::OpenaiCompat => "openai_compat",
             Self::AnthropicCompat => "anthropic_compat",
+            Self::ErnieNative => "ernie_native",
+            Self::Hunyuan => "hunyuan",
+            Self::Spark => "spark",
         }
     }
 
@@ -83,6 +95,9 @@ impl ProviderKind {
             "deepseek" => Some(Self::Deepseek),
             "openai_compat" => Some(Self::OpenaiCompat),
             "anthropic_compat" => Some(Self::AnthropicCompat),
+            "ernie_native" => Some(Self::ErnieNative),
+            "hunyuan" => Some(Self::Hunyuan),
+            "spark" => Some(Self::Spark),
             _ => None,
         }
     }

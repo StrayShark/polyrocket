@@ -213,6 +213,10 @@ async fn run_one(
                 Box::new(CustomClient::new_openai_compat(base, &p.default_model))
             }
         }
+        // v0.111.1 / v0.113 / v0.114 — dev_smoke 不支持 (需要额外 secret 格式)
+        ProviderKind::ErnieNative | ProviderKind::Hunyuan | ProviderKind::Spark => {
+            panic!("dev_smoke: {:?} requires special client construction (use the production path)", kind);
+        }
     };
     let mut req = CallRequest::new(&p.default_model)
         .system(system)
