@@ -55,7 +55,7 @@ import { cn } from '@/lib/cn';
 //     GLM   → https://open.bigmodel.cn/cn/guide/start/model-overview
 //     MiniMax → https://api.minimax.chat/document
 const PROVIDERS: Array<{
-  id: 'openai' | 'anthropic' | 'google' | 'deepseek' | 'qwen' | 'doubao' | 'kimi' | 'glm' | 'MiniMax' | 'custom';
+  id: 'openai' | 'anthropic' | 'google' | 'deepseek' | 'qwen' | 'doubao' | 'kimi' | 'glm' | 'MiniMax' | 'ernie' | 'custom';
   label: string;
   defaultBase: string;
   defaultModel: string;
@@ -65,6 +65,10 @@ const PROVIDERS: Array<{
   { id: 'anthropic', label: 'Anthropic',        defaultBase: 'https://api.anthropic.com',                    defaultModel: 'claude-sonnet-4-20250514' },
   { id: 'google',    label: 'Google',           defaultBase: 'https://generativelanguage.googleapis.com',     defaultModel: 'gemini-2.0-flash' },
   { id: 'deepseek',  label: 'DeepSeek',         defaultBase: 'https://api.deepseek.com',                     defaultModel: 'deepseek-chat' },
+  // v0.111 — ERNIE 百度千帆 (走 OpenAI 兼容 v2 endpoint `qianfan.baidubce.com/v2/coding`,
+  //   API key 格式 `bce-v3/ALTAK-...`)。模型 ERNIE 5.0 (2026-01 ERNIE Moment 大会发布,2.4T 参数 MoE)。
+  // 走 CustomClient(OpenaiCompat),零新 Rust client。
+  { id: 'ernie',     label: '文心一言 ERNIE',    defaultBase: 'https://qianfan.baidubce.com/v2',                  defaultModel: 'ernie-5.0',         hint: '百度千帆 智能云' },
   // v0.110.2 — 国产大模型 Tier 1 (5 个 OpenAI 兼容 providers)。
   // defaultModel 跟厂商最新 stable 模型 (2026-06-22):
   //   Qwen:    qwen3.7-max      (阿里云百炼 2026 最新旗舰)
@@ -117,7 +121,7 @@ export function LlmStep({
           case 'anthropic': return 'anthropic';
           case 'google':    return 'google';
           case 'deepseek':  return 'deepseek';
-          // 5 Chinese + custom: all OpenAI-compatible
+          // 5 Chinese (v0.110) + ERNIE (v0.111) + custom: all OpenAI-compatible
           default:          return 'openai_compat';
         }
       })();

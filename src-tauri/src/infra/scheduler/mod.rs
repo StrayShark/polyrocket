@@ -577,6 +577,8 @@ fn provider_kind_from_id(id: &str) -> ProviderKind {
         "deepseek" => ProviderKind::Deepseek,
         // v0.110 — 国产 OpenAI 兼容大模型 (5 个)
         "qwen" | "doubao" | "kimi" | "glm" | "MiniMax" => ProviderKind::OpenaiCompat,
+        // v0.111 — ERNIE 百度千帆 (OpenAI 兼容 v2 endpoint)
+        "ernie" => ProviderKind::OpenaiCompat,
         "openai_compat" | "custom" => ProviderKind::OpenaiCompat,
         "anthropic_compat" => ProviderKind::AnthropicCompat,
         _ => ProviderKind::Openai,

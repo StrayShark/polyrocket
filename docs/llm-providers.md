@@ -1,6 +1,6 @@
-# LLM Providers — polyrocket v0.110.2
+# LLM Providers — polyrocket v0.111
 
-> 2026-06-22 · bundled as `v0.110.2-final`
+> 2026-06-22 · bundled as `v0.111-final`
 >
 > **v0.110 — 优先支持国产大模型最新版本**: 加 5 个 Tier 1 国产 OpenAI 兼容 provider
 > (Qwen / Doubao / Kimi / GLM / MiniMax) 到 `/welcome` LLM step。零 Rust 改动,纯 UI + 文档。
@@ -12,23 +12,29 @@
 > 联网查证的最新 stable model ID (Qwen `qwen3.7-max` / Doubao `doubao-seed-2-0-pro-260215` /
 > Kimi `kimi-k2.7-code` / GLM `glm-5.2` / MiniMax `MiniMax-M2.7`),详见
 > `polyrocket-llm-management.md` §15.7。
+>
+> **v0.111 — ERNIE 百度千帆**: 加 ERNIE 5.0 (2026-01 发布的 2.4T 参数 MoE) 到
+> `PROVIDERS`。走**现代 OpenAI 兼容 v2 endpoint** (`qianfan.baidubce.com/v2`,
+> API key 格式 `bce-v3/ALTAK-...`)。**零新 Rust client** (复用 CustomClient(OpenaiCompat))。
+> 详见 §1.1 决策记录 (原本 spec 计划新写 ernie.rs native AK/SK 协议,实际走 v2 兼容端点更稳)。
 
 ---
 
-## 1. 支持的 10 个 provider (4 个原生 + 5 个国产 OpenAI 兼容 + Custom)
+## 1. 支持的 11 个 provider (4 个原生 + 6 个国产 OpenAI 兼容 + Custom)
 
-| # | Provider | 协议 | 厂商 | 入口 | 当前 defaultModel (v0.110.2 落地) | Tier |
+| # | Provider | 协议 | 厂商 | 入口 | 当前 defaultModel | Tier |
 |---|---|---|---|---|---|---|
 | 1 | **OpenAI** | `chat/completions` | OpenAI | `https://api.openai.com/v1` | `gpt-4o` | 1 (原生) |
 | 2 | **Anthropic** | `messages` | Anthropic | `https://api.anthropic.com` | `claude-sonnet-4-20250514` | 1 (原生) |
 | 3 | **Google** | Gemini API | Google | `https://generativelanguage.googleapis.com` | `gemini-2.0-flash` | 1 (原生) |
 | 4 | **DeepSeek** | `chat/completions` | DeepSeek | `https://api.deepseek.com` | `deepseek-chat` | 1 (原生) |
-| **5** | **通义千问 (Qwen)** | OpenAI 兼容 | Alibaba 阿里 | `dashscope.aliyuncs.com/compatible-mode/v1` | **`qwen3.7-max`** (Q3 2026) | 1 (国产 #1) |
-| **6** | **豆包 (Doubao)** | OpenAI 兼容 | 字节火山 | `ark.cn-beijing.volces.com/api/v3` | **`doubao-seed-2-0-pro-260215`** (2026-02-14) | 1 (国产 #2) |
-| **7** | **Kimi (Moonshot)** | OpenAI 兼容 | 月之暗面 | `api.moonshot.cn/v1` | **`kimi-k2.7-code`** (Coding SOTA) | 1 (国产 #3) |
-| **8** | **GLM (智谱)** | OpenAI 兼容 | BigModel | `open.bigmodel.cn/api/paas/v4` | **`glm-5.2`** (1M ctx, 2026 Q2) | 1 (国产 #4) |
-| **9** | **MiniMax** | OpenAI 兼容 | MiniMax | `api.minimax.chat/v1` | **`MiniMax-M2.7`** (稳定版) | 1 (国产 #5) |
-| 10 | **Custom** | OpenAI 兼容 | any | (用户填) | (用户填) | 1 (通用) |
+| **5** | **通义千问 (Qwen)** | OpenAI 兼容 | Alibaba 阿里 | `dashscope.aliyuncs.com/compatible-mode/v1` | `qwen3.7-max` | 1 (国产 #1) |
+| **6** | **豆包 (Doubao)** | OpenAI 兼容 | 字节火山 | `ark.cn-beijing.volces.com/api/v3` | `doubao-seed-2-0-pro-260215` | 1 (国产 #2) |
+| **7** | **Kimi (Moonshot)** | OpenAI 兼容 | 月之暗面 | `api.moonshot.cn/v1` | `kimi-k2.7-code` | 1 (国产 #3) |
+| **8** | **GLM (智谱)** | OpenAI 兼容 | BigModel | `open.bigmodel.cn/api/paas/v4` | `glm-5.2` | 1 (国产 #4) |
+| **9** | **MiniMax** | OpenAI 兼容 | MiniMax | `api.minimax.chat/v1` | `MiniMax-M2.7` | 1 (国产 #5) |
+| **10** | **文心一言 ERNIE** | OpenAI 兼容 (v2) | 百度千帆 | `qianfan.baidubce.com/v2` | **`ernie-5.0`** (2026-01 2.4T MoE) | 1 (国产 #6) |
+| 11 | **Custom** | OpenAI 兼容 | any | (用户填) | (用户填) | 1 (通用) |
 
 代码入口:
 - 协议分发: `src-tauri/src/domain/llm/dispatch.rs`
@@ -76,12 +82,12 @@ keyring 写入 → connectivity test 跑通 → ok=true
 
 ---
 
-## 4. 之后 (Tier 2 / Tier 3 — 留到 v0.111+)
+## 4. 之后 (Tier 2 / Tier 3 — 留到 v0.112+)
 
 - **Tier 2 自定义协议** (需写新 Rust client):
-  - **ERNIE (百度 千帆)** — 自有 AK/SK 鉴权,不同 endpoint → `ernie.rs` (3 天工作)
   - **Hunyuan (腾讯 混元)** — TC3-HMAC-SHA256 签名 → `hunyuan.rs` (2 天)
   - **Spark (讯飞)** — WebSocket 协议 → `spark.rs` (5 天)
+  - **ERNIE native AK/SK 协议** — 老 `wenxinworkshop/chat/{model}` endpoint (现在 5 个国内 v0.110 厂商都用 OpenAI 兼容,但部分用户有 AK/SK 而无 bce-v3 key) → `ernie_native.rs` (2 天, deferred v0.111.1+)
 
 - **Tier 3 开源本地**:
   - Qwen3 / GLM-4.5 / DeepSeek-R1 / Yi 都开源

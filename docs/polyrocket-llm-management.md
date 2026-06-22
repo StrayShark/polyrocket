@@ -758,6 +758,8 @@ Rust dispatch → http POST { model: default_model } → 厂商 API
 ### 15.7 当前最新版本 (v0.110.2 起，由 Mavis 联网查证 + 用户复审)
 
 > **v0.110.2 (2026-06-22)**: Mavis 联网 web_search 查 5 家最新 stable model ID。用户复审后落地到 `LlmStep.tsx` PROVIDERS[i].defaultModel 字段。本节是 §15 SLA 的第一次真实"填写 → 落库"演练。
+>
+> **v0.111 (2026-06-22)**: 加第 6 个国产 provider — ERNIE 百度千帆 (走 OpenAI 兼容 v2 endpoint)。`ernie-5.0` (2026-01 发布的 2.4T 参数 MoE)。
 
 | Provider | `default_model` (代码当前值) | 厂商文档 | 调研日期 | 备注 |
 |---|---|---|---|---|
@@ -766,6 +768,7 @@ Rust dispatch → http POST { model: default_model } → 厂商 API
 | Kimi (Moonshot) | `kimi-k2.7-code` | [Moonshot 平台模型列表](https://platform.moonshot.cn/docs/intro) | 2026-06-22 | K2.7 偏代码场景 (Coding SOTA)，另有 `kimi-k2.6` (多模态旗舰) 可选。`api.moonshot.cn/v1` 走 OpenAI 兼容。 |
 | GLM (智谱) | `glm-5.2` | [BigModel 模型概览](https://open.bigmodel.cn/cn/guide/start/model-overview) | 2026-06-22 | 智谱 BigModel 第五代 (2026 Q2)，1M context window, Coding SOTA。`api/paas/v4` 是最新 PaaS 路径。 |
 | MiniMax | `MiniMax-M2.7` | [MiniMax API 文档](https://api.minimax.chat/document) | 2026-06-22 | 稀宇科技 MiniMax 系列稳定版 (`MiniMax-M2.7`) 走百炼平台 (兼容模式)。`MiniMax-M3` 在 MiniMax 自家站点上线中但百炼渠道暂未铺开，按 §15 SLA 等官方公告。 |
+| **ERNIE (文心一言)** | `ernie-5.0` | [百度千帆模型列表](https://cloud.baidu.com/doc/WENXINWORKSHOP/s/hk7k8k4ru) | 2026-06-22 | **v0.111 新增**。走现代 OpenAI 兼容 v2 endpoint (`qianfan.baidubce.com/v2`), API key 格式 `bce-v3/ALTAK-...`。ERNIE 5.0 是 2026-01-22 ERNIE Moment 大会发布的 2.4T 参数 MoE 旗舰。Legacy AK/SK 协议 (`wenxinworkshop/chat/{model}`) 不在本 round 范围内, deferred v0.111.1+ (少数用户仅有 AK/SK 而无 bce-v3 key)。 |
 
 **调研方法** (Mavis 工具)：
 1. `web_search` (MCP `matrix` 提供) — 搜 "<provider> latest model 2026" + 中文关键词

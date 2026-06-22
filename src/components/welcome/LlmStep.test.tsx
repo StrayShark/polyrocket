@@ -58,7 +58,7 @@ describe('LlmStep', () => {
     mockLlmProviderUpsert.mockReset();
     mockLlmProviderUpsert.mockResolvedValue(undefined);
   });
-  it('renders all 10 provider buttons (5 original + 5 Chinese LLM presets)', () => {
+  it('renders all 11 provider buttons (5 original + 5 Chinese LLM presets + ERNIE)', () => {
     render(<LlmStep welcome={makeWelcome()} />);
     // Original 5
     expect(screen.getByTestId('welcome-llm-provider-openai')).toBeInTheDocument();
@@ -72,6 +72,27 @@ describe('LlmStep', () => {
     expect(screen.getByTestId('welcome-llm-provider-kimi')).toBeInTheDocument();
     expect(screen.getByTestId('welcome-llm-provider-glm')).toBeInTheDocument();
     expect(screen.getByTestId('welcome-llm-provider-MiniMax')).toBeInTheDocument();
+    // v0.111 — ERNIE 百度千帆
+    expect(screen.getByTestId('welcome-llm-provider-ernie')).toBeInTheDocument();
+  });
+
+  it('ERNIE add uses ernie-5.0 (Qianfan v2, OpenAI compat)', async () => {
+    mockLlmKeyUpsert.mockResolvedValue({ id: 'k-ernie' });
+    mockLlmKeySetSecret.mockResolvedValue(undefined);
+    mockLlmTestConnectivity.mockResolvedValue({ ok: true, latency_ms: 350 });
+    render(<LlmStep welcome={makeWelcome()} />);
+    fireEvent.click(screen.getByTestId('welcome-llm-provider-ernie'));
+    fireEvent.change(screen.getByTestId('welcome-llm-secret'), { target: { value: 'bce-v3/ALTAK-test' } });
+    fireEvent.click(screen.getByTestId('welcome-llm-add'));
+    await waitFor(() => {
+      expect(mockLlmProviderUpsert).toHaveBeenCalled();
+    });
+    const args = mockLlmProviderUpsert.mock.calls[0]?.[0] as
+      | { id: string; default_model: string; kind: string; api_base: string } | undefined;
+    expect(args?.id).toBe('ernie');
+    expect(args?.default_model).toBe('ernie-5.0');
+    expect(args?.kind).toBe('openai_compat');
+    expect(args?.api_base).toBe('https://qianfan.baidubce.com/v2');
   });
 
   it('clicking Qwen preset + Add uses qwen provider_id with Aliyun base', async () => {
