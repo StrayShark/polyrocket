@@ -732,7 +732,28 @@ Rust dispatch → http POST { model: default_model } → 厂商 API
 - `latest from vendor` 链接到厂商模型列表页 (Qwen → `https://help.aliyun.com/zh/model-studio/developer-reference/model-overview` / GLM → `https://open.bigmodel.cn/dev/api` / 等)
 - 用户在卡片上直接点击 Edit → 改 model ID → 一键保存
 
-### 15.5 自动检测（v0.3+ 路线）
+### 15.5 自动检测（v0.112 部分实现 + v0.3+ 路线）
+
+**v0.112 (2026-06-22) — 部分实现**: `scripts/check-llm-updates.mjs` + cron
+`mavis check-llm-versions` (schedule `0 12 */14 * *` Asia/Shanghai, active
+09:00-21:00)。
+
+- 脚本读 `§15.7` 表格当前值, fetch 6 家厂商文档页 (Qwen / Doubao / Kimi /
+  GLM / MiniMax / ERNIE), regex 提取 model ID candidates, 比对当前值
+  vs latest stable。
+- 退出码 0 = 无 diff, 1 = 至少一个 provider 有新 stable version, 2 = 致命错误。
+- Cron 14 天跑一次, exit 1 时 Mavis 自动 draft PR proposal (改 LlmStep.tsx
+  PROVIDERS + 改 §15.7 表格 + 改 llm-providers.md §1 + 更新测试)。
+- **限制**: 5-6 家厂商页面结构差异大, regex 抓取是 best-effort。可能漏掉
+  vendor-specific 命名 (e.g. "Preview" / "Turbo" / "Plus")。v0.112.x
+  可换 cheerio + per-vendor 解析。
+- **测试**: `scripts/check-llm-updates.test.mjs` 8 tests, --offline + --fixture
+  模式可纯逻辑跑。
+- **Cron 行为**: 14 天 at 12:00 Asia/Shanghai. 在 09:00-21:00 active hours
+  内, 其它时间跳过。
+
+**v0.3+ 路线**: 跑 LLM health probe 时 detect 厂商新模型 (heuristic 匹配
++ 版本号 regression 检测)。v0.3 之后具体方案。
 
 **当前手动** (v0.110)：用户或 maintainer 手工改 default_model + 跑 connectivity test。
 
@@ -785,5 +806,6 @@ Rust dispatch → http POST { model: default_model } → 厂商 API
 - **v1.2** (2026-06-16) — 新增 §14 后台调度：3 个 tokio task（health probe / daily brief cron / anomaly detection）+ 3 个新 IPC（scheduler_status / scheduler_run_health_probe_now / scheduler_run_daily_brief_now）。3-fail auto-disable 落地。
 - **v1.3** (2026-06-22) — 新增 §15 LLM 最新版本承诺与跟进策略：硬性 2 周 SLA，3 阶段流程（D+3 评估 / D+7 落地 / D+14 验证），15.3 数据流图明确 model ID 存储路径，15.4 UI 透明性规范，15.5 自动检测路线（v0.3+），15.6 vendor 跟进 checklist，15.7 当前最新版本表（待 maintainer 补全）。回应 v0.110 用户反馈 "国产模型只对接最新版本"：把版本跟进从"一次性 hardcode"升级为"持续 SLA"。
 - **v1.3.1** (2026-06-22, v0.110.2 配套) — §15.7 填表: 5 个国产 provider 的 `default_model` 由 placeholder 改为真实研究后的最新 ID（Qwen `qwen3.7-max` / Doubao `doubao-seed-2-0-pro-260215` / Kimi `kimi-k2.7-code` / GLM `glm-5.2` / MiniMax `MiniMax-M2.7`）。记录 Mavis web_search/webfetch 调研方法 + 用户复审机制。这是 §15 SLA 的第一次"填写 → 落库"演练。
+- **v1.4** (2026-06-22, v0.112 配套) — §15.5 自动检测**部分实现**:`scripts/check-llm-updates.mjs` (200 行) + `mavis cron check-llm-versions` (14 天 at 12:00 Asia/Shanghai)。脚本读 §15.7 → fetch 6 家厂商文档页 → regex 提取 candidates → 比对 current vs newest stable → exit 0/1/2。Cron exit 1 时 Mavis draft PR。8 tests 全过 (--offline + --fixture 模式)。Mavis web_search / webfetch 仍是补漏 (cron regex 漏掉的话手动调研)。后续 v0.112.x 可换 cheerio per-vendor 解析。
 - **v1.1** (2026-06-16) — 新增 §13 Client-side key persistence：明确 client paste 为主路径、.env 仅 dev；新增 4 类 IPC（llm_key_set_secret / llm_pm_set_credentials / polyrocket_wallet_set_pk / secrets_status）；keyring alias builder 化；启动同步仅在 `POLYROCKET_ENV=dev && KEYRING_ONLY=0` 时执行。
 - **v1.0** (2026-06-16) — 初版。基于用户反馈"LLM 管理 + 流量 + 连通性 + 胜率"需求重写。引入 M11 模块、3 张新表、4 类 IPC 扩展、连通性测试、流量监控、胜率统计增强。
