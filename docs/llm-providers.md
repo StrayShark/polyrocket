@@ -1,26 +1,34 @@
-# LLM Providers — polyrocket v0.110
+# LLM Providers — polyrocket v0.110.2
 
-> 2026-06-22 · bundled as `v0.110-final`
+> 2026-06-22 · bundled as `v0.110.2-final`
 >
 > **v0.110 — 优先支持国产大模型最新版本**: 加 5 个 Tier 1 国产 OpenAI 兼容 provider
 > (Qwen / Doubao / Kimi / GLM / MiniMax) 到 `/welcome` LLM step。零 Rust 改动,纯 UI + 文档。
+>
+> **v0.110.2 — `default_model` 落库**: 之前 v0.110 的 `defaultModel` 字段只写在前端 `PROVIDERS` 数组,
+> LlmStep onAdd 没把 `default_model` 写进 SQLite,dispatch 层会回退到 LlmProviderDto
+> 服务端默认值。v0.110.2 在 onAdd 头部加 `llmProviderUpsert` 调用,把 `defaultModel`
+> 真正持久化。同时把 5 个国产 provider 的 defaultModel 字段由 placeholder 改为
+> 联网查证的最新 stable model ID (Qwen `qwen3.7-max` / Doubao `doubao-seed-2-0-pro-260215` /
+> Kimi `kimi-k2.7-code` / GLM `glm-5.2` / MiniMax `MiniMax-M2.7`),详见
+> `polyrocket-llm-management.md` §15.7。
 
 ---
 
-## 1. 支持的 6 个 provider (4 个原生 + 5 个国产 OpenAI 兼容)
+## 1. 支持的 10 个 provider (4 个原生 + 5 个国产 OpenAI 兼容 + Custom)
 
-| # | Provider | 协议 | 厂商 | 入口 | 最新模型 (2026) | Tier |
+| # | Provider | 协议 | 厂商 | 入口 | 当前 defaultModel (v0.110.2 落地) | Tier |
 |---|---|---|---|---|---|---|
-| 1 | **OpenAI** | `chat/completions` | OpenAI | `https://api.openai.com/v1` | GPT-4o / GPT-4 Turbo / o1 / o3 | 1 (原生) |
-| 2 | **Anthropic** | `messages` | Anthropic | `https://api.anthropic.com` | Claude 3.5/4 Sonnet/Opus/Haiku | 1 (原生) |
-| 3 | **Google** | Gemini API | Google | `https://generativelanguage.googleapis.com` | Gemini 1.5/2.0 Pro/Flash | 1 (原生) |
-| 4 | **DeepSeek** | `chat/completions` | DeepSeek | `https://api.deepseek.com` | DeepSeek-V3 / DeepSeek-R1 | 1 (原生) |
-| **5** | **通义千问 (Qwen)** | OpenAI 兼容 | Alibaba 阿里 | `dashscope.aliyuncs.com/compatible-mode/v1` | **Qwen3-Max / Qwen3-Plus / Qwen3-72B/32B/8B** | 1 (国产 #1) |
-| **6** | **豆包 (Doubao)** | OpenAI 兼容 | 字节火山 | `ark.cn-beijing.volces.com/api/v3` | **Doubao-1.5-Pro / Doubao-Lite** | 1 (国产 #2) |
-| **7** | **Kimi (Moonshot)** | OpenAI 兼容 | 月之暗面 | `api.moonshot.cn/v1` | **kimi-k2 / Moonshot-v1-128k** | 1 (国产 #3) |
-| **8** | **GLM (智谱)** | OpenAI 兼容 | BigModel | `open.bigmodel.cn/api/paas/v4` | **GLM-4.5 / GLM-4-Plus** | 1 (国产 #4) |
-| **9** | **MiniMax** | OpenAI 兼容 | MiniMax | `api.minimax.chat/v1` | **MiniMax-Text-01 / abab-7** | 1 (国产 #5) |
-| 10 | **Custom** | OpenAI 兼容 | any | (用户填) | 任何 OpenAI 兼容 (Groq / xAI / Mistral / Perplexity / Together / Fireworks / OpenRouter / Azure / Ollama / vLLM / llama.cpp) | 1 (通用) |
+| 1 | **OpenAI** | `chat/completions` | OpenAI | `https://api.openai.com/v1` | `gpt-4o` | 1 (原生) |
+| 2 | **Anthropic** | `messages` | Anthropic | `https://api.anthropic.com` | `claude-sonnet-4-20250514` | 1 (原生) |
+| 3 | **Google** | Gemini API | Google | `https://generativelanguage.googleapis.com` | `gemini-2.0-flash` | 1 (原生) |
+| 4 | **DeepSeek** | `chat/completions` | DeepSeek | `https://api.deepseek.com` | `deepseek-chat` | 1 (原生) |
+| **5** | **通义千问 (Qwen)** | OpenAI 兼容 | Alibaba 阿里 | `dashscope.aliyuncs.com/compatible-mode/v1` | **`qwen3.7-max`** (Q3 2026) | 1 (国产 #1) |
+| **6** | **豆包 (Doubao)** | OpenAI 兼容 | 字节火山 | `ark.cn-beijing.volces.com/api/v3` | **`doubao-seed-2-0-pro-260215`** (2026-02-14) | 1 (国产 #2) |
+| **7** | **Kimi (Moonshot)** | OpenAI 兼容 | 月之暗面 | `api.moonshot.cn/v1` | **`kimi-k2.7-code`** (Coding SOTA) | 1 (国产 #3) |
+| **8** | **GLM (智谱)** | OpenAI 兼容 | BigModel | `open.bigmodel.cn/api/paas/v4` | **`glm-5.2`** (1M ctx, 2026 Q2) | 1 (国产 #4) |
+| **9** | **MiniMax** | OpenAI 兼容 | MiniMax | `api.minimax.chat/v1` | **`MiniMax-M2.7`** (稳定版) | 1 (国产 #5) |
+| 10 | **Custom** | OpenAI 兼容 | any | (用户填) | (用户填) | 1 (通用) |
 
 代码入口:
 - 协议分发: `src-tauri/src/domain/llm/dispatch.rs`
@@ -81,16 +89,20 @@ keyring 写入 → connectivity test 跑通 → ok=true
 
 ---
 
-## 5. v0.110 文件改动
+## 5. v0.110.2 文件改动
 
 ```
-src/components/welcome/LlmStep.tsx              M     +20 lines (5 new providers + hint UI)
-src/components/welcome/LlmStep.test.tsx        M     +70 lines (3 new tests)
-docs/llm-providers.md                          NEW   this file
-docs/overview.md                               M     v2.63 → v2.64
-docs/coding-spec.md                            M     v2.22 → v2.23
-docs/polyrocket-v0.110-final.md                NEW   ship log
+src/components/welcome/LlmStep.tsx              M     +50 lines (PROVIDERS[i].defaultModel 字段 + llmProviderUpsert onAdd 步骤)
+src/components/welcome/LlmStep.test.tsx        M     +110 lines (6 new tests,含 5 个 defaultModel 落地断言)
+docs/llm-providers.md                          M     §1 表格更新 current defaultModel + 头部 v0.110 → v0.110.2
+docs/polyrocket-llm-management.md              M     §15.7 placeholder → 真实 model ID 表格
+docs/overview.md                               M     v2.64 → v2.65 (v0.110.2 入口)
+docs/coding-spec.md                            M     v2.23 → v2.24 (v0.110.2 入口)
+docs/polyrocket-v0.110.2-final.md              NEW   ship log
 ```
+
+> 16 vitest tests in LlmStep.test.tsx, all green. 5/5 CI jobs green locally.
+> No codegen drift. No new Rust client (CustomClient handles 5 OpenAI compat).
 
 ---
 

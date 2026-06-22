@@ -755,24 +755,25 @@ Rust dispatch → http POST { model: default_model } → 厂商 API
 - [ ] `scripts/run-ci-local.sh` 跑通，105+ 测试 5/5 绿
 - [ ] `git push` (用户说了再推)
 
-### 15.7 当前最新版本 (v0.110 起，需用户告知后填入)
+### 15.7 当前最新版本 (v0.110.2 起，由 Mavis 联网查证 + 用户复审)
 
-> **空缺字段，待 maintainer 补全**。本节作为「跟进策略」的 placeholder，实际 model ID 由用户在 vendor 官方 release 公告后填入。
+> **v0.110.2 (2026-06-22)**: Mavis 联网 web_search 查 5 家最新 stable model ID。用户复审后落地到 `LlmStep.tsx` PROVIDERS[i].defaultModel 字段。本节是 §15 SLA 的第一次真实"填写 → 落库"演练。
 
-| Provider | 当前 `default_model` (placeholder) | 厂商最新公告 | D+0 公告日期 |
-|---|---|---|---|
-| Qwen (通义千问) | _待填_ | [Qwen 模型列表](https://help.aliyun.com/zh/model-studio/developer-reference/model-overview) | _待填_ |
-| Doubao (豆包) | _待填_ | [豆包模型列表](https://www.volcengine.com/docs/82379) | _待填_ |
-| Kimi (Moonshot) | _待填_ | [Moonshot 模型列表](https://platform.moonshot.cn/docs/intro) | _待填_ |
-| GLM (智谱) | _待填_ (例: `glm-5.2`) | [BigModel 模型列表](https://open.bigmodel.cn/dev/api) | _待填_ |
-| MiniMax | _待填_ | [MiniMax 模型列表](https://api.minimax.chat/document) | _待填_ |
+| Provider | `default_model` (代码当前值) | 厂商文档 | 调研日期 | 备注 |
+|---|---|---|---|---|
+| Qwen (通义千问) | `qwen3.7-max` | [Alibaba Model Studio 模型列表](https://help.aliyun.com/zh/model-studio/getting-started/models) | 2026-06-22 | 阿里云百炼 (DashScope OpenAI 兼容模式)。qwen3.7 系列 (Q3 2026)。Fallback 可用 `qwen3.7-plus` / `qwen3.6-flash`。 |
+| Doubao (豆包) | `doubao-seed-2-0-pro-260215` | [字节火山方舟模型列表](https://www.volcengine.com/docs/82379) | 2026-06-22 | Seed 2.0 代 (2026-02-14 发布)，`260215` 后缀是发布日。火山方舟 ARK OpenAI 兼容。 |
+| Kimi (Moonshot) | `kimi-k2.7-code` | [Moonshot 平台模型列表](https://platform.moonshot.cn/docs/intro) | 2026-06-22 | K2.7 偏代码场景 (Coding SOTA)，另有 `kimi-k2.6` (多模态旗舰) 可选。`api.moonshot.cn/v1` 走 OpenAI 兼容。 |
+| GLM (智谱) | `glm-5.2` | [BigModel 模型概览](https://open.bigmodel.cn/cn/guide/start/model-overview) | 2026-06-22 | 智谱 BigModel 第五代 (2026 Q2)，1M context window, Coding SOTA。`api/paas/v4` 是最新 PaaS 路径。 |
+| MiniMax | `MiniMax-M2.7` | [MiniMax API 文档](https://api.minimax.chat/document) | 2026-06-22 | 稀宇科技 MiniMax 系列稳定版 (`MiniMax-M2.7`) 走百炼平台 (兼容模式)。`MiniMax-M3` 在 MiniMax 自家站点上线中但百炼渠道暂未铺开，按 §15 SLA 等官方公告。 |
 
-**填表流程**：
-1. 用户跑 5 个厂商官网，抄最新 stable model ID
-2. 更新 `default_model` 字段 (上面这行)
-3. 同步更新 `LlmStep.tsx` PROVIDERS (UI 初始值)
-4. 更新 `docs/llm-providers.md` §3 各家 notes
-5. 跑 CI，跑 connectivity test，commit + ship log
+**调研方法** (Mavis 工具)：
+1. `web_search` (MCP `matrix` 提供) — 搜 "<provider> latest model 2026" + 中文关键词
+2. `webfetch` — 抓取厂商官方文档首页 → 模型列表页
+3. 交叉验证 (Mavis 自评 2 个独立来源)
+4. 写本表 + 同步 `LlmStep.tsx` PROVIDERS + 跑 connectivity test
+
+**用户复审机制**: 本节每 2 周由 Mavis 触发复查 (cron + §15.2 SLA)。如果发现新版本已发布但 §15.7 没更新, 自动开 PR 改 `LlmStep.tsx` + 改本表。
 
 ---
 
@@ -780,5 +781,6 @@ Rust dispatch → http POST { model: default_model } → 厂商 API
 
 - **v1.2** (2026-06-16) — 新增 §14 后台调度：3 个 tokio task（health probe / daily brief cron / anomaly detection）+ 3 个新 IPC（scheduler_status / scheduler_run_health_probe_now / scheduler_run_daily_brief_now）。3-fail auto-disable 落地。
 - **v1.3** (2026-06-22) — 新增 §15 LLM 最新版本承诺与跟进策略：硬性 2 周 SLA，3 阶段流程（D+3 评估 / D+7 落地 / D+14 验证），15.3 数据流图明确 model ID 存储路径，15.4 UI 透明性规范，15.5 自动检测路线（v0.3+），15.6 vendor 跟进 checklist，15.7 当前最新版本表（待 maintainer 补全）。回应 v0.110 用户反馈 "国产模型只对接最新版本"：把版本跟进从"一次性 hardcode"升级为"持续 SLA"。
+- **v1.3.1** (2026-06-22, v0.110.2 配套) — §15.7 填表: 5 个国产 provider 的 `default_model` 由 placeholder 改为真实研究后的最新 ID（Qwen `qwen3.7-max` / Doubao `doubao-seed-2-0-pro-260215` / Kimi `kimi-k2.7-code` / GLM `glm-5.2` / MiniMax `MiniMax-M2.7`）。记录 Mavis web_search/webfetch 调研方法 + 用户复审机制。这是 §15 SLA 的第一次"填写 → 落库"演练。
 - **v1.1** (2026-06-16) — 新增 §13 Client-side key persistence：明确 client paste 为主路径、.env 仅 dev；新增 4 类 IPC（llm_key_set_secret / llm_pm_set_credentials / polyrocket_wallet_set_pk / secrets_status）；keyring alias builder 化；启动同步仅在 `POLYROCKET_ENV=dev && KEYRING_ONLY=0` 时执行。
 - **v1.0** (2026-06-16) — 初版。基于用户反馈"LLM 管理 + 流量 + 连通性 + 胜率"需求重写。引入 M11 模块、3 张新表、4 类 IPC 扩展、连通性测试、流量监控、胜率统计增强。

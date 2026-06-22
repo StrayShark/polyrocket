@@ -19,12 +19,14 @@ import { createIpcMock } from '@/test-mocks';
 const mockLlmKeyUpsert = vi.fn();
 const mockLlmKeySetSecret = vi.fn();
 const mockLlmTestConnectivity = vi.fn();
+const mockLlmProviderUpsert = vi.fn();
 const mockListProviders = vi.fn();
 
 vi.mock('@/ipc', () => createIpcMock({
   llmKeyUpsert: (...args: unknown[]) => mockLlmKeyUpsert(...args),
   llmKeySetSecret: (...args: unknown[]) => mockLlmKeySetSecret(...args),
   llmTestConnectivity: (...args: unknown[]) => mockLlmTestConnectivity(...args),
+  llmProviderUpsert: (...args: unknown[]) => mockLlmProviderUpsert(...args),
   llmProviderList: () => mockListProviders(),
 }));
 
@@ -53,6 +55,8 @@ describe('LlmStep', () => {
     mockLlmKeyUpsert.mockReset();
     mockLlmKeySetSecret.mockReset();
     mockLlmTestConnectivity.mockReset();
+    mockLlmProviderUpsert.mockReset();
+    mockLlmProviderUpsert.mockResolvedValue(undefined);
   });
   it('renders all 10 provider buttons (5 original + 5 Chinese LLM presets)', () => {
     render(<LlmStep welcome={makeWelcome()} />);
@@ -152,7 +156,7 @@ describe('LlmStep', () => {
     });
   });
 
-  it('successful add: upsert + setSecret + test + setConfigured(llmAtLeastOne=true)', async () => {
+  it('successful add: provider upsert + key upsert + setSecret + test + setConfigured', async () => {
     mockLlmKeyUpsert.mockResolvedValue({ id: 'k1' });
     mockLlmKeySetSecret.mockResolvedValue(undefined);
     mockLlmTestConnectivity.mockResolvedValue({ ok: true, latency_ms: 200 });
@@ -162,15 +166,98 @@ describe('LlmStep', () => {
     fireEvent.change(secretInput, { target: { value: 'sk-mykey' } });
     fireEvent.click(screen.getByTestId('welcome-llm-add'));
     await waitFor(() => {
+      // v0.110.2 — provider upsert must fire BEFORE key upsert (so default_model persists)
+      expect(mockLlmProviderUpsert).toHaveBeenCalled();
       expect(mockLlmKeyUpsert).toHaveBeenCalled();
       expect(mockLlmKeySetSecret).toHaveBeenCalledWith('k1', 'sk-mykey');
       expect(mockLlmTestConnectivity).toHaveBeenCalledWith('openai', 'k1');
       expect(welcome.setConfigured).toHaveBeenCalledWith('llmAtLeastOne', true);
     });
-    // Result block shows success
+    // v0.110.2 — assert the default_model from PROVIDERS is passed
+    const providerArgs = mockLlmProviderUpsert.mock.calls[0]?.[0] as
+      | { id: string; default_model: string; kind: string; api_base: string } | undefined;
+    expect(providerArgs?.id).toBe('openai');
+    expect(providerArgs?.default_model).toBe('gpt-4o');
+    expect(providerArgs?.kind).toBe('openai');
+    expect(providerArgs?.api_base).toBe('https://api.openai.com/v1');
+  });
+
+  it('GLM add uses glm-5.2 as default_model (latest stable 2026-06)', async () => {
+    mockLlmKeyUpsert.mockResolvedValue({ id: 'k1' });
+    mockLlmKeySetSecret.mockResolvedValue(undefined);
+    mockLlmTestConnectivity.mockResolvedValue({ ok: true, latency_ms: 300 });
+    render(<LlmStep welcome={makeWelcome()} />);
+    fireEvent.click(screen.getByTestId('welcome-llm-provider-glm'));
+    fireEvent.change(screen.getByTestId('welcome-llm-secret'), { target: { value: 'sk-glm' } });
+    fireEvent.click(screen.getByTestId('welcome-llm-add'));
     await waitFor(() => {
-      expect(screen.getByTestId('welcome-llm-result')).toBeInTheDocument();
+      expect(mockLlmProviderUpsert).toHaveBeenCalled();
     });
+    const args = mockLlmProviderUpsert.mock.calls[0]?.[0] as
+      | { default_model: string; kind: string; api_base: string } | undefined;
+    expect(args?.default_model).toBe('glm-5.2');
+    expect(args?.kind).toBe('openai_compat');
+    expect(args?.api_base).toBe('https://open.bigmodel.cn/api/paas/v4');
+  });
+
+  it('Qwen add uses qwen3.7-max as default_model (latest stable 2026-06)', async () => {
+    mockLlmKeyUpsert.mockResolvedValue({ id: 'k1' });
+    mockLlmKeySetSecret.mockResolvedValue(undefined);
+    mockLlmTestConnectivity.mockResolvedValue({ ok: true, latency_ms: 200 });
+    render(<LlmStep welcome={makeWelcome()} />);
+    fireEvent.click(screen.getByTestId('welcome-llm-provider-qwen'));
+    fireEvent.change(screen.getByTestId('welcome-llm-secret'), { target: { value: 'sk-qwen' } });
+    fireEvent.click(screen.getByTestId('welcome-llm-add'));
+    await waitFor(() => {
+      expect(mockLlmProviderUpsert).toHaveBeenCalled();
+    });
+    const args = mockLlmProviderUpsert.mock.calls[0]?.[0] as { default_model: string } | undefined;
+    expect(args?.default_model).toBe('qwen3.7-max');
+  });
+
+  it('Doubao add uses doubao-seed-2-0-pro-260215 (Seed 2.0 2026-02)', async () => {
+    mockLlmKeyUpsert.mockResolvedValue({ id: 'k1' });
+    mockLlmKeySetSecret.mockResolvedValue(undefined);
+    mockLlmTestConnectivity.mockResolvedValue({ ok: true, latency_ms: 250 });
+    render(<LlmStep welcome={makeWelcome()} />);
+    fireEvent.click(screen.getByTestId('welcome-llm-provider-doubao'));
+    fireEvent.change(screen.getByTestId('welcome-llm-secret'), { target: { value: 'sk-doubao' } });
+    fireEvent.click(screen.getByTestId('welcome-llm-add'));
+    await waitFor(() => {
+      expect(mockLlmProviderUpsert).toHaveBeenCalled();
+    });
+    const args = mockLlmProviderUpsert.mock.calls[0]?.[0] as { default_model: string } | undefined;
+    expect(args?.default_model).toBe('doubao-seed-2-0-pro-260215');
+  });
+
+  it('Kimi add uses kimi-k2.7-code (latest 2026)', async () => {
+    mockLlmKeyUpsert.mockResolvedValue({ id: 'k1' });
+    mockLlmKeySetSecret.mockResolvedValue(undefined);
+    mockLlmTestConnectivity.mockResolvedValue({ ok: true, latency_ms: 280 });
+    render(<LlmStep welcome={makeWelcome()} />);
+    fireEvent.click(screen.getByTestId('welcome-llm-provider-kimi'));
+    fireEvent.change(screen.getByTestId('welcome-llm-secret'), { target: { value: 'sk-kimi' } });
+    fireEvent.click(screen.getByTestId('welcome-llm-add'));
+    await waitFor(() => {
+      expect(mockLlmProviderUpsert).toHaveBeenCalled();
+    });
+    const args = mockLlmProviderUpsert.mock.calls[0]?.[0] as { default_model: string } | undefined;
+    expect(args?.default_model).toBe('kimi-k2.7-code');
+  });
+
+  it('MiniMax add uses MiniMax-M2.7 (latest stable 2026)', async () => {
+    mockLlmKeyUpsert.mockResolvedValue({ id: 'k1' });
+    mockLlmKeySetSecret.mockResolvedValue(undefined);
+    mockLlmTestConnectivity.mockResolvedValue({ ok: true, latency_ms: 200 });
+    render(<LlmStep welcome={makeWelcome()} />);
+    fireEvent.click(screen.getByTestId('welcome-llm-provider-MiniMax'));
+    fireEvent.change(screen.getByTestId('welcome-llm-secret'), { target: { value: 'sk-MM' } });
+    fireEvent.click(screen.getByTestId('welcome-llm-add'));
+    await waitFor(() => {
+      expect(mockLlmProviderUpsert).toHaveBeenCalled();
+    });
+    const args = mockLlmProviderUpsert.mock.calls[0]?.[0] as { default_model: string } | undefined;
+    expect(args?.default_model).toBe('MiniMax-M2.7');
   });
 
   it('failed connectivity: shows result with error message', async () => {

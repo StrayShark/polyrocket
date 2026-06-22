@@ -32,8 +32,9 @@ import {
   llmKeyUpsert,
   llmKeySetSecret,
   llmTestConnectivity,
+  llmProviderUpsert,
 } from '@/ipc';
-import type { UpsertLlmKeyArgs } from '@/types/llm';
+import type { UpsertLlmKeyArgs, UpsertLlmProviderArgs } from '@/types/llm';
 import { toast } from '@/stores/toast-store';
 import { Key, Plus, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -45,35 +46,38 @@ import { cn } from '@/lib/cn';
 // `src-tauri/src/domain/llm/custom.rs`. Users only need to
 // paste their API key + select the preset — no manual base URL.
 //
-// To add a new Chinese OpenAI-compatible provider, append a
-// new entry below. The provider_id maps 1:1 to
-// `ProviderKind::as_str()` (passed through to the Rust side).
+// v0.110.2 — `defaultModel` 字段: 跟踪各家最新 stable 版本。
+//   Update via §15.6 checklist in `polyrocket-llm-management.md`.
+//   Sources (researched 2026-06-22):
+//     Qwen  → https://help.aliyun.com/zh/model-studio/getting-started/models
+//     Doubao → https://www.volcengine.com/docs/82379
+//     Kimi  → https://platform.moonshot.cn/docs/intro
+//     GLM   → https://open.bigmodel.cn/cn/guide/start/model-overview
+//     MiniMax → https://api.minimax.chat/document
 const PROVIDERS: Array<{
   id: 'openai' | 'anthropic' | 'google' | 'deepseek' | 'qwen' | 'doubao' | 'kimi' | 'glm' | 'MiniMax' | 'custom';
   label: string;
   defaultBase: string;
+  defaultModel: string;
   hint?: string;
 }> = [
-  { id: 'openai', label: 'OpenAI', defaultBase: 'https://api.openai.com/v1' },
-  { id: 'anthropic', label: 'Anthropic', defaultBase: 'https://api.anthropic.com' },
-  { id: 'google', label: 'Google', defaultBase: 'https://generativelanguage.googleapis.com' },
-  { id: 'deepseek', label: 'DeepSeek', defaultBase: 'https://api.deepseek.com' },
-  // v0.110 — 国产大模型 Tier 1 (5 个 OpenAI 兼容 providers)。
-  // v0.110+ — hint 字段不写具体 model ID（厂商发版会过时）。
-  // 默认 model ID 由 maintainer 按 §15.6 checklist 跟进到最新 stable。
-  // 用户首次添加 provider 后，可在 `/llm-mgmt` 路由改 `default_model` 字段切到任意版本。
-  // 最新模型 ID 见各家厂商模型列表：
-  //   Qwen  → https://help.aliyun.com/zh/model-studio/developer-reference/model-overview
-  //   Doubao → https://www.volcengine.com/docs/82379
-  //   Kimi  → https://platform.moonshot.cn/docs/intro
-  //   GLM   → https://open.bigmodel.cn/dev/api
-  //   MiniMax → https://api.minimax.chat/document
-  { id: 'qwen',     label: '通义千问 Qwen',    defaultBase: 'https://dashscope.aliyuncs.com/compatible-mode/v1', hint: 'Alibaba 阿里云百炼' },
-  { id: 'doubao',   label: '豆包 Doubao',       defaultBase: 'https://ark.cn-beijing.volces.com/api/v3',          hint: '字节火山引擎' },
-  { id: 'kimi',     label: 'Kimi (Moonshot)',   defaultBase: 'https://api.moonshot.cn/v1',                        hint: '月之暗面 Moonshot AI' },
-  { id: 'glm',      label: '智谱 GLM',          defaultBase: 'https://open.bigmodel.cn/api/paas/v4',              hint: '智谱 BigModel' },
-  { id: 'MiniMax',  label: 'MiniMax',          defaultBase: 'https://api.minimax.chat/v1',                  hint: 'MiniMax 稀宇科技' },
-  { id: 'custom', label: 'Custom (OpenAI-compatible)', defaultBase: '' },
+  { id: 'openai',    label: 'OpenAI',           defaultBase: 'https://api.openai.com/v1',                      defaultModel: 'gpt-4o' },
+  { id: 'anthropic', label: 'Anthropic',        defaultBase: 'https://api.anthropic.com',                    defaultModel: 'claude-sonnet-4-20250514' },
+  { id: 'google',    label: 'Google',           defaultBase: 'https://generativelanguage.googleapis.com',     defaultModel: 'gemini-2.0-flash' },
+  { id: 'deepseek',  label: 'DeepSeek',         defaultBase: 'https://api.deepseek.com',                     defaultModel: 'deepseek-chat' },
+  // v0.110.2 — 国产大模型 Tier 1 (5 个 OpenAI 兼容 providers)。
+  // defaultModel 跟厂商最新 stable 模型 (2026-06-22):
+  //   Qwen:    qwen3.7-max      (阿里云百炼 2026 最新旗舰)
+  //   Doubao:  doubao-seed-2-0-pro-260215 (字节 2026-02-14 发布的第二代)
+  //   Kimi:    kimi-k2.7-code   (Moonshot 2026 最新,Coding SOTA)
+  //   GLM:     glm-5.2          (智谱 2026 最新,1M context, Coding SOTA)
+  //   MiniMax: MiniMax-M2.7     (稳定版,M3 还在 rollout, 5-7 默认)
+  { id: 'qwen',     label: '通义千问 Qwen',     defaultBase: 'https://dashscope.aliyuncs.com/compatible-mode/v1', defaultModel: 'qwen3.7-max',     hint: 'Alibaba 阿里云百炼' },
+  { id: 'doubao',   label: '豆包 Doubao',        defaultBase: 'https://ark.cn-beijing.volces.com/api/v3',          defaultModel: 'doubao-seed-2-0-pro-260215', hint: '字节火山引擎' },
+  { id: 'kimi',     label: 'Kimi (Moonshot)',    defaultBase: 'https://api.moonshot.cn/v1',                        defaultModel: 'kimi-k2.7-code',   hint: '月之暗面 Moonshot AI' },
+  { id: 'glm',      label: '智谱 GLM',           defaultBase: 'https://open.bigmodel.cn/api/paas/v4',              defaultModel: 'glm-5.2',          hint: '智谱 BigModel' },
+  { id: 'MiniMax',  label: 'MiniMax',           defaultBase: 'https://api.minimax.chat/v1',                  defaultModel: 'MiniMax-M2.7',    hint: 'MiniMax 稀宇科技' },
+  { id: 'custom',   label: 'Custom (OpenAI-compatible)', defaultBase: '',                                       defaultModel: '', },
 ];
 
 export function LlmStep({
@@ -101,6 +105,34 @@ export function LlmStep({
     setBusy(true);
     setResult(null);
     try {
+      // v0.110.2 — Step 1: upsert the provider row (with the
+      // latest default_model from PROVIDERS). This persists
+      // the `default_model` field so the Rust dispatch layer
+      // uses the latest version, not the LlmProviderDto's
+      // server-side fallback.
+      // Map provider.id → ProviderKind for the DB.
+      const kind = ((): UpsertLlmProviderArgs['kind'] => {
+        switch (provider.id) {
+          case 'openai':    return 'openai';
+          case 'anthropic': return 'anthropic';
+          case 'google':    return 'google';
+          case 'deepseek':  return 'deepseek';
+          // 5 Chinese + custom: all OpenAI-compatible
+          default:          return 'openai_compat';
+        }
+      })();
+      const providerUpsertArgs: UpsertLlmProviderArgs = {
+        id: provider.id,
+        display_name: provider.label,
+        kind,
+        api_base: provider.defaultBase || undefined,
+        default_model: provider.defaultModel,
+        enabled: true,
+        timeout_ms: 30000,
+        max_retries: 2,
+      };
+      await llmProviderUpsert(providerUpsertArgs);
+      // Step 2: upsert the key + write to OS keyring.
       const upsertArgs: UpsertLlmKeyArgs = {
         provider_id: provider.id,
         alias: alias.trim(),
@@ -111,7 +143,7 @@ export function LlmStep({
       };
       const key = await llmKeyUpsert(upsertArgs);
       await llmKeySetSecret(key.id, secret.trim());
-      // Run a connectivity test against the new key.
+      // Step 3: connectivity test against the new key.
       const conn = await llmTestConnectivity(provider.id, key.id);
       if (conn.ok) {
         welcome.setConfigured('llmAtLeastOne', true);
