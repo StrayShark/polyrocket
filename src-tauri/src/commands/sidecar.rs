@@ -22,10 +22,30 @@ use crate::domain::lab::train_progress::{
     TrainFinishedEvent, TrainStartedEvent, TrainTrialDto,
 };
 use crate::infra::db;
+use crate::platform::env::{is_sidecar_disabled, SIDECAR_DISABLED_MSG};
 use serde::{Deserialize, Serialize};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, State};
+
+/// v0.122a — kill switch for the sidecar migration.
+///
+/// When `POLYROCKET_DISABLE_SIDECAR=1`, every sidecar IPC entry
+/// point calls this at the top and short-circuits with the
+/// canonical disabled message. The caller sees an `AppError`
+/// carrying [`SIDECAR_DISABLED_MSG`].
+///
+/// **Process control** (`start_sidecar` / `stop_sidecar` /
+/// `sidecar_status`) deliberately does NOT call this — even in
+/// disabled mode the user should be able to inspect / reset
+/// the sidecar handle. Only the data-plane IPCs are gated.
+fn check_sidecar_enabled() -> AppResult<()> {
+    if is_sidecar_disabled() {
+        Err(AppError::Internal(SIDECAR_DISABLED_MSG.to_string()))
+    } else {
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct SidecarStatus {
@@ -405,6 +425,7 @@ pub async fn sidecar_predict(
     state: State<'_, SidecarState>,
     markets: Vec<(String, f64)>,
 ) -> AppResult<Vec<Prediction>> {
+    check_sidecar_enabled()?;
     if !state.is_running() {
         return Ok(Vec::new());
     }
@@ -478,6 +499,7 @@ pub async fn sidecar_predict_async(
     markets: Vec<(String, f64)>,
     timeout_ms: Option<u64>,
 ) -> AppResult<crate::domain::lab::sidecar::PredictResult> {
+    check_sidecar_enabled()?;
     use crate::domain::lab::sidecar::PredictResult as PR;
     if !state.is_running() {
         return Ok(PR {
@@ -532,6 +554,7 @@ pub async fn train_job(
     app: AppHandle,
     args: TrainJobArgs,
 ) -> AppResult<TrainResult> {
+    check_sidecar_enabled()?;
     let job_id = format!("train-{}", uuid::Uuid::new_v4().to_string().split('-').next().unwrap_or("00000000"));
     let n_trials = args.n_trials.unwrap_or(4).clamp(1, 4);
     let epochs = args.epochs.unwrap_or(80).clamp(1, 1000);
@@ -793,6 +816,7 @@ pub async fn promote_model(
     state: State<'_, SidecarState>,
     args: PromoteModelArgs,
 ) -> AppResult<PromoteResult> {
+    check_sidecar_enabled()?;
     let job_id = format!("promote-{}", uuid::Uuid::new_v4().to_string().split('-').next().unwrap_or("00000000"));
     let line = build_promote_request(&job_id, args.job_id.as_deref(), args.trial_index);
 
@@ -897,6 +921,7 @@ pub struct PromoteModelArgs {
 pub async fn list_promote_history(
     state: State<'_, SidecarState>,
 ) -> AppResult<PromoteHistoryResult> {
+    check_sidecar_enabled()?;
     let job_id = format!(
         "list-history-{}",
         uuid::Uuid::new_v4()
@@ -970,6 +995,7 @@ pub async fn rollback_model(
     state: State<'_, SidecarState>,
     args: RollbackModelArgs,
 ) -> AppResult<RollbackResult> {
+    check_sidecar_enabled()?;
     let job_id = format!(
         "rollback-{}",
         uuid::Uuid::new_v4()
@@ -1054,6 +1080,7 @@ pub async fn auto_promote_if_better(
     state: State<'_, SidecarState>,
     args: AutoPromoteIfBetterArgs,
 ) -> AppResult<AutoPromoteIfBetterResult> {
+    check_sidecar_enabled()?;
     let job_id = format!(
         "auto-promote-{}",
         uuid::Uuid::new_v4()
@@ -1148,6 +1175,7 @@ pub struct AutoPromoteIfBetterArgs {
 pub async fn promote_all_trials(
     state: State<'_, SidecarState>,
 ) -> AppResult<PromoteAllTrialsResult> {
+    check_sidecar_enabled()?;
     let job_id = format!(
         "promote-all-{}",
         uuid::Uuid::new_v4()
@@ -1258,6 +1286,7 @@ pub async fn backtest_model(
     state: State<'_, SidecarState>,
     args: BacktestModelArgs,
 ) -> AppResult<BacktestResult> {
+    check_sidecar_enabled()?;
     let job_id = format!(
         "backtest-{}",
         uuid::Uuid::new_v4()
@@ -1365,6 +1394,7 @@ pub async fn explain_model(
     state: State<'_, SidecarState>,
     args: ExplainModelArgs,
 ) -> AppResult<ExplainResult> {
+    check_sidecar_enabled()?;
     let job_id = format!(
         "explain-{}",
         uuid::Uuid::new_v4()
@@ -1464,6 +1494,7 @@ pub async fn shap_explain(
     state: State<'_, SidecarState>,
     args: ShapExplainArgs,
 ) -> AppResult<ShapResult> {
+    check_sidecar_enabled()?;
     let job_id = format!(
         "shap-{}",
         uuid::Uuid::new_v4()
@@ -1546,6 +1577,7 @@ pub async fn sidecar_request(
     state: State<'_, SidecarState>,
     request: SidecarRequest,
 ) -> AppResult<SidecarResponse> {
+    check_sidecar_enabled()?;
     if !state.is_running() {
         return Err(AppError::Internal("sidecar not running".into()));
     }
@@ -1678,6 +1710,7 @@ pub struct PromoteHistoryArchiveResult {
 pub async fn list_promote_history_archive(
     args: ListPromoteHistoryArchiveArgs,
 ) -> AppResult<PromoteHistoryArchiveResult> {
+    check_sidecar_enabled()?;
     use std::io::{BufRead, BufReader};
     // v0.33b — derive the archive path from the same env
     // var the Python sidecar uses. If unset, default to
@@ -2356,5 +2389,30 @@ mod tests {
 
         std::env::remove_var("POLYROCKET_SIDECAR_MODEL_DIR");
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+// ----- v0.122a: POLYROCKET_DISABLE_SIDECAR short-circuit -----
+
+    #[test]
+    #[serial_test::serial]
+    fn check_sidecar_enabled_passes_when_flag_unset() {
+        // SAFETY: serialised with other env-mutating tests.
+        unsafe { std::env::remove_var("POLYROCKET_DISABLE_SIDECAR") };
+        assert!(check_sidecar_enabled().is_ok(),
+            "default state (flag unset) must let sidecar IPCs through");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn check_sidecar_enabled_blocks_when_flag_set() {
+        // SAFETY: serialised with other env-mutating tests.
+        unsafe { std::env::set_var("POLYROCKET_DISABLE_SIDECAR", "1") };
+        let err = check_sidecar_enabled()
+            .expect_err("flag set must short-circuit");
+        let msg = format!("{err:?}");
+        assert!(
+            msg.contains("sidecar disabled") && msg.contains("v0.122"),
+            "error message must include the canonical disabled phrase, got: {msg}"
+        );
+        unsafe { std::env::remove_var("POLYROCKET_DISABLE_SIDECAR") };
     }
 }

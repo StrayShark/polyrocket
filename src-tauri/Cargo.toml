@@ -59,6 +59,10 @@ tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 
 [dev-dependencies]
 mockito = "1"
+# v0.122a — serialise tests that mutate process-wide env vars
+# (e.g. POLYROCKET_DISABLE_SIDECAR) so they don't race with
+# parallel tests that read the same vars.
+serial_test = "3"
 
 [features]
 default = ["custom-protocol"]

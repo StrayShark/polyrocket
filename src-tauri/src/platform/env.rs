@@ -91,6 +91,49 @@ fn is_dev_sync_enabled() -> bool {
     false
 }
 
+// ============================================================
+// v0.122a — kill switch for the Python sidecar migration.
+//
+// `POLYROCKET_DISABLE_SIDECAR=1` short-circuits every sidecar
+// Tauri command (predict / train_job / promote_model / etc.)
+// with a clear "disabled" error. Used as the rollback hatch
+// during the v0.122b-f incremental port; after v0.122g the
+// flag is dead and the sidecar process is gone entirely.
+//
+// Semantics timeline:
+//   v0.122a (now)    : flag unset → Python sidecar (current).
+//                      flag set   → "sidecar disabled" error.
+//   v0.122b-v0.122f  : flag unset → new Rust impl (per port).
+//                      flag set   → fall back to Python for
+//                                   any unported method.
+//   v0.122g+         : flag is no longer read (Python gone).
+//
+// True values: "1", "true", "yes" (case-insensitive).
+// ============================================================
+
+/// Returns true when the user has explicitly set
+/// `POLYROCKET_DISABLE_SIDECAR=1` to opt out of the Python sidecar.
+///
+/// **v0.122a**: default = false. The Python sidecar remains the
+/// authoritative path for all 11 sidecar methods.
+/// **v0.122b+**: default = true (after the migration lands).
+/// Until then, callers see "sidecar disabled" and can unset the
+/// flag to fall back to Python for the unported methods.
+pub fn is_sidecar_disabled() -> bool {
+    env::var("POLYROCKET_DISABLE_SIDECAR")
+        .map(|v| {
+            let v = v.trim();
+            v == "1" || v.eq_ignore_ascii_case("true") || v.eq_ignore_ascii_case("yes")
+        })
+        .unwrap_or(false)
+}
+
+/// Canonical error string returned by every sidecar IPC entry point
+/// when [`is_sidecar_disabled`] returns true. The phrasing is
+/// frozen — the v0.122 integration test matches it.
+pub const SIDECAR_DISABLED_MSG: &str =
+    "sidecar disabled (POLYROCKET_DISABLE_SIDECAR=1; v0.122+ migration in progress)";
+
 /// Entry point: called from `lib.rs::run()` setup hook.
 /// Reads `.env` (if it exists), then:
 ///   1. **v0.119** — exports loaded keys into the process env via
@@ -456,5 +499,74 @@ mod tests {
         assert_eq!(v, 7);
         let v = env_i32("POLYROCKET_TEST_NONEXISTENT_I32", -3);
         assert_eq!(v, -3);
+    }
+
+    // ----- v0.122a: POLYROCKET_DISABLE_SIDECAR flag tests -----
+
+    /// Helper: clear the env var so we test the default branch.
+    fn clear_sidecar_flag() {
+        // SAFETY: serialised through the same `env_helpers` test
+        // module. No concurrent test sets this var.
+        unsafe { env::remove_var("POLYROCKET_DISABLE_SIDECAR") };
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn sidecar_disabled_defaults_to_false() {
+        clear_sidecar_flag();
+        assert!(
+            !is_sidecar_disabled(),
+            "default (var unset) must be false — Python sidecar stays the path until v0.122b"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn sidecar_disabled_recognises_truthy_values() {
+        for truthy in ["1", "true", "TRUE", "True", "yes", "YES"] {
+            // SAFETY: see clear_sidecar_flag.
+            unsafe { env::set_var("POLYROCKET_DISABLE_SIDECAR", truthy) };
+            assert!(
+                is_sidecar_disabled(),
+                "POLYROCKET_DISABLE_SIDECAR={truthy:?} must be honoured"
+            );
+        }
+        clear_sidecar_flag();
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn sidecar_disabled_rejects_falsy_values() {
+        for falsy in ["0", "false", "no", "off", "anything-else"] {
+            // SAFETY: see clear_sidecar_flag.
+            unsafe { env::set_var("POLYROCKET_DISABLE_SIDECAR", falsy) };
+            assert!(
+                !is_sidecar_disabled(),
+                "POLYROCKET_DISABLE_SIDECAR={falsy:?} must NOT disable the sidecar"
+            );
+        }
+        clear_sidecar_flag();
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn sidecar_disabled_trims_whitespace() {
+        // SAFETY: see clear_sidecar_flag.
+        unsafe { env::set_var("POLYROCKET_DISABLE_SIDECAR", "  1  ") };
+        assert!(
+            is_sidecar_disabled(),
+            "surrounding whitespace must not change truthy semantics"
+        );
+        clear_sidecar_flag();
+    }
+
+    #[test]
+    fn sidecar_disabled_msg_is_stable() {
+        // v0.122 integration tests match this exact string. If you
+        // rephrase the error, update them too.
+        assert_eq!(
+            SIDECAR_DISABLED_MSG,
+            "sidecar disabled (POLYROCKET_DISABLE_SIDECAR=1; v0.122+ migration in progress)"
+        );
     }
 }
