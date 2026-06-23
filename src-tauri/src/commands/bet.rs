@@ -109,6 +109,13 @@ pub struct PlaceSignedArgs {
     /// v0.50b — post-only flag (Limit orders only).
     #[serde(default)]
     pub post_only: bool,
+    /// v0.120 — bet mode. "live" (default) calls the real PM
+    /// CLOB endpoint and persists the CLOB tx_hash.
+    /// "paper" bypasses the CLOB HTTP call (useful for e2e /
+    /// demo flows with synthetic markets) and writes the bet
+    /// with a deterministic `paper-{uuid}` tx_hash, mode="paper".
+    #[serde(default)]
+    pub mode: Option<String>,
 }
 
 /// Mode B: signed order via OS keyring.
@@ -190,22 +197,57 @@ pub async fn place_signed_order(
     // Internal) so the L1 can show them inline. The
     // CLOB's tx_hash (or the deterministic stub's
     // hash) is what we persist to bets.tx_hash.
-    let clob = polymarket::submit_signed_order_via_clob(
-        &args.market_id,
-        &args.side,
-        args.price,
-        &signed.shares,
-        &args.key_alias,
-        order_type.as_str(),
-        signed.signed_at_ms,
-    )
-    .await;
-    if !clob.ok {
-        return Err(crate::AppError::Invalid(format!(
-            "CLOB rejected order: {}",
-            clob.error
-        )));
-    }
+    //
+    // v0.120 — paper mode. When `args.mode == "paper"`,
+    // skip the CLOB HTTP call entirely. Use a deterministic
+    // tx_hash `paper-{uuid}` and treat the order as
+    // immediately filled at the user's price (slippage = 0).
+    // Paper mode is used by the e2e demo flow where the
+    // market isn't a real PM market and the CLOB endpoint
+    // would 400. The bet still lands in `bets` with
+    // mode="paper" so the UI can surface it as a paper trade.
+    let paper_mode = args.mode.as_deref() == Some("paper");
+    let (clob, fill_price_at_insert, fill_size_at_insert, partial_at_insert, filled_at_at_insert) = if paper_mode {
+        let paper_id = format!("paper-{}", Uuid::new_v4());
+        (
+            polymarket::ClobOrderResult {
+                ok: true,
+                tx_hash: paper_id,
+                filled_at_ms: now,
+                fill_price: args.price,
+                fill_size: signed.shares.clone(),
+                partial: false,
+                error: String::new(),
+                via_http: false,
+            },
+            args.price,
+            signed.shares.clone(),
+            false,
+            now,
+        )
+    } else {
+        let clob = polymarket::submit_signed_order_via_clob(
+            &args.market_id,
+            &args.side,
+            args.price,
+            &signed.shares,
+            &args.key_alias,
+            order_type.as_str(),
+            signed.signed_at_ms,
+        )
+        .await;
+        if !clob.ok {
+            return Err(crate::AppError::Invalid(format!(
+                "CLOB rejected order: {}",
+                clob.error
+            )));
+        }
+        let fp = clob.fill_price;
+        let fs = clob.fill_size.clone();
+        let pa = clob.partial;
+        let fa = clob.filled_at_ms;
+        (clob, fp, fs, pa, fa)
+    };
     let _ = clob.via_http; // recorded via clob.tx_hash below; field
                            // surfaces in audit_log payload.
 
@@ -218,16 +260,21 @@ pub async fn place_signed_order(
     // the CLOB submit returns a real response (creds
     // present + reachable), we record the actual
     // fill_price / fill_size / partial / filled_at
-    // from the CLOB. Otherwise we use the stub shape.
-    let filled_at = clob.filled_at_ms;
-    let fill_price = clob.fill_price;
-    let fill_size = clob.fill_size;
-    let partial = clob.partial;
+    // from the CLOB. v0.120: paper mode uses the
+    // synthetic values (no CLOB call).
+    let filled_at = Some(filled_at_at_insert);
+    let fill_price = Some(fill_price_at_insert);
+    let fill_size = Some(fill_size_at_insert);
+    let partial = partial_at_insert;
 
     // v0.50a + v0.51b — INSERT now includes the
     // order-type AND fill columns. The idempotent
     // ALTER TABLE in infra::db::bets_columns has
     // already added them by the time we get here.
+    // v0.120 — paper mode: bet mode column = "paper"
+    // (was hardcoded to "B_signed"; now: live → "B_signed",
+    // paper → "paper" so the UI can distinguish them).
+    let bet_mode = if paper_mode { "paper" } else { "B_signed" };
     sqlx::query(
         "INSERT INTO bets (
             id, wallet_id, market_id, signal_id, mode, side,
@@ -235,12 +282,13 @@ pub async fn place_signed_order(
             order_type, limit_price, stop_price, post_only,
             filled_at, fill_price, fill_size, partial
          )
-         VALUES (?, ?, ?, ?, 'B_signed', ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&args.wallet_id)
     .bind(&args.market_id)
     .bind(args.signal_id)
+    .bind(bet_mode)
     .bind(&args.side)
     .bind(&args.size)
     .bind(args.price)
@@ -279,7 +327,7 @@ pub async fn place_signed_order(
         wallet_id: args.wallet_id,
         market_id: args.market_id,
         signal_id: args.signal_id,
-        mode: "B_signed".into(),
+        mode: bet_mode.to_string(),
         side: args.side,
         size: args.size,
         price: args.price,
@@ -294,9 +342,9 @@ pub async fn place_signed_order(
         limit_price: args.limit_price,
         stop_price: args.stop_price,
         post_only: args.post_only,
-        filled_at: Some(filled_at),
-        fill_price: Some(fill_price),
-        fill_size: Some(fill_size),
+        filled_at: filled_at,
+        fill_price: fill_price,
+        fill_size: fill_size,
         partial,
     })
 }

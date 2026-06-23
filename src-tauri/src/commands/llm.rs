@@ -13,7 +13,10 @@ use crate::AppResult;
 use crate::domain::llm::{
     self, AnthropicClient, CustomClient, DeepSeekClient, GoogleClient, OpenAIClient, ProviderKind,
     MarketContext, OrderbookTop, PeerView, SignalSummary,
-    PROMPT_VERSION_MARKET_ANALYSIS, build_market_analysis_request, parse_recommendation,
+    FootballMatchContext,
+    PROMPT_VERSION_MARKET_ANALYSIS, PROMPT_VERSION_FOOTBALL_MATCH,
+    build_market_analysis_request, build_football_match_request,
+    parse_recommendation,
     AnalyzeStartedEvent, AnalyzeFinishedEvent, ConsensusDoneEvent, ProviderDoneEvent,
 };
 use crate::infra::state::AppState;
@@ -596,7 +599,11 @@ async fn build_market_context(
 ) -> AppResult<MarketContext> {
     let m: Option<(String, String, String, Option<f64>, Option<f64>, Option<f64>, i64, String)> =
         sqlx::query_as(
-            "SELECT question, category, COALESCE(resolution_source,''), yes_price, no_price, volume_24h, closes_at, status
+            "SELECT question, category, COALESCE(resolution_source,''),
+                    yes_price, no_price,
+                    CAST(volume_24h AS REAL) AS volume_24h,
+                    COALESCE(closes_at, end_date) AS closes_at,
+                    COALESCE(status, CASE WHEN resolved=1 THEN 'resolved' ELSE 'active' END) AS status
              FROM markets WHERE id = ?",
         )
         .bind(market_id)
@@ -821,6 +828,8 @@ pub async fn llm_analyze(
 ) -> AppResult<LlmAnalysisDto> {
     let analysis_id = Uuid::new_v4().to_string();
     let requested_at = chrono::Utc::now().timestamp_millis();
+    // v0.118 — football markets route to football.v1.0 prompt; everything
+    // else keeps market.v1.0. Caller can still override via args.prompt_version.
     let prompt_version = args.prompt_version.clone().unwrap_or_else(|| PROMPT_VERSION_MARKET_ANALYSIS.to_string());
     let triggered_by = args.triggered_by.clone().unwrap_or_else(|| "user:anonymous".to_string());
     let market_id = args.market_id.clone();
@@ -883,12 +892,29 @@ pub async fn llm_analyze(
 
     // 3. Build context + pick keys (BEFORE the join — needs &state.db)
     let ctx = build_market_context(&state, &market_id).await?;
+    // v0.118 — football markets use football.v1.0 (Dixon-Coles + Elo + xG + CLV).
+    // Build the football context once here so it can be cloned into every
+    // provider's spawn task. Other categories fall through to market.v1.0.
+    let is_football = ctx.category == "football";
+    let football_ctx = if is_football {
+        Some(FootballMatchContext::from_market_context(ctx.clone()))
+    } else {
+        None
+    };
+    let effective_prompt_version = if is_football && prompt_version == PROMPT_VERSION_MARKET_ANALYSIS {
+        // Caller didn't pin a version → upgrade to football-specific version.
+        // If caller explicitly asked for market.v1.0 or another, respect that.
+        PROMPT_VERSION_FOOTBALL_MATCH.to_string()
+    } else {
+        prompt_version.clone()
+    };
     let mut handles = Vec::new();
     for p in &providers {
         let keys = pick_keys(&state, &p.id).await?;
         let p_clone = p.clone();
         let ctx_clone = ctx.clone();
-        let prompt_version_clone = prompt_version.clone();
+        let football_ctx_clone = football_ctx.clone();
+        let prompt_version_clone = effective_prompt_version.clone();
         let analysis_id_clone = analysis_id.clone();
         handles.push(tokio::spawn(async move {
             let kind = kind_for_provider_id(&p_clone.id);
@@ -898,7 +924,15 @@ pub async fn llm_analyze(
                 per_1k_out_cents: p_clone.cost_per_1k_out.unwrap_or(0.0),
             };
             let policy = crate::domain::llm::RetryPolicy::from_provider_row(2);
-            let req = build_market_analysis_request(&p_clone.default_model, &ctx_clone);
+            // v0.118 — route football markets to the football-specific prompt.
+            // Output shape extends market.v1.0 with framework_breakdown; the
+            // generic parse_recommendation still works (just drops the extra
+            // field), so consensus aggregation is unchanged.
+            let req = if let Some(ref fc) = football_ctx_clone {
+                build_football_match_request(&p_clone.default_model, fc)
+            } else {
+                build_market_analysis_request(&p_clone.default_model, &ctx_clone)
+            };
             let outcome = crate::domain::llm::dispatch(
                 client.as_ref(),
                 &http_client(),

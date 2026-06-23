@@ -27,7 +27,7 @@ pub struct DailyBriefEntry {
     pub market_category: String,
     pub market_end_date: i64,
     pub market_liquidity: Option<String>,
-    pub market_volume_24h: Option<String>,
+    pub market_volume_24h: Option<f64>,
     pub rank: i64,
     pub match_score: f64,
     pub score_breakdown: Option<String>, // JSON
@@ -64,8 +64,13 @@ pub async fn daily_brief_get(
     let limit = args.limit.or(args.max_items).unwrap_or(5);
     let now = chrono::Utc::now().timestamp_millis();
 
-    // join daily_briefs with markets, left join latest signal + llm analysis
-    // simplified: only show briefs not dismissed, sorted by rank
+    // v0.119 — football pivot: filter briefs to football category only.
+    // polyrocket is a football-only product (see docs/polyrocket-football-prd.md).
+    // Backend `daily_briefs` table still contains cs2/politics/etc briefs
+    // (for future flexibility / debugging), but UI never surfaces them.
+    // Use a SQL filter rather than post-filter so the LIMIT counts only
+    // football entries (otherwise the user might see 3/5 football briefs
+    // instead of 5/5).
     let rows = sqlx::query_as::<_, DailyBriefEntry>(
         "SELECT
             db.market_id,
@@ -93,6 +98,7 @@ pub async fn daily_brief_get(
          LEFT JOIN llm_analyses la ON la.market_id = m.id
             AND la.id = (SELECT id FROM llm_analyses WHERE market_id = m.id ORDER BY requested_at DESC LIMIT 1)
          WHERE db.expires_at > ?
+           AND m.category = 'football'
          ORDER BY db.rank ASC
          LIMIT ?",
     )
@@ -147,7 +153,10 @@ pub async fn daily_brief_refresh(
     let expires = today_start + 24 * 3600 * 1000;
     let max_items: i64 = 5; // from user prefs (TODO v0.3: read user_brief_prefs)
 
-    // candidate set: markets closing within 24h, active, not resolved, not dismissed
+    // v0.119 — football pivot: candidates limited to football only.
+    // polyrocket is a football-only product (see docs/polyrocket-football-prd.md).
+    // SQL-level filter so the scoring only considers football markets; the
+    // resulting daily_briefs rows are also implicitly football.
     let candidates: Vec<(String, f64, Option<f64>, Option<f64>, Option<String>, Option<f64>, Option<String>)> = sqlx::query_as(
         "SELECT m.id,
                 CAST(COALESCE(m.liquidity, '0') AS REAL) as liq,
@@ -164,6 +173,7 @@ pub async fn daily_brief_refresh(
              AND la.id = (SELECT id FROM llm_analyses WHERE market_id = m.id ORDER BY requested_at DESC LIMIT 1)
          WHERE m.active = 1
            AND m.resolved = 0
+           AND m.category = 'football'
            AND m.end_date > ?
            AND m.end_date < ?
            AND (m.brief_dismissed_at IS NULL OR m.brief_dismissed_at < ?)",
@@ -305,4 +315,60 @@ pub async fn daily_brief_set_prefs(
     .execute(&state.db)
     .await?;
     Ok(())
+}
+
+// =================================================================
+// ============== v0.119 — football-only brief tests =============
+// =================================================================
+//
+// polyrocket is a football-only product (see docs/polyrocket-football-prd.md).
+// These tests verify the SQL filter is in place at the source-code level
+// (string match), preventing accidental removal during refactors.
+//
+// Why string-match: We can't easily run integration tests for the SQL
+// without a populated DB; the SQL filter is a single literal that must
+// stay present. A simple regex match catches "someone deleted
+// `AND m.category = 'football'`".
+
+#[cfg(test)]
+mod football_filter_tests {
+    /// Snapshot of the relevant SQL with whitespace normalized.
+    /// We grep this against the file content to ensure the filter
+    /// is still present.
+    const REQUIRED_FILTER: &str = "m.category = 'football'";
+
+    #[test]
+    fn daily_brief_get_has_football_filter() {
+        let src = include_str!("brief.rs");
+        // Search for the SQL string by looking at the daily_brief_get function
+        let in_get = src
+            .split("async fn daily_brief_get")
+            .nth(1)
+            .expect("daily_brief_get function exists");
+        let in_get = in_get
+            .split("async fn daily_brief_dismiss")
+            .next()
+            .expect("daily_brief_dismiss exists after daily_brief_get");
+        assert!(
+            in_get.contains(REQUIRED_FILTER),
+            "v0.119 football pivot: daily_brief_get SQL must filter \
+             `m.category = 'football'`. Without this, the brief page \
+             would show non-football recommendations even though \
+             the rest of the UI is football-only.",
+        );
+    }
+
+    #[test]
+    fn daily_brief_refresh_has_football_filter() {
+        let src = include_str!("brief.rs");
+        let in_refresh = src
+            .split("async fn daily_brief_refresh")
+            .nth(1)
+            .expect("daily_brief_refresh function exists");
+        assert!(
+            in_refresh.contains(REQUIRED_FILTER),
+            "v0.119 football pivot: daily_brief_refresh SQL must filter \
+             `m.category = 'football'` so the scoring pool is football-only.",
+        );
+    }
 }

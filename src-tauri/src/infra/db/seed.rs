@@ -77,7 +77,7 @@ pub async fn apply_seed(pool: &SqlitePool, force: bool) -> AppResult<usize> {
         .bind(if m.resolved { 1i64 } else { 0i64 })
         .bind(&m.outcome)
         .bind(&m.liquidity)
-        .bind(&m.volume_24h)
+        .bind(m.volume_24h)
         .bind(m.created_at)
         .bind(m.updated_at)
         .execute(pool)
@@ -238,7 +238,7 @@ mod tests {
             resolved INTEGER DEFAULT 0 NOT NULL,
             outcome TEXT,
             liquidity TEXT,
-            volume_24h TEXT,
+            volume_24h REAL,
             user_interested INTEGER DEFAULT 0 NOT NULL,
             brief_dismissed_at INTEGER,
             created_at INTEGER NOT NULL,
@@ -360,7 +360,7 @@ mod tests {
         )",
         "CREATE TABLE audit_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            at INTEGER NOT NULL,
+            at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
             actor TEXT NOT NULL,
             action TEXT NOT NULL,
             target TEXT,

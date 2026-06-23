@@ -48,12 +48,31 @@ pub struct ClobFeedStatus {
 /// Without env credentials, returns `not_configured`.
 /// The L1 uses this to decide whether to render
 /// "live" indicators or fall back to v0.47a's
-/// price_snapshots.
+/// `price_snapshots`.
+///
+/// v0.119 — accepts either naming convention:
+///   - `POLYROCKET_CLOB_API_KEY / _SECRET / _PASSPHRASE` (legacy)
+///   - `POLYMARKET_API_KEY / POLYMARKET_API_SECRET /
+///     POLYMARKET_API_PASSPHRASE` (standard Polymarket convention)
+///
+/// `POLYMARKET_*` wins when both are set (more specific).
 #[tauri::command]
 pub async fn clob_feed_status(state: State<'_, AppState>) -> AppResult<ClobFeedStatus> {
-    let api_key = std::env::var("POLYROCKET_CLOB_API_KEY").ok();
-    let api_secret = std::env::var("POLYROCKET_CLOB_API_SECRET").ok();
-    let passphrase = std::env::var("POLYROCKET_CLOB_API_PASSPHRASE").ok();
+    // v0.119 — accept either naming convention. `POLYMARKET_*` takes
+    // precedence if both are set.
+    let api_key = std::env::var("POLYMARKET_API_KEY")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .or_else(|| std::env::var("POLYROCKET_CLOB_API_KEY").ok().filter(|v| !v.is_empty()));
+    let api_secret = std::env::var("POLYMARKET_API_SECRET")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .or_else(|| std::env::var("POLYROCKET_CLOB_API_SECRET").ok().filter(|v| !v.is_empty()));
+    let passphrase = std::env::var("POLYMARKET_API_PASSPHRASE")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .or_else(|| std::env::var("POLYROCKET_CLOB_API_PASSPHRASE").ok().filter(|v| !v.is_empty()));
+
     let state_str = match (api_key, api_secret, passphrase) {
         (Some(k), Some(s), Some(p))
             if !k.is_empty() && !s.is_empty() && !p.is_empty() =>

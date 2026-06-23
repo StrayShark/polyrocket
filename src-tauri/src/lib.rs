@@ -19,6 +19,22 @@ pub mod infra;
 pub mod lab_state;
 mod platform;
 
+// v0.119 — E2E test mode for the Tauri app: `cargo run --bin polyrocket -- --e2e-football`.
+// Spawns the full app + React frontend, navigates to a football market, invokes
+// the analyze IPC from the webview, captures the result, writes it to
+// /tmp/polyrocket-e2e-result.json, then exits. Used by scripts/e2e_football_app.sh.
+mod e2e_football;
+// v0.121 — UI-driven e2e: when POLYROCKET_E2E_UI_DRIVE=1 is set,
+// e2e_football delegates to e2e_football_ui_drive which uses real
+// DOM click() to click through the UI (same path a user takes
+// with the mouse).
+mod e2e_football_ui_drive;
+// v0.121 — Direct multi-market e2e: when
+// POLYROCKET_E2E_ALL_FOOTBALL=1 is set, calls `llm_analyze` IPC
+// directly for all 4 football seed markets in a single process.
+// Skips the webview eval to avoid the NaN-in-JSON crash.
+mod e2e_football_all;
+
 // Re-exports for integration tests in `tests/`. The `commands`
 // module is private to keep its IPC surface internal, but the
 // SidecarState struct needs to be reachable from e2e tests so
@@ -32,9 +48,16 @@ pub use infra::error::{AppError, AppResult};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // v0.119 — `--e2e-football` launches the full app in headless E2E mode:
+    // navigates to a football market, invokes the analyze IPC, captures the
+    // prediction result, writes it to /tmp, then exits. See `e2e_football` module.
+    let args: Vec<String> = std::env::args().collect();
+    let e2e_mode = args.iter().any(|a| a == "--e2e-football");
+
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
         .init();
+    tracing::info!(e2e_mode, "polyrocket starting");
 
     // v0.42b — telemetry init. Default off; enable with
     // `POLYROCKET_TELEMETRY=1` in the env. Must run BEFORE
@@ -60,6 +83,7 @@ pub fn run() {
     // JSON file path (which the Tauri docs
     // promise is stable).
     load_proxy_from_json_into_env();
+    tracing::info!("polyrocket: load_proxy done, building Tauri app");
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -68,7 +92,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
-        .setup(|app| {
+        .setup(move |app| {
+            tracing::info!("polyrocket: setup callback starting");
             let app_handle = app.handle().clone();
             // v0.11b — store the AppHandle so the scheduler can look
             // up managed state (SidecarState) without going through L2.
@@ -117,6 +142,41 @@ pub fn run() {
                 app_handle.manage(handle);
                 // v0.6b — Python sidecar (M7) singleton state
                 app_handle.manage(commands::sidecar::SidecarState::new());
+
+                // v0.119 — E2E football mode: spawn the driver task that will
+                // navigate the webview, invoke the analyze IPC, capture the result,
+                // write it to /tmp, then exit the app.
+                if e2e_mode {
+                    let h = app_handle.clone();
+                    tauri::async_runtime::spawn(async move {
+                        // v0.121 — when POLYROCKET_E2E_UI_DRIVE=1,
+                        // delegate to the UI-drive mode that uses
+                        // real DOM clicks instead of pushState +
+                        // direct invoke.
+                        let ui_drive = std::env::var("POLYROCKET_E2E_UI_DRIVE")
+                            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                            .unwrap_or(false);
+                        if ui_drive {
+                            e2e_football_ui_drive::run(h).await;
+                            return;
+                        }
+                        // v0.121 — when POLYROCKET_E2E_ALL_FOOTBALL=1,
+                        // run the e2e for ALL 4 football seed markets
+                        // sequentially. Each market writes a separate
+                        // result file at /tmp/polyrocket-e2e-{N}.json
+                        // (where N is 1..4) so the operator can see
+                        // the predictions for all 4 in the app.
+                        let all_football = std::env::var("POLYROCKET_E2E_ALL_FOOTBALL")
+                            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                            .unwrap_or(false);
+                        if all_football {
+                            e2e_football_all::run_all_football(h).await;
+                            return;
+                        }
+                        e2e_football::run(h).await;
+                    });
+                }
+
                 Ok::<(), Box<dyn std::error::Error>>(())
             })
         })

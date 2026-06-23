@@ -51,6 +51,9 @@ pub async fn init_pool(app: &AppHandle) -> AppResult<SqlitePool> {
     sqlx::query("PRAGMA foreign_keys = ON").execute(&pool).await?;
 
     super::settings::ensure_table(&pool).await?;
+    // v0.119 — primary table migrations. Must run FIRST so that
+    // is_seeded() can SELECT COUNT(*) on the primary tables below.
+    super::migrations::ensure_primary_tables(&pool).await?;
     ensure_copy_mirror_queue(&pool).await?;
     ensure_price_snapshots(&pool).await?;
     // v0.78 — bankroll allocation tables (M11)
@@ -58,6 +61,13 @@ pub async fn init_pool(app: &AppHandle) -> AppResult<SqlitePool> {
     // v0.51a — clob_snapshots table (real order
     // book per market per timestamp). Idempotent.
     ensure_clob_snapshots(&pool).await?;
+    // v0.119 — paper_fills TABLE itself (was only created
+    // via first-run seed before; pre-v0.45 databases had no
+    // table and crashed on boot). Must run BEFORE the
+    // column-ensure step below, otherwise the column check
+    // sees zero columns (PRAGMA returns empty) and would
+    // skip the ALTER TABLE calls. Idempotent.
+    super::paper_fills::ensure_paper_fills_table(&pool).await?;
     // v0.45a — paper_fills settlement columns. Idempotent:
     // ALTER TABLE ADD COLUMN is a no-op if the column
     // already exists when wrapped in the IF NOT EXISTS

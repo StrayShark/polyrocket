@@ -20,6 +20,7 @@ pub mod bankroll;  // v0.78 — M11
 mod bankroll_e2e;  // v0.79b — E2E integration test
 pub mod bets_columns;
 pub mod clob_snapshots;
+pub mod migrations;  // v0.119 — primary table migrations
 pub mod paper_fills;
 pub mod pool;
 pub mod price_snapshots;

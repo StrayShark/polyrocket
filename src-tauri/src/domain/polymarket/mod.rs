@@ -110,7 +110,7 @@ pub struct MarketSummary {
     pub resolved: bool,
     pub outcome: Option<String>,
     pub liquidity: Option<String>,
-    pub volume_24h: Option<String>,
+    pub volume_24h: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -197,13 +197,18 @@ pub async fn place_signed_order(
 // reachable we return a structured error rather
 // than crashing.
 
-/// v0.51c — true iff all three Polymarket CLOB
-/// credentials are present in the env. Order
-/// commands should call this and branch on it.
+/// v0.51c — true iff all three Polymarket CLOB credentials
+/// are present in the env. Accepts both naming conventions:
+///   - `POLYMARKET_API_KEY / _SECRET / _PASSPHRASE` (standard)
+///   - `POLYROCKET_CLOB_API_KEY / _SECRET / _PASSPHRASE` (legacy)
+/// v0.119 — `POLYMARKET_*` wins when both are set.
 pub fn creds_present() -> bool {
-    let k = std::env::var("POLYROCKET_CLOB_API_KEY").ok();
-    let s = std::env::var("POLYROCKET_CLOB_API_SECRET").ok();
-    let p = std::env::var("POLYROCKET_CLOB_API_PASSPHRASE").ok();
+    let k = std::env::var("POLYMARKET_API_KEY").ok().filter(|v| !v.is_empty())
+        .or_else(|| std::env::var("POLYROCKET_CLOB_API_KEY").ok().filter(|v| !v.is_empty()));
+    let s = std::env::var("POLYMARKET_API_SECRET").ok().filter(|v| !v.is_empty())
+        .or_else(|| std::env::var("POLYROCKET_CLOB_API_SECRET").ok().filter(|v| !v.is_empty()));
+    let p = std::env::var("POLYMARKET_API_PASSPHRASE").ok().filter(|v| !v.is_empty())
+        .or_else(|| std::env::var("POLYROCKET_CLOB_API_PASSPHRASE").ok().filter(|v| !v.is_empty()));
     matches!((k, s, p), (Some(k), Some(s), Some(p))
         if !k.is_empty() && !s.is_empty() && !p.is_empty())
 }
@@ -306,9 +311,16 @@ pub async fn submit_signed_order_via_clob(
         "ts_ms": now_ms,
     });
     let client = new_http_client();
-    let api_key = std::env::var("POLYROCKET_CLOB_API_KEY").unwrap_or_default();
-    let api_secret = std::env::var("POLYROCKET_CLOB_API_SECRET").unwrap_or_default();
-    let api_passphrase = std::env::var("POLYROCKET_CLOB_API_PASSPHRASE").unwrap_or_default();
+    // v0.119 — accept either naming convention (POLYMARKET_* preferred)
+    let api_key = std::env::var("POLYMARKET_API_KEY").ok().filter(|v| !v.is_empty())
+        .or_else(|| std::env::var("POLYROCKET_CLOB_API_KEY").ok())
+        .unwrap_or_default();
+    let api_secret = std::env::var("POLYMARKET_API_SECRET").ok().filter(|v| !v.is_empty())
+        .or_else(|| std::env::var("POLYROCKET_CLOB_API_SECRET").ok())
+        .unwrap_or_default();
+    let api_passphrase = std::env::var("POLYMARKET_API_PASSPHRASE").ok().filter(|v| !v.is_empty())
+        .or_else(|| std::env::var("POLYROCKET_CLOB_API_PASSPHRASE").ok())
+        .unwrap_or_default();
     let resp = client
         .post(&url)
         .header("POLYROCKET-API-KEY", &api_key)

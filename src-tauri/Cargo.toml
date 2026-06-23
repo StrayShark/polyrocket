@@ -1,6 +1,9 @@
 [package]
 name = "polyrocket"
 version = "0.1.0"
+# v0.119 — default-run set to "polyrocket" so `cargo run` (used by
+# `tauri dev`) picks the app binary, not dev_smoke or gen_ts_types.
+default-run = "polyrocket"
 description = "Polymarket analysis desktop client"
 authors = ["polyrocket"]
 edition = "2021"

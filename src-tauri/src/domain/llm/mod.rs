@@ -43,9 +43,13 @@ pub use progress::{
 };
 pub use prompts::{
     MarketContext, OrderbookTop, PeerView, SignalSummary,
-    PROMPT_VERSION_MARKET_ANALYSIS, PROMPT_VERSION_QUICK_THESIS, PROMPT_VERSION_CONSENSUS_VOTE,
+    FootballMarketType, FootballMatchContext, FootballRecommendationPayload,
+    FrameworkBreakdown,
+    PROMPT_VERSION_MARKET_ANALYSIS, PROMPT_VERSION_QUICK_THESIS,
+    PROMPT_VERSION_CONSENSUS_VOTE, PROMPT_VERSION_FOOTBALL_MATCH,
     build_consensus_request, build_market_analysis_request, build_quick_thesis_request,
-    parse_recommendation,
+    build_football_match_request,
+    parse_recommendation, parse_football_recommendation,
 };
 
 // ---------- public types ----------

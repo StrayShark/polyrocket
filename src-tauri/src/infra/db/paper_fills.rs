@@ -10,12 +10,57 @@
 //! paper_fills table for pre-v0.50 databases. These
 //! mirror the `bets` table additions in commands::bet.
 //!
+//! v0.119 — adds `ensure_paper_fills_table()` for
+//! pre-v0.45 databases that don't have the paper_fills
+//! table at all (the table was previously only created
+//! during seed, but seed is skipped if wallets/markets/
+//! bets already exist — so v0.44-era databases had
+//! NO paper_fills table and crashed on first
+//! v0.45a+ boot with "no such table: paper_fills").
+//!
 //! SQLite does not support `ALTER TABLE ... ADD COLUMN
 //! IF NOT EXISTS`, so we use the `PRAGMA table_info`
 //! pattern: query the column names, ADD COLUMN only
 //! if missing. Idempotent — safe to run on every boot.
 
 use sqlx::SqlitePool;
+
+/// v0.119 — ensure the `paper_fills` table itself exists.
+///
+/// Previously the table was only created during first-run
+/// seed (`infra::db::seed::apply_seed`), which is skipped
+/// for any DB that already has wallets+markets+bets.
+/// Pre-v0.45 databases therefore had no paper_fills table
+/// and the v0.45a+ app crashed on boot with
+/// "no such table: paper_fills" when the scheduler tried to
+/// read it.
+///
+/// Idempotent — runs on every boot, no-op if table exists.
+pub async fn ensure_paper_fills_table(pool: &SqlitePool) -> sqlx::Result<()> {
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS paper_fills (
+            id TEXT PRIMARY KEY,
+            mirror_id TEXT NOT NULL,
+            market_id TEXT NOT NULL,
+            side TEXT NOT NULL,
+            size TEXT NOT NULL,
+            price REAL NOT NULL,
+            placed_at INTEGER NOT NULL,
+            notes TEXT,
+            settled_at INTEGER,
+            resolved_outcome TEXT,
+            won INTEGER,
+            pnl_usdc TEXT,
+            order_type TEXT NOT NULL DEFAULT 'market',
+            limit_price REAL,
+            stop_price REAL,
+            post_only INTEGER NOT NULL DEFAULT 0
+        )",
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
 
 /// v0.45a — ensure paper_fills has the settlement
 /// columns. Adds 4 nullable columns:

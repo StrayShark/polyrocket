@@ -1535,7 +1535,7 @@ struct DailyBriefEntryCodegen {
     #[specta(type = BigInt)]
     pub market_end_date: i64,
     pub market_liquidity: Option<String>,
-    pub market_volume_24h: Option<String>,
+    pub market_volume_24h: Option<f64>,
     /// v0.102b — placeholder (real impl uses i64). Stub uses i32.
     pub rank: i32,
     pub match_score: f64,

@@ -169,6 +169,429 @@ fn chrono_format(unix_ms: i64) -> String {
     dt.format("%Y-%m-%d %H:%M UTC").to_string()
 }
 
+// ============================================================================
+// v0.118 — Football-specific prompt module
+//
+// 行业权威 framework 知识库 (调研 2026-06-22):
+//   • Dixon-Coles (1997)        — 学术金标准, 双 Poisson + 低分调整
+//   • Elo (Arpad Elo)           — 球队相对实力
+//   • xG (Sam Green 2012)       — 射门质量 + form 评估
+//   • CLV (Pinnacle)            — Polymarket implied prob vs model prob = edge
+//
+// 与 market.v1.0 的区别:
+//   - System prompt 显式要求 LLM 综合 4 个 framework 给出中间值
+//   - 输出 JSON 多一个 `framework_breakdown` 对象 (含 elo/poisson/xg/clv)
+//   - FootballMarketType 路由 (HomeWin / AwayWin / Draw / OverUnder / AsianHandicap)
+//   - `probability` 字段语义根据 market_type 切换 (home 胜/away 胜/平/over/covers)
+//
+// 配套 docs/football-frameworks.md (v0.118 new) 详述 framework 选型理由。
+// ============================================================================
+
+/// Polymarket 上的足球市场类型。决定 `probability` 字段的语义。
+///
+/// 设计原则:
+///   - Polymarket 的足球市场主要是 "Will X win on YYYY-MM-DD?" 这种
+///     **单队胜出**问题 (不是经典 1X2 的 home/away 二分)。
+///   - 所以这里用 `TeamWin` 表示 "question 里提到的那个队胜出" 的概率,
+///     team 名字放在 `FootballMatchContext.home_team` 字段。
+///   - `Draw` / `OverUnder` / `AsianHandicap` 保持独立语义。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FootballMarketType {
+    /// "Will Argentina win on 2026-06-22?" → probability = P(Argentina 胜出该场比赛)
+    /// team 名字存放在 `FootballMatchContext.home_team`。
+    TeamWin,
+    /// "Will Argentina vs. Austria end in a draw?" → probability = P(平局)
+    Draw,
+    /// "Argentina vs. Austria: O/U 2.5" → probability = P(total goals > line)
+    OverUnder,
+    /// "Spread: France (-2.5)" → probability = P(France covers handicap)
+    AsianHandicap,
+    /// "Will Arsenal finish Premier League top 4?" → probability = P(event by season end)
+    Outright,
+    /// 无法识别 — 退化为通用 market.v1.0 prompt
+    Unknown,
+}
+
+impl FootballMarketType {
+    /// 从 Polymarket question 推断市场类型。
+    /// 规则: 检查 question 字符串,匹配最先命中的模式。
+    /// 例:
+    ///   "Will Argentina win on 2026-06-22?" → TeamWin (team=Argentina)
+    ///   "Argentina vs. Austria: O/U 2.5"    → OverUnder
+    ///   "Spread: France (-2.5)"              → AsianHandicap
+    ///   "Will Arsenal finish top 4?"         → Outright
+    pub fn from_question(question: &str) -> Self {
+        let q = question.to_lowercase();
+        // O/U 大小球 (最高优先级, 因为 "Argentina vs Austria O/U 2.5" 也含 "win")
+        if q.contains("o/u") || q.contains("over/under") || q.contains("over 2.5") || q.contains("under 2.5") {
+            return Self::OverUnder;
+        }
+        // Spread / 让球
+        if q.contains("spread") || q.contains("handicap") || q.contains("(-") || q.contains("(+)") {
+            return Self::AsianHandicap;
+        }
+        // Draw / 平局
+        if q.contains("draw") || q.contains("tie") {
+            return Self::Draw;
+        }
+        // 单队胜出 (Polymarket 最常见)
+        if q.starts_with("will ") && q.contains(" win") {
+            return Self::TeamWin;
+        }
+        // Outright (整个赛季 / 锦标赛冠军类)
+        if q.contains("premier league") || q.contains("la liga") || q.contains("serie a")
+            || q.contains("bundesliga") || q.contains("champions league") || q.contains("world cup")
+            || q.contains("finish") || q.contains("win the") || q.contains("reach ") {
+            return Self::Outright;
+        }
+        Self::Unknown
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::TeamWin => "team_win",
+            Self::Draw => "draw",
+            Self::OverUnder => "over_under",
+            Self::AsianHandicap => "asian_handicap",
+            Self::Outright => "outright",
+            Self::Unknown => "unknown",
+        }
+    }
+}
+
+/// v0.118 — Football-specific market context. Extends `MarketContext` with
+/// 足球比赛级别的数据 (Elo, xG, Dixon-Coles 参数)。所有字段 optional,
+/// 让 LLM 在缺失时回退到 domain knowledge (内置的世界足球知识)。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FootballMatchContext {
+    /// Base Polymarket context (question, prices, vol, signals 等)
+    pub market: MarketContext,
+
+    /// Polymarket market type — 决定 probability 字段语义
+    pub market_type: FootballMarketType,
+
+    /// Match identification (LLM-readable, parsed from question if not provided)
+    pub home_team: Option<String>,         // e.g. "Argentina"
+    pub away_team: Option<String>,         // e.g. "Austria"
+    pub competition: Option<String>,       // e.g. "FIFA World Cup 2026"
+    pub kickoff_unix_ms: Option<i64>,      // 若与 closes_at 不同
+
+    /// Team strength indicators (optional — LLM fills gaps with domain knowledge)
+    // Elo (international football typically 1500-2200)
+    pub home_elo: Option<f64>,
+    pub away_elo: Option<f64>,
+    pub home_field_advantage_elo: Option<f64>, // ~ +100 (国际足球)
+
+    // xG (Sam Green 2012, per-90 over recent matches)
+    pub home_xg_per90_last5: Option<f64>,
+    pub away_xg_per90_last5: Option<f64>,
+
+    // Dixon-Coles base rates (Maher 1982)
+    pub home_goals_per_game_season: Option<f64>,
+    pub away_goals_per_game_season: Option<f64>,
+    pub home_goals_conceded_per_game_season: Option<f64>,
+    pub away_goals_conceded_per_game_season: Option<f64>,
+
+    // Head-to-head (last 10 encounters)
+    pub h2h_home_wins_last10: Option<u32>,
+    pub h2h_draws_last10: Option<u32>,
+    pub h2h_away_wins_last10: Option<u32>,
+
+    /// Asian handicap line (only meaningful when market_type == AsianHandicap)
+    /// e.g. Some(-2.5) for "Spread: France (-2.5)"
+    pub handicap_line: Option<f64>,
+    /// O/U line (only meaningful when market_type == OverUnder)
+    /// e.g. Some(2.5) for "Argentina vs Austria O/U 2.5"
+    pub over_under_line: Option<f64>,
+}
+
+impl FootballMatchContext {
+    /// Convenience: try to parse team names + market type from `MarketContext`.
+    /// Returns a context with everything populated that we can infer from text.
+    pub fn from_market_context(market: MarketContext) -> Self {
+        let market_type = FootballMarketType::from_question(&market.question);
+        let (home_team, away_team, handicap_line, over_under_line) = parse_question_extras(&market.question, market_type);
+        Self {
+            market,
+            market_type,
+            home_team,
+            away_team,
+            competition: None,
+            kickoff_unix_ms: None,
+            home_elo: None,
+            away_elo: None,
+            home_field_advantage_elo: None,
+            home_xg_per90_last5: None,
+            away_xg_per90_last5: None,
+            home_goals_per_game_season: None,
+            away_goals_per_game_season: None,
+            home_goals_conceded_per_game_season: None,
+            away_goals_conceded_per_game_season: None,
+            h2h_home_wins_last10: None,
+            h2h_draws_last10: None,
+            h2h_away_wins_last10: None,
+            handicap_line,
+            over_under_line,
+        }
+    }
+}
+
+/// Try to extract team names + handicap / O/U line from the Polymarket question text.
+/// Best-effort — returns None when can't parse cleanly.
+fn parse_question_extras(
+    question: &str,
+    market_type: FootballMarketType,
+) -> (Option<String>, Option<String>, Option<f64>, Option<f64>) {
+    let mut home = None;
+    let mut away = None;
+    let mut handicap = None;
+    let mut over_under = None;
+
+    // "Will Argentina win on 2026-06-22?" — single team, no vs.
+    // "Argentina vs. Austria: O/U 2.5" — two teams separated by vs.
+    // "Spread: France (-2.5)" — single team + handicap line in parens.
+    let lower = question.to_lowercase();
+
+    // Polymarket 的真实格式: "Argentina vs. Austria: O/U 2.5" / "Argentina vs Austria"
+    // 注意 " vs" 后可能是 " " (无标点) 或 "." (带句号)。先归一化为 " vs "。
+    let normalized = lower.replace(" vs.", " vs ").replace(" vs,", " vs ");
+    if let Some(idx) = normalized.find(" vs ") {
+        // 重新 map 回原 question 的 index — 由于我们只 replace 了 " vs." / " vs,", 这两个长度
+        // (4) 跟 " vs " 一样, 所以 idx 在 normalized 和 lower 里一致。
+        let before = &question[..idx];
+        let after = &question[idx + 4..];
+        // Strip "Will " prefix from before
+        let home_raw = before.trim_start_matches("Will ").trim();
+        // Strip trailing punctuation
+        let home_clean = home_raw.trim_end_matches(|c: char| !c.is_alphanumeric() && c != ' ');
+        // Strip " on YYYY-MM-DD" from after
+        let away_raw = if let Some(date_idx) = after.find(" on ") {
+            &after[..date_idx]
+        } else {
+            after
+        };
+        // Strip trailing punctuation
+        let away_clean = away_raw.trim_end_matches(|c: char| !c.is_alphanumeric() && c != ' ');
+        // Strip common prefixes from away
+        let away_clean = away_clean.trim_start_matches("Will ").trim();
+        // Strip O/U suffix
+        let away_clean = away_clean.split(':').next().unwrap_or(away_clean).trim();
+        home = Some(home_clean.to_string());
+        away = Some(away_clean.to_string());
+    } else if let Some(start) = lower.find("will ") {
+        if let Some(win_idx) = lower[start..].find(" win") {
+            // v0.121 — safe char-boundary slice. The question
+            // may contain UTF-8 multi-byte chars (e.g. "La Liga"
+            // with í). `start + win_idx` is a byte offset and
+            // might fall inside a multi-byte char, which would
+            // panic. `floor_char_boundary` snaps to the nearest
+            // valid char boundary (Rust 1.81+).
+            let abs_start = start + 5;
+            let abs_end = start + win_idx;
+            let safe_end = question.floor_char_boundary(abs_end);
+            let safe_start = question.floor_char_boundary(abs_start);
+            if safe_start < safe_end {
+                let team = &question[safe_start..safe_end];
+                let team = team.split_whitespace().next().unwrap_or("").to_string();
+                if !team.is_empty() {
+                    home = Some(team);
+                }
+            }
+        }
+    }
+
+    // Parse handicap from parens like "(-2.5)" or "(+1.5)"
+    if market_type == FootballMarketType::AsianHandicap {
+        if let Some(open) = question.find('(') {
+            if let Some(close) = question.find(')') {
+                let inner = &question[open + 1..close];
+                if let Ok(v) = inner.parse::<f64>() {
+                    handicap = Some(v);
+                }
+            }
+        }
+    }
+
+    // Parse O/U line e.g. "O/U 2.5"
+    if market_type == FootballMarketType::OverUnder {
+        let after_ou = if let Some(idx) = lower.find("o/u") {
+            &question[idx + 3..]
+        } else {
+            ""
+        };
+        let after_ou = after_ou.trim_start_matches(|c: char| !c.is_numeric() && c != '.' && c != '-');
+        let num_str: String = after_ou.chars().take_while(|c| c.is_numeric() || *c == '.').collect();
+        if let Ok(v) = num_str.parse::<f64>() {
+            over_under = Some(v);
+        }
+    }
+
+    (home, away, handicap, over_under)
+}
+
+/// Bump this when the football prompt text or shape changes — used to track
+/// win-rate per prompt version (F13 stats).
+pub const PROMPT_VERSION_FOOTBALL_MATCH: &str = "football.v1.0";
+
+/// v0.118 — Football-specific system prompt. Codifies the four industry
+/// frameworks (Dixon-Coles / Elo / xG / CLV) and demands intermediate
+/// framework_breakdown values in the output JSON.
+///
+/// 设计原则:
+///   - 不假设 LLM 懂所有 framework — 在 system prompt 里给完整定义
+///   - 让 LLM 输出 intermediate values (elo_diff / poisson_lambda / clv_edge)
+///     便于下游做 audit + 模型对比
+///   - strict JSON, 与 market.v1.0 保持一致, 不影响 consensus 逻辑
+const FOOTBALL_SYSTEM: &str = "You are a precise football (soccer) prediction-market analyst. \
+You estimate the probability of the SPECIFIC outcome named in the Polymarket question. \
+You must combine FOUR industry-standard frameworks and return a strict JSON object.\n\
+\n\
+FRAMEWORKS (use all four in your reasoning):\n\
+\n\
+1. DIXON-COLES MODEL (Dixon & Coles 1997 — academic gold standard)\n\
+   - Base: independent Poisson for home/away goals. λ_home = attack_home × defense_away × home_advantage.\n\
+   - Modify low-score probabilities (0-0, 1-0, 0-1, 1-1) by ρ factor ≈ -0.1 to +0.2.\n\
+   - Derive 1X2 (home/draw/away) + O/U + Asian Handicap from score matrix.\n\
+\n\
+2. ELO RATING (Arpad Elo)\n\
+   - Expected win: E = 1 / (1 + 10^((R_away - R_home - HFA) / 400))\n\
+   - HFA (home field advantage) ≈ +100 Elo points in international football.\n\
+   - K-factor: 16-32 (lower for higher-tier matches).\n\
+   - Anchor team strength differential.\n\
+\n\
+3. xG (Expected Goals, Sam Green 2012)\n\
+   - Recent xG per 90 (last 5-10 matches) reflects current form better than goals scored.\n\
+   - Penalty xG = 0.75 (fixed). Free-kick xG ≈ 0.05-0.10.\n\
+   - xG trend (improving/declining) > raw xG value.\n\
+   - Use for form adjustments and 'luck correction'.\n\
+\n\
+4. CLV (Closing Line Value, Pinnacle framework — industry definition of edge)\n\
+   - edge = your probability - Polymarket's implied probability (yes_price_cents / 100).\n\
+   - If edge > +0.05: actionable YES bet.\n\
+   - If edge < -0.05: actionable NO bet (or skip if no opposite side).\n\
+   - Polymarket mid-price ≈ closing line equivalent (no traditional bookmaker vig).\n\
+\n\
+OUTPUT (strict JSON, no prose before or after):\n\
+{\n\
+  \"probability\": 0.0-1.0,\n\
+  \"side\": \"YES\" | \"NO\" | \"skip\",\n\
+  \"confidence\": 0.0-1.0,\n\
+  \"reasoning\": \"string ≤ 800 chars\",\n\
+  \"key_factors\": [\"...\", \"...\"],\n\
+\n\
+  \"framework_breakdown\": {\n\
+    \"elo_home\": number | null,\n\
+    \"elo_away\": number | null,\n\
+    \"elo_diff_with_hfa\": number | null,\n\
+    \"implied_win_pct_elo\": 0.0-1.0 | null,\n\
+    \"lambda_home_goals\": number | null,\n\
+    \"lambda_away_goals\": number | null,\n\
+    \"dixon_coles_home_win_pct\": 0.0-1.0 | null,\n\
+    \"dixon_coles_draw_pct\": 0.0-1.0 | null,\n\
+    \"dixon_coles_away_win_pct\": 0.0-1.0 | null,\n\
+    \"xg_last5_home_per90\": number | null,\n\
+    \"xg_last5_away_per90\": number | null,\n\
+    \"polymarket_implied_prob\": 0.0-1.0,\n\
+    \"clv_edge\": number,\n\
+    \"asian_handicap_recommendation\": string | null\n\
+  }\n\
+}\n\
+\n\
+RULES:\n\
+- `probability` reflects YOUR estimate of the YES outcome named in the question.\n\
+- `side` = YES if probability > 0.5, NO if < 0.5, skip if confidence < 0.4.\n\
+- For HomeWin / AwayWin: probability = P(that team wins).\n\
+- For Draw: probability = P(match ends in draw).\n\
+- For OverUnder: probability = P(total goals > line).\n\
+- For AsianHandicap: probability = P(home team covers handicap).\n\
+- For Outright: probability = P(event happens by season end).\n\
+- Reasoning must reference which frameworks supported your estimate.\n\
+- If critical data is missing (e.g. no Elo), say 'fallback to LLM estimate' and lower confidence by ≥0.2.\n\
+- Reasoning must be in English (the JSON keys are English; reasoning language matches).";
+
+/// Build a football-specific CallRequest. Use this instead of
+/// `build_market_analysis_request` when `MarketContext.category == "football"`.
+///
+/// 模型输出仍是 strict JSON, 但 shape 扩展了 `framework_breakdown`。
+/// `parse_football_recommendation` 处理这个 shape;
+/// `parse_recommendation` 仍可作为 fallback (会忽略 framework_breakdown)。
+pub fn build_football_match_request(
+    model: &str,
+    ctx: &FootballMatchContext,
+) -> CallRequest {
+    let user = serde_json::to_string_pretty(ctx).unwrap_or_default();
+    let user = format!(
+        "Analyze this football market. Market type: {}. Return JSON only.\n\n```json\n{}\n```",
+        ctx.market_type.as_str(),
+        user
+    );
+    CallRequest::new(model)
+        .max_tokens(1500) // football 输出含 framework_breakdown, token 多
+        .temperature(0.2) // 与 market.v1.0 一致
+        .json_mode()
+        .system(FOOTBALL_SYSTEM)
+        .user(user)
+}
+
+// ---- parse a football-specific recommendation ----
+
+/// v0.118 — Football-specific output payload. Extends the generic
+/// `LlmRecommendationPayload` with the `framework_breakdown` object.
+#[derive(Debug, Clone, Deserialize)]
+pub struct FootballRecommendationPayload {
+    pub probability: Option<f64>,
+    pub side: Option<String>,
+    pub confidence: Option<f64>,
+    pub reasoning: Option<String>,
+    #[serde(default)]
+    pub key_factors: Option<Vec<String>>,
+    #[serde(default)]
+    pub framework_breakdown: Option<FrameworkBreakdown>,
+}
+
+/// v0.118 — Structured breakdown of the four frameworks.
+/// Used by downstream audit + future model-comparison tooling.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct FrameworkBreakdown {
+    pub elo_home: Option<f64>,
+    pub elo_away: Option<f64>,
+    pub elo_diff_with_hfa: Option<f64>,
+    pub implied_win_pct_elo: Option<f64>,
+    pub lambda_home_goals: Option<f64>,
+    pub lambda_away_goals: Option<f64>,
+    pub dixon_coles_home_win_pct: Option<f64>,
+    pub dixon_coles_draw_pct: Option<f64>,
+    pub dixon_coles_away_win_pct: Option<f64>,
+    pub xg_last5_home_per90: Option<f64>,
+    pub xg_last5_away_per90: Option<f64>,
+    pub polymarket_implied_prob: Option<f64>,
+    pub clv_edge: Option<f64>,
+    pub asian_handicap_recommendation: Option<String>,
+}
+
+/// Parse a football-specific recommendation. Falls back to the generic
+/// `parse_recommendation` if the football shape is missing framework_breakdown
+/// (e.g. older models or generic fallbacks).
+pub fn parse_football_recommendation(text: &str) -> Result<FootballRecommendationPayload, String> {
+    // 1) Try direct parse
+    if let Ok(p) = serde_json::from_str::<FootballRecommendationPayload>(text) {
+        return Ok(p);
+    }
+    // 2) Try to find first {...} block (model may have wrapped JSON in code fences)
+    if let Some(start) = text.find('{') {
+        if let Some(end) = text.rfind('}') {
+            if end > start {
+                let slice = &text[start..=end];
+                if let Ok(p) = serde_json::from_str::<FootballRecommendationPayload>(slice) {
+                    return Ok(p);
+                }
+            }
+        }
+    }
+    Err(format!("could not extract football recommendation JSON: {}", &text[..text.len().min(200)]))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -198,5 +621,213 @@ mod tests {
         assert_eq!(normalize_side("true"), "YES");
         assert_eq!(normalize_side("false"), "NO");
         assert_eq!(normalize_side("maybe"), "skip");
+    }
+
+    // ---- v0.118 football-specific tests ----
+
+    fn sample_football_ctx(q: &str) -> FootballMatchContext {
+        let market = MarketContext {
+            market_id: "mkt-001".into(),
+            question: q.into(),
+            category: "football".into(),
+            yes_price_cents: 65,
+            no_price_cents: 35,
+            volume_24h_usdc: 2_500_000.0,
+            liquidity_usdc: 1_500_000.0,
+            closes_at_unix_ms: 1_750_000_000_000,
+            resolution_source: "Polymarket".into(),
+            recent_signals: vec![],
+            orderbook_top: None,
+        };
+        FootballMatchContext::from_market_context(market)
+    }
+
+    #[test]
+    fn football_market_type_team_win() {
+        assert_eq!(
+            FootballMarketType::from_question("Will Argentina win on 2026-06-22?"),
+            FootballMarketType::TeamWin
+        );
+        assert_eq!(
+            FootballMarketType::from_question("Will Austria win on 2026-06-22?"),
+            FootballMarketType::TeamWin
+        );
+    }
+
+    #[test]
+    fn football_market_type_draw() {
+        assert_eq!(
+            FootballMarketType::from_question("Will Argentina vs. Austria end in a draw?"),
+            FootballMarketType::Draw
+        );
+    }
+
+    #[test]
+    fn football_market_type_over_under() {
+        assert_eq!(
+            FootballMarketType::from_question("Argentina vs. Austria: O/U 2.5"),
+            FootballMarketType::OverUnder
+        );
+        assert_eq!(
+            FootballMarketType::from_question("Real Madrid vs Barcelona Over/Under 3.5"),
+            FootballMarketType::OverUnder
+        );
+    }
+
+    #[test]
+    fn football_market_type_asian_handicap() {
+        assert_eq!(
+            FootballMarketType::from_question("Spread: France (-2.5)"),
+            FootballMarketType::AsianHandicap
+        );
+    }
+
+    #[test]
+    fn football_market_type_outright() {
+        assert_eq!(
+            FootballMarketType::from_question("Will Arsenal finish in the Premier League top 4 this season?"),
+            FootballMarketType::Outright
+        );
+    }
+
+    #[test]
+    fn parse_question_extracts_team_names() {
+        let (home, away, _, _) = parse_question_extras(
+            "Argentina vs. Austria: O/U 2.5",
+            FootballMarketType::OverUnder,
+        );
+        assert_eq!(home, Some("Argentina".to_string()));
+        assert_eq!(away, Some("Austria".to_string()));
+    }
+
+    #[test]
+    fn parse_question_extracts_handicap_line() {
+        let (_, _, handicap, _) = parse_question_extras(
+            "Spread: France (-2.5)",
+            FootballMarketType::AsianHandicap,
+        );
+        assert_eq!(handicap, Some(-2.5));
+    }
+
+    #[test]
+    fn parse_question_extracts_over_under_line() {
+        let (_, _, _, ou) = parse_question_extras(
+            "Argentina vs. Austria: O/U 2.5",
+            FootballMarketType::OverUnder,
+        );
+        assert_eq!(ou, Some(2.5));
+    }
+
+    #[test]
+    fn football_context_from_market_populates_basic_fields() {
+        let ctx = sample_football_ctx("Will Argentina win on 2026-06-22?");
+        assert_eq!(ctx.market_type, FootballMarketType::TeamWin);
+        assert_eq!(ctx.home_team, Some("Argentina".to_string()));
+        assert_eq!(ctx.market.question, "Will Argentina win on 2026-06-22?");
+        assert_eq!(ctx.market.category, "football");
+    }
+
+    #[test]
+    fn football_prompt_version_constant() {
+        // F13 stats: this constant is read by llm_call_logs to attribute
+        // win-rate per prompt version. Bump when the prompt text changes.
+        assert_eq!(PROMPT_VERSION_FOOTBALL_MATCH, "football.v1.0");
+        assert_ne!(PROMPT_VERSION_FOOTBALL_MATCH, PROMPT_VERSION_MARKET_ANALYSIS);
+    }
+
+    #[test]
+    fn build_football_request_serializes_context() {
+        let ctx = sample_football_ctx("Argentina vs. Austria: O/U 2.5");
+        let req = build_football_match_request("doubao-seed-2-0-pro", &ctx);
+        // Verify the prompt contains the 4 framework names (sanity check on system prompt).
+        assert!(FOOTBALL_SYSTEM.contains("DIXON-COLES"));
+        assert!(FOOTBALL_SYSTEM.contains("ELO"));
+        assert!(FOOTBALL_SYSTEM.contains("xG"));
+        assert!(FOOTBALL_SYSTEM.contains("CLV"));
+        // User message includes the market type label.
+        let user = match &req.messages[1] {
+            ChatMessage { role, content } if role == "user" => content.as_str(),
+            _ => panic!("expected user message at index 1"),
+        };
+        assert!(user.contains("over_under"), "user msg should contain market type label");
+        assert!(user.contains("Argentina"), "user msg should contain home team");
+        assert!(user.contains("Austria"), "user msg should contain away team");
+    }
+
+    #[test]
+    fn parses_football_recommendation_clean() {
+        let txt = r#"{
+            "probability": 0.62,
+            "side": "YES",
+            "confidence": 0.74,
+            "reasoning": "Dixon-Coles λ_home=1.85 vs λ_away=0.95, Elo diff +180 with HFA, xG trend favoring home.",
+            "key_factors": ["Dixon-Coles home win 58%", "Elo diff +180", "xG last5 +0.4"],
+            "framework_breakdown": {
+                "elo_home": 1850.0,
+                "elo_away": 1670.0,
+                "elo_diff_with_hfa": 280.0,
+                "implied_win_pct_elo": 0.78,
+                "lambda_home_goals": 1.85,
+                "lambda_away_goals": 0.95,
+                "dixon_coles_home_win_pct": 0.58,
+                "dixon_coles_draw_pct": 0.22,
+                "dixon_coles_away_win_pct": 0.20,
+                "xg_last5_home_per90": 1.95,
+                "xg_last5_away_per90": 1.10,
+                "polymarket_implied_prob": 0.65,
+                "clv_edge": -0.03,
+                "asian_handicap_recommendation": "home -0.5 @ 1.85"
+            }
+        }"#;
+        let p = parse_football_recommendation(txt).expect("should parse");
+        assert_eq!(p.probability, Some(0.62));
+        assert_eq!(p.side.as_deref(), Some("YES"));
+        assert_eq!(p.confidence, Some(0.74));
+        let fb = p.framework_breakdown.expect("framework_breakdown must be present");
+        assert_eq!(fb.elo_home, Some(1850.0));
+        assert_eq!(fb.lambda_home_goals, Some(1.85));
+        assert_eq!(fb.clv_edge, Some(-0.03));
+        assert_eq!(fb.asian_handicap_recommendation.as_deref(), Some("home -0.5 @ 1.85"));
+    }
+
+    #[test]
+    fn parses_football_recommendation_fenced_json() {
+        let txt = "```json\n{\"probability\":0.55,\"side\":\"YES\",\"confidence\":0.5,\"reasoning\":\"x\",\"framework_breakdown\":{\"clv_edge\":0.05}}\n```";
+        let p = parse_football_recommendation(txt).expect("should parse fenced");
+        assert_eq!(p.probability, Some(0.55));
+        let fb = p.framework_breakdown.expect("breakdown must be present");
+        assert_eq!(fb.clv_edge, Some(0.05));
+    }
+
+    #[test]
+    fn parses_football_recommendation_handles_missing_breakdown() {
+        // Older models or fallbacks may not produce framework_breakdown.
+        // The parser must still succeed (returning None for breakdown).
+        let txt = r#"{"probability":0.5,"side":"skip","confidence":0.3,"reasoning":"uncertain"}"#;
+        let p = parse_football_recommendation(txt).expect("should parse even without breakdown");
+        assert_eq!(p.probability, Some(0.5));
+        assert!(p.framework_breakdown.is_none());
+    }
+
+    #[test]
+    fn football_recommendation_parser_rejects_garbage() {
+        let txt = "This is not JSON at all, just prose.";
+        let err = parse_football_recommendation(txt).expect_err("should fail");
+        assert!(err.contains("could not extract football recommendation JSON"));
+    }
+
+    #[test]
+    fn market_type_as_str_round_trip() {
+        for mt in [
+            FootballMarketType::TeamWin,
+            FootballMarketType::Draw,
+            FootballMarketType::OverUnder,
+            FootballMarketType::AsianHandicap,
+            FootballMarketType::Outright,
+            FootballMarketType::Unknown,
+        ] {
+            // as_str is stable + non-empty (used in prompt + downstream labels).
+            assert!(!mt.as_str().is_empty());
+        }
     }
 }

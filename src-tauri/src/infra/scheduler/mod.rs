@@ -529,7 +529,13 @@ async fn probe_one_provider(
             Arc::new(OpenAIClient::new("https://api.openai.com/v1"))
         }
     };
+    // v0.119 — health probe must include at least one message. Some
+    // providers (MiniMax, etc.) reject empty `messages` arrays with HTTP 400
+    // ("invalid params, messages is empty"). Send a minimal one-token probe
+    // prompt instead.
     let req = crate::domain::llm::CallRequest::new(&p.default_model)
+        .system("health probe")
+        .user("ok")
         .max_tokens(1)
         .temperature(0.0);
     let cost = CostRate {
