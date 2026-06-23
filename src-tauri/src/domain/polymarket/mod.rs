@@ -183,69 +183,150 @@ pub struct OrderBookSnapshot {
     pub spread: f64,
 }
 
-/// v0.124 — fetch the open markets from the Polymarket Gamma API.
+/// v0.125 — fetch open markets from Polymarket Gamma, single
+/// request, limit=20.
 ///
-/// Uses `/markets/keyset` (the deprecation warning `use /markets/keyset`
-/// from the legacy endpoint points here). Query params (2026-06):
-///   - `active=true` — only markets accepting orders right now
-///   - `closed=false` — exclude resolved markets
-///   - `archived=false` — exclude archived markets
-///   - `limit=50` — page size. The legacy `/markets` endpoint
-///     times out at 60s+ for 500 markets behind a proxy; 50 is
-///     plenty for a football-only filter
-///   - `timeout=15s` — cap the request at 15s and surface a clear
-///     error rather than hanging the IPC
+/// **Why single request**: the `/markets/keyset` `next_cursor`
+/// pagination is broken at the API level (2026-06-23 verified:
+/// passing the returned cursor as `&next_cursor=` returns the
+/// SAME first page). The legacy `/markets?offset=N` works but
+/// the endpoint is deprecated. The cleanest working approach
+/// is one request with `limit=20` — returns ~14 football
+/// markets in the top-volume ordering, plenty for the L1.
 ///
-/// The HTTP client already reads `POLYROCKET_PROXY` (v0.123+) so
-/// callers behind a corporate proxy don't have to do anything extra.
+/// **Why volume24hr-DESC**: the default `endDate ASC` ordering
+/// puts the FIFA World Cup 2026 markets (close Aug 2026) far
+/// down the list — first 5 are Rihanna albums, GTA-VI bets,
+/// elections. Volume-DESC surfaces football in the first 20.
+///
+/// **Why not >20**: the Gamma API has two bugs above 50 items
+/// that the local HTTP proxy (POLYROCKET_PROXY=127.0.0.1:7897)
+/// surfaces intermittently: (a) `Invalid control character` in
+/// the JSON body, (b) reqwest body-decoder hangs on the
+/// proxied HTTP/2 stream. 20 stays well under that threshold.
+///
+/// **Caller contract**: returns up to 20 markets (raw, not
+/// pre-filtered). The football filter at the sync boundary
+/// drops ~30% of them. L1 sees ~14 real football markets.
 pub async fn fetch_active_markets() -> crate::AppResult<Vec<MarketSummary>> {
     use crate::infra::http::new_http_client;
-    // v0.124 — use a tiny page (5 markets ≈ 35KB). The proxy
-    // 127.0.0.1:7897 has a body-decoder edge case on the
-    // proxied HTTP/2 stream for 300KB+ responses; the small
-    // page sidesteps it. 5 markets is enough for the
-    // football-only filter to find at least 2-3 real
-    // upcoming football matches (Premier League, La Liga,
-    // UCL qualifiers, World Cup qualifiers, etc.). v0.125
-    // can wire proper pagination via the `next_cursor`.
+
+    const LIMIT: usize = 20;
+
+    let client = new_http_client();
     let url = format!(
-        "{}/markets/keyset?active=true&closed=false&archived=false&limit=5",
-        GAMMA_BASE
+        "{}/markets/keyset?active=true&closed=false&archived=false\
+         &limit={}&order=volume24hr&ascending=false",
+        GAMMA_BASE, LIMIT
     );
-    // v0.124 — read body as `bytes()` then deserialize via
-    // `serde_json::from_slice`. This bypasses reqwest's body
-    // decoder which has a known quirk on the proxied HTTP/2
-    // stream (manifests as "error decoding response body" on
-    // small responses too). Curl + unit-test deser both work
-    // fine on the same payload, so the DTO is correct; the
-    // workaround isolates the wire read from reqwest's
-    // stream-decoding path.
-    let bytes = new_http_client()
-        .get(&url)
-        .timeout(std::time::Duration::from_secs(15))
-        .send()
-        .await
-        .map_err(|e| crate::AppError::Internal(format!("Gamma send failed: {e}")))?
-        .error_for_status()
-        .map_err(|e| crate::AppError::Internal(format!("Gamma HTTP error: {e}")))?
-        .bytes()
-        .await
-        .map_err(|e| crate::AppError::Internal(format!("Gamma body read failed: {e}")))?;
-    let mut resp: KeysetResponse = serde_json::from_slice(&bytes).map_err(|e| {
+
+    let bytes = fetch_page(&client, &url).await?;
+    let resp: KeysetResponse = serde_json::from_slice(&bytes).map_err(|e| {
         let preview: String = String::from_utf8_lossy(&bytes[..2000.min(bytes.len())])
-            .chars()
-            .take(2000)
-            .collect();
+            .chars().take(500).collect();
         tracing::warn!(
-            "Gamma JSON deserialize failed: {e}\n--- body preview (first 2k) ---\n{preview}\n--- end ---"
+            "fetch_active_markets: JSON deser failed: {e}; preview={preview}"
         );
-        crate::AppError::Internal(format!("Gamma JSON deserialize failed: {e}"))
+        crate::AppError::Internal(format!("Gamma keyset JSON deser failed: {e}"))
     })?;
-    // v0.124 — post-process: parse `end_date` ISO string to ms.
-    for m in resp.markets.iter_mut() {
+
+
+    let mut all = resp.markets;
+    for m in all.iter_mut() {
         m.end_date_ms = parse_iso_to_ms(&m.end_date);
     }
-    Ok(resp.markets)
+    tracing::info!(
+        "fetch_active_markets: returned {} markets (football={})",
+        all.len(), count_football(&all)
+    );
+    Ok(all)
+}
+
+/// One page fetch helper.
+///
+/// v0.125 — bumps per-request timeout from 10s to 30s. The
+/// local HTTP proxy (127.0.0.1:7897) takes ~10-18s to
+/// establish CONNECT to gamma-api.polymarket.com on cold
+/// paths; 10s was below the floor and the body read surfaced
+/// as `error decoding response body` (reqwest quirk: the
+/// underlying transport timeout is masked as a decode error).
+///
+/// `read body as bytes()` (not `.json()`) preserves the
+/// real error message in the case of an actual decode
+/// failure (kept from v0.124).
+///
+/// 2 retries with 200ms / 500ms backoff — proxy is flaky
+/// but a single retry almost always clears it.
+async fn fetch_page(
+    client: &reqwest::Client,
+    url: &str,
+) -> crate::AppResult<Vec<u8>> {
+    use crate::AppError;
+    let mut last_err: Option<String> = None;
+    for attempt in 0..3 {
+        let result = client
+            .get(url)
+            .timeout(std::time::Duration::from_secs(30))
+            .send()
+            .await
+            .map_err(|e| AppError::Internal(format!("Gamma send failed: {e}")))?
+            .error_for_status()
+            .map_err(|e| AppError::Internal(format!("Gamma HTTP error: {e}")))?
+            .bytes()
+            .await
+            .map(|b| b.to_vec())
+            .map_err(|e| AppError::Internal(format!("Gamma body read failed: {e}")));
+        match result {
+            Ok(b) => return Ok(b),
+            Err(e) => {
+                let msg = e.to_string();
+                tracing::warn!("fetch_page attempt {} failed: {msg}", attempt + 1);
+                last_err = Some(msg);
+                // 200ms, then 500ms — fast enough that the user
+                // doesn't notice unless every attempt fails
+                tokio::time::sleep(std::time::Duration::from_millis(
+                    if attempt == 0 { 200 } else { 500 },
+                )).await;
+            }
+        }
+    }
+    Err(AppError::Internal(format!(
+        "Gamma page fetch failed after 3 attempts: {}",
+        last_err.unwrap_or_default()
+    )))
+}
+
+/// Count football markets using the same question-text heuristic
+/// the sync filter uses. Duplicates the filter heuristic so we
+/// can saturate early (when the L1 already has enough football).
+/// When the heuristic changes, both this and `is_football_market`
+/// in `commands/market.rs` need updating.
+fn count_football(markets: &[MarketSummary]) -> usize {
+    let is_football_text = |s: &str| -> bool {
+        let lower = s.to_lowercase();
+        lower.contains("football") || lower.contains("soccer")
+            || lower.contains("fifa") || lower.contains("uefa")
+            || lower.contains("champions league")
+            || lower.contains("premier league") || lower.contains("la liga")
+            || lower.contains("bundesliga") || lower.contains("serie a")
+            || lower.contains("ligue 1") || lower.contains("mls")
+            || lower.contains(" fc ") || lower.contains(" united")
+            || lower.contains("real madrid") || lower.contains("barcelona")
+            || lower.contains("liverpool") || lower.contains("arsenal")
+            || lower.contains("chelsea") || lower.contains("manchester")
+            || lower.contains("bayern") || lower.contains("dortmund")
+            || lower.contains("juventus") || lower.contains("psg")
+            || lower.contains("atletico")
+    };
+    markets.iter().filter(|m| {
+        if let Some(cat) = m.category.as_deref() {
+            if is_football_text(cat) { return true; }
+        }
+        if let Some(tags) = m.tags.as_ref() {
+            for t in tags { if is_football_text(t) { return true; } }
+        }
+        is_football_text(&m.question)
+    }).count()
 }
 
 /// Parse a RFC-3339 / ISO-8601 string (e.g. "2025-10-31T00:00:00Z")

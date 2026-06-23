@@ -214,12 +214,13 @@ pub async fn sync_markets(state: State<'_, AppState>) -> AppResult<usize> {
     let mut n_written = 0usize;
     for m in remote {
         if !is_football_market(&m) {
-            tracing::debug!(
+            tracing::info!(
                 "sync_markets: skipping non-football id={} q={:?}",
                 m.id, m.question
             );
             continue;
         }
+        tracing::info!("sync_markets: inserting id={} q={:?}", m.id, m.question);
         n_written += 1;
         // v0.124 — Gamma API returns ISO strings + numbers
         // (not the legacy i64-millis / string-encoded fields the
@@ -235,8 +236,8 @@ pub async fn sync_markets(state: State<'_, AppState>) -> AppResult<usize> {
         sqlx::query(
             "INSERT INTO markets (id, slug, question, description, category, end_date,
                                   active, resolved, outcome, liquidity, volume_24h,
-                                  updated_at)
-             VALUES (?, ?, ?, ?, 'football', ?, ?, ?, NULL, ?, ?, ?)
+                                  created_at, updated_at)
+             VALUES (?, ?, ?, ?, 'football', ?, ?, ?, NULL, ?, ?, ?, ?)
              ON CONFLICT(id) DO UPDATE SET
                 question=excluded.question,
                 description=excluded.description,
@@ -258,9 +259,17 @@ pub async fn sync_markets(state: State<'_, AppState>) -> AppResult<usize> {
         .bind(resolved_flag)
         .bind(&m.liquidity)  // v0.124 — STRING (parsed at deser)
         .bind(m.volume_24hr) // v0.124 — NUMBER
-        .bind(now_ms)
+        .bind(now_ms)        // v0.125 — created_at (added: schema requires NOT NULL)
+        .bind(now_ms)        // updated_at
         .execute(&mut *tx)
-        .await?;
+        .await
+        .map_err(|e| {
+            tracing::warn!(
+                "sync_markets: INSERT failed for id={} slug={:?} end={}: {e}",
+                m.id, m.slug, m.end_date
+            );
+            e
+        })?;
         // v0.47a — placeholder snapshot. Will be
         // replaced with real order-book data in
         // v0.50+. For now this exercises the path
