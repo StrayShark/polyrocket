@@ -256,7 +256,7 @@ function ProviderRow({
     <div
       onClick={onClick}
       className={
-        'rounded-md border p-2.5 cursor-pointer transition-colors ' +
+        'rounded-md border p-2.5 cursor-pointer transition-colors duration-base ease-out-cubic ' +
         (selected
           ? 'bg-accent/10 border-accent/40'
           : 'bg-surface-2 border-border hover:bg-surface-hover')

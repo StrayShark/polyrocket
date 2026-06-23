@@ -4,6 +4,7 @@ import { Settings as SettingsIcon, RotateCcw, Save, Database, Bell, Eye, FlaskCo
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/base/Card';
 import { Button } from '@/components/base/Button';
+import { BadgePill } from '@/components/base/BadgePill';
 import { Input } from '@/components/base/Input';
 import { Toggle } from '@/components/base/Toggle';
 import { Skeleton } from '@/components/feedback/Skeleton';
@@ -118,7 +119,7 @@ export function Settings() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <SettingsIcon className="w-4 h-4 text-muted" />
-            <h2 className="text-[13px] font-semibold text-fg">{t('settings.title')}</h2>
+            <h2 className="text-title-sm font-semibold text-fg">{t('settings.title')}</h2>
           </div>
           <div className="flex items-center gap-2">
             <Button data-testid="prefs-reset-btn" variant="ghost" size="sm" iconLeft={<RotateCcw className="w-3 h-3" />} onClick={reset}>
@@ -421,7 +422,7 @@ function LocalePicker() {
             aria-pressed={active}
             aria-label={`Switch language to ${LOCALE_LABEL[l]}`}
             className={cn(
-              'inline-flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors',
+              'inline-flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors duration-base ease-out-cubic',
               active
                 ? 'bg-surface text-fg shadow-card'
                 : 'text-muted hover:text-fg hover:bg-surface-hover',
@@ -579,13 +580,12 @@ function NumberHintField({
       <div className="flex items-center gap-2 mb-1">
         <span className="text-[12px] text-fg">{label}</span>
         {isDefault && (
-          <span
+          <BadgePill
+            variant="neutral"
             data-testid="retention-default-badge"
-            className="text-[9px] uppercase tracking-wide text-muted px-1.5 py-0.5 rounded"
-            style={{ background: 'var(--surface-2)' }}
           >
             default
-          </span>
+          </BadgePill>
         )}
       </div>
       {hint && <div className="text-[10px] text-muted mb-2">{hint}</div>}
@@ -1899,7 +1899,7 @@ export function ExplainabilityCard() {
             onClick={() => setUseShap(true)}
             data-testid="explain-method-shap"
             className={cn(
-              'h-6 px-3 rounded text-[11px] font-medium transition-colors',
+              'h-6 px-3 rounded text-[11px] font-medium transition-colors duration-base ease-out-cubic',
               useShap
                 ? 'bg-accent text-bg'
                 : 'text-muted hover:text-fg',
@@ -1912,7 +1912,7 @@ export function ExplainabilityCard() {
             onClick={() => setUseShap(false)}
             data-testid="explain-method-deriv"
             className={cn(
-              'h-6 px-3 rounded text-[11px] font-medium transition-colors',
+              'h-6 px-3 rounded text-[11px] font-medium transition-colors duration-base ease-out-cubic',
               !useShap
                 ? 'bg-accent text-bg'
                 : 'text-muted hover:text-fg',

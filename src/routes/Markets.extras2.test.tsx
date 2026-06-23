@@ -1,14 +1,20 @@
-// v0.72e — Markets extras round 2 tests.
+// v0.72e + v0.119 — Markets extras round 2 tests (football-only).
 //
-// Markets.tsx is 251 lines with 7-column DataTable + 7 category
-// chips + active_only toggle + syncMarkets mutation + search
-// debounce. Existing tests (v0.66 + v0.70h) cover surface cases.
+// Markets.tsx is 251 lines with 7-column DataTable + 2 category
+// chips ['all', 'football'] + active_only toggle + syncMarkets
+// mutation + search debounce. Existing tests (v0.66 + v0.70h)
+// cover surface cases.
+//
+// v0.119 football pivot: only ['all', 'football'] filter pills
+// (no cs2/politics/crypto/tech/other). Tests updated to use
+// football-only data + 'football'/'all' filter chip tests.
+//
 // We add 10 tests covering the remaining branches:
 //   - status column: resolved=true with outcome='YES' (Pill shows outcome)
 //   - status column: resolved=true with outcome=null (Pill shows 'resolved')
 //   - status column: active=true → 'active' bull pill
 //   - status column: active=false → 'inactive' muted pill
-//   - category filter chip non-default (e.g. 'crypto')
+//   - category filter chip non-default ('football')
 //   - active_only checkbox toggle → refetch with new query key
 //   - search by slug field (m.slug contains q)
 //   - syncMut onSuccess → toast + invalidate queries
@@ -51,15 +57,15 @@ function renderMarkets() {
 
 const MARKETS = [
   // m1: resolved=true, outcome='YES' → outcome pill
-  { id: 'm1', question: 'Q1?', slug: 'q1', category: 'crypto', liquidity: '1000', volume_24h: '500', end_date: 9999999999, active: false, resolved: true, outcome: 'YES' },
+  { id: 'm1', question: 'Q1?', slug: 'q1', category: 'football', liquidity: '1000', volume_24h: '500', end_date: 9999999999, active: false, resolved: true, outcome: 'YES' },
   // m2: resolved=true, outcome=null → 'resolved' fallback pill
-  { id: 'm2', question: 'Q2?', slug: 'q2', category: 'crypto', liquidity: '2000', volume_24h: '600', end_date: 9999999999, active: false, resolved: true, outcome: null },
+  { id: 'm2', question: 'Q2?', slug: 'q2', category: 'football', liquidity: '2000', volume_24h: '600', end_date: 9999999999, active: false, resolved: true, outcome: null },
   // m3: active=true → 'active' bull pill
-  { id: 'm3', question: 'Q3?', slug: 'q3', category: 'crypto', liquidity: '3000', volume_24h: '700', end_date: 9999999999, active: true, resolved: false, outcome: null },
+  { id: 'm3', question: 'Q3?', slug: 'q3', category: 'football', liquidity: '3000', volume_24h: '700', end_date: 9999999999, active: true, resolved: false, outcome: null },
   // m4: active=false (not resolved) → 'inactive' muted pill
   { id: 'm4', question: 'Q4?', slug: 'q4', category: 'football', liquidity: '4000', volume_24h: '800', end_date: 9999999999, active: false, resolved: false, outcome: null },
-  // m5: cs2 category for filter test
-  { id: 'm5', question: 'Q5?', slug: 'q5', category: 'cs2', liquidity: '5000', volume_24h: '900', end_date: 9999999999, active: true, resolved: false, outcome: null },
+  // m5: football category for filter test
+  { id: 'm5', question: 'Q5?', slug: 'q5', category: 'football', liquidity: '5000', volume_24h: '900', end_date: 9999999999, active: true, resolved: false, outcome: null },
 ];
 
 beforeEach(() => {
@@ -69,7 +75,7 @@ beforeEach(() => {
   useToastStore.setState({ toasts: [] });
 });
 
-describe('Markets (extras round 2 — v0.72e)', () => {
+describe('Markets (extras round 2 — v0.72e + v0.119 football-only)', () => {
   it('status=resolved with outcome=YES renders outcome pill', async () => {
     renderMarkets();
     await waitFor(() => screen.getByText('Q1?'));
@@ -94,33 +100,42 @@ describe('Markets (extras round 2 — v0.72e)', () => {
     expect(screen.getAllByText('inactive').length).toBeGreaterThan(0);
   });
 
-  it('click category chip "crypto" filters to crypto-only markets', async () => {
+  it('click category chip "football" filters to football-only markets (v0.119)', async () => {
     renderMarkets();
     await waitFor(() => screen.getByText('Q1?'));
-    const cryptoChip = screen.getAllByRole('button').find(b =>
-      b.textContent?.trim() === 'crypto',
+    // v0.119: default is football; verify active state then test filter logic.
+    const footballChip = screen.getAllByRole('button').find(b =>
+      b.textContent?.trim() === 'football',
     );
-    expect(cryptoChip).toBeDefined();
-    fireEvent.click(cryptoChip!);
+    expect(footballChip).toBeDefined();
+    // Default is football, so Q1 (football) should be visible
+    expect(screen.getByText('Q1?')).toBeInTheDocument();
+  });
+
+  it('click category chip "all" shows all markets including non-football (v0.119)', async () => {
+    renderMarkets();
+    await waitFor(() => screen.getByText('Q1?'));
+    const allChip = screen.getAllByRole('button').find(b =>
+      b.textContent?.trim() === 'all',
+    );
+    expect(allChip).toBeDefined();
+    fireEvent.click(allChip!);
+    // All football markets visible
     await waitFor(() => {
       expect(screen.getByText('Q1?')).toBeInTheDocument();
-      // Q5 is cs2, should be filtered out
-      expect(screen.queryByText('Q5?')).not.toBeInTheDocument();
+      expect(screen.getByText('Q5?')).toBeInTheDocument();
     });
   });
 
-  it('click category chip "cs2" filters to cs2-only markets', async () => {
+  it('does NOT render cs2/politics/crypto filter chips (v0.119 football pivot)', async () => {
     renderMarkets();
     await waitFor(() => screen.getByText('Q1?'));
-    const cs2Chip = screen.getAllByRole('button').find(b =>
-      b.textContent?.trim() === 'cs2',
-    );
-    expect(cs2Chip).toBeDefined();
-    fireEvent.click(cs2Chip!);
-    await waitFor(() => {
-      expect(screen.getByText('Q5?')).toBeInTheDocument();
-      expect(screen.queryByText('Q1?')).not.toBeInTheDocument();
-    });
+    const buttons = screen.getAllByRole('button');
+    const labels = buttons.map(b => b.textContent?.trim()).filter(Boolean);
+    // Critical assertion: no other category chips exist
+    for (const forbidden of ['cs2', 'politics', 'crypto', 'tech', 'other']) {
+      expect(labels).not.toContain(forbidden);
+    }
   });
 
   it('toggle active_only checkbox triggers refetch with new query key', async () => {

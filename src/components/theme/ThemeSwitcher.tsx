@@ -94,7 +94,7 @@ export function ThemeSwitcher({ variant = 'segmented', className }: ThemeSwitche
                 // Layout: inline-flex icon + label, padding 2 / 1.
                 // Active: surface background + fg text + card shadow.
                 // Inactive: muted text, hover transitions to surface-hover.
-                'inline-flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors',
+                'inline-flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors duration-base ease-out-cubic',
                 active
                   ? 'bg-surface text-fg shadow-card'
                   : 'text-muted hover:text-fg hover:bg-surface-hover',

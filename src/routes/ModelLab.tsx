@@ -478,7 +478,7 @@ export function ModelLab() {
                 className="rounded-md border border-border bg-surface-2 p-3 flex items-center gap-4"
               >
                 <div className="flex-1 min-w-0">
-                  <div className="font-mono text-[13px] text-fg">{p.model_version}</div>
+                  <div className="font-mono text-body-sm text-fg">{p.model_version}</div>
                   <div className="text-[10px] text-muted mt-0.5">
                     {t('modellab.perf.predictions', { n: p.n_predictions })}
                   </div>
@@ -781,7 +781,7 @@ export function ModelLab() {
 function Metric({ label, value, positive }: { label: string; value: string; positive: boolean }) {
   return (
     <div className="text-right shrink-0">
-      <div className="text-[10px] text-muted uppercase tracking-wide">{label}</div>
+      <div className="text-xs text-muted font-semibold uppercase tracking-caption-uppercase">{label}</div>
       <div className={'font-mono text-[12px] ' + (positive ? 'text-bull' : 'text-fg')}>
         {value}
       </div>

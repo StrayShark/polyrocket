@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, LineChart, Zap, Copy, BarChart3, FlaskConical, Search, RefreshCw, Bell, Settings, Radar, CircleDot, Crosshair, Landmark, Circle, ArrowLeftRight, Wallet } from 'lucide-react';
+import { LayoutDashboard, LineChart, Zap, Copy, BarChart3, FlaskConical, Search, RefreshCw, Bell, Settings, Goal, CircleDot, Circle, ArrowLeftRight, Wallet } from 'lucide-react';
 import { KbdHelpDialog, useKbdHelpDialog } from '@/components/feedback/KbdHelpDialog';
 import { CommandPalette, useCommandPalette } from '@/components/feedback/CommandPalette';
 import { SidecarHealthBadge } from '@/components/feedback/SidecarHealthBadge';
@@ -22,10 +22,17 @@ const PRIMARY_NAV = [
   { to: '/bankroll', icon: Wallet, i18nKey: 'nav.bankroll' }, // v0.78 — M11
 ];
 
+// v0.119 — football pivot: polyrocket 只做足球市场预测
+// (per docs/polyrocket-football-prd.md). Sidebar category nav
+// is reduced to Football only — CS2/Politics hidden from UI.
+// Backend still has CS2/Politics markets in DB for future
+// flexibility; UI just doesn't expose them.
+//
+// v0.119 TODO: '62' count is hardcoded fixture. Should query DB
+// (e.g. `countMarkets({ category: 'football' })`) once a sync has
+// run. Future round will wire this up via useQuery.
 const CATEGORY_NAV = [
   { icon: CircleDot, label: 'Football', count: '62' },
-  { icon: Crosshair, label: 'CS2', count: '41' },
-  { icon: Landmark, label: 'Politics', count: '25' },
 ];
 
 /**
@@ -33,7 +40,7 @@ const CATEGORY_NAV = [
  *
  * **结构**：
  *   - 顶 bar —— logo + breadcrumb + global actions (Sync / Sidecar badge / Bell / Settings)
- *   - 左 sidebar —— primary nav (7 routes) + category nav (3 categories)
+ *   - 左 sidebar —— primary nav (7 routes) + category nav (1 category, v0.119 football-only)
  *   - 主区域 —— `<Outlet>`（当前 route content）
  *
  * **键盘快捷键**：
@@ -130,9 +137,9 @@ export function AppShell() {
         {/* Logo */}
         <div className="h-12 px-3 flex items-center gap-2 border-b" style={{ borderColor: 'var(--border)' }}>
           <div className="w-6 h-6 rounded-md grid place-items-center" style={{ background: 'var(--accent)' }}>
-            <Radar className="w-3.5 h-3.5 text-white" />
+            <Goal className="w-3.5 h-3.5 text-white" />
           </div>
-          <span className="text-[13px] font-semibold tracking-tight" style={{ color: 'var(--fg)' }}>
+          <span className="text-body-sm font-semibold tracking-tight" style={{ color: 'var(--fg)' }}>
             polyrocket
           </span>
           <span
@@ -150,7 +157,11 @@ export function AppShell() {
             <NavItem key={n.to} {...n} t={t} />
           ))}
 
-          <SectionLabel className="mt-4">{t('nav.categories')}</SectionLabel>
+          {/* v0.119 — football pivot: only one category (Football).
+              Per user direction 2026-06-22, removed the "Categories"
+              section header. The Football row alone (no header) keeps
+              the sidebar visually cleaner. If categories expand beyond
+              one in a future round, restore this SectionLabel. */}
           {CATEGORY_NAV.map((c) => (
             <div key={c.label} className="nav-item">
               <c.icon className="w-3.5 h-3.5" style={{ color: 'var(--muted)' }} />
@@ -262,7 +273,10 @@ export function AppShell() {
 function SectionLabel({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <div
-      className={cn('px-3 mb-1 text-[10px] font-medium uppercase tracking-wider', className)}
+      className={cn(
+        'px-3 mb-1 text-xs text-muted font-semibold uppercase tracking-caption-uppercase',
+        className,
+      )}
       style={{ color: 'var(--muted)' }}
     >
       {children}

@@ -179,7 +179,7 @@ export function LlmStep({
   return (
     <div className="space-y-4 py-2">
       <div>
-        <h2 className="text-[18px] font-semibold text-fg">
+        <h2 className="text-title-md font-semibold text-fg">
           {t('welcome.llm_title')}
         </h2>
         <p className="text-[12px] text-muted mt-1">
@@ -198,7 +198,7 @@ export function LlmStep({
                 data-testid={`welcome-llm-provider-${p.id}`}
                 title={p.hint ?? p.label}
                 className={cn(
-                  'h-7 px-2 rounded text-[11px] font-medium border transition-colors',
+                  'h-7 px-2 rounded text-[11px] font-medium border transition-colors duration-base ease-out-cubic',
                   provider.id === p.id
                     ? 'bg-accent/10 border-accent/40 text-fg'
                     : 'bg-surface-2 border-border text-muted hover:text-fg',
@@ -300,7 +300,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="text-[10px] text-muted block mb-1 uppercase tracking-wider">
+      <span className="text-xs text-muted font-semibold block mb-1 uppercase tracking-caption-uppercase">
         {label}
       </span>
       {children}

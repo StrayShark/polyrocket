@@ -11,15 +11,15 @@
 // the wallet is normal — many users only use
 // mode-A jump bets and don't need a key in keyring.
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Card } from '@/components/base/Card';
 import { Input } from '@/components/base/Input';
 import { Button } from '@/components/base/Button';
 import { useT } from '@/lib/i18n';
 import { useWelcomeStore } from '@/stores/welcome-store';
 import {
-  llmPmSetCredentials,
   polyrocketWalletSetPk,
+  secretsStatus,
 } from '@/ipc';
 import { toast } from '@/stores/toast-store';
 import { Key, Wallet, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
@@ -34,7 +34,7 @@ export function PolymarketStep({
   return (
     <div className="space-y-4 py-2">
       <div>
-        <h2 className="text-[18px] font-semibold text-fg">
+        <h2 className="text-title-md font-semibold text-fg">
           {t('welcome.pm_title')}
         </h2>
         <p className="text-[12px] text-muted mt-1">
@@ -53,137 +53,90 @@ function ClobCard({
   welcome: ReturnType<typeof useWelcomeStore.getState>;
 }) {
   const { t } = useT();
-  const [apiKey, setApiKey] = useState('');
-  const [apiSecret, setApiSecret] = useState('');
-  const [apiPassphrase, setApiPassphrase] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{
-    ok: boolean;
-    message: string;
-  } | null>(null);
-
-  const onSave = useCallback(async () => {
-    if (!apiKey.trim() || !apiSecret.trim() || !apiPassphrase.trim()) {
-      toast.error(t('welcome.pm_required'));
-      return;
-    }
-    setBusy(true);
-    setResult(null);
-    try {
-      await llmPmSetCredentials(
-        apiKey.trim(),
-        apiSecret.trim(),
-        apiPassphrase.trim(),
-      );
-      welcome.setConfigured('polymarketApi', true);
-      setResult({ ok: true, message: t('welcome.pm_saved') });
-      toast.success(t('welcome.pm_saved'));
-      setApiKey('');
-      setApiSecret('');
-      setApiPassphrase('');
-    } catch (e) {
-      setResult({ ok: false, message: String(e) });
-      toast.error(String(e));
-    } finally {
-      setBusy(false);
-    }
-  }, [apiKey, apiSecret, apiPassphrase, welcome, t]);
+  // v0.119 — env-only mode. Backend reads POLYMARKET_API_KEY /
+  // POLYMARKET_API_SECRET / POLYMARKET_API_PASSPHRASE directly from
+  // process env (no OS keyring). Detect on mount so the welcome
+  // banner can skip this step when env is configured.
+  const [envConfigured, setEnvConfigured] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    secretsStatus()
+      .then((s) => {
+        if (cancelled) return;
+        const allSet = s.polymarket.every((p) => p.configured);
+        setEnvConfigured(allSet);
+        if (allSet) welcome.setConfigured('polymarketApi', true);
+      })
+      .catch(() => {
+        if (!cancelled) setEnvConfigured(false);
+      });
+    return () => { cancelled = true; };
+  }, [welcome]);
 
   return (
     <Card
       title={t('welcome.pm_clob_title')}
       description={t('welcome.pm_clob_desc')}
     >
-      <div className="space-y-2.5">
-        <Field label={t('welcome.pm_api_key')} testid="welcome-pm-api-key">
-          <Input
-            data-testid="welcome-pm-api-key-input"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            type="password"
-            placeholder="..."
-          />
-          <div className="text-[10px] text-muted mt-0.5 font-mono">
-            polyrocket/pm/api
-          </div>
-        </Field>
-        <Field label={t('welcome.pm_api_secret')} testid="welcome-pm-api-secret">
-          <Input
-            data-testid="welcome-pm-api-secret-input"
-            value={apiSecret}
-            onChange={(e) => setApiSecret(e.target.value)}
-            type="password"
-            placeholder="..."
-          />
-          <div className="text-[10px] text-muted mt-0.5 font-mono">
-            polyrocket/pm/secret
-          </div>
-        </Field>
-        <Field
-          label={t('welcome.pm_api_passphrase')}
-          testid="welcome-pm-api-passphrase"
+      {envConfigured === true ? (
+        // Env has all 3 vars set — backend will read them. Just show
+        // confirmation, no UI input needed.
+        <div
+          data-testid="welcome-pm-already-configured"
+          className="flex items-center justify-between gap-3 rounded-md border border-bull/30 bg-bull/10 px-3 py-2.5"
         >
-          <Input
-            data-testid="welcome-pm-api-passphrase-input"
-            value={apiPassphrase}
-            onChange={(e) => setApiPassphrase(e.target.value)}
-            type="password"
-            placeholder="..."
-          />
-          <div className="text-[10px] text-muted mt-0.5 font-mono">
-            polyrocket/pm/passphrase
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-bull" aria-hidden="true" />
+            <span className="text-[13px] text-fg">
+              {t('welcome.pm_already_saved')}
+            </span>
           </div>
-        </Field>
-        <div className="flex items-center justify-end gap-2 pt-1">
           <Button
+            data-testid="welcome-pm-edit-btn"
             variant="ghost"
             size="sm"
-            onClick={() => {
-              setApiKey('');
-              setApiSecret('');
-              setApiPassphrase('');
-              setResult(null);
-            }}
-            data-testid="welcome-pm-skip"
+            onClick={() => setEnvConfigured(false)}
           >
-            {t('welcome.pm_skip')}
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            iconLeft={
-              busy ? (
-                <Loader2 className="w-3 h-3 animate-spin" />
-              ) : (
-                <Key className="w-3 h-3" />
-              )
-            }
-            onClick={onSave}
-            disabled={busy}
-            data-testid="welcome-pm-save"
-          >
-            {t('welcome.pm_save')}
+            {t('welcome.pm_edit') ?? 'Edit'}
           </Button>
         </div>
-        {result && (
-          <div
-            data-testid="welcome-pm-result"
-            className={cn(
-              'rounded-md p-2.5 text-[11px] flex items-center gap-2',
-              result.ok
-                ? 'bg-bull/10 text-bull'
-                : 'bg-bear/10 text-bear',
-            )}
-          >
-            {result.ok ? (
-              <CheckCircle2 className="w-3.5 h-3.5" />
-            ) : (
-              <AlertTriangle className="w-3.5 h-3.5" />
-            )}
-            <span className="font-mono">{result.message}</span>
+      ) : (
+        // v0.119 — env-only mode: no password form, no save button.
+        // Show the user exactly which env vars to fill in `~/global_env/.env`
+        // (or project `.env`) to make Polymarket trading work. The
+        // backend reads them directly via process env — no OS keyring.
+        <div
+          data-testid="welcome-pm-env-info"
+          className="space-y-2 rounded-md border border-border bg-surface-2/30 px-3 py-2.5"
+        >
+          <div className="flex items-center gap-2 text-[12px] text-muted">
+            <Key className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>
+              {t('welcome.pm_env_only_desc')}
+            </span>
           </div>
-        )}
-      </div>
+          <ul className="space-y-1 pl-1 text-[11px] font-mono text-fg/80">
+            <li>POLYMARKET_API_KEY=...</li>
+            <li>POLYMARKET_API_SECRET=...</li>
+            <li>POLYMARKET_API_PASSPHRASE=...</li>
+          </ul>
+          <div className="text-[10px] text-muted">
+            {t('welcome.pm_env_path_hint')}
+          </div>
+          <Button
+            data-testid="welcome-pm-mark-saved"
+            variant="primary"
+            size="sm"
+            onClick={() => {
+              welcome.setConfigured('polymarketApi', true);
+              setAlreadyConfigured(true);
+              toast.success(t('welcome.pm_already_saved'));
+            }}
+          >
+            {t('welcome.pm_done')}
+          </Button>
+        </div>
+      )}
     </Card>
   );
 }
@@ -330,7 +283,7 @@ function Field({
 }) {
   return (
     <div data-testid={testid}>
-      <span className="text-[10px] text-muted block mb-1 uppercase tracking-wider">
+      <span className="text-xs text-muted font-semibold block mb-1 uppercase tracking-caption-uppercase">
         {label}
       </span>
       {children}

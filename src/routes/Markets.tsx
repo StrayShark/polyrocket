@@ -17,15 +17,26 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { fmtUsdc, fmtDate, fmtRelativeTime } from '@/lib/format';
 import type { Market } from '@/types/market';
 
-const CATEGORIES = ['all', 'football', 'cs2', 'politics', 'crypto', 'tech', 'other'] as const;
+// v0.119 — football-only product (per docs/polyrocket-football-prd.md).
+// Backend still syncs all Polymarket categories for future flexibility,
+// but UI exposes ONLY football markets. Category filter simplifies to
+// ['all', 'football'] and defaults to 'football' so the user lands on
+// the product surface immediately. 'all' is kept for debugging / power
+// users who want to see what other categories are in the DB.
+const CATEGORIES = ['all', 'football'] as const;
 type Category = (typeof CATEGORIES)[number];
 
 /**
- * `/markets` 路由 —— 浏览 / 搜索 / 筛选 Polymarket market。
+ * `/markets` 路由 —— 浏览 / 搜索 / 筛选 Polymarket market (football-only)。
+ *
+ * **v0.119 — football pivot**：polyrocket 是 football prediction
+ * terminal（per docs/polyrocket-football-prd.md）。UI 只暴露 football
+ * 分类。后端 `markets` 表仍有 cs2/politics/crypto 等数据（保留为
+ * future 扩展），但 sidebar / 页面 filter / 默认值都锁在 football。
  *
  * **数据流**：
  *   1. mount 时 `listMarkets({ active_only, limit: 500 })` 拉第一批
- *   2. 客户端按 `category` + `search` 过滤（`useDebounce(200ms)`）
+ *   2. 客户端按 `category=football` + `search` 过滤（`useDebounce(200ms)`）
  *   3. 表格分页（`DataTable` 内部处理）
  *   4. 「Sync」按钮调 `syncMarkets` mutation 触发后端重新从 Polymarket 拉
  *
@@ -36,7 +47,9 @@ type Category = (typeof CATEGORIES)[number];
  */
 export function Markets() {
   const { t } = useT();
-  const [category, setCategory] = useState<Category>('all');
+  // v0.119 — default to football (was 'all') so product surface
+  // lands on football markets immediately.
+  const [category, setCategory] = useState<Category>('football');
   const [activeOnly, setActiveOnly] = useState(true);
   const [search, setSearch] = useState('');
   const debounced = useDebounce(search, 200);
@@ -178,7 +191,7 @@ export function Markets() {
                 key={c}
                 onClick={() => setCategory(c)}
                 className={
-                  'h-7 px-2.5 rounded text-[11px] font-medium border transition-colors ' +
+                  'h-7 px-2.5 rounded text-[11px] font-medium border transition-colors duration-base ease-out-cubic ' +
                   (category === c
                     ? 'bg-accent/15 text-accent border-accent/30'
                     : 'bg-surface-2 text-muted border-border hover:text-fg')

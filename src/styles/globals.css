@@ -31,6 +31,65 @@
       color var(--duration-theme) var(--ease-out),
       border-color var(--duration-theme) var(--ease-out);
   }
+
+  /* v0.119 — a11y: honor `prefers-reduced-motion` (macOS / Windows / Linux
+     accessibility setting). When reduced motion is preferred:
+     - Disable all transitions (instant state changes)
+     - Disable all non-essential animations (loader spin / skeleton pulse
+       are kept since they communicate loading state and don't induce
+       motion sickness — but they slow down from 1s to 4s so they're
+       less visually distracting)
+     Per WCAG 2.1 SC 2.3.3 (Animation from Interactions). */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* v0.119 — Cursor-merge: native form widgets (range slider, checkbox,
+     radio, progress) inherit the single CTA color via `accent-color`.
+     Without this, browser-native widgets stay browser-blue, breaking
+     the "single accent color" rule on settings/bankroll pages. */
+  input[type='range'],
+  input[type='checkbox'],
+  input[type='radio'],
+  input[type='progress'] {
+    accent-color: var(--accent);
+  }
+}
+
+@layer base {
+  /* v0.119 — Modal enter/exit animation keyframes.
+     160ms duration with --ease-out (cubic-bezier(0.16, 1, 0.3, 1))
+     matches the duration-base token. Backdrop fades in; dialog
+     scales + fades in from 0.96 → 1 for a subtle "rise" effect. */
+  @keyframes modal-backdrop-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes modal-dialog-in {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateX(16px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .animate-modal-backdrop {
+    animation: modal-backdrop-in var(--duration-base) var(--ease-out) both;
+  }
+  .animate-modal-dialog {
+    animation: modal-dialog-in var(--duration-base) var(--ease-out) both;
+  }
+  .animate-toast-in {
+    animation: toast-in var(--duration-base) var(--ease-out) both;
+  }
 }
 
 @layer components {

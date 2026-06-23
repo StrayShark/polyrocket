@@ -35,7 +35,7 @@ export function WelcomeStep({
           >
             {t('welcome.hero_title')}
           </h1>
-          <p className="text-[13px] text-muted mt-2 max-w-md mx-auto">
+          <p className="text-body-sm text-muted mt-2 max-w-md mx-auto">
             {t('welcome.hero_tagline')}
           </p>
         </div>
@@ -46,7 +46,7 @@ export function WelcomeStep({
           default to whatever navigator.language
           reports; both en and zh are bundled. */}
       <div className="max-w-md mx-auto">
-        <div className="text-[10px] text-muted mb-2 uppercase tracking-wider">
+        <div className="text-xs text-muted font-semibold mb-2 uppercase tracking-caption-uppercase">
           {t('welcome.locale_label')}
         </div>
         <div className="grid grid-cols-2 gap-2">
@@ -112,7 +112,7 @@ function LocaleButton({
       onClick={onClick}
       data-testid={testid}
       className={
-        'h-12 rounded-md text-[13px] font-medium border transition-colors ' +
+        'h-12 rounded-md text-body-sm font-medium border transition-colors duration-base ease-out-cubic ' +
         (active
           ? 'bg-accent/10 border-accent/40 text-fg'
           : 'bg-surface-2 border-border text-muted hover:text-fg')

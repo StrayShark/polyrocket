@@ -72,7 +72,7 @@ export function Wallets() {
       <Card padding="sm">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-[13px] font-semibold text-fg">{t('wallets.title')}</h2>
+            <h2 className="text-title-sm font-semibold text-fg">{t('wallets.title')}</h2>
             <p className="text-[11px] text-muted mt-0.5">
               {t('wallets.subtitle')}
             </p>
@@ -144,7 +144,7 @@ function WalletCard({ wallet: w }: { wallet: Wallet }) {
           </span>
         </div>
         <div>
-          <div className="text-[13px] font-medium text-fg">{w.label || t('wallets.card.no_label')}</div>
+          <div className="text-title-sm font-semibold text-fg">{w.label || t('wallets.card.no_label')}</div>
           <div className="flex items-center gap-1.5 mt-1">
             <code className="text-[11px] font-mono text-muted">{fmtAddress(w.address)}</code>
             <button
@@ -273,7 +273,7 @@ function AddWalletModal({ onClose, onAdded }: { onClose: () => void; onAdded: ()
             <select
               value={chainId}
               onChange={(e) => setChainId(Number(e.target.value))}
-              className="w-full h-8 px-2 rounded-md text-[13px] bg-surface text-fg border border-border"
+              className="w-full h-8 px-2 rounded-md text-body-sm bg-surface text-fg border border-border"
             >
               <option value={137}>{t('wallets.add.chain_polygon')}</option>
               <option value={80002}>{t('wallets.add.chain_amoy')}</option>

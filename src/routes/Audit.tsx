@@ -136,7 +136,7 @@ export function Audit() {
             <button
               onClick={() => setActionFilter(null)}
               className={
-                'h-7 px-2.5 rounded text-[11px] font-medium border transition-colors ' +
+                'h-7 px-2.5 rounded text-[11px] font-medium border transition-colors duration-base ease-out-cubic ' +
                 (actionFilter === null
                   ? 'bg-accent/15 text-accent border-accent/30'
                   : 'bg-surface-2 text-muted border-border hover:text-fg')
@@ -149,7 +149,7 @@ export function Audit() {
                 key={a}
                 onClick={() => setActionFilter(a)}
                 className={
-                  'h-7 px-2.5 rounded text-[11px] font-medium border transition-colors ' +
+                  'h-7 px-2.5 rounded text-[11px] font-medium border transition-colors duration-base ease-out-cubic ' +
                   (actionFilter === a
                     ? 'bg-accent/15 text-accent border-accent/30'
                     : 'bg-surface-2 text-muted border-border hover:text-fg')

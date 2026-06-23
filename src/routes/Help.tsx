@@ -23,7 +23,7 @@ export function Help() {
         <div className="flex items-center gap-2">
           <Book className="w-4 h-4 text-muted" />
           <div>
-            <h2 className="text-[13px] font-semibold text-fg">{t('help.title')}</h2>
+            <h2 className="text-title-sm font-semibold text-fg">{t('help.title')}</h2>
             <p className="text-[11px] text-muted mt-0.5">
               {t('help.subtitle')}
             </p>

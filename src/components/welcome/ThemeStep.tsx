@@ -37,7 +37,7 @@ export function ThemeStep() {
   return (
     <div className="space-y-4 py-2">
       <div>
-        <h2 className="text-[18px] font-semibold text-fg">
+        <h2 className="text-title-md font-semibold text-fg">
           {t('welcome.theme_title')}
         </h2>
         <p className="text-[12px] text-muted mt-1">
@@ -52,7 +52,7 @@ export function ThemeStep() {
             onClick={() => setTheme(th.id)}
             data-testid={`welcome-theme-${th.id}`}
             className={cn(
-              'rounded-md border p-4 text-left transition-colors',
+              'rounded-md border p-4 text-left transition-colors duration-base ease-out-cubic',
               theme === th.id
                 ? 'bg-accent/10 border-accent/40'
                 : 'bg-surface-2 border-border hover:bg-surface-hover',
@@ -71,7 +71,7 @@ export function ThemeStep() {
                   border: '1px solid var(--border)',
                 }}
               />
-              <span className="text-[13px] font-medium text-fg">
+              <span className="text-body-sm font-medium text-fg">
                 {th.name}
               </span>
               {theme === th.id && (

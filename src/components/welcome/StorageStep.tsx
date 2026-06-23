@@ -123,7 +123,7 @@ export function StorageStep({
   return (
     <div className="space-y-4 py-2">
       <div>
-        <h2 className="text-[18px] font-semibold text-fg">
+        <h2 className="text-title-md font-semibold text-fg">
           {t('welcome.storage_title')}
         </h2>
         <p className="text-[12px] text-muted mt-1">
@@ -154,7 +154,7 @@ export function StorageStep({
                   onChange={(e) => setCustomPath(e.target.value)}
                   placeholder={t('welcome.storage_path_placeholder')}
                   data-testid="welcome-storage-path-input"
-                  className="flex-1 h-8 px-2.5 rounded-md text-[12px] bg-surface text-fg border border-border focus:outline-none focus:ring-2 focus:ring-accent font-mono"
+                  className="flex-1 h-8 px-2.5 rounded-md text-[12px] bg-surface text-fg border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent font-mono"
                 />
                 <button
                   type="button"
@@ -252,7 +252,7 @@ function ModeCard({
       }}
       data-testid={testid}
       className={cn(
-        'rounded-md border p-3 cursor-pointer transition-colors',
+        'rounded-md border p-3 cursor-pointer transition-colors duration-base ease-out-cubic',
         active
           ? 'bg-accent/10 border-accent/40'
           : 'bg-surface-2 border-border hover:bg-surface-hover',
@@ -265,7 +265,7 @@ function ModeCard({
             active ? 'text-accent' : 'text-muted',
           )}
         />
-        <span className="text-[13px] font-medium text-fg">{title}</span>
+        <span className="text-body-sm font-medium text-fg">{title}</span>
         {active && (
           <CheckCircle2 className="w-3.5 h-3.5 text-accent ml-auto" />
         )}

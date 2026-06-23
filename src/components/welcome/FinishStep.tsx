@@ -48,7 +48,7 @@ export function FinishStep({
     <div className="space-y-4 py-2" data-testid="welcome-finish-summary">
       <div>
         <h2
-          className="text-[18px] font-semibold text-fg"
+          className="text-title-md font-semibold text-fg"
           data-testid="welcome-finish-title"
         >
           {t('welcome.finish_title')}

@@ -230,7 +230,7 @@ export function Signals() {
                 key={s}
                 onClick={() => setSide(s)}
                 className={
-                  'h-7 px-2.5 rounded text-[11px] font-medium border transition-colors ' +
+                  'h-7 px-2.5 rounded text-[11px] font-medium border transition-colors duration-base ease-out-cubic ' +
                   (side === s
                     ? 'bg-accent/15 text-accent border-accent/30'
                     : 'bg-surface-2 text-muted border-border hover:text-fg')

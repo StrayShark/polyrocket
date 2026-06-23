@@ -1,4 +1,8 @@
-// v0.65d — Markets component tests (route 43% coverage → ~75%).
+// v0.65d + v0.119 — Markets component tests (route 43% → ~75%, football-only).
+//
+// v0.119 football pivot: UI only exposes ['all', 'football'] filter
+// pills. Tests updated to use football-only data + verify non-football
+// chips don't exist.
 //
 // The /markets route has client-side category filtering
 // + debounced search + sync mutation. We expand the
@@ -33,64 +37,83 @@ function renderMarkets() {
   );
 }
 
-const M_Crypto = {
-  id: 'm1', slug: 'will-btc-100k', question: 'Will BTC hit 100k?',
-  category: 'crypto', end_date: 9999999999, active: true,
+// v0.119 — football-only fixtures (was crypto/politics/tech)
+const M_FootballA = {
+  id: 'm1', slug: 'fifwc-arg-win', question: 'Will Argentina win?',
+  category: 'football', end_date: 9999999999, active: true,
   resolved: false, outcome: null, liquidity: '1000', volume_24h: '500',
 };
-const M_Politics = {
-  ...M_Crypto, id: 'm2', slug: 'election-2026', question: 'Who wins 2026?',
-  category: 'politics', liquidity: '5000', volume_24h: '2000',
+const M_FootballB = {
+  ...M_FootballA, id: 'm2', slug: 'fifwc-fra-win', question: 'Will France win?',
+  category: 'football', liquidity: '5000', volume_24h: '2000',
 };
-const M_Tech = {
-  ...M_Crypto, id: 'm3', slug: 'ai-launch', question: 'Will OpenAI launch GPT-6?',
-  category: 'tech',
+const M_FootballC = {
+  ...M_FootballA, id: 'm3', slug: 'fifwc-o-u-25', question: 'Will match end O/U 2.5?',
+  category: 'football',
 };
 
-describe('Markets (v0.65d expand)', () => {
-  it('renders all category filter pills', async () => {
-    mockListMarkets.mockResolvedValue([M_Crypto, M_Politics, M_Tech]);
+describe('Markets (v0.65d expand + v0.119 football-only)', () => {
+  it('renders ONLY [all, football] filter pills (v0.119)', async () => {
+    mockListMarkets.mockResolvedValue([M_FootballA, M_FootballB, M_FootballC]);
     renderMarkets();
     await waitFor(() => {
-      expect(screen.getByText('crypto', { exact: false })).toBeInTheDocument();
+      expect(screen.getByText('Argentina', { exact: false })).toBeInTheDocument();
     });
-    // The category pill bar shows all categories
-    expect(screen.getAllByText(/crypto/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/politics/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/tech/i).length).toBeGreaterThan(0);
+    const buttons = screen.getAllByRole('button');
+    const labels = buttons.map(b => b.textContent?.trim()).filter(Boolean);
+    // Should have 'all' and 'football' only
+    expect(labels).toContain('all');
+    expect(labels).toContain('football');
+    // Critical: non-football category pills must NOT exist
+    expect(labels).not.toContain('cs2');
+    expect(labels).not.toContain('politics');
+    expect(labels).not.toContain('crypto');
+    expect(labels).not.toContain('tech');
+    expect(labels).not.toContain('other');
   });
 
-  it('clicking a category pill filters the list', async () => {
-    mockListMarkets.mockResolvedValue([M_Crypto, M_Politics, M_Tech]);
+  it('default filter is football (v0.119 football pivot)', async () => {
+    mockListMarkets.mockResolvedValue([M_FootballA, M_FootballB]);
     renderMarkets();
     await waitFor(() => {
-      expect(screen.getAllByText(/BTC/i).length).toBeGreaterThan(0);
+      expect(screen.getByText('Argentina', { exact: false })).toBeInTheDocument();
     });
-    // Click the "politics" pill
-    const politicsPill = screen.getAllByText('politics').find(
-      (el) => el.tagName === 'BUTTON' || el.closest('button'),
+    const footballPill = screen.getAllByRole('button').find(
+      b => b.textContent?.trim() === 'football',
     );
-    expect(politicsPill).toBeTruthy();
-    fireEvent.click(politicsPill!);
-    // After filter, only politics market visible
+    // Default active state: bg-accent/15
+    expect(footballPill?.className).toContain('bg-accent/15');
+  });
+
+  it('clicking "all" pill shows all categories (no filter)', async () => {
+    mockListMarkets.mockResolvedValue([M_FootballA, M_FootballB]);
+    renderMarkets();
     await waitFor(() => {
-      expect(screen.queryByText(/BTC/i)).toBeNull();
-      expect(screen.getByText(/2026/i)).toBeInTheDocument();
+      expect(screen.getByText('Argentina', { exact: false })).toBeInTheDocument();
+    });
+    const allPill = screen.getAllByRole('button').find(
+      b => b.textContent?.trim() === 'all',
+    );
+    expect(allPill).toBeTruthy();
+    fireEvent.click(allPill!);
+    await waitFor(() => {
+      const allPillAfter = screen.getAllByRole('button').find(
+        b => b.textContent?.trim() === 'all',
+      );
+      expect(allPillAfter?.className).toContain('bg-accent/15');
     });
   });
 
   it('toggles "active only" via the switch', async () => {
-    mockListMarkets.mockResolvedValue([M_Crypto]);
+    mockListMarkets.mockResolvedValue([M_FootballA]);
     renderMarkets();
     await waitFor(() => {
-      expect(screen.getByText(/BTC/i)).toBeInTheDocument();
+      expect(screen.getByText('Argentina', { exact: false })).toBeInTheDocument();
     });
-    // Look for a checkbox / switch
     const activeOnlySwitch = screen.getByRole('checkbox') ||
       document.querySelector('input[type="checkbox"]');
     if (activeOnlySwitch) {
       fireEvent.click(activeOnlySwitch);
-      // After toggling, listMarkets is called with active_only=false
       await waitFor(() => {
         const calls = mockListMarkets.mock.calls;
         const lastCall = calls[calls.length - 1];
@@ -100,33 +123,30 @@ describe('Markets (v0.65d expand)', () => {
   });
 
   it('search input filters the table client-side (after 200ms debounce)', async () => {
-    mockListMarkets.mockResolvedValue([M_Crypto, M_Politics, M_Tech]);
+    mockListMarkets.mockResolvedValue([M_FootballA, M_FootballB, M_FootballC]);
     renderMarkets();
     await waitFor(() => {
-      expect(screen.getByText(/BTC/i)).toBeInTheDocument();
+      expect(screen.getByText('Argentina', { exact: false })).toBeInTheDocument();
     });
-    // Find search input
     const searchInput = screen.getByPlaceholderText(/search/i) ||
       document.querySelector('input[type="search"]') ||
       document.querySelector('input[placeholder*="earch"]');
     if (searchInput) {
-      fireEvent.change(searchInput, { target: { value: 'election' } });
-      // After 250ms (debounce 200ms + buffer)
+      fireEvent.change(searchInput, { target: { value: 'France' } });
       await waitFor(() => {
-        expect(screen.getByText(/2026/i)).toBeInTheDocument();
-        expect(screen.queryByText(/BTC/i)).toBeNull();
+        expect(screen.getByText('France', { exact: false })).toBeInTheDocument();
+        expect(screen.queryByText('Argentina', { exact: false })).toBeNull();
       }, { timeout: 1000 });
     }
   });
 
   it('Sync button calls syncMarkets and shows success toast', async () => {
-    mockListMarkets.mockResolvedValue([M_Crypto]);
+    mockListMarkets.mockResolvedValue([M_FootballA]);
     mockSyncMarkets.mockResolvedValue(5);
     renderMarkets();
     await waitFor(() => {
-      expect(screen.getByText(/BTC/i)).toBeInTheDocument();
+      expect(screen.getByText('Argentina', { exact: false })).toBeInTheDocument();
     });
-    // Find Sync button
     const syncBtn = screen.getAllByRole('button').find((b) =>
       /sync/i.test(b.textContent || ''),
     );
@@ -149,7 +169,6 @@ describe('Markets (v0.65d expand)', () => {
     mockListMarkets.mockResolvedValue([]);
     renderMarkets();
     await waitFor(() => {
-      // The EmptyState is rendered. Body has content.
       expect(document.body.textContent).toBeTruthy();
     });
   });

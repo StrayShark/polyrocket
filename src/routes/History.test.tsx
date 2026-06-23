@@ -53,11 +53,13 @@ describe('History (v0.57b)', () => {
     // with the no-bets message. We don't pin
     // a specific testid because the empty
     // path uses EmptyState, not a custom one.
+    // v0.119 — Card now uses `rounded-card` (12px) per
+    // Cursor spec, replacing old `rounded-lg` (8px).
     await waitFor(() => {
       // 3+ Card children or any visible Card
       // header.
       expect(
-        document.querySelector('.rounded-lg') !== null,
+        document.querySelector('.rounded-card') !== null,
       ).toBeTruthy();
     });
   });

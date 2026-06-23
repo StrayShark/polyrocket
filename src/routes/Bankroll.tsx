@@ -110,7 +110,7 @@ export function Bankroll() {
     <div className="p-6 space-y-4" data-testid="bankroll-page">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-[18px] font-semibold text-fg">
+          <h1 className="text-title-md font-semibold text-fg">
             {t('bankroll.title', { default: 'Bankroll Allocation' })}
           </h1>
           <p className="text-[12px] text-muted mt-1">
@@ -136,7 +136,7 @@ export function Bankroll() {
         <div className="space-y-3">
           <div className="flex items-center gap-3">
             <Wallet className="w-4 h-4 text-muted" />
-            <label className="text-[11px] text-muted uppercase tracking-wide">
+            <label className="text-xs text-muted font-semibold uppercase tracking-caption-uppercase">
               Bankroll (USDC)
             </label>
             <input

@@ -163,7 +163,7 @@ function BreakdownCell({
   return (
     <div className="rounded-md border border-border bg-surface-2 p-3">
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[11px] text-muted uppercase tracking-wide">{label}</span>
+        <span className="text-xs text-muted font-semibold uppercase tracking-caption-uppercase">{label}</span>
         <Pill kind={kind}>{count}</Pill>
       </div>
       <div

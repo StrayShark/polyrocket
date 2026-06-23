@@ -66,7 +66,7 @@ export function Brief() {
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-muted" />
             <div>
-              <h2 className="text-[13px] font-semibold text-fg">{t('brief.title')}</h2>
+              <h2 className="text-title-sm font-semibold text-fg">{t('brief.title')}</h2>
               <p className="text-[11px] text-muted mt-0.5">
                 {t('brief.subtitle')}
               </p>
@@ -124,7 +124,7 @@ export function Brief() {
                   <div className="flex items-center gap-2">
                     <Link
                       to={`/markets/${b.market_id}`}
-                      className="text-[13px] font-medium text-fg hover:text-accent line-clamp-1"
+                      className="text-body-sm font-medium text-fg hover:text-accent line-clamp-1"
                     >
                       {b.market_question}
                     </Link>
@@ -140,7 +140,7 @@ export function Brief() {
                 </div>
                 <div className="text-right shrink-0">
                   {b.edge != null && (
-                    <div className={'text-[13px] font-mono font-semibold ' + (b.edge > 0 ? 'text-bull' : 'text-bear')}>
+                    <div className={'text-body-sm font-mono font-semibold ' + (b.edge > 0 ? 'text-bull' : 'text-bear')}>
                       {t('brief.entry.edge', { value: fmtEdge(b.edge) })}
                     </div>
                   )}

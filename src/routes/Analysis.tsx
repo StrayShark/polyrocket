@@ -305,7 +305,7 @@ export function Analysis() {
                   setMarketId(s.market_id);
                   setAnalyzeResult(null);
                 }}
-                className="w-full text-left rounded-md border border-border bg-surface-2 p-2.5 hover:bg-surface-hover transition-colors"
+                className="w-full text-left rounded-md border border-border bg-surface-2 p-2.5 hover:bg-surface-hover transition-colors duration-base ease-out-cubic"
               >
                 <div className="flex items-center gap-3">
                   <div className="flex-1 min-w-0">
@@ -384,7 +384,7 @@ function ResultCard({
 }) {
   return (
     <div className="rounded-md border border-border bg-surface-2 p-3">
-      <div className="flex items-center gap-1.5 text-[10px] text-muted uppercase tracking-wide">
+      <div className="flex items-center gap-1.5 text-xs text-muted font-semibold uppercase tracking-caption-uppercase">
         {Icon && <Icon className="w-3 h-3" />}
         {label}
       </div>
@@ -397,7 +397,7 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
   return (
     <div>
       <div className="text-[11px] text-muted mb-0.5">{label}</div>
-      <div className={'text-[13px] ' + (mono ? 'font-mono' : '')}>{value}</div>
+      <div className={'text-body-sm ' + (mono ? 'font-mono' : '')}>{value}</div>
     </div>
   );
 }

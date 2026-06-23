@@ -67,7 +67,7 @@ export function Copy() {
       <Card padding="sm">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-[13px] font-semibold text-fg">{t('copy.title')}</h2>
+            <h2 className="text-title-sm font-semibold text-fg">{t('copy.title')}</h2>
             <p className="text-[11px] text-muted mt-0.5">
               Watch whale addresses for on-chain trades. Mirror policy: only fires when our model edge &gt; min_edge.
             </p>
@@ -101,7 +101,7 @@ export function Copy() {
         >
           <FlaskConical className="w-4 h-4 text-accent shrink-0" />
           <div className="flex-1 text-[12px]">
-            <span className="font-semibold uppercase tracking-wide text-accent">
+            <span className="font-semibold uppercase tracking-caption-uppercase text-accent">
               [PAPER]
             </span>
             <span className="text-fg ml-2">
@@ -184,7 +184,7 @@ function TargetRow({ target: t, events }: { target: CopyTarget; events: CopyEven
             </span>
           </div>
           <div className="mt-1.5 flex items-center gap-1.5">
-            <span className="text-[13px] font-medium text-fg">{t.label || '(no label)'}</span>
+            <span className="text-body-sm font-medium text-fg">{t.label || '(no label)'}</span>
             <code className="text-[11px] font-mono text-muted">{fmtAddress(t.address)}</code>
             <button
               onClick={() => {
