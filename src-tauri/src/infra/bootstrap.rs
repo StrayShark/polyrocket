@@ -65,6 +65,7 @@ async fn do_bootstrap(pool: &SqlitePool) -> AppResult<usize> {
     let mut actions = 0usize;
     actions += register_llm_providers(pool).await?;
     actions += register_pm_wallet(pool).await?;
+    actions += expire_stale_markets(pool).await?;
     Ok(actions)
 }
 
@@ -202,4 +203,41 @@ async fn register_pm_wallet(pool: &SqlitePool) -> AppResult<usize> {
 #[allow(dead_code)]
 fn _force_json_use() -> serde_json::Value {
     json!({})
+}
+
+/// v0.123 — expire stale markets on every boot.
+///
+/// The seed bundle (and any future fixture) hardcodes `end_date`
+/// values. As real time advances, markets whose `end_date` is in
+/// the past should no longer appear in the active list. Without
+/// this pass, the L1 keeps showing "active" pills on matches that
+/// actually closed months ago (e.g. UCL final in January, La Liga
+/// in May — visible on 2026-06-23 even though both events are
+/// over).
+///
+/// The fix: on every bootstrap, flip `active=0` for any market
+/// where `end_date < now_ms AND active=1`. Idempotent and cheap
+/// (one UPDATE, usually 0 rows after the first run).
+///
+/// **Scope**: this only flips the `active` flag — it does NOT
+/// touch `resolved` / `outcome` (those are set by the PM sync
+/// when the real result lands). For seed data with no PM link,
+/// `resolved` stays 0 but `active=0` is enough to hide the row
+/// from the active-only market list.
+async fn expire_stale_markets(pool: &SqlitePool) -> AppResult<usize> {
+    let now_ms = chrono::Utc::now().timestamp_millis();
+    let result = sqlx::query(
+        "UPDATE markets SET active = 0
+         WHERE active = 1
+           AND end_date IS NOT NULL
+           AND end_date < ?",
+    )
+    .bind(now_ms)
+    .execute(pool)
+    .await?;
+    let n = result.rows_affected() as usize;
+    if n > 0 {
+        tracing::info!("bootstrap: expired {n} stale market(s) (end_date < now)");
+    }
+    Ok(n)
 }
