@@ -18,6 +18,7 @@
 //!   only — the dependency edge is one-way: scheduler → domain::llm.
 //! - L4 may NOT depend on L1 (React) or L2 (Tauri commands)
 
+pub mod bootstrap;
 pub mod db;
 pub mod error;
 pub mod http;

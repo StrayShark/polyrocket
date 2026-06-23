@@ -36,28 +36,21 @@ export function buildPaletteCommands(opts: {
   onNavigate: (path: string) => void;
   onOpenHelp: () => void;
   onSyncMarkets: () => void;
-  onRecomputeSignals: () => void;
   onOpenSettings: () => void;
   onResetDemoData: () => void;
-  onPurgeAuditLog: () => void;
 }): PaletteCommand[] {
   return [
-    // Navigation
+    // v0.123 — football-only scope. Removed nav.signals / nav.copy /
+    // nav.pnl / nav.history / nav.wallets / nav.lab and the
+    // recompute / purge actions since those surfaces are no longer
+    // exposed in the sidebar.
     { id: 'nav.dashboard',  label: 'Go to Dashboard',  category: 'Navigate', shortcut: ['g', 'd'], action: () => opts.onNavigate('/dashboard') },
-    { id: 'nav.markets',    label: 'Go to Markets',    category: 'Navigate', shortcut: ['g', 'm'], action: () => opts.onNavigate('/markets') },
-    { id: 'nav.signals',    label: 'Go to Signals',    category: 'Navigate', shortcut: ['g', 's'], action: () => opts.onNavigate('/signals') },
-    { id: 'nav.copy',       label: 'Go to Copy',       category: 'Navigate', shortcut: ['g', 'c'], action: () => opts.onNavigate('/copy') },
-    { id: 'nav.pnl',        label: 'Go to P&L',        category: 'Navigate', shortcut: ['g', 'p'], action: () => opts.onNavigate('/pnl') },
-    { id: 'nav.history',    label: 'Go to History',    category: 'Navigate', shortcut: ['g', 'h'], action: () => opts.onNavigate('/history') },
-    { id: 'nav.wallets',    label: 'Go to Wallets',    category: 'Navigate', shortcut: ['g', 'w'], action: () => opts.onNavigate('/wallets') },
-    { id: 'nav.lab',        label: 'Go to Lab',        category: 'Navigate', shortcut: ['g', 'l'], action: () => opts.onNavigate('/lab') },
+    { id: 'nav.markets',    label: 'Go to Matches',    category: 'Navigate', shortcut: ['g', 'm'], action: () => opts.onNavigate('/markets') },
     { id: 'nav.settings',   label: 'Go to Settings',   category: 'Navigate', action: () => opts.onOpenSettings() },
     { id: 'nav.help',       label: 'Show keyboard shortcuts', aliases: ['shortcuts', 'help me'], category: 'Navigate', shortcut: ['?'], action: () => opts.onOpenHelp() },
     // Actions
-    { id: 'act.sync',       label: 'Sync markets',  aliases: ['refresh markets', 'fetch markets'], category: 'Actions', action: opts.onSyncMarkets },
-    { id: 'act.recompute',  label: 'Recompute signals', aliases: ['recompute', 're-rank'], category: 'Actions', action: opts.onRecomputeSignals },
+    { id: 'act.sync',       label: 'Sync matches',  aliases: ['refresh matches', 'fetch matches'], category: 'Actions', action: opts.onSyncMarkets },
     { id: 'act.reset',      label: 'Reset demo data',    aliases: ['re-seed', 'reseed'], category: 'Actions', action: opts.onResetDemoData },
-    { id: 'act.purge',      label: 'Purge audit log',    aliases: ['clear audit', 'wipe audit'], category: 'Actions', action: opts.onPurgeAuditLog },
   ];
 }
 

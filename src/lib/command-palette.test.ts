@@ -6,10 +6,8 @@ const sample = (): PaletteCommand[] => buildPaletteCommands({
   onNavigate: noop,
   onOpenHelp: noop,
   onSyncMarkets: noop,
-  onRecomputeSignals: noop,
   onOpenSettings: noop,
   onResetDemoData: noop,
-  onPurgeAuditLog: noop,
 });
 
 describe('buildPaletteCommands', () => {

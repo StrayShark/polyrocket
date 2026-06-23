@@ -53,6 +53,17 @@ import type {
 // ---------------------------------------------------------------- Wallet (M4)
 export const listWallets = () => safeInvoke<Wallet[]>('list_wallets');
 export const addWallet = (args: AddWalletArgs) => safeInvoke<Wallet>('add_wallet', { args });
+// v0.123 — read USDC balance from Polymarket CLOB (L2 HMAC). Returns
+// a `BalanceResult` (ok/balance_usdc/reason) — `ok=false` is a normal
+// outcome (creds missing, address missing, network down).
+export interface BalanceResult {
+  ok: boolean;
+  balance_usdc: number;
+  raw_balance: string;
+  reason: string;
+  creds_present: boolean;
+}
+export const getWalletBalance = () => safeInvoke<BalanceResult>('get_wallet_balance');
 
 // ---------------------------------------------------------------- Market (M1)
 export const listMarkets = (args: ListMarketsArgs = {}) =>

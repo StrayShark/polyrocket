@@ -1,39 +1,27 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, LineChart, Zap, Copy, BarChart3, FlaskConical, Search, RefreshCw, Bell, Settings, Goal, CircleDot, Circle, ArrowLeftRight, Wallet } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { LayoutDashboard, LineChart, Search, RefreshCw, Bell, Settings, Goal } from 'lucide-react';
 import { KbdHelpDialog, useKbdHelpDialog } from '@/components/feedback/KbdHelpDialog';
 import { CommandPalette, useCommandPalette } from '@/components/feedback/CommandPalette';
 import { SidecarHealthBadge } from '@/components/feedback/SidecarHealthBadge';
 import { useKeyboardNav, useNavBindings } from '@/lib/keyboard-nav';
 import { buildPaletteCommands, isPaletteTrigger } from '@/lib/command-palette';
-import { isSeeded, syncMarkets, recomputeSignals, seedDemoData, purgeAuditLogNow } from '@/ipc';
+import { isSeeded, syncMarkets, seedDemoData, listWallets, getWalletBalance } from '@/ipc';
 import { useQueryClient } from '@tanstack/react-query';
 import { useT } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
 
+// v0.123 — football-only scope. Sidebar reduced to 2 primary
+// routes (Dashboard + Markets). Removed: signals, copy, pnl,
+// lab, trade, bankroll, history, wallets, audit, brief, help,
+// llm-perf, llm-mgmt. All removed routes are still reachable
+// via direct URL for diagnostics but no longer in the sidebar.
 const PRIMARY_NAV = [
   { to: '/dashboard', icon: LayoutDashboard, i18nKey: 'nav.dashboard' },
-  { to: '/markets', icon: LineChart, i18nKey: 'nav.markets', count: '128' },
-  { to: '/signals', icon: Zap, i18nKey: 'nav.signals', badge: '7' },
-  { to: '/copy', icon: Copy, i18nKey: 'nav.copy' },
-  { to: '/pnl', icon: BarChart3, i18nKey: 'nav.pnl' },
-  { to: '/lab', icon: FlaskConical, i18nKey: 'nav.lab' },
-  { to: '/trade', icon: ArrowLeftRight, i18nKey: 'nav.trade' }, // v0.52
-  { to: '/bankroll', icon: Wallet, i18nKey: 'nav.bankroll' }, // v0.78 — M11
+  { to: '/markets', icon: LineChart, i18nKey: 'nav.markets' },
 ];
 
-// v0.119 — football pivot: polyrocket 只做足球市场预测
-// (per docs/polyrocket-football-prd.md). Sidebar category nav
-// is reduced to Football only — CS2/Politics hidden from UI.
-// Backend still has CS2/Politics markets in DB for future
-// flexibility; UI just doesn't expose them.
-//
-// v0.119 TODO: '62' count is hardcoded fixture. Should query DB
-// (e.g. `countMarkets({ category: 'football' })`) once a sync has
-// run. Future round will wire this up via useQuery.
-const CATEGORY_NAV = [
-  { icon: CircleDot, label: 'Football', count: '62' },
-];
 
 /**
  * `AppShell` —— 整 app 的 layout 外壳。
@@ -89,6 +77,29 @@ export function AppShell() {
   });
   const { pendingPrefix } = useKeyboardNav(bindings);
 
+  // v0.123 — sidebar footer reads the real wallet + USDC balance
+  // from the .env L2 creds (PM CLOB balance-allowance). Both
+  // queries refetch on focus so the user sees the up-to-date
+  // balance after a paper trade or a wallet address change.
+  const walletsQuery = useQuery({
+    queryKey: ['wallets'],
+    queryFn: () => listWallets(),
+    staleTime: 30_000,
+  });
+  const balanceQuery = useQuery({
+    queryKey: ['wallet-balance'],
+    queryFn: () => getWalletBalance(),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+  const wallet = walletsQuery.data?.[0];
+  const balanceText = balanceQuery.data?.ok
+    ? `${balanceQuery.data.balance_usdc.toFixed(2)} USDC`
+    : '— USDC';
+  const walletShort = wallet?.address
+    ? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-3)}`
+    : '0x000…000';
+
   // v0.9c — palette commands
   const paletteCommands = buildPaletteCommands({
     onNavigate: navigate,
@@ -97,21 +108,11 @@ export function AppShell() {
       await syncMarkets();
       queryClient.invalidateQueries({ queryKey: ['markets'] });
     },
-    onRecomputeSignals: async () => {
-      await recomputeSignals();
-      queryClient.invalidateQueries({ queryKey: ['signals'] });
-    },
-    onOpenSettings: () => navigate('/settings'),
+onOpenSettings: () => navigate('/settings'),
     onResetDemoData: async () => {
       await seedDemoData(true);
       await isSeeded();  // touch so import isn't dead
       queryClient.invalidateQueries();
-    },
-    onPurgeAuditLog: async () => {
-      const n = await purgeAuditLogNow();
-      queryClient.invalidateQueries({ queryKey: ['audit'] });
-      // eslint-disable-next-line no-console
-      console.log(`purged ${n} audit rows`);
     },
   });
 
@@ -157,40 +158,33 @@ export function AppShell() {
             <NavItem key={n.to} {...n} t={t} />
           ))}
 
-          {/* v0.119 — football pivot: only one category (Football).
-              Per user direction 2026-06-22, removed the "Categories"
-              section header. The Football row alone (no header) keeps
-              the sidebar visually cleaner. If categories expand beyond
-              one in a future round, restore this SectionLabel. */}
-          {CATEGORY_NAV.map((c) => (
-            <div key={c.label} className="nav-item">
-              <c.icon className="w-3.5 h-3.5" style={{ color: 'var(--muted)' }} />
-              <span>{c.label}</span>
-              <span className="ml-auto font-mono text-[10px]" style={{ color: 'var(--muted)' }}>
-                {c.count}
-              </span>
-            </div>
-          ))}
-
           <SectionLabel className="mt-4">{t('nav.settings_section')}</SectionLabel>
           <div className="nav-item">
             <Settings className="w-3.5 h-3.5" />
             <span>{t('nav.preferences')}</span>
           </div>
-          <div className="nav-item">
-            <Circle className="w-3.5 h-3.5" />
-            <span>API Keys</span>
+        </div>
+
+        {/* v0.123 — wallet footer. Reads the real USDC balance
+            from PM CLOB via `getWalletBalance()` (L2 HMAC).
+            `balanceText` is "— USDC" until the lookup resolves or
+            when the .env creds / L1 address are missing. */}
+        <div className="p-2 border-t" style={{ borderColor: 'var(--border)' }}>
+          <div
+            className="mt-2 flex items-center gap-2 px-1 py-1 text-[11px]"
+            style={{ color: 'var(--muted)' }}
+            data-testid="wallet-footer"
+            title={balanceQuery.data?.reason || 'PM CLOB balance (L2 HMAC)'}
+          >
+            <span
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ background: balanceQuery.data?.ok ? 'var(--bull)' : 'var(--muted)' }}
+            />
+            <span className="font-mono">{walletShort}</span>
+            <span className="ml-auto">{balanceText}</span>
           </div>
         </div>
 
-        {/* Bottom: wallet only (theme + language moved to /settings) */}
-        <div className="p-2 border-t" style={{ borderColor: 'var(--border)' }}>
-          <div className="mt-2 flex items-center gap-2 px-1 py-1 text-[11px]" style={{ color: 'var(--muted)' }}>
-            <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--bull)' }} />
-            <span className="font-mono">0x4f…a91</span>
-            <span className="ml-auto">12,847 USDC</span>
-          </div>
-        </div>
       </aside>
 
       {/* Main */}
@@ -211,7 +205,7 @@ export function AppShell() {
               style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--muted)' }}
             >
               <Search className="w-3.5 h-3.5" />
-              <span>Search markets, signals…</span>
+              <span>Search matches…</span>
               <span
                 className="ml-auto font-mono text-[10px] px-1 py-0.5 rounded border"
                 style={{ borderColor: 'var(--border)' }}

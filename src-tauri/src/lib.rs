@@ -143,6 +143,13 @@ pub fn run() {
                 // v0.6b — Python sidecar (M7) singleton state
                 app_handle.manage(commands::sidecar::SidecarState::new());
 
+                // v0.123 — dev-mode .env → LLM provider rows + PM wallet row
+                // self-registration. Idempotent: re-running on every boot
+                // converges to the same canonical state. Gated by
+                // `POLYROCKET_ENV=dev` + `POLYROCKET_KEYRING_ONLY!=1` (same
+                // gate as the keyring sync in platform::env::maybe_load_dev_env).
+                infra::bootstrap::bootstrap(&app_handle);
+
                 // v0.119 — E2E football mode: spawn the driver task that will
                 // navigate the webview, invoke the analyze IPC, capture the result,
                 // write it to /tmp, then exit the app.
@@ -187,6 +194,7 @@ pub fn run() {
             commands::bankroll::apply_allocation,
             commands::wallet::list_wallets,
             commands::wallet::add_wallet,
+            commands::wallet_balance::get_wallet_balance,
             commands::market::list_markets,
             commands::market::sync_markets,
             commands::market::list_resolved_markets_for_backtest,

@@ -41,6 +41,8 @@ rand = "0.8"
 # v0.113 — Hunyuan 混元 TC3-HMAC-SHA256 签名
 hmac = "0.12"
 sha2 = "0.10"
+# v0.123 — PM CLOB L2 HMAC balance lookup
+base64 = "0.22"
 # v0.114.1 — Spark 讯飞 WebSocket transport
 tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
 futures-util = "0.3"

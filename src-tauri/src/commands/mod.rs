@@ -31,3 +31,4 @@ pub mod telemetry; // v0.49a
 pub mod active_model; // v0.49b
 pub mod clob; // v0.51a
 pub mod wallet;
+pub mod wallet_balance; // v0.123
