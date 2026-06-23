@@ -26,14 +26,26 @@ pub struct DashboardKpis {
 #[tauri::command]
 #[specta::specta]
 pub async fn dashboard_kpis(state: State<'_, AppState>) -> AppResult<DashboardKpis> {
-    let total_equity: Option<String> =
-        sqlx::query_scalar("SELECT COALESCE(SUM(size), '0') FROM bets WHERE status = 'open'")
-            .fetch_optional(&state.db)
-            .await?;
-    let open_pnl: Option<String> =
-        sqlx::query_scalar("SELECT COALESCE(SUM(pnl), '0') FROM bets WHERE status = 'open'")
-            .fetch_optional(&state.db)
-            .await?;
+    // v0.122b+ catchup fix — `bets.size` and `bets.pnl` are
+    // TEXT in the schema, but `SUM()` returns REAL. Reading
+    // the result as `Option<String>` triggers the
+    // "Rust type String (as TEXT) is not compatible with
+    // SQL type REAL" error and breaks the whole Dashboard
+    // page (the React Query error boundary catches it and
+    // shows "Something went wrong" instead of the KPI
+    // cards). The fix: CAST to REAL at the SQL layer,
+    // decode as f64 here, and format to a 4-decimal
+    // string for the wire DTO.
+    let total_equity: Option<f64> = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(CAST(size AS REAL)), 0.0) FROM bets WHERE status = 'open'",
+    )
+    .fetch_optional(&state.db)
+    .await?;
+    let open_pnl: Option<f64> = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(CAST(pnl AS REAL)), 0.0) FROM bets WHERE status = 'open'",
+    )
+    .fetch_optional(&state.db)
+    .await?;
 
     let wins: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bets WHERE status = 'won' AND placed_at >= ?")
         .bind(chrono::Utc::now().timestamp_millis() - 30 * 24 * 3600 * 1000)
@@ -60,8 +72,12 @@ pub async fn dashboard_kpis(state: State<'_, AppState>) -> AppResult<DashboardKp
         .await?;
 
     Ok(DashboardKpis {
-        total_equity_usdc: total_equity.unwrap_or_else(|| "0".into()),
-        open_pnl_usdc: open_pnl.unwrap_or_else(|| "0".into()),
+        // Format the f64 totals as 4-decimal strings for the
+        // wire DTO. `unwrap_or(0.0)` keeps the API stable when
+        // the bets table is empty (SUM returns NULL → COALESCE
+        // returns 0.0 → still goes through this branch).
+        total_equity_usdc: format!("{:.4}", total_equity.unwrap_or(0.0)),
+        open_pnl_usdc: format!("{:.4}", open_pnl.unwrap_or(0.0)),
         win_rate_30d: win_rate,
         brier_score: brier.unwrap_or(0.0),
         active_signals,
