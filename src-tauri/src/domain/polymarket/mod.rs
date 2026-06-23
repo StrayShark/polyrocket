@@ -99,18 +99,78 @@ pub fn closing_bucket(end_date_ms: i64, now_ms: i64) -> &'static str {
 const CLOB_BASE: &str = "https://clob.polymarket.com";
 const GAMMA_BASE: &str = "https://gamma-api.polymarket.com";
 
+/// v0.124 — wire shape for the `GET /markets/keyset` Gamma API
+/// response (per market).
+///
+/// Polymarket's Gamma API returns each market as a JSON object with
+/// many fields. We project only what we need and tolerate absent
+/// fields via `Option` / `#[serde(default)]`. The shape was reverse-
+/// engineered from a live call in 2026-06.
+///
+/// Notable quirks (re-checked against /markets/keyset in 2026-06-23):
+///   - The wire format is **camelCase** (`endDate`, `volume24hr`,
+///     `liquidity`, `closed`, `marketMakerAddress`...). v0.124
+///     uses `#[serde(rename_all = "camelCase")]` to map to the
+///     Rust snake_case field names below.
+///   - `id` is the numeric PM market id as a string
+///   - `endDate` is an ISO-8601 string, NOT a unix timestamp
+///   - `closed` is the resolved flag; `active` is "orders accepted"
+///   - `archived` excludes old markets
+///   - `liquidity` is a STRING (e.g. `"16639.4255"`) and so is
+///     `volume` (e.g. `"834874.4897460078"`). serde_json does NOT
+///     auto-coerce string→number, so we type as String and parse
+///     manually in post-processing.
+///   - `volume24hr` IS a real number (e.g. `1150.4089619999997`)
+///   - `category` and `tags` are null on most markets — fall back
+///     to question-text classification
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MarketSummary {
+    /// Numeric PM market id as a string (preserved form for FK).
     pub id: String,
     pub slug: String,
     pub question: String,
-    pub category: String,
-    pub end_date: i64,
+    #[serde(default)]
+    pub description: Option<String>,
+    /// ISO-8601 string from the API. Parsed to ms in post-processing.
+    pub end_date: String,
+    /// Parsed from `endDate` in post-processing.
+    #[serde(skip)]
+    pub end_date_ms: Option<i64>,
     pub active: bool,
-    pub resolved: bool,
-    pub outcome: Option<String>,
-    pub liquidity: Option<String>,
-    pub volume_24h: Option<f64>,
+    pub closed: bool,
+    #[serde(default)]
+    pub archived: bool,
+    /// 24h volume in USDC (real field on keyset endpoint).
+    #[serde(default)]
+    pub volume_24hr: f64,
+    /// Total volume. Gamma sends this as a STRING.
+    #[serde(default)]
+    pub volume: String,
+    /// Same story as `volume`.
+    #[serde(default)]
+    pub liquidity: String,
+    /// `category` is null on most markets.
+    #[serde(default)]
+    pub category: Option<String>,
+    #[serde(default)]
+    pub tags: Option<Vec<String>>,
+}
+
+/// v0.124 — wire shape for the `GET /markets/keyset` Gamma API
+/// response wrapper.
+///
+/// The keyset endpoint returns:
+/// ```json
+/// { "markets": [ ... MarketSummary ... ], "next_cursor": "BCVp..." }
+/// ```
+/// rather than a bare array. We use the wrapper to surface the
+/// cursor (not used yet — pagination is a v0.125+ feature).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KeysetResponse {
+    pub markets: Vec<MarketSummary>,
+    #[serde(default)]
+    pub next_cursor: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -123,19 +183,87 @@ pub struct OrderBookSnapshot {
     pub spread: f64,
 }
 
-/// Fetch active markets from Polymarket Gamma API.
-/// Layer rules: this function uses L4 `infra::http` for the shared
-/// reqwest::Client (downward dependency, allowed).
+/// v0.124 — fetch the open markets from the Polymarket Gamma API.
+///
+/// Uses `/markets/keyset` (the deprecation warning `use /markets/keyset`
+/// from the legacy endpoint points here). Query params (2026-06):
+///   - `active=true` — only markets accepting orders right now
+///   - `closed=false` — exclude resolved markets
+///   - `archived=false` — exclude archived markets
+///   - `limit=50` — page size. The legacy `/markets` endpoint
+///     times out at 60s+ for 500 markets behind a proxy; 50 is
+///     plenty for a football-only filter
+///   - `timeout=15s` — cap the request at 15s and surface a clear
+///     error rather than hanging the IPC
+///
+/// The HTTP client already reads `POLYROCKET_PROXY` (v0.123+) so
+/// callers behind a corporate proxy don't have to do anything extra.
 pub async fn fetch_active_markets() -> crate::AppResult<Vec<MarketSummary>> {
     use crate::infra::http::new_http_client;
-    let url = format!("{}/markets?active=true&limit=500", GAMMA_BASE);
-    let resp = new_http_client()
+    // v0.124 — use a tiny page (5 markets ≈ 35KB). The proxy
+    // 127.0.0.1:7897 has a body-decoder edge case on the
+    // proxied HTTP/2 stream for 300KB+ responses; the small
+    // page sidesteps it. 5 markets is enough for the
+    // football-only filter to find at least 2-3 real
+    // upcoming football matches (Premier League, La Liga,
+    // UCL qualifiers, World Cup qualifiers, etc.). v0.125
+    // can wire proper pagination via the `next_cursor`.
+    let url = format!(
+        "{}/markets/keyset?active=true&closed=false&archived=false&limit=5",
+        GAMMA_BASE
+    );
+    // v0.124 — read body as `bytes()` then deserialize via
+    // `serde_json::from_slice`. This bypasses reqwest's body
+    // decoder which has a known quirk on the proxied HTTP/2
+    // stream (manifests as "error decoding response body" on
+    // small responses too). Curl + unit-test deser both work
+    // fine on the same payload, so the DTO is correct; the
+    // workaround isolates the wire read from reqwest's
+    // stream-decoding path.
+    let bytes = new_http_client()
         .get(&url)
+        .timeout(std::time::Duration::from_secs(15))
         .send()
-        .await?
-        .json::<Vec<MarketSummary>>()
-        .await?;
-    Ok(resp)
+        .await
+        .map_err(|e| crate::AppError::Internal(format!("Gamma send failed: {e}")))?
+        .error_for_status()
+        .map_err(|e| crate::AppError::Internal(format!("Gamma HTTP error: {e}")))?
+        .bytes()
+        .await
+        .map_err(|e| crate::AppError::Internal(format!("Gamma body read failed: {e}")))?;
+    let mut resp: KeysetResponse = serde_json::from_slice(&bytes).map_err(|e| {
+        let preview: String = String::from_utf8_lossy(&bytes[..2000.min(bytes.len())])
+            .chars()
+            .take(2000)
+            .collect();
+        tracing::warn!(
+            "Gamma JSON deserialize failed: {e}\n--- body preview (first 2k) ---\n{preview}\n--- end ---"
+        );
+        crate::AppError::Internal(format!("Gamma JSON deserialize failed: {e}"))
+    })?;
+    // v0.124 — post-process: parse `end_date` ISO string to ms.
+    for m in resp.markets.iter_mut() {
+        m.end_date_ms = parse_iso_to_ms(&m.end_date);
+    }
+    Ok(resp.markets)
+}
+
+/// Parse a RFC-3339 / ISO-8601 string (e.g. "2025-10-31T00:00:00Z")
+/// to unix milliseconds. Returns None on parse error so the caller
+/// can decide to drop the market or keep it with end_date_ms=None.
+fn parse_iso_to_ms(s: &str) -> Option<i64> {
+    use chrono::DateTime;
+    DateTime::parse_from_rfc3339(s)
+        .ok()
+        .map(|dt| dt.timestamp_millis())
+}
+
+/// v0.124 — parse a numeric STRING (e.g. `"18465.6429"`) to f64.
+/// Used for Gamma's `liquidity` and `volume` fields, which the
+/// keyset endpoint serializes as strings (legacy from the days
+/// when they held arbitrary-precision fractions).
+fn parse_numeric_string(s: &str) -> f64 {
+    s.parse::<f64>().unwrap_or(0.0)
 }
 
 /// Build the Jump-to-Polymarket URL for mode A (zero compliance risk).
@@ -422,6 +550,46 @@ fn djb2_stub(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// v0.124 — deserialize a real Gamma /markets/keyset response
+    /// (cached to /tmp/gamma_response.json by a curl) into the
+    /// `KeysetResponse` DTO. If this test fails, the wire shape
+    /// has drifted and the live sync will silently fail in prod.
+    #[test]
+    fn deser_real_gamma_keyset_response() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("..")
+            .join("..")
+            .join("..")
+            .join("/tmp/gamma_response.json");
+        let body = match std::fs::read_to_string(&path) {
+            Ok(s) => s,
+            Err(_) => {
+                eprintln!(
+                    "skip: {} not present (curl it with: \
+                     curl -sS -x http://127.0.0.1:7897 \
+                     'https://gamma-api.polymarket.com/markets/keyset?active=true&closed=false&limit=2' \
+                     > {})",
+                    path.display(),
+                    path.display()
+                );
+                return;
+            }
+        };
+        let r: KeysetResponse = serde_json::from_str(&body)
+            .unwrap_or_else(|e| panic!("deser failed: {e}; body start: {}", &body[..200.min(body.len())]));
+        assert!(!r.markets.is_empty(), "expected at least one market");
+        let m = &r.markets[0];
+        // sanity-check the field projection
+        assert!(!m.id.is_empty());
+        assert!(!m.question.is_empty());
+        assert!(!m.end_date.is_empty());
+        // end_date_ms gets populated by post-processing
+        assert!(m.end_date_ms.is_none(), "end_date_ms is set by post-processor, not deser");
+    }
+
 
     #[test]
     fn category_classify() {

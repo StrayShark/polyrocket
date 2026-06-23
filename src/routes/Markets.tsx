@@ -67,7 +67,35 @@ export function Markets() {
       toast.success(`Synced ${n} markets`);
       queryClient.invalidateQueries({ queryKey: ['markets'] });
     },
-    onError: (e: Error) => toast.error('Sync failed', e.message),
+    // v0.124 — Tauri v2's `invoke` rejects with a plain string,
+    // not an Error instance, so `e.message` is undefined. Coerce
+    // to String so the toast body shows the actual failure reason
+    // (network error, HTTP 500, JSON parse fail, etc.).
+    onError: (e: unknown) => {
+      // v0.124 — Tauri v2 wraps IPC rejections inconsistently:
+      //   - sometimes the reject value is a plain string
+      //     (AppError's `serialize_str(&to_string())`)
+      //   - sometimes it's an Error with a .message
+      //   - sometimes it's `{ message: string, code?: string }`
+      // Try them in order, fall back to String() coercion.
+      let msg: string;
+      if (typeof e === 'string') {
+        msg = e;
+      } else if (e instanceof Error) {
+        msg = e.message || e.toString();
+      } else if (e && typeof e === 'object' && 'message' in e && typeof (e as any).message === 'string') {
+        msg = (e as any).message;
+      } else {
+        try {
+          msg = JSON.stringify(e);
+        } catch {
+          msg = String(e);
+        }
+      }
+      // Strip the "Internal: " prefix AppError prepends in to_string
+      const cleaned = msg.replace(/^Internal:\s*/i, '').trim();
+      toast.error('Sync failed', cleaned || msg);
+    },
   });
 
   const filtered = useMemo(() => {

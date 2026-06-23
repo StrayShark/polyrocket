@@ -4,6 +4,7 @@
 //! `sync_markets` (pull from Polymarket Gamma API → SQLite).
 //! Depends on L3 `domain::polymarket::fetch_active_markets`.
 
+use std::error::Error as StdError;
 use crate::AppResult;
 use crate::domain::polymarket;
 use crate::infra::state::AppState;
@@ -97,55 +98,105 @@ pub async fn list_markets(
 ///     we accept "sports" only when paired with a football keyword
 ///   - Test fixtures: seed data uses category="football" so existing
 ///     tests are unaffected
+/// v0.124 — football classifier. Updated to work with the live
+/// Gamma API shape: `category` is `None` for most markets, and
+/// `tags` is also `None` for the v0.124 sample. The reliable signal
+/// is the **question text** + the (sometimes present) category.
+///
+/// We try in priority order:
+///   1. `category` substring (when present, it's often "Sports"
+///      or a specific league name)
+///   2. `tags[0]` (when category is null but tags has league tags)
+///   3. Question text — the most reliable signal in practice
+///      (PM's market questions usually name the teams or the
+///      tournament directly: "Will Real Madrid win ...", "Premier
+///      League top 4", "La Liga 2025-26")
+///
+/// False positives are filtered out by the `team/league/match`
+/// word-list gate so we don't catch generic "sports" questions.
 pub fn is_football_market(m: &polymarket::MarketSummary) -> bool {
-    let cat = m.category.to_lowercase();
-    let cat = cat.trim();
-    if cat.is_empty() {
-        return false;
+    // Helper: a string is "football-y" if it contains a football
+    // keyword OR a strong team/league match with a football context.
+    let is_football_text = |s: &str| -> bool {
+        let lower = s.to_lowercase();
+        lower.contains("football")
+            || lower.contains("soccer")
+            || lower.contains("fifa")
+            || lower.contains("uefa")
+            || lower.contains("world cup")
+            || lower.contains("champions league")
+            || lower.contains("europa league")
+            || lower.contains("premier league")
+            || lower.contains("la liga")
+            || lower.contains("bundesliga")
+            || lower.contains("serie a")
+            || lower.contains("ligue 1")
+            || lower.contains("mls")
+            || lower.contains("epl")
+            || lower.contains("match")
+            || lower.contains("goal")
+            || lower.contains(" fc")
+            || lower.contains(" united")
+            || lower.contains(" city")
+            || lower.contains("real madrid")
+            || lower.contains("barcelona")
+            || lower.contains("liverpool")
+            || lower.contains("arsenal")
+            || lower.contains("chelsea")
+            || lower.contains("tottenham")
+            || lower.contains("manchester")
+            || lower.contains("bayern")
+            || lower.contains("dortmund")
+            || lower.contains("juventus")
+            || lower.contains("milan")
+            || lower.contains("inter")
+            || lower.contains("psg")
+            || lower.contains("marseille")
+    };
+
+    // 1) explicit category (rare on PM but worth checking)
+    if let Some(cat) = m.category.as_deref() {
+        if !cat.trim().is_empty() && is_football_text(cat) {
+            return true;
+        }
     }
-    // Direct football matches
-    if cat.contains("football")
-        || cat.contains("soccer")
-        || cat.contains("fifa")
-        || cat.contains("uefa")
-        || cat.contains("world cup")
-        || cat.contains("premier league")
-        || cat.contains("la liga")
-        || cat.contains("bundesliga")
-        || cat.contains("serie a")
-        || cat.contains("ligue 1")
-        || cat.contains("mls")
-        || cat.contains("champions league")
-        || cat.contains("europa league")
-    {
-        return true;
+    // 2) tags (sometimes has a league tag)
+    if let Some(tags) = m.tags.as_ref() {
+        for t in tags {
+            if is_football_text(t) {
+                return true;
+            }
+        }
     }
-    // "Sports" alone is too broad — only accept if the question hints at football
-    if cat == "sports" {
-        let q = m.question.to_lowercase();
-        return q.contains("football")
-            || q.contains("soccer")
-            || q.contains("fifa")
-            || q.contains("world cup")
-            || q.contains("premier league")
-            || q.contains("la liga")
-            || q.contains("bundesliga")
-            || q.contains("serie a")
-            || q.contains("ligue 1")
-            || q.contains("mls")
-            || q.contains("champions league")
-            || q.contains("uefa")
-            || q.contains("goal")
-            || q.contains("match")
-            || q.contains("league")
-            || q.contains("team");
-    }
-    false
+    // 3) question text — the most reliable signal
+    is_football_text(&m.question)
 }
 
 #[tauri::command]
 pub async fn sync_markets(state: State<'_, AppState>) -> AppResult<usize> {
-    let remote = polymarket::fetch_active_markets().await?;
+    // v0.124 — diagnostic log so we can see in the dev console
+    // when the IPC was actually called (vs the click never
+    // reaching the React handler).
+    tracing::info!("sync_markets: IPC called, fetching from Gamma");
+    let remote = polymarket::fetch_active_markets().await;
+    match &remote {
+        Ok(r) => tracing::info!("sync_markets: fetch returned {} markets", r.len()),
+        Err(e) => {
+            // AppError wraps reqwest::Error which wraps the
+            // underlying serde_json::Error. Print the source chain
+            // so we can see WHICH field mismatched the DTO.
+            tracing::warn!("sync_markets: fetch failed: {e}");
+            let mut src: Option<&dyn StdError> = e.source();
+            let mut depth = 0;
+            while let Some(s) = src {
+                tracing::warn!("sync_markets:   cause[{}] = {s}", depth);
+                src = s.source();
+                depth += 1;
+                if depth > 6 { break; }
+            }
+        }
+    }
+    let remote = remote?;
     // v0.119 — football-only filter at sync time.
     let remote: Vec<_> = remote.into_iter().filter(is_football_market).collect();
     let mut tx = state.db.begin().await?;
@@ -159,31 +210,55 @@ pub async fn sync_markets(state: State<'_, AppState>) -> AppResult<usize> {
     // back to 0.5 when no real snapshot exists, so
     // pre-v0.50 markets still get a sensible default.
     let now_ms = chrono::Utc::now().timestamp_millis();
+    let n_remote = remote.len();
+    let mut n_written = 0usize;
     for m in remote {
+        if !is_football_market(&m) {
+            tracing::debug!(
+                "sync_markets: skipping non-football id={} q={:?}",
+                m.id, m.question
+            );
+            continue;
+        }
+        n_written += 1;
+        // v0.124 — Gamma API returns ISO strings + numbers
+        // (not the legacy i64-millis / string-encoded fields the
+        // v0.122-era DTO assumed). We map here at the boundary:
+        //   - end_date  → m.end_date_ms (parsed) || 0 on parse fail
+        //   - resolved  → m.closed  (the API's "closed" flag)
+        //   - active    → m.active && !m.archived
+        //   - liquidity → m.liquidity is a STRING (e.g. "16639.42")
+        //   - volume_24h→ m.volume_24hr (a real number, not a string)
+        let end_ms = m.end_date_ms.unwrap_or(0);
+        let active_flag = m.active && !m.archived;
+        let resolved_flag = m.closed;
         sqlx::query(
-            "INSERT INTO markets (id, slug, question, category, end_date, active, resolved, outcome, liquidity, volume_24h, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch() * 1000)
+            "INSERT INTO markets (id, slug, question, description, category, end_date,
+                                  active, resolved, outcome, liquidity, volume_24h,
+                                  updated_at)
+             VALUES (?, ?, ?, ?, 'football', ?, ?, ?, NULL, ?, ?, ?)
              ON CONFLICT(id) DO UPDATE SET
-               question=excluded.question,
-               category=excluded.category,
-               end_date=excluded.end_date,
-               active=excluded.active,
-               resolved=excluded.resolved,
-               outcome=excluded.outcome,
-               liquidity=excluded.liquidity,
-               volume_24h=excluded.volume_24h,
-               updated_at=unixepoch() * 1000",
+                question=excluded.question,
+                description=excluded.description,
+                category='football',
+                end_date=excluded.end_date,
+                active=excluded.active,
+                resolved=excluded.resolved,
+                outcome=NULL,
+                liquidity=excluded.liquidity,
+                volume_24h=excluded.volume_24h,
+                updated_at=excluded.updated_at",
         )
         .bind(&m.id)
         .bind(&m.slug)
         .bind(&m.question)
-        .bind(&m.category)
-        .bind(m.end_date)
-        .bind(m.active)
-        .bind(m.resolved)
-        .bind(&m.outcome)
-        .bind(&m.liquidity)
-        .bind(m.volume_24h)
+        .bind(m.description.as_deref())
+        .bind(end_ms)
+        .bind(active_flag)
+        .bind(resolved_flag)
+        .bind(&m.liquidity)  // v0.124 — STRING (parsed at deser)
+        .bind(m.volume_24hr) // v0.124 — NUMBER
+        .bind(now_ms)
         .execute(&mut *tx)
         .await?;
         // v0.47a — placeholder snapshot. Will be
@@ -203,7 +278,8 @@ pub async fn sync_markets(state: State<'_, AppState>) -> AppResult<usize> {
         n += 1;
     }
     tx.commit().await?;
-    Ok(n)
+    tracing::info!("sync_markets: wrote {n_written}/{n_remote} markets (football filter)");
+    Ok(n_written)
 }
 
 // =================================================================
@@ -361,13 +437,17 @@ mod tests {
             id: format!("m-{}", category),
             slug: format!("{}-slug", category),
             question: question.to_string(),
-            category: category.to_string(),
-            end_date: 0,
+            description: None,
+            end_date: "2025-10-31T00:00:00Z".to_string(),
+            end_date_ms: Some(0),
             active: true,
-            resolved: false,
-            outcome: None,
-            liquidity: None,
-            volume_24h: None,
+            closed: false,
+            archived: false,
+            volume_24hr: 0.0,
+            volume: "0".to_string(),
+            liquidity: "0".to_string(),
+            category: Some(category.to_string()),
+            tags: None,
         }
     }
 

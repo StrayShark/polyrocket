@@ -170,7 +170,15 @@ pub fn maybe_load_dev_env() {
     for (k, v) in &pairs {
         let is_pm = k.starts_with("POLYMARKET_") || k.starts_with("POLYROCKET_CLOB_");
         let is_llm = k.ends_with("_API_KEY") || k.ends_with("_API_SECRET") || k.ends_with("_BASE_URL");
-        if is_pm {
+        // v0.124 — also forward the proxy URL. The HTTP client
+        // factory reads `POLYROCKET_PROXY` to route through the
+        // user's local proxy (needed for gamma-api.polymarket.com
+        // + clob.polymarket.com from networks that block direct
+        // outbound to those hosts). Always inject so the sync
+        // IPC and the wallet balance IPC both work without the
+        // user having to remember to export it in their shell.
+        let is_proxy = k == "POLYROCKET_PROXY";
+        if is_pm || is_proxy {
             // Always inject — env-only is the default mode.
             if env::var(k).is_err() {
                 // env::set_var is unsafe in newer Rust; guard with explicit unsafe block

@@ -50,7 +50,18 @@ pub fn new_http_client() -> reqwest::Client {
     let mut builder = reqwest::Client::builder()
         .user_agent(concat!("polyrocket/", env!("CARGO_PKG_VERSION")))
         .connect_timeout(Duration::from_secs(10))
-        .pool_max_idle_per_host(8);
+        .pool_max_idle_per_host(8)
+        // v0.124 — disable connection pooling for the Gamma
+        // path. Pool reuse through the local HTTP proxy
+        // (127.0.0.1:7897) hits a keep-alive frame-parsing
+        // edge case where the proxied HTTP/2 stream closes
+        // mid-body and reqwest's body decoder surfaces it as
+        // the unhelpful "error decoding response body".
+        // Disabling pooling means every request opens a fresh
+        // TCP connection — slower but stable. v0.125 can
+        // re-enable pooling once we know the proxy supports
+        // HTTP/1.1 keep-alive cleanly.
+        .pool_max_idle_per_host(0);
     // v0.56 — apply proxy if `POLYROCKET_PROXY`
     // is set. Format: `socks5://host:port` or
     // `http://host:port`. We use
