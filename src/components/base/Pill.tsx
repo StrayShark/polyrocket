@@ -2,9 +2,19 @@ import type { HTMLAttributes, ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 
 export type PillKind = 'neutral' | 'bull' | 'bear' | 'warning' | 'accent' | 'muted';
+/**
+ * v0.119 — Cursor-merge: shape variants.
+ *   - "square" (default): existing 4px rounded (backward-compat)
+ *   - "pill": pill (9999px) rounded per Cursor `badge-pill` spec
+ */
+export type PillShape = 'square' | 'pill';
 
 export interface PillProps extends HTMLAttributes<HTMLSpanElement> {
   kind?: PillKind;
+  /** v0.119 — shape variant. Default "square" keeps backward compat. */
+  shape?: PillShape;
+  /** v0.119 — uppercase 11px caption-uppercase typography per Cursor. */
+  uppercase?: boolean;
   children: ReactNode;
 }
 
@@ -17,11 +27,27 @@ const KIND: Record<PillKind, string> = {
   muted: 'bg-transparent text-muted border-transparent',
 };
 
-export function Pill({ kind = 'neutral', className, children, ...rest }: PillProps) {
+const SHAPE: Record<PillShape, string> = {
+  square: 'rounded',
+  pill: 'rounded-pill',
+};
+
+export function Pill({
+  kind = 'neutral',
+  shape = 'square',
+  uppercase = false,
+  className,
+  children,
+  ...rest
+}: PillProps) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 h-5 px-1.5 rounded text-[10px] font-medium border',
+        'inline-flex items-center gap-1 h-5 px-1.5 border',
+        uppercase
+          ? 'text-xs font-semibold tracking-caption-uppercase uppercase px-2.5'
+          : 'text-[10px] font-medium',
+        SHAPE[shape],
         KIND[kind],
         className,
       )}

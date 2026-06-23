@@ -10,6 +10,12 @@
  *   5. The modal has role="dialog" + aria-modal="true"
  *
  * Replaces the v0.5c Modal which only handled #3.
+ *
+ * v0.119 — added enter/exit animation:
+ *   - Backdrop fades in/out (`animate-modal-backdrop` 160ms)
+ *   - Dialog scales + fades (`animate-modal-dialog` 160ms)
+ *   - On `prefers-reduced-motion`, the @media rule in globals.css
+ *     shortens animation-duration to 0.01ms (effectively instant)
  */
 
 import { useEffect, useRef, type ReactNode } from 'react';
@@ -104,13 +110,15 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/40"
+      data-testid="modal-backdrop"
+      className="fixed inset-0 z-50 grid place-items-center bg-black/40 animate-modal-backdrop"
       onClick={onClose}
     >
       <div
         ref={dialogRef}
+        data-testid="modal-dialog"
         className={cn(
-          'w-[90vw] rounded-lg border bg-surface border-border shadow-xl outline-none',
+          'w-[90vw] rounded-lg border bg-surface border-border shadow-xl outline-none animate-modal-dialog',
           SIZE[size],
         )}
         onClick={(e) => e.stopPropagation()}
@@ -120,7 +128,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
       >
         {title && (
           <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border">
-            <div className="text-[13px] font-semibold">{title}</div>
+            <div className="text-title-sm font-semibold">{title}</div>
             <button
               onClick={onClose}
               className="text-muted hover:text-fg"

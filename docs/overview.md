@@ -2,7 +2,7 @@
 
 > 项目架构分层设计 / 模块清单 / 目录结构 / 数据流 / 迁移路线
 >
-> 版本：v2.65 · 2026-06-22 (v0.110.2 — `defaultModel` 落库: LlmStep onAdd 加 `llmProviderUpsert` 把 defaultModel 写进 SQLite,5 个国产 provider defaultModel 改为联网查证的最新 stable ID (Qwen `qwen3.7-max` / Doubao `doubao-seed-2-0-pro-260215` / Kimi `kimi-k2.7-code` / GLM `glm-5.2` / MiniMax `MiniMax-M2.7`),详见 `polyrocket-llm-management.md` §15.7)
+> 版本：v2.66 · 2026-06-22 (v0.118 — football.v1.0 足球市场专用 prompt 模板:综合 Dixon-Coles (1997) + Elo (Arpad Elo) + xG (Sam Green 2012) + CLV (Pinnacle) 4 个 framework,要求 LLM 输出 `framework_breakdown` 中间值 (Elo/Poisson/xG/CLV);`commands/llm.rs` 路由 `category == "football"` 时自动切到 football.v1.0;新增 `FootballMatchContext` (含 team/Elo/xG/Dixon-Coles params) + `FootballMarketType` (TeamWin/Draw/OverUnder/AsianHandicap/Outright);14 个新 cargo test,总数 399→413。详见 `polyrocket-llm-analysis.md` §13.6。)
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范） · [`polyrocket-landing-design.md`](./polyrocket-landing-design.md)（v0.53 first-run landing 设计稿） · [`coding-spec.md`](./coding-spec.md)（v0.61 注释规范）
 > 配套：[`polyrocket-modules.md`](./polyrocket-modules.md)（17 个 module 业务说明） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 个交互流程） · [`polyrocket-ui-design.md`](./polyrocket-ui-design.md)（18 页面 × 3 主题 UI 规范）
 > 强约束：[`polyradar-dev-governance.md §11`](../polyradar-dev-governance.md) — 三主题仅配色差异；`.env` 仅 dev 用途；OS keyring 是秘密唯一存储
@@ -150,7 +150,7 @@ L1 → L2 → L3 → L4 → L5
 | `llm::clients::custom` | `domain/llm/clients/custom.rs` | OpenAI/Anthropic 兼容代理 | `CustomClient::new_openai_compat()`, `::new_anthropic_compat()` |
 | `llm::clients::common` | `domain/llm/clients/common.rs` | 共享 body builder + response parser | `build_body()`, `parse_response()`, `classify_status()` |
 | `llm::dispatch` | `domain/llm/dispatch.rs` | key 轮询 + retry/backoff | `dispatch()`, `KeyHandle`, `RetryPolicy`, `DispatchOutcome`, `CallLog` |
-| `llm::prompts` | `domain/llm/prompts.rs` | 3 个 prompt 模板 + JSON 解析 | `build_market_analysis_request()`, `parse_recommendation()`, 3 个 `PROMPT_VERSION_*` 常量 |
+| `llm::prompts` | `domain/llm/prompts.rs` | 4 个 prompt 模板 + JSON 解析（v0.118 含 football.v1.0 足球专用） | `build_market_analysis_request()`, `build_football_match_request()`, `parse_recommendation()`, 4 个 `PROMPT_VERSION_*` 常量 |
 | `llm::cost` | `domain/llm/cost.rs` | 成本计算 | `CostRate::compute()` |
 | `consensus` | `domain/consensus.rs` | 4-LLM 共识算法 | `consensus_from(recs) -> (prob, side, conf)` (weighted median) |
 | `polymarket` | `domain/polymarket.rs` | Polymarket CLOB REST 客户端 | `place_order()`, `get_market()`, `get_orderbook()` |

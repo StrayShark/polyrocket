@@ -82,7 +82,7 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
             placeholder={t('palette.placeholder')}
-            className="flex-1 bg-transparent outline-none text-[13px] text-fg placeholder:text-muted"
+            className="flex-1 bg-transparent outline-none text-body-sm text-fg placeholder:text-muted"
             autoComplete="off"
             spellCheck={false}
             data-testid="palette-input"
@@ -112,7 +112,7 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
               >
                 <span className="flex items-center gap-2 min-w-0">
                   <span className="text-fg truncate">{cmd.label}</span>
-                  <span className="text-[10px] text-muted uppercase tracking-wide shrink-0">
+                  <span className="text-xs text-muted font-semibold uppercase tracking-caption-uppercase shrink-0">
                     {cmd.category}
                   </span>
                 </span>

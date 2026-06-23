@@ -44,7 +44,7 @@ export function KbdHelpDialog({ bindings, open, onClose }: KbdHelpDialogProps) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h3 className="text-[11px] font-medium text-muted uppercase tracking-wide mb-2">
+      <h3 className="text-xs text-muted font-semibold uppercase tracking-caption-uppercase mb-2">
         {title}
       </h3>
       <div className="space-y-1.5">{children}</div>

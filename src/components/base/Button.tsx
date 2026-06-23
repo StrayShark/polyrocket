@@ -2,7 +2,7 @@ import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success';
-export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
+export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
@@ -21,10 +21,16 @@ const VARIANT: Record<ButtonVariant, string> = {
 };
 
 const SIZE: Record<ButtonSize, string> = {
+  // xs: 24px — only for inline tag-style buttons (badges, breadcrumbs).
   xs: 'h-6 px-2 text-[11px] gap-1',
-  sm: 'h-7 px-2.5 text-[12px] gap-1.5',
-  md: 'h-8 px-3 text-[13px] gap-1.5',
+  // sm: 32px — Cursor min touch target.
+  sm: 'h-8 px-2.5 text-[12px] gap-1.5',
+  // md: 36px — polyrocket default (dense desktop).
+  md: 'h-9 px-3 text-body-sm gap-1.5',
+  // lg: 40px — matches Cursor button-primary.
   lg: 'h-10 px-4 text-[14px] gap-2',
+  // xl: 44px — matches Cursor button-download (large CTA / hero).
+  xl: 'h-11 px-5 text-[15px] gap-2.5',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
@@ -36,8 +42,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       disabled={disabled || loading}
       className={cn(
-        'inline-flex items-center justify-center rounded-md border font-medium transition-colors',
-        'disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+        'inline-flex items-center justify-center rounded-md border font-medium transition-colors duration-base ease-out-cubic',
+        'active:scale-[0.98] transition-transform duration-fast ease-out-cubic',
+        'disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
         VARIANT[variant],
         SIZE[size],
         className,

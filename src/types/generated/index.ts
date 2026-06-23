@@ -502,7 +502,7 @@ export type DailyBriefEntryCodegen = {
 	market_category: string,
 	market_end_date: bigint,
 	market_liquidity: string | null,
-	market_volume_24h: string | null,
+	market_volume_24h: number | null,
 	/**  v0.102b — placeholder (real impl uses i64). Stub uses i32. */
 	rank: number,
 	match_score: number | null,

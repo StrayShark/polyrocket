@@ -884,13 +884,14 @@ let cost_cents = (tokens_in  / 1000.0) * cost.per_1k_in_cents
 
 ### 13.6 Prompt 模板（`prompts.rs`）
 
-3 个内嵌 prompt 版本：
+4 个内嵌 prompt 版本：
 
 | name | constant | 用途 | 输出 JSON 字段 |
 |---|---|---|---|
-| `market.v1.0` | `PROMPT_VERSION_MARKET_ANALYSIS` | 单市场深度分析（默认） | `probability, side, confidence, reasoning, key_factors` |
+| `market.v1.0` | `PROMPT_VERSION_MARKET_ANALYSIS` | 单市场深度分析（默认，非足球） | `probability, side, confidence, reasoning, key_factors` |
 | `thesis.v1.0` | `PROMPT_VERSION_QUICK_THESIS` | 一句话结论 | `thesis, action, confidence, edge_pct` |
 | `consensus.v1.0` | `PROMPT_VERSION_CONSENSUS_VOTE` | 第 5 个 model 看 4 个 model 输出做最终判定 | `final_probability, side, confidence, dissent` |
+| `football.v1.0` | `PROMPT_VERSION_FOOTBALL_MATCH` | **足球市场专用**（v0.118 NEW）。综合 Dixon-Coles + Elo + xG + CLV 4 个 framework，要求 LLM 输出 `framework_breakdown` 中间值 | `probability, side, confidence, reasoning, key_factors, framework_breakdown{elo, dixon-coles, xg, clv}` |
 
 所有 prompt 要求 model 返回 **strict JSON**，`json_mode` flag 让 OpenAI/Gemini 强制（Anthropic 没原生 json_mode，靠 prompt 强约束）。解析在 `parse_recommendation()` — 接受 3 种格式：
 

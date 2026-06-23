@@ -201,7 +201,7 @@ export function BacktestReport({
             data-testid="backtest-target"
             data-job-id={targetEntry.job_id}
           >
-            <div className="text-[10px] text-muted uppercase tracking-wide">
+            <div className="text-xs text-muted font-semibold uppercase tracking-caption-uppercase">
               {t('backtest.target_label')}
             </div>
             <div className="font-mono text-[12px] text-fg mt-0.5">
@@ -223,7 +223,7 @@ export function BacktestReport({
         {/* Sample input — JSON textarea */}
         <div>
           <label
-            className="text-[10px] text-muted uppercase tracking-wide block mb-1"
+            className="text-xs text-muted font-semibold uppercase tracking-caption-uppercase block mb-1"
             htmlFor="backtest-samples"
           >
             {t('backtest.samples_label')}
@@ -334,7 +334,7 @@ export function BacktestReport({
             {/* Headline: Brier mean */}
             {result.brier_mean !== null && (
               <div className="flex items-baseline gap-2">
-                <div className="text-[10px] text-muted uppercase tracking-wide">
+                <div className="text-xs text-muted font-semibold uppercase tracking-caption-uppercase">
                   {t('backtest.brier_mean')}
                 </div>
                 <div
@@ -349,7 +349,7 @@ export function BacktestReport({
             {/* Calibration bars */}
             {result.calibration.length > 0 && (
               <div data-testid="backtest-calibration">
-                <div className="text-[10px] text-muted uppercase tracking-wide mb-1">
+                <div className="text-xs text-muted font-semibold uppercase tracking-caption-uppercase mb-1">
                   {t('backtest.calibration_title')}
                 </div>
                 <div className="space-y-1">
@@ -397,7 +397,7 @@ export function BacktestReport({
             {/* Top winners */}
             {result.top_winners.length > 0 && (
               <div data-testid="backtest-top-winners">
-                <div className="text-[10px] text-muted uppercase tracking-wide mb-1 flex items-center gap-1">
+                <div className="text-xs text-muted font-semibold uppercase tracking-caption-uppercase mb-1 flex items-center gap-1">
                   <Trophy className="w-3 h-3 text-bull" />
                   {t('backtest.top_winners')}
                 </div>
@@ -427,7 +427,7 @@ export function BacktestReport({
             {/* Top losers */}
             {result.top_losers.length > 0 && (
               <div data-testid="backtest-top-losers">
-                <div className="text-[10px] text-muted uppercase tracking-wide mb-1 flex items-center gap-1">
+                <div className="text-xs text-muted font-semibold uppercase tracking-caption-uppercase mb-1 flex items-center gap-1">
                   <Skull className="w-3 h-3 text-bear" />
                   {t('backtest.top_losers')}
                 </div>

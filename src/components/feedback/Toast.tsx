@@ -15,6 +15,10 @@
 // place a toast's color is decided. If you add a new ToastKind,
 // add an entry here AND in `stores/toast-store.ts` (the kind
 // union type).
+//
+// v0.119 — added enter/exit animation (`animate-toast-in` 160ms).
+// On `prefers-reduced-motion`, the @media rule in globals.css
+// shortens animation-duration to 0.01ms (effectively instant).
 
 import { useEffect, type ReactNode } from 'react';
 import { X } from 'lucide-react';
@@ -53,8 +57,10 @@ export function ToastViewport(): ReactNode {
       {toasts.map((t) => (
         <div
           key={t.id}
+          data-testid="toast"
+          data-toast-kind={t.kind}
           className={cn(
-            'pointer-events-auto rounded-md border px-3 py-2 shadow-lg flex items-start gap-2',
+            'pointer-events-auto rounded-md border px-3 py-2 shadow-lg flex items-start gap-2 animate-toast-in',
             KIND_CLS[t.kind],
           )}
         >

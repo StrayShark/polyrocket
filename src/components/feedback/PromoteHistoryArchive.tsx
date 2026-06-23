@@ -42,6 +42,7 @@ import { useT } from '@/lib/i18n';
 import { fmtRelativeTime } from '@/lib/format';
 import { Modal } from '@/components/feedback/Modal';
 import { Button } from '@/components/base/Button';
+import { BadgePill } from '@/components/base/BadgePill';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
@@ -194,21 +195,21 @@ function ArchiveRow({ entry }: { entry: PromoteHistoryArchiveEntry }) {
         <div className="font-mono text-[11px] text-fg truncate flex items-center gap-1.5">
           {entry.model_version}
           {entry.trial_index !== null && entry.trial_index !== undefined ? (
-            <span
-              className="text-[9px] uppercase tracking-wide text-accent"
+            <BadgePill
+              variant="accent"
               data-testid="promote-history-archive-trial-badge"
               data-trial-index={entry.trial_index}
             >
               {t('promote.history.trial_n', { n: entry.trial_index + 1 })}
-            </span>
+            </BadgePill>
           ) : (
-            <span
-              className="text-[9px] uppercase tracking-wide text-muted"
+            <BadgePill
+              variant="neutral"
               data-testid="promote-history-archive-trial-badge"
               data-trial-index="best"
             >
               {t('promote.history.trial_best')}
-            </span>
+            </BadgePill>
           )}
         </div>
         <div className="text-[10px] text-muted">

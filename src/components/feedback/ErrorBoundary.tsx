@@ -63,7 +63,7 @@ function DefaultErrorPanel({ error, onReset }: { error: AppErrorShape; onReset: 
           <AlertCircle className="w-6 h-6" />
         </div>
         <h1 className="text-base font-semibold mb-1">Something went wrong</h1>
-        <p className="text-[13px] text-muted mb-3">
+        <p className="text-body-sm text-muted mb-3">
           {error.hint}
         </p>
         <pre className="text-[11px] text-muted font-mono text-left bg-bg p-3 rounded mb-4 overflow-x-auto">
@@ -71,7 +71,7 @@ function DefaultErrorPanel({ error, onReset }: { error: AppErrorShape; onReset: 
         </pre>
         <button
           onClick={onReset}
-          className="inline-flex items-center gap-1.5 text-[13px] text-accent hover:underline"
+          className="inline-flex items-center gap-1.5 text-body-sm text-accent hover:underline"
         >
           <RotateCcw className="w-3.5 h-3.5" />
           Try again

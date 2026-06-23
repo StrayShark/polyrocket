@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { invoke } from '@tauri-apps/api/core';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, Zap, Activity } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Zap, Activity, Sparkles } from 'lucide-react';
 import { listMarkets, listActiveSignals } from '@/ipc';
 import { Card } from '@/components/base/Card';
 import { Pill } from '@/components/base/Pill';
@@ -10,6 +11,7 @@ import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { fmtDate, fmtUsdc, fmtEdge, fmtConfidence } from '@/lib/format';
 import { useT } from '@/lib/i18n';
+import { toast } from '@/stores/toast-store';
 
 /**
  * `/markets/:id` 路由 —— 单个 market 详情页。
@@ -28,6 +30,7 @@ import { useT } from '@/lib/i18n';
 export function MarketDetail() {
   const { t } = useT();
   const { id } = useParams<{ id: string }>();
+  const queryClient = useQueryClient();
 
   const { data: markets, isLoading, error } = useQuery({
     queryKey: ['markets', { activeOnly: false }],
@@ -44,6 +47,42 @@ export function MarketDetail() {
   });
 
   const marketSignals = signals?.filter((s) => s.market_id === id) ?? [];
+
+  // v0.121 — "Run analysis" button on the MarketDetail page. The
+  // Analysis page (`/analysis`) is reachable via the URL but the
+  // sidebar doesn't link to it, so the per-market entry point was
+  // missing. This mutation calls `llm_analyze` IPC with the
+  // football.v1.0 prompt (auto-selected by the Rust side when
+  // market.category == "football") and invalidates the signals
+  // query on success so the new prediction shows up below.
+  //
+  // Triggered by: user clicks "Run analysis" on MarketDetail.
+  // The Toast surfaces ok/error (latency, cost, error reason).
+  const analyzeMut = useMutation({
+    mutationFn: () =>
+      invoke('llm_analyze', {
+        args: {
+          market_id: id!,
+          prompt_version: 'football.v1.0',
+          triggered_by: 'user:marketdetail',
+          provider_ids: ['MiniMax', 'doubao'],
+        },
+      }),
+    onSuccess: (r: any) => {
+      const latency = r?.total_latency_ms ?? 0;
+      const cost = r?.cost_cents ?? 0;
+      const side = r?.consensus_side ?? '—';
+      const prob = r?.consensus_predicted != null
+        ? (r.consensus_predicted * 100).toFixed(1) + '%'
+        : '—';
+      toast.success(
+        'Analysis complete',
+        `side=${side} prob=${prob} · ${latency}ms · ${cost.toFixed(2)}¢`
+      );
+      queryClient.invalidateQueries({ queryKey: ['signals'] });
+    },
+    onError: (e: Error) => toast.error('Analysis failed', e.message),
+  });
 
   if (error) return <ErrorState message={String(error)} />;
   if (isLoading) {
@@ -89,7 +128,7 @@ export function MarketDetail() {
                   <Pill kind="muted">{t('marketdetail.inactive')}</Pill>
                 )}
               </div>
-              <h1 className="text-[18px] font-semibold text-fg leading-snug">
+              <h1 className="text-title-md font-semibold text-fg leading-snug">
                 {market.question}
               </h1>
             </div>
@@ -102,6 +141,20 @@ export function MarketDetail() {
                 {t('marketdetail.btn.open_polymarket')}
               </Button>
             </a>
+            {/* v0.121 — per-market "Run analysis" button. Calls
+                llm_analyze IPC with football.v1.0 prompt and
+                refreshes the signals card on success. Disabled
+                while the mutation is in flight. */}
+            <Button
+              variant="primary"
+              size="sm"
+              iconLeft={<Sparkles className="w-3 h-3" />}
+              loading={analyzeMut.isPending}
+              onClick={() => analyzeMut.mutate()}
+              data-testid="run-analysis-btn"
+            >
+              {analyzeMut.isPending ? 'Analyzing…' : 'Run analysis'}
+            </Button>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
@@ -132,7 +185,7 @@ export function MarketDetail() {
               >
                 <div className="flex-1 min-w-0">
                   <div className="text-[11px] text-muted">{t('marketdetail.signals.model', { version: s.model_version })}</div>
-                  <div className="font-mono text-[13px] mt-0.5">
+                  <div className="font-mono text-body-sm mt-0.5">
                     {t('marketdetail.signals.predicted', {
                       prob: (s.predicted_prob * 100).toFixed(1),
                       market: (s.market_prob * 100).toFixed(1),
@@ -173,8 +226,8 @@ export function MarketDetail() {
 function Stat({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <div className="text-[10px] text-muted uppercase tracking-wide">{label}</div>
-      <div className={'text-[13px] mt-0.5 ' + (mono ? 'font-mono' : 'text-fg')}>
+      <div className="text-xs text-muted font-semibold uppercase tracking-caption-uppercase">{label}</div>
+      <div className={'text-body-sm mt-0.5 ' + (mono ? 'font-mono' : 'text-fg')}>
         {value}
       </div>
     </div>

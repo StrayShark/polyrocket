@@ -241,11 +241,11 @@ function Stat({
 }) {
   return (
     <Card padding="sm">
-      <div className="flex items-center gap-1.5 text-[10px] text-muted uppercase tracking-wide">
+      <div className="flex items-center gap-1.5 text-xs text-muted font-semibold uppercase tracking-caption-uppercase">
         {Icon && <Icon className="w-3 h-3" />}
         {label}
       </div>
-      <div className="text-[18px] font-mono font-semibold text-fg mt-0.5">{value}</div>
+      <div className="text-title-md font-mono font-semibold text-fg mt-0.5">{value}</div>
       <div className="h-0.5 mt-1.5 rounded-full" style={{ background: pillBar(kind) }} />
     </Card>
   );

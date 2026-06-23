@@ -38,7 +38,8 @@ import {
   type ConsensusDoneEvent,
   type AnalyzeFinishedEvent,
 } from '@/ipc';
-import { Pill } from '@/components/base/Pill';
+import { BadgePill } from '@/components/base/BadgePill';
+import { TimelinePill } from '@/components/feedback/TimelinePill';
 import { fmtLatency, fmtCents } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 
@@ -156,6 +157,27 @@ export function AnalyzeProgress({
   const nOk = providerList.filter(([, s]) => s.kind === 'ok').length;
   const nFailed = providerList.filter(([, s]) => s.kind === 'failed').length;
 
+  // v0.119 — Cursor TimelinePill mapping for the analysis header.
+  // Maps the overall LLM analysis pipeline to one of 5 Cursor pastel
+  // stages so the user sees the current phase of the agent timeline.
+  //   - not started / all pending → "Thinking" (planning queries)
+  //   - any running or in-flight   → "Reading"  (LLM is generating)
+  //   - all providers done, awaiting consensus → "Editing"
+  //   - finished event             → "Done"
+  const nRunning = providerList.filter(([, s]) => s.kind === 'running').length;
+  const allPending = providerList.length > 0 && nDone === 0 && nRunning === 0;
+  const timelineStage = finished
+    ? 'done'
+    : !started || (isRunning && allPending)
+      ? 'thinking'
+      : isRunning && nRunning > 0
+        ? 'read'
+        : isRunning && nDone < providerList.length
+          ? 'read'
+          : isRunning
+            ? 'edit'
+            : 'done';
+
   return (
     <div
       data-testid="analyze-progress"
@@ -172,7 +194,7 @@ export function AnalyzeProgress({
           ) : (
             <CheckCircle2 className="w-3.5 h-3.5 text-bull" />
           )}
-          <span className="text-[12px] font-medium text-fg">
+          <span className="text-body-sm font-medium text-fg">
             {isRunning
               ? t('analysis.progress.running', { done: nDone, total: providerList.length })
               : t('analysis.progress.done', {
@@ -181,13 +203,25 @@ export function AnalyzeProgress({
                   total: providerList.length,
                 })}
           </span>
+          {/* v0.119 — Cursor TimelinePill showing overall LLM stage.
+              Per Cursor spec, pastels are scoped to timeline UI only. */}
+          <TimelinePill stage={timelineStage} />
           {finished && (
-            <Pill kind={finished.status === 'completed' ? 'bull' : finished.status === 'partial' ? 'warning' : 'bear'}>
+            <BadgePill
+              variant={
+                finished.status === 'completed'
+                  ? 'bull'
+                  : finished.status === 'partial'
+                    ? 'warning'
+                    : 'bear'
+              }
+              data-testid="analyze-progress-status-pill"
+            >
               {t(`analysis.progress.status.${finished.status}` as 'analysis.progress.status.completed')}
-            </Pill>
+            </BadgePill>
           )}
         </div>
-        <div className="text-[10px] text-muted">
+        <div className="text-[11px] text-muted">
           {isRunning ? '' : (
             <>
               {t('analysis.progress.total_latency', { ms: totalLatency })} ·
@@ -215,14 +249,14 @@ export function AnalyzeProgress({
             key={id}
             data-testid={`analyze-progress-row-${id}`}
             data-status={s.kind}
-            className="flex items-center gap-2 text-[12px]"
+            className="flex items-center gap-2 text-body-sm"
           >
             {s.kind === 'pending' && <Clock className="w-3 h-3 text-muted shrink-0" />}
             {s.kind === 'running' && <Loader2 className="w-3 h-3 animate-spin text-accent shrink-0" />}
             {s.kind === 'ok' && <CheckCircle2 className="w-3 h-3 text-bull shrink-0" />}
             {s.kind === 'failed' && <XCircle className="w-3 h-3 text-bear shrink-0" />}
             <span className="font-mono text-fg flex-1 truncate">{id}</span>
-            <span className="text-muted text-[10px] shrink-0">
+            <span className="text-muted text-[11px] shrink-0">
               {s.kind === 'pending' && t('analysis.progress.row.pending')}
               {s.kind === 'running' && t('analysis.progress.row.running')}
               {s.kind === 'ok' && fmtLatency(s.latency_ms)}

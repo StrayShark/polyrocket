@@ -60,6 +60,7 @@ import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { Modal } from '@/components/feedback/Modal';
 import { Button } from '@/components/base/Button';
+import { BadgePill } from '@/components/base/BadgePill';
 
 interface PromoteHistoryProps {
   /** Optional className passthrough (for spacing). */
@@ -210,7 +211,7 @@ export function PromoteHistory({
             type="button"
             data-testid={`promote-history-filter-${f}`}
             onClick={() => setFilter(f)}
-            className={`px-2 py-0.5 rounded border transition-colors ${
+            className={`px-2 py-0.5 rounded border transition-colors duration-base ease-out-cubic ${
               filter === f
                 ? 'border-accent text-accent bg-accent/10'
                 : 'border-border text-muted hover:text-fg'
@@ -324,12 +325,12 @@ function HistoryRow({
         <div className="font-mono text-[12px] text-fg truncate flex items-center gap-1.5">
           {entry.model_version}
           {isActive && (
-            <span
-              className="text-[9px] uppercase tracking-wide text-bull"
+            <BadgePill
+              variant="bull"
               data-testid="promote-history-active-badge"
             >
               {t('promote.history.active')}
-            </span>
+            </BadgePill>
           )}
           {/* v0.24a — per-trial badge. The model version
               already has a `-t{N}` suffix for bulk-promoted
@@ -340,21 +341,21 @@ function HistoryRow({
               "trial N" → a bulk-promoted specific trial
               missing trial_index → treat as best (v0.18 back-compat) */}
           {entry.trial_index != null ? (
-            <span
-              className="text-[9px] uppercase tracking-wide text-accent"
+            <BadgePill
+              variant="accent"
               data-testid="promote-history-trial-badge"
               data-trial-index={entry.trial_index}
             >
               {t('promote.history.trial_n', { n: entry.trial_index + 1 })}
-            </span>
+            </BadgePill>
           ) : (
-            <span
-              className="text-[9px] uppercase tracking-wide text-muted"
+            <BadgePill
+              variant="neutral"
               data-testid="promote-history-trial-badge"
               data-trial-index="best"
             >
               {t('promote.history.trial_best')}
-            </span>
+            </BadgePill>
           )}
           {/* v0.41a — small "i" icon with a tooltip showing
               the per-promotion reason. The icon is the
@@ -377,7 +378,7 @@ function HistoryRow({
         </div>
       </div>
       <div className="text-right shrink-0">
-        <div className="text-[10px] text-muted uppercase tracking-wide">
+        <div className="text-xs text-muted font-semibold uppercase tracking-caption-uppercase">
           {t('promote.history.brier')}
         </div>
         <div

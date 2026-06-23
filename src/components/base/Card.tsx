@@ -21,14 +21,14 @@ export function Card({
 }: CardProps) {
   return (
     <div
-      className={cn('rounded-lg border bg-surface border-border', className)}
+      className={cn('rounded-card border bg-surface border-border', className)}
       {...rest}
     >
       {(title || action) && (
         <div className="flex items-start justify-between gap-2 px-4 pt-3">
           <div>
             {title && (
-              <h3 className="text-[13px] font-semibold text-fg">{title}</h3>
+              <h3 className="text-title-sm font-semibold text-fg">{title}</h3>
             )}
             {description && (
               <p className="text-[11px] text-muted mt-0.5">{description}</p>

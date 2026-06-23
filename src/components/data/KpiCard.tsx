@@ -43,9 +43,9 @@ export interface KpiCardProps {
  */
 export function KpiCard({ label, value, delta, icon: Icon, hint, className }: KpiCardProps) {
   return (
-    <div className={cn('rounded-lg border bg-surface border-border p-4', className)}>
+    <div className={cn('rounded-card border bg-surface border-border p-4', className)}>
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[11px] text-muted font-medium uppercase tracking-wide">
+        <span className="text-xs text-muted font-semibold uppercase tracking-caption-uppercase">
           {label}
         </span>
         {Icon && <Icon className="w-3.5 h-3.5 text-muted" />}

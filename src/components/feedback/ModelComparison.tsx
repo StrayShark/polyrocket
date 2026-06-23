@@ -32,6 +32,7 @@
  */
 import { Trophy, X } from 'lucide-react';
 import { Modal } from '@/components/feedback/Modal';
+import { BadgePill } from '@/components/base/BadgePill';
 import { fmtRelativeTime } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import type { PromoteHistoryEntry } from '@/ipc';
@@ -115,18 +116,18 @@ export function ModelComparison({
             >
               <div className="flex items-center gap-1.5 mb-2">
                 <Trophy className={`w-3 h-3 text-${color}`} />
-                <span className="text-[10px] uppercase tracking-wide text-muted">
+                <span className="text-xs text-muted font-semibold uppercase tracking-caption-uppercase">
                   {e.trial_index !== null && e.trial_index !== undefined
                     ? t('promote.history.trial_n', { n: e.trial_index + 1 })
                     : t('promote.history.trial_best')}
                 </span>
                 {isBest && (
-                  <span
-                    className="text-[9px] uppercase tracking-wide text-bull"
+                  <BadgePill
+                    variant="bull"
                     data-testid="model-comparison-best"
                   >
                     ★ {t('compare.best')}
-                  </span>
+                  </BadgePill>
                 )}
               </div>
               <div className="font-mono text-[11px] text-fg truncate mb-1">
@@ -183,7 +184,7 @@ export function ModelComparison({
                   data-testid="model-comparison-weights"
                   data-job-id={e.job_id}
                 >
-                  <div className="uppercase tracking-wide text-[9px] text-muted mb-0.5">
+                  <div className="text-xs text-muted font-semibold uppercase tracking-caption-uppercase mb-0.5">
                     {t('compare.weights_title')}
                   </div>
                   {weightsByJobId?.has(e.job_id) ? (

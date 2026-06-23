@@ -171,7 +171,7 @@ export function DataTable<T>({
                   key={rowKey(row)}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   className={cn(
-                    'border-b border-border last:border-0 transition-colors',
+                    'border-b border-border last:border-0 transition-colors duration-base ease-out-cubic',
                     onRowClick && 'cursor-pointer hover:bg-surface-hover',
                   )}
                 >
@@ -201,14 +201,14 @@ export function DataTable<T>({
             <button
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={page === 0}
-              className="px-2 py-0.5 rounded border border-border bg-surface-2 disabled:opacity-40"
+              className="px-2 py-0.5 rounded border border-border bg-surface-2 disabled:opacity-50"
             >
               Prev
             </button>
             <button
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
               disabled={page >= totalPages - 1}
-              className="px-2 py-0.5 rounded border border-border bg-surface-2 disabled:opacity-40"
+              className="px-2 py-0.5 rounded border border-border bg-surface-2 disabled:opacity-50"
             >
               Next
             </button>

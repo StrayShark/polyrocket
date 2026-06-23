@@ -95,7 +95,7 @@ function Tile({
       }`}
       data-testid={`bankroll-tile-${label.toLowerCase()}`}
     >
-      <div className="flex items-center gap-1.5 text-[10px] text-muted uppercase tracking-wide">
+      <div className="flex items-center gap-1.5 text-xs text-muted font-semibold uppercase tracking-caption-uppercase">
         {icon}
         {label}
       </div>

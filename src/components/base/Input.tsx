@@ -13,8 +13,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     <input
       ref={ref}
       className={cn(
-        'w-full h-8 px-2.5 rounded-md text-[13px] bg-surface text-fg border transition-colors',
-        'placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent',
+        'w-full h-8 px-2.5 rounded-md text-body-sm bg-surface text-fg border transition-colors duration-base ease-out-cubic',
+        'placeholder:text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
         invalid ? 'border-bear' : 'border-border',
         className,
       )}

@@ -293,7 +293,7 @@ export function PlaceBetForm(props: PlaceBetFormProps) {
           onClick={onSubmit}
           disabled={submitting || validationOk === false || !marketId.trim()}
           className={cn(
-            'w-full h-9 rounded-md text-[13px] font-medium transition-colors',
+            'w-full h-9 rounded-md text-body-sm font-medium transition-colors duration-base ease-out-cubic',
             'bg-accent text-bg hover:bg-accent/90',
             'disabled:opacity-50 disabled:cursor-not-allowed',
           )}
@@ -332,7 +332,7 @@ function SideButton({
       onClick={onClick}
       data-testid={testid}
       className={cn(
-        'flex-1 h-8 rounded-md text-[12px] font-medium transition-colors',
+        'flex-1 h-8 rounded-md text-[12px] font-medium transition-colors duration-base ease-out-cubic',
         active
           ? 'bg-accent text-bg'
           : 'bg-surface-2 text-muted hover:text-fg',
@@ -360,7 +360,7 @@ function OrderTypeButton({
       onClick={onClick}
       data-testid={testid}
       className={cn(
-        'flex-1 h-8 rounded-md text-[12px] font-medium transition-colors',
+        'flex-1 h-8 rounded-md text-[12px] font-medium transition-colors duration-base ease-out-cubic',
         active
           ? 'bg-accent text-bg'
           : 'bg-surface-2 text-muted hover:text-fg',
