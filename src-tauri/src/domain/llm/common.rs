@@ -64,11 +64,50 @@ pub fn parse_response(
         .unwrap_or(0) as u32;
     let cost_cents = cost.compute(tokens_in, tokens_out);
 
-    // Optional JSON mode parsing
+    // Optional JSON mode parsing. v0.122c — handle LLM outputs that
+    // wrap JSON in a chain-of-thought block (e.g. MiniMax-M2.7 returns
+    // `<think>...</think>\n```json\n{...}\n````). Fall back to the
+    // first {...} block the same way `parse_recommendation` does, so
+    // the CallLog flags `success=true` and downstream consumers see
+    // a real prediction.
     let (parse_ok, parsed, parse_error) = if json_mode {
         match serde_json::from_str::<Value>(&text) {
             Ok(v) => (true, Some(v), None),
-            Err(e) => (false, None, Some(format!("json_mode parse: {e}; text={}", truncate(&text, 200)))),
+            Err(_) => {
+                // Strip <think>...</think> if present (some models emit it).
+                let cleaned = strip_think_block(&text);
+                if let Ok(v) = serde_json::from_str::<Value>(&cleaned) {
+                    (true, Some(v), None)
+                } else if let Some(start) = cleaned.find('{') {
+                    if let Some(end) = cleaned.rfind('}') {
+                        if end > start {
+                            let slice = &cleaned[start..=end];
+                            match serde_json::from_str::<Value>(slice) {
+                                Ok(v) => (true, Some(v), None),
+                                Err(e) => (false, None, Some(format!(
+                                    "json_mode parse: {e}; text={}",
+                                    truncate(&cleaned, 200)
+                                ))),
+                            }
+                        } else {
+                            (false, None, Some(format!(
+                                "json_mode parse: no closing brace; text={}",
+                                truncate(&cleaned, 200)
+                            )))
+                        }
+                    } else {
+                        (false, None, Some(format!(
+                            "json_mode parse: no opening brace; text={}",
+                            truncate(&cleaned, 200)
+                        )))
+                    }
+                } else {
+                    (false, None, Some(format!(
+                        "json_mode parse: no JSON object in text={}",
+                        truncate(&cleaned, 200)
+                    )))
+                }
+            }
         }
     } else {
         (true, None, None)
@@ -126,4 +165,54 @@ pub fn classify_status(status: u16, body_hint: &str) -> &'static str {
 
 fn truncate(s: &str, max: usize) -> &str {
     if s.len() <= max { s } else { &s[..max] }
+}
+
+/// v0.122c — strip a leading `<think>...</think>` block from the LLM
+/// response. Some models (MiniMax-M2.7, DeepSeek R1, Qwen QwQ) wrap
+/// their JSON output in a chain-of-thought block before the actual
+/// prediction. The block is optional, multi-line, and may contain
+/// nested `<think>` (rare). Returns the text after the LAST `</think>`
+/// if present, else the original text.
+fn strip_think_block(text: &str) -> String {
+    // Find the LAST occurrence of `</think>` and take everything after it.
+    // Most models emit exactly one block; using `rfind` handles the rare
+    // case where the model writes `<think>` mid-response (treating it
+    // as plain text).
+    if let Some(end) = text.rfind("</think>") {
+        let after = &text[end + "</think>".len()..];
+        return after.trim().to_string();
+    }
+    text.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn strip_think_block_basic() {
+        let input = "<think>\nanalysis here\n</think>\n```json\n{\"a\":1}\n```";
+        assert_eq!(strip_think_block(input), "```json\n{\"a\":1}\n```");
+    }
+
+    #[test]
+    fn strip_think_block_passthrough() {
+        assert_eq!(strip_think_block("{\"a\":1}"), "{\"a\":1}");
+    }
+
+    #[test]
+    fn strip_think_block_last_of_multiple() {
+        // Some models re-enter <think> mid-response; take the last one.
+        let input = "<think>first</think>middle<think>second</think>{json}";
+        assert_eq!(strip_think_block(input), "{json}");
+    }
+
+    #[test]
+    fn parse_response_with_think_block_succeeds() {
+        // v0.122c — json_mode parse must succeed on <think>...</think> + json
+        let body = r#"{"choices":[{"message":{"content":"<think>\nI think this is hard.\n</think>\n```json\n{\"x\":42}\n```"}}],"usage":{"prompt_tokens":10,"completion_tokens":5}}"#;
+        let out = parse_response(200, body, CostRate { per_1k_in_cents: 0.4, per_1k_out_cents: 1.2 }, true).unwrap();
+        assert!(out.parse_ok, "should parse despite <think> prefix: {:?}", out.parse_error);
+        assert_eq!(out.parsed.unwrap()["x"], 42);
+    }
 }
