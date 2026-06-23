@@ -8,6 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 
+pub mod inference;
 pub mod sidecar;
 pub mod train_progress;
 

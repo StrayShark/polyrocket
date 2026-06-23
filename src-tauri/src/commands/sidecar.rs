@@ -47,6 +47,59 @@ fn check_sidecar_enabled() -> AppResult<()> {
     }
 }
 
+/// v0.122b — load weights from `active.json` and produce the
+/// triple the inference layer needs: (weights, model_version,
+/// brier_score). Returns the fallback weights when the file is
+/// missing or malformed (mirrors Python `active.py`).
+///
+/// Side-effect: reads from disk on every call. The Python
+/// `active.py` had a 1-second mtime cache; the Rust scheduler's
+/// `degradation_check` loop already calls this every 5 minutes
+/// so the I/O cost is negligible. v0.122d (auto_promote) will
+/// add a process-local mtime cache if profiling shows the call
+/// is hot.
+fn load_active_or_fallback() -> (
+    crate::domain::lab::inference::InferenceWeights,
+    String,
+    Option<f64>,
+) {
+    use crate::commands::active_model::{active_model_path, read_active_model_from_disk};
+    let path = active_model_path();
+    let active = read_active_model_from_disk().ok().flatten();
+    match active {
+        Some(m) => {
+            let weights = if let Some(w) = &m.weights {
+                if w.len() >= 3 {
+                    crate::domain::lab::inference::InferenceWeights {
+                        w0: w[0],
+                        w1: w[1],
+                        w2: w[2],
+                        horizon_norm_hours: 168.0,
+                    }
+                } else {
+                    crate::domain::lab::inference::InferenceWeights::fallback()
+                }
+            } else {
+                crate::domain::lab::inference::InferenceWeights::fallback()
+            };
+            (weights, m.model_version, m.best_brier)
+        }
+        None => {
+            // No active.json yet (first-time use). Log so the
+            // user knows the fallback is in use.
+            tracing::info!(
+                "v0.122b inference: no active.json at {}; using inline fallback weights",
+                path.display()
+            );
+            (
+                crate::domain::lab::inference::InferenceWeights::fallback(),
+                "logistic-0.1.0".to_string(),
+                None,
+            )
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct SidecarStatus {
     pub running: bool,
@@ -422,6 +475,48 @@ fn read_status(state: &SidecarState) -> AppResult<SidecarStatus> {
 /// empty Vec (caller falls back to the heuristic domain::signal).
 #[tauri::command]
 pub async fn sidecar_predict(
+    state: State<'_, SidecarState>,
+    markets: Vec<(String, f64)>,
+) -> AppResult<Vec<Prediction>> {
+    // v0.122b — when POLYROCKET_DISABLE_SIDECAR=1, use the new
+    // Rust path. When unset (default), still use the Python
+    // sidecar. v0.122g flips the default. (The flag is the
+    // safety hatch for rolling back the port.)
+    if !is_sidecar_disabled() {
+        return sidecar_predict_legacy(state, markets).await;
+    }
+    // New Rust path — call inference::predict_from_markets and
+    // convert the result to the wire `Vec<Prediction>` shape.
+    let (weights, model_version, brier_score) = load_active_or_fallback();
+    let inputs: Vec<_> = markets
+        .iter()
+        .map(|(id, price)| crate::domain::lab::inference::MarketInput {
+            market_id: id.as_str(),
+            price: *price,
+            market_age_hours: 0.0, // wire shape doesn't carry age; default 0
+        })
+        .collect();
+    let r = crate::domain::lab::inference::predict_from_markets(
+        &weights,
+        &model_version,
+        brier_score,
+        &inputs,
+    );
+    Ok(r.predictions
+        .into_iter()
+        .map(|p| Prediction {
+            market_id: p.market_id,
+            prob: p.prob,
+            confidence: p.confidence,
+            rationale: Some(p.rationale),
+        })
+        .collect())
+}
+
+/// v0.122b — the original `sidecar_predict` body, now a private
+/// helper. Kept verbatim so the legacy Python path stays
+/// available when `POLYROCKET_DISABLE_SIDECAR=1`.
+async fn sidecar_predict_legacy(
     state: State<'_, SidecarState>,
     markets: Vec<(String, f64)>,
 ) -> AppResult<Vec<Prediction>> {
@@ -2166,6 +2261,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn archive_returns_empty_when_no_file() {
         // v0.33b — if archive.jsonl doesn't exist, return
         // ok=true with 0 entries and a friendly message
@@ -2197,6 +2293,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn archive_reads_and_paginates_entries() {
         // v0.33b — write 25 entries, read with default
         // limit=100, verify all 25 returned, sorted newest-first
@@ -2235,6 +2332,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn archive_pagination_offset_and_limit() {
         // v0.33b — write 30 entries, read with offset=10
         // limit=5, verify 5 entries returned (indices 10..15
@@ -2267,6 +2365,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn archive_filters_by_time_range() {
         // v0.33b — write 10 entries at 1000ms intervals,
         // filter to 5 entries (i=3..7) by from_ms/to_ms
@@ -2299,6 +2398,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn archive_filters_by_job_ids() {
         // v0.42e-3 — whitelist filter on job_ids.
         // The ModelComparison modal uses this to
