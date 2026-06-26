@@ -485,14 +485,22 @@ Sidebar → Workspace → **LLM Management**（图标：`shield-check`）
 
 API key **永远不入 SQLite、不入 .env、不入 git**。唯一受信任的存储是 OS keyring（macOS Keychain / Windows Credential Manager / Linux Secret Service）。SQLite 只存 `keyring_alias` 字符串（"key 放在 OS 哪里"），不存 secret。
 
-### 13.1 两条写路径
+### 13.1 两条写路径（Dev vs Release 差异化）
 
-| 路径 | 何时用 | 谁触发 | 写哪里 |
+**需求**: 本地 dev 环境默认读取 `.env` 配置；release 编译版默认走用户手动填写（Welcome wizard / Settings UI）。
+
+| 路径 | 适用环境 | 触发条件 | 写哪里 |
 |---|---|---|---|
-| **A. Client paste（主路径）** | 正常用法 | 用户在 Settings → LLM Management → Provider row → `Add key` 弹窗粘贴 | Rust IPC `llm_key_upsert { key, secret }` → `keyring::set_key(keyring_alias, secret)` + 写 `llm_provider_keys` 行 |
-| **B. .env dev sync（仅开发）** | 本地调试、CI、headless 跑流量 | 启动时 Rust 检查 `POLYROCKET_ENV=dev && POLYROCKET_KEYRING_ONLY=0` | 解析 `.env` → 对每个未配置的 `llm/<provider>/<alias>` 调 `keyring::set_key` |
+| **A. Client paste（Release 主路径）** | **Release 编译版** (`cfg!(debug_assertions) = false`) | 用户在 Welcome wizard Step 4 或 Settings → LLM Management → Provider row → `Add key` 弹窗手动粘贴 | Rust IPC `llm_key_upsert { key, secret }` → `keyring::set_key(keyring_alias, secret)` + 写 `llm_provider_keys` 行 |
+| **B. .env dev sync（Dev 专用路径）** | **本地 dev 调试** (`cfg!(debug_assertions) = true` + `POLYROCKET_ENV=dev`) | 启动时 Rust `maybe_load_dev_env()` 检查编译标志 + 环境变量 | 解析 `.env` → 对每个未配置的 `llm/<provider>/<alias>` 调 `keyring::set_key` |
 
-任何 **不是 dev 环境** 的启动，`.env` 一行都不读；`keyring::has_key()` 返回 false 的 provider 在 M10 调用时直接报 `auth` 错误，前端 toast 提示「未配置 key」并跳转到 Settings。
+**判定逻辑**:
+- **Release build** (`cargo build --release`): `cfg!(debug_assertions)` 为 `false`，`maybe_load_dev_env()` 在编译期直接 return，`.env` 一行都不读。用户必须通过 Welcome wizard 或 Settings UI 填写 LLM 配置。
+- **Dev build** (`pnpm tauri:dev`): `cfg!(debug_assertions)` 为 `true`，且 `POLYROCKET_ENV=dev` 时，启动自动读取 `.env` 同步到 keyring。开发者无需手动走 Welcome wizard。
+
+**优先级规则**: `.env` 同步是增量式的 — 已在 keyring 中的 alias **绝不覆盖**（用户已在前端粘贴的优先级永远最高）。
+
+**未配置时的行为**: `keyring::has_key()` 返回 false 的 provider 在 M10 调用时直接报 `auth` 错误，前端 toast 提示「未配置 key」并跳转到 Settings。
 
 ### 13.2 keyring alias 约定
 
@@ -525,12 +533,23 @@ Rust 端 `keyring.rs` 提供 builder：`keyring::llm_alias(provider, key)` / `ke
 
 ### 13.4 .env 启动同步规则（lib.rs `maybe_load_dev_env`）
 
+**需求**: Dev 环境自动读取 `.env`；Release 编译版完全不读 `.env`，强制用户走 Welcome wizard / Settings UI。
+
 ```rust
 fn maybe_load_dev_env() {
-    if env != "dev"                       { return; }   // prod/staging 一律跳过
-    if keyring_only                      { return; }   // 强制 keychain-only 模式
+    // ── 编译期判定：release build 直接跳过，.env 一行都不读 ──
+    #[cfg(not(debug_assertions))]
+    {
+        tracing::info!("release build — .env sync skipped, users configure via Welcome wizard");
+        return;
+    }
+
+    // ── 以下仅 dev build 执行 ──
+    let env = std::env::var("POLYROCKET_ENV").unwrap_or_default();
+    if env != "dev"                       { return; }   // 未显式声明 dev 也跳过
+    if keyring_only                       { return; }   // 强制 keychain-only 模式
     let pairs = parse_env_file(".env");
-    sync_env_to_keyring(&pairs);
+    sync_env_to_keyring(&pairs);                        // 仅写 keyring 中不存在的 alias
 }
 ```
 

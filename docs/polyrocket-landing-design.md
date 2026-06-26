@@ -30,6 +30,22 @@ v0.53 要解决的 4 个真实问题：
 
 ## 2. 入口与触发
 
+### 2.0 Dev vs Release 配置策略
+
+**需求**: 本地 dev 环境启动 app 调试时，默认读取本地 `.env` 中的配置；release 编译版默认让用户通过 Welcome wizard 填写 LLM 配置。
+
+| 环境 | 判定 | LLM 配置来源 | Welcome wizard 行为 |
+|---|---|---|---|
+| **本地 dev** | `cfg!(debug_assertions) = true` + `POLYROCKET_ENV=dev` | `.env` 文件自动同步到 OS keyring | 可跳过 Step 4（LLM providers），keyring 已有 `.env` 同步的 key；wizard 首页显示 "Dev mode: .env loaded" 提示 |
+| **Release 编译版** | `cfg!(debug_assertions) = false` | 用户手动粘贴（Step 4 / Settings UI） | 首次启动强制进入 `/welcome`，Step 4 是核心步骤（无 `.env` 依赖） |
+
+**Dev 环境下的 Welcome wizard 体验**:
+- Step 4 (LLM providers) 顶部显示蓝色提示条: "🔧 Dev mode — `.env` has been synced to OS keyring. N providers configured." 
+- 已从 `.env` 同步的 provider 显示为 ✓ 状态，用户可跳过或追加新 key
+- 如果 `.env` 未配置任何 LLM key，Step 4 行为与 release 版一致（要求用户手动粘贴）
+
+> 详见 [`polyrocket-llm-management.md`](./polyrocket-llm-management.md) §13.1 和 [`polyrocket-football-prd.md`](./polyrocket-football-prd.md) §4.6。
+
 ### 2.1 启动门控
 
 ```ts

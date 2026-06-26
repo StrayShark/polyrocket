@@ -215,6 +215,117 @@ Filter by Competition / Market Type / min confidence / min edge.
 - 末尾: 一句话总结 "Today's avg edge: +3.2% across 8 picks (model confidence ≥ 0.65)"
 - 可 export 为图片 (share card)
 
+### 4.6 配置策略：Dev 与 Release 差异化 (v0.126)
+
+**核心需求**: 根据运行环境（本地 dev 调试 vs release 编译发行版），LLM 配置的加载路径不同。
+
+| 环境 | 判定条件 | 默认行为 | 用户感知 |
+|---|---|---|---|
+| **本地 dev** | `POLYROCKET_ENV=dev`（或 `cfg!(debug_assertions)` 编译期判定） | 启动时自动读取项目根目录 `.env`，将其中 LLM keys / Polymarket 凭据 / wallet 私钥同步到 OS keyring | 开发者 `pnpm tauri:dev` 即可，无需手动走 Welcome wizard；`.env` 里的 key 优先级低于已在 keyring 中的已有值（不覆盖） |
+| **Release 编译版** | `POLYROCKET_ENV` 未设置或非 `dev`（release build 中 `cfg!(debug_assertions) = false`） | **不读取 `.env`**，首次启动强制进入 `/welcome` 6 步引导，用户在 Step 4 (LLM providers) 手动粘贴 API key | 最终用户拿到 `.dmg` / `.exe` / `.AppImage` 安装后，必须自己填写 LLM 配置；无 `.env` 依赖 |
+
+**判定逻辑**（Rust 端 `maybe_load_dev_env()`）:
+
+```rust
+fn maybe_load_dev_env() {
+    // 编译期判定：release build 直接跳过
+    #[cfg(not(debug_assertions))]
+    {
+        // release build: .env 一律不读，走 Welcome wizard
+        return;
+    }
+    // dev build: 检查 POLYROCKET_ENV
+    let env = std::env::var("POLYROCKET_ENV").unwrap_or_default();
+    if env != "dev" { return; }           // 未显式声明 dev 也不读
+    if keyring_only { return; }            // 强制 keychain-only 模式
+    let pairs = parse_env_file(".env");
+    sync_env_to_keyring(&pairs);           // 仅写 keyring 中不存在的 alias
+}
+```
+
+**关键约束**:
+- `.env` 文件 **仅存在于开发环境**，不打包进 release 产物（`.gitignore` 已排除）
+- Release 版用户只能通过 Welcome wizard (Step 4) 或 Settings → LLM Management 粘贴 key
+- 两条路径最终都写入 OS keyring，后续读取逻辑完全一致
+- Dev 环境下 `.env` 同步是 **增量式** 的：已在 keyring 中的 alias 绝不覆盖
+
+> 详见 [`polyrocket-llm-management.md`](./polyrocket-llm-management.md) §13.1-§13.4 和 [`polyrocket-landing-design.md`](./polyrocket-landing-design.md) §3 Step 4。
+
+### 4.7 竞品对标功能 (v0.126-v0.130)
+
+> 来源：业界开源 Polymarket 分析工具调研（Polymarket CLI / poly-maker / Polymarket Analytics / TREMOR / Billy Bets / Betmoar / ArbBets / Verso / MindTheGap）。
+> PolyRocket 在 LLM 分析、足球建模框架、模型管理方面已领先业界；以下功能为补齐差距、形成完整差异化竞争力。
+
+#### P0 — MVP 必须有
+
+| # | 功能 | 描述 | 竞品参考 | 技术方案 |
+|---|---|---|---|---|
+| **P0-1** | **聪明钱 Market Strength 评分** | 综合该市场持仓钱包的 holder balance / weighted PnL / trader quality / win rate，评估 YES/NO 两边哪边更聪明，给出 0-100 Smart Money Score | Betmoar "Market Strength" | 后端新增 `domain/smart_money` 模块，聚合 `bets` + `wallets` 表数据；前端在 MarketDetail 新增 "Smart Money" tab |
+| **P0-2** | **足球赛程日历视图** | Football Hub 新增 calendar/list toggle，日历模式按日期网格展示 fixtures，直观看到比赛日排列 | Betmoar "到期日历" | 前端新增 `CalendarView` 组件，复用 markets 数据按 `closes_at` 分组；后端新增 `market_calendar` command |
+| **P0-3** | **Spike 检测 + 实时警报** | 监控足球市场价格剧变（进球/红牌/伤停瞬间），当 60s 内 mid-price 变动 > 5% 时触发 desktop notification + 写 `notifications` 表 | spike-bot "Spike Detection Bot" | 后端新增 `domain/spike` 模块 + `spike_detector` scheduler loop (30s interval)，对比 `price_snapshots` 历史值 |
+
+#### P1 — 高价值
+
+| # | 功能 | 描述 | 竞品参考 | 技术方案 |
+|---|---|---|---|---|
+| **P1-1** | **新闻→市场关联引擎** | LLM 扫描足球新闻源（RSS / X / Telegram），用 embedding 相似度匹配到具体 Polymarket question，标注 catalyst event | Verso "news→market mapping" (73% accuracy) / Glint | 后端新增 `domain/news_correlator` 模块 + `news_items` 表 + `news_scan` scheduler (10m interval)；前端 MarketDetail 新增 "News" tab |
+| **P1-2** | **NL → 查询** | 用户输入自然语言（"今晚英超有哪些 +EV 的比赛"），LLM 转换为 SQL 查询并返回结果列表 | TREMOR "Claude NL→SQL" | 复用现有 LLM consensus engine，新增 `nl_query` command；前端新增 `/search` 路由 + CommandPalette 集成 |
+| **P1-3** | **平台内套利扫描** | 扫描所有足球市场，检测 YES + NO 合计 cost < $1.00 的套利窗口（低流动性市场偶发） | ArbBets | 后端新增 `domain/arb_scanner` 模块，对 `orderbook_snapshots` 做 YES-NO cost 对比；Edge Board 新增 "Arb" filter |
+| **P1-4** | **跨平台套利 (Polymarket ↔ Kalshi)** | 对比同一足球赛事在 Polymarket 和 Kalshi 的赔率，检测 3-5% 价差套利机会 | ArbBets / 跨平台套利监控 | 后端新增 `domain/kalshi` 模块 (Kalshi API client) + `cross_platform_arb` command；前端新增 `/football/arb-board` 路由 |
+
+#### P2 — 锦上添花
+
+| # | 功能 | 描述 | 竞品参考 | 技术方案 |
+|---|---|---|---|---|
+| **P2-1** | **正确比分概率矩阵** | Poisson 模型生成的比分概率分布，以 5×5 heatmap 可视化，用户直观看到 P(home=i, away=j) | GamblingCalc "Correct Score Heatmap" | 前端 FixtureDetail Poisson tab 新增 `ScoreMatrix` 组件；后端 `domain/poisson` 模块输出 score matrix JSON |
+| **P2-2** | **休息天数 / 赛程密度因子** | 计算球队上次比赛到今的休息天数，赛程密集度影响表现，加入 football.v1.0 prompt context | Sassamaru "休息因子" | 后端 `domain/football_context` 模块计算 rest days，注入 prompt context；前端 Match Info tab 显示休息天数 |
+| **P2-3** | **UMA 争议追踪** | 足球市场常有判罚争议导致 UMA 争议，追踪 UMA dispute 状态，在 MarketDetail 显示 dispute indicator | Polymarket UMA 模块 | 后端新增 `uma_dispute_status` command (读 Polymarket UMA API)；前端 MarketDetail header 新增 dispute badge |
+
+#### 功能与现有模块的关系
+
+```
+新增 domain modules (Rust L3):
+├── domain/smart_money/     (P0-1) → 聚合 bets + wallets
+├── domain/spike/           (P0-3) → 对比 price_snapshots
+├── domain/news_correlator/ (P1-1) → LLM + RSS fetch
+├── domain/arb_scanner/     (P1-3) → orderbook_snapshots YES-NO cost
+├── domain/kalshi/          (P1-4) → Kalshi API client
+├── domain/poisson/         (P2-1) → score matrix computation
+└── domain/football_context/(P2-2) → rest days calculation
+
+新增 frontend routes:
+├── /football/arb-board    (P1-4) → 跨平台套利排行
+└── /search                (P1-2) → NL 查询
+
+新增 frontend components:
+├── SmartMoneyTab          (P0-1) → MarketDetail 新 tab
+├── CalendarView           (P0-2) → Football Hub toggle
+├── ScoreMatrix            (P2-1) → FixtureDetail Poisson tab
+├── NewsTab                (P1-1) → MarketDetail 新 tab
+├── ArbBoard               (P1-4) → 套利排行页
+└── UmADisputeBadge        (P2-3) → MarketDetail header
+
+新增 DB tables:
+├── news_items             (P1-1) → 新闻条目 + market_id 关联
+├── spike_alerts           (P0-3) → 价格剧变警报记录
+└── arb_opportunities      (P1-3/P1-4) → 套利机会缓存
+
+新增 scheduler loops:
+├── spike_detector         (P0-3) → 30s interval
+├── news_scan              (P1-1) → 10m interval
+└── arb_scan               (P1-3) → 5m interval
+```
+
+#### 成功指标补充
+
+| Metric | Target | 来源功能 |
+|---|---|---|
+| Smart Money Score 准确率 | top-quartile smart money win-rate ≥ 60% | P0-1 |
+| Spike alert 响应时间 | 从价格变动到通知 ≤ 60s | P0-3 |
+| 新闻关联准确率 | LLM 匹配准确率 ≥ 70% | P1-1 |
+| 套利扫描覆盖率 | 每日检测 ≥ 3 个 arb 机会 | P1-3/P1-4 |
+| NL 查询满意度 | 用户 rate ≥ 4/5 | P1-2 |
+
 ---
 
 ## 5. 范围外 (Out of Scope)

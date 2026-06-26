@@ -1,6 +1,8 @@
 # polyrocket — Coding Spec
 
 > 代码注释 / 文档化规范。**所有新增代码必须遵循此规范；存量代码按 v0.61 计划分轮翻新。**
+>
+> **v2.26 (2026-06-24, 当前)**:新增 §1.0「**所有注释必须使用中文**」硬规则。`///` / `//!` / `//` / `/** */` / `""" """` / `#` 一律中文;标识符、字符串字面量、第三方引用保持原样。
 
 **版本**：v2.25 · 2026-06-22 (v0.118 — football.v1.0 足球市场专用 prompt 模板:综合 Dixon-Coles (1997) + Elo + xG (Sam Green 2012) + CLV (Pinnacle) 4 个 framework,要求 LLM 输出 `framework_breakdown` 中间值;`commands/llm.rs` 路由 `category == "football"` 时自动切到 football.v1.0;新增 `FootballMatchContext` (含 team/Elo/xG/Dixon-Coles params) + `FootballMarketType` (TeamWin/Draw/OverUnder/AsianHandicap/Outright);14 个新 cargo test,总数 399→413;0 行 new IPC,0 行 new codegen;`prompts.rs` 202→832 行 (+630)。)
 **配套**：[`overview.md`](./overview.md)（5 层架构） · [`polyrocket-modules.md`](./polyrocket-modules.md)（17 模块业务） · [`polyrocket-flows.md`](./polyrocket-flows.md)（20 交互流程） · [`polyrocket-v0.69-final.md`](./polyrocket-v0.69-final.md)（CI 修复记录）
@@ -21,6 +23,57 @@
 ---
 
 ## 1. 通用规则（三语言共通）
+
+### 1.0 注释语言：必须使用中文(v2.26 新增,硬规则)
+
+**所有代码注释必须使用中文**。这是 §1 的硬性约束,先于 §1.1～§1.3。
+
+| 注释类型 | 写法 | 语言要求 |
+|---|---|---|
+| Rust 文档注释 | `///` / `//!` | 中文 |
+| Rust 行内注释 | `//` | 中文 |
+| TypeScript / React 文档 | `/** */` | 中文 |
+| TypeScript / React 行内 | `//` | 中文 |
+| Python 文档字符串 | `""" """` / `''' '''` | 中文 |
+| Python 行内注释 | `#` | 中文 |
+| TOML / YAML / JSON 注释 | `#` / `//` | 中文(如有) |
+
+**必须保持原样,不要翻译**:
+
+- **标识符**(变量名 / 函数名 / 类型名 / 常量名 / 模块名 / 表名 / 列名)
+- **字符串字面量**(`"..."` / `'...'` 内部的所有内容,包括 i18n key、log message、UI 文案、JSON 字段、enum variant)
+- **第三方库的 API 引用**(`@tauri-apps/api/core` / `serde::Serialize` / `tauri::State` 等)
+- **协议字段名 / IPC 命令名**(`cmd_name`、`args` 键、SQL 列名)
+- **URL / 文件路径 / 正则表达式**
+- **项目专有英文术语**(Polyrocket / Polymarket / Kalshi / sidecar / L1 / L2 / L3 / framework / Sharpe / Sharpe-like / calibration / TOML 等)
+- **代码块示例中的占位符和类型签名**
+
+**翻译原则**:
+
+1. **保持技术准确性**:中文表达技术含义,不是直译。例如 "INVARIANT: caller must hold pool.write()" 应译为「不变量:调用方必须持有 `pool.write()`」
+2. **保留代码片段**:示例代码块中的代码本身不翻译,只翻译围绕代码的说明文字
+3. **保持简洁**:不要因为中文化而大幅扩长行宽;项目用 UTF-8,中文字符宽度按 IDE 默认(通常 2 列),单行不超过 120 字符为佳
+4. **专有英文术语中英对照**:首次出现时可在中文后括号注明英文,例如「侧车（sidecar）」,后续单独使用任一即可
+5. **保留原标点和缩进**:不要把 `:` 改成 `：`,`(` 改成 `（` 等(避免破坏 grep 匹配)
+
+**禁止**:
+
+- ❌ 整段英文注释未翻译
+- ❌ 中英混排且英文占主导(纯中文 + 必要的英文术语是 OK 的)
+- ❌ 用拼音 / 假名 / 错别字代替
+- ❌ 翻译字符串字面量(`toast.error("Failed to load markets")` 不能改成中文)
+- ❌ 翻译标识符(`pub fn score_brier` 不能改成 `pub fn 评分_brier`)
+- ❌ 翻译 SQL / TypeScript 类型签名 / Rust trait bound 等代码本身
+
+**例外 / 豁免**:
+
+1. **自动生成的文件**:`src/types/generated/index.ts`、`src/ipc.snapshot.json`、`src/ipc.snapshot.v2.json` —— 由 `cargo run --bin gen_ts_types` 生成,人改了下次也会被覆盖
+2. **第三方代码**:`node_modules/`、`target/`、`dist/`、vendored 库源码
+3. **CI 守门脚本的硬编码英文 grep 模式**:`scripts/check-*.mjs` 中用作检测标志的英文短语不能改(改了会破坏 CI)
+4. **测试断言中的字面量字符串**:如果断言依赖特定英文字符串(如 `expect(result).toBe('up')`),该字面量是测试契约的一部分,不能翻译
+5. **README / CHANGELOG / 外部文档**:`README.md`、CHANGELOG、`docs/*.md` 不在本规范约束内(本身可能是中英混合,面向不同读者)
+
+**CI 校验**(v2.26 candidate,非强制):可扩展 `scripts/check-comment-density.mjs` 加一个 `--lang=zh` 模式,检测 `//` / `///` / `/** */` 注释行中是否含中文字符;不含则 warn。**当前版本仅作规范,不做硬卡**(避免一次性 6000 行 PR 难以 review)。
 
 ### 1.1 必须有注释
 
@@ -314,6 +367,7 @@ def test_efficiency_axiom_holds_at_extremes():
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v2.26 | 2026-06-24 | **新增 §1.0 注释中文化硬规则**。所有 `///` / `//!` / `//` / `/** */` / `""" """` / `#` 一律中文;标识符、字符串字面量、SQL/Rust/TS 代码本身保持原样。例外:自动生成文件 (`src/types/generated/*` / `ipc.snapshot*.json`)、`node_modules/` / `target/` / `dist/`、CI 守门脚本的 grep 模式、测试断言字面量、README/CHANGELOG 外部文档。本规则为规范,不进 CI 硬卡(避免一次性 6000 行 PR 难以 review)。380+ 文件已分批翻译完成(详见各 module PR/commit log)。 |
 | v2.11 | 2026-06-21 | v0.88: codegen Phase 4 输入 DTO commands DONE — 5 sub-versions (a/b/c/d/e) 加 13 commands (add_wallet / set_telemetry_enabled / set_mirror_paper_mode / add_copy_target / enqueue_mirror / place_signed_order / place_jump_link / set_audit_retention / upsert_llm_provider / set_auto_promote_config / llm_analyze / run_mirror_executor_pass + place_jump_link codegen stub) drift-protected。17% → 28% codegen coverage (19 → 31 commands drift-protected / 112 IPCs)。v0.86b OptionBigInt wrapper 在 Phase 4 实战验证(input `Option<i64>` + nested Vec<LlmRecommendationDtoCodegen> 都正常)。`docs/codegen-migration-plan.md` Phase 4 标 DONE。 |
 | v2.12 | 2026-06-21 | v0.89: coverage ratchet round 4 — 阈值 86/83/79/87 → 87/84/81/88 (+1pp on all 4 dims)。3 sub-versions (a/b/c) + final = 4 commits, 3 new test files (+34 tests): Bankroll.branches.test.tsx (+18, 36.36→88.63% branches — biggest single-route jump in project history), Trade.MarketDetail.branches.test.tsx (+9, Trade 66.66→100% + MarketDetail 72.72→90.9% branches), Notifications.branches.test.tsx (+7, 66.66→100% on all 4 dims, file maxed)。Coverage 87.46/85.39/81.61/88.64,headroom 0.46/1.39/0.61/0.64pp。Test count 944→960 (+16)。ModelLab fn 59→75 deferred to v0.91 (useTrainProgress custom hook refactor)。`vitest.config.ts` thresholds block + history comment updated; `docs/overview.md` v2.52→v2.53 changelog entry added. 详细见 `docs/polyrocket-v0.89-final.md` ship log。 |
 | v2.13 | 2026-06-21 | v0.90 + v0.91: codegen Phase 5 build pipeline + useTrainProgress custom hook。1 commit combined, 3 new files (+312 lines): `scripts/gen-ts-with-stub.sh` (+50, dist/ stub wrapper), `src/hooks/useTrainProgress.ts` (+113, extracted hook from ModelLab.tsx), `src/hooks/useTrainProgress.test.ts` (+149, 7 tests)。**v0.90 migration plan Phases 1+2+3+4+5 全部 DONE** — `pnpm build` / `pnpm tauri:build` 现在 auto-regenerate `src/types/generated/index.ts`,drift caught at build time。19→31 commands drift-protected (28% of 112 IPCs)。**v0.91 useTrainProgress**: 填 v0.83 deferred branch coverage gap — extract ModelLab 内的 train-progress useEffect 到独立 hook,7 tests 全过 (7/7), hook coverage 100/100/87.5/100。Coverage 87.5/85.5/81.6/88.7 (was 87.5/85.4/81.6/88.6), test count 960→967 (+7)。`vitest.config.ts` 加 `src/hooks/**` 到 coverage include。改动 6 modified + 3 NEW。详细见 `docs/polyrocket-v0.90-91-final.md` ship log。 |

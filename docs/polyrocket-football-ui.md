@@ -646,7 +646,366 @@ football.brief.export_image      "Export as image"
 
 ---
 
-## 11. 与现有 docs 的关系
+## 11. 竞品对标功能 UI 规范 (v0.126-v0.130)
+
+> 对应 PRD §4.7 竞品对标功能。以下为 P0/P1/P2 功能的界面设计。
+
+### 11.1 P0-1: 聪明钱 Market Strength 评分
+
+**位置**: MarketDetail 页新增第 6 个 tab "Smart Money"
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ MarketDetail · Argentina vs Austria · World Cup 2026        │
+├─────────────────────────────────────────────────────────────┤
+│ [Overview] [Analysis] [Framework] [Polymarket] [Trade] [Smart Money] │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌─ Smart Money Score ──────────────────────────────────┐   │
+│  │                                                       │   │
+│  │     YES side: 72/100  ████████████████░░░░  "Smart"  │   │
+│  │     NO side:  28/100  ██████░░░░░░░░░░░░░░  "Weak"   │   │
+│  │                                                       │   │
+│  │     → YES 持仓者更聪明 (win-rate 67%, avg PnL +$3.2k)│   │
+│  └───────────────────────────────────────────────────────┘   │
+│                                                              │
+│  ┌─ YES Holders Breakdown ──────┐  ┌─ NO Holders Breakdown ─┐│
+│  │ Wallet count:    142          │  │ Wallet count:    89    ││
+│  │ Avg PnL:         +$3,200      │  │ Avg PnL:         -$850 ││
+│  │ Win rate:        67%          │  │ Win rate:        41%   ││
+│  │ Median position: $450         │  │ Median position: $220  ││
+│  │ Top wallets:                  │  │ Top wallets:           ││
+│  │  0x1a2b…  +$12k  78% WR      │  │  0x3c4d…  +$2k   52% WR││
+│  │  0x5e6f…  +$8k   71% WR      │  │  0x7g8h…  -$1k   38% WR││
+│  └───────────────────────────────┘  └────────────────────────┘│
+│                                                              │
+│  ┌─ Score Methodology ──────────────────────────────────┐    │
+│  │ Score = weighted blend of:                            │   │
+│  │  • 40% — Avg holder win rate (last 30d, resolved mkts)│   │
+│  │  • 30% — Weighted PnL (position-size weighted)       │   │
+│  │  • 20% — Trader quality tier (top 10% / 25% / 50%)   │   │
+│  │  • 10% — New wallet ratio (lower = more trusted)     │   │
+│  └───────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**组件**: `SmartMoneyTab`
+- IPC: `smart_money_score(market_id) → { yes_score, no_score, yes_breakdown, no_breakdown, methodology }`
+- 颜色: score ≥ 70 绿 / 40-70 黄 / < 40 红
+
+### 11.2 P0-2: 足球赛程日历视图
+
+**位置**: Football Hub 顶部新增 `[List] [Calendar]` toggle
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Football Hub                              [List] [Calendar]│
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌─ June 2026 ─────────────────────────────────────────┐    │
+│  │  Mon   Tue   Wed   Thu   Fri   Sat   Sun            │    │
+│  │  ───   ───   ───   ───   ───   ───   ───            │    │
+│  │  19    20    21    22    23    24    25              │    │
+│  │                          ⚽     ⚽                    │    │
+│  │                       ARG vs  FRA vs                 │    │
+│  │                       AUT     GER                     │    │
+│  │                       17:00   20:00                   │    │
+│  │                       +7.6%   +3.2%                   │    │
+│  │                                                       │    │
+│  │  26    27    28    29    30    1     2               │    │
+│  │  ⚽          ⚽          ⚽                             │    │
+│  │  BRA vs     ESP vs     JPN vs                         │    │
+│  │  MEX         SUI         ECU                          │    │
+│  │  15:00       18:00       21:00                        │    │
+│  │  +5.1%       +2.8%       +4.3%                        │    │
+│  └───────────────────────────────────────────────────────┘    │
+│                                                              │
+│  Click any fixture → /football/fixtures/:matchId             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**组件**: `CalendarView`
+- IPC: `market_calendar(month) → [{ date, fixtures: [{ market_id, home, away, time, edge }] }]`
+- 日期格: 有比赛的日期显示球队缩写 + edge；无比赛灰色
+- 支持月份切换 `< Jun 2026 >`
+
+### 11.3 P0-3: Spike 检测 + 实时警报
+
+**位置**: 通知中心 + MarketDetail header badge
+
+```
+┌─ Spike Alert (notification) ───────────────────────────────┐
+│ ⚡ SPIKE DETECTED · 60s ago                                 │
+│                                                              │
+│ Argentina vs Austria · O/U 2.5                              │
+│ Price moved: 50.5% → 58.2% (+7.7% in 90s)                  │
+│ Likely catalyst: Goal scored (ARG)                          │
+│                                                              │
+│ [View Market →]  [Dismiss]                                  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**MarketDetail header**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Argentina vs Austria    ⚡ SPIKE +7.7% (90s)   [Refresh ↻] │
+│  World Cup 2026 · 17:00 UTC                                 │
+├─────────────────────────────────────────────────────────────┤
+│  ...                                                         │
+│  ┌─ Price History (last 5 min) ────────────────────────┐    │
+│  │         ╱╲                                            │    │
+│  │    ╱╲  ╱  ╲     ╱╲                                    │    │
+│  │ ──╱──╲╱────╲───╱──╲────────  ← spike marker ⚡      │    │
+│  │ 50%    52%    55%     58.2%                          │    │
+│  └──────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**组件**: `SpikeBadge` (header) + `SpikeAlert` (notification) + price chart spike marker
+- IPC: `spike_alerts(limit) → [{ market_id, old_price, new_price, change_pct, detected_at }]`
+
+### 11.4 P1-1: 新闻→市场关联引擎
+
+**位置**: MarketDetail 新增 "News" tab
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ [Overview] [Analysis] [Framework] [Polymarket] [News] [Trade]│
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌─ Catalyst News ──────────────────────────────────────┐   │
+│  │                                                       │   │
+│  │  📰 2 hours ago · ESPN                                │   │
+│  │  "Messi confirmed in starting lineup vs Austria"     │   │
+│  │  Match: Argentina vs Austria · Relevance: 94%        │   │
+│  │  Impact: ↑ increases ARG win probability             │   │
+│  │  [Open source ↗]                                     │   │
+│  │                                                       │   │
+│  │  📰 5 hours ago · BBC Sport                           │   │
+│  │  "Austria defender sidelined with injury"            │   │
+│  │  Match: Argentina vs Austria · Relevance: 87%        │   │
+│  │  Impact: ↑ favorable for ARG                         │   │
+│  │  [Open source ↗]                                     │   │
+│  │                                                       │   │
+│  └───────────────────────────────────────────────────────┘   │
+│                                                              │
+│  [Refresh news ↻]  [Configure sources ⚙]                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**组件**: `NewsTab`
+- IPC: `market_news(market_id) → [{ title, source, url, published_at, relevance_score, impact_direction }]`
+
+### 11.5 P1-2: NL→查询
+
+**位置**: CommandPalette (Cmd+K) 增强 + `/search` 路由
+
+```
+┌─ CommandPalette (Cmd+K) ────────────────────────────────────┐
+│                                                              │
+│  🔍 Ask anything about football markets...                  │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │ tonight's Premier League +EV matches                  │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                                                              │
+│  ┌─ AI Results ────────────────────────────────────────┐    │
+│  │                                                       │   │
+│  │  #1  Arsenal vs Chelsea  · O/U 2.5                   │   │
+│  │      Polymarket 50.5% → Our 58.1%  edge +7.6%       │   │
+│  │      [Open Market →]                                 │   │
+│  │                                                       │   │
+│  │  #2  Liverpool vs Man City · TeamWin                 │   │
+│  │      Polymarket 45% → Our 51.2%  edge +6.2%          │   │
+│  │      [Open Market →]                                 │   │
+│  │                                                       │   │
+│  │  Query: SELECT * FROM markets WHERE ... (expand)     │   │
+│  └───────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**组件**: `NlSearch` (CommandPalette 集成)
+- IPC: `nl_query(text) → { sql, results: [{ market_id, question, yes_price, model_prob, edge }] }`
+
+### 11.6 P1-3: 平台内套利扫描
+
+**位置**: Edge Board 新增 "Arb" filter toggle
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Edge Board         [Edge] [Arb ✓] [All]    Showing 3 arb   │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌─ Arb Opportunity #1 ────────────────────────────────┐    │
+│  │  Brazil vs Mexico · Team Win                         │   │
+│  │  YES cost: $0.48  +  NO cost: $0.47  = $0.95         │   │
+│  │  Profit margin: $0.05 (5.3%)                         │   │
+│  │  [Buy YES @ $0.48]  [Buy NO @ $0.47]  [Details →]   │   │
+│  ├──────────────────────────────────────────────────────┤   │
+│  │  Japan vs Ecuador · O/U 2.5                          │   │
+│  │  YES cost: $0.52  +  NO cost: $0.45  = $0.97         │   │
+│  │  Profit margin: $0.03 (3.1%)                         │   │
+│  │  [Buy YES @ $0.52]  [Buy NO @ $0.45]  [Details →]   │   │
+│  └──────────────────────────────────────────────────────┘    │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**组件**: `ArbCard` (Edge Board 复用)
+- IPC: `arb_scan() → [{ market_id, yes_cost, no_cost, total_cost, profit_margin }]`
+
+### 11.7 P1-4: 跨平台套利 (Polymarket ↔ Kalshi)
+
+**位置**: 新路由 `/football/arb-board`
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Cross-Platform Arbitrage Board                              │
+│  Polymarket ↔ Kalshi · Football markets only                │
+│  [Refresh ↻]  Last scan: 2 min ago                          │
+├─────────────────────────────────────────────────────────────┤
+│  Filters: [Competition ▾] [Min Spread 3% ▾]                 │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌─ Arb #1 ────────────────────────────────────────────┐    │
+│  │  Argentina vs Austria · Will Argentina win?         │   │
+│  │                                                      │   │
+│  │  Polymarket:  YES $0.665  (66.5%)                   │   │
+│  │  Kalshi:      YES $0.610  (61.0%)                   │   │
+│  │  Spread:      5.5%  →  Buy Kalshi YES, sell PM YES  │   │
+│  │  Est. profit: $55 per $1,000                        │   │
+│  │  [Trade on Polymarket →]  [Trade on Kalshi →]       │   │
+│  ├──────────────────────────────────────────────────────┤   │
+│  │  ...                                                 │   │
+│  └──────────────────────────────────────────────────────┘    │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**组件**: `ArbBoard`
+- IPC: `cross_platform_arb_scan() → [{ match, market_question, pm_price, kalshi_price, spread, direction, est_profit }]`
+
+### 11.8 P2-1: 正确比分概率矩阵
+
+**位置**: FixtureDetail → Poisson tab 内新增
+
+```
+┌─ Poisson Model · Score Matrix ──────────────────────────────┐
+│                                                              │
+│  λ_home = 1.85  λ_away = 0.95  (Dixon-Coles adjusted)       │
+│                                                              │
+│         Away Goals                                           │
+│         0      1      2      3      4                        │
+│  H  ┌────────┬────────┬────────┬────────┬────────┐           │
+│  o 0│ 14.2%  │ 13.5%  │  6.4%  │  2.0%  │  0.5%  │          │
+│  m  │ ██████ │ ██████ │ ███    │ █      │ ▏      │          │
+│  e  ├────────┼────────┼────────┼────────┼────────┤           │
+│    1│ 26.3%  │ 25.0%  │ 11.9%  │  3.8%  │  0.9%  │          │
+│    │████████│████████│█████   │██      │▎       │          │
+│    ├────────┼────────┼────────┼────────┼────────┤           │
+│    2│ 24.3%  │ 23.1%  │ 11.0%  │  3.5%  │  0.8%  │          │
+│    │████████│████████│█████   │██      │▎       │          │
+│    ├────────┼────────┼────────┼────────┼────────┤           │
+│    3│ 15.0%  │ 14.3%  │  6.8%  │  2.2%  │  0.5%  │          │
+│    │██████  │██████  │███     │█       │▏       │          │
+│    ├────────┼────────┼────────┼────────┼────────┤           │
+│    4│  6.9%  │  6.6%  │  3.1%  │  1.0%  │  0.2%  │          │
+│    │████    │████    │█       │▎       │        │          │
+│  └────────┴────────┴────────┴────────┴────────┘              │
+│                                                              │
+│  Most likely: 1-1 (25.0%)  ·  2-1 (23.1%)  ·  2-0 (24.3%)   │
+│  Heatmap: darker = higher probability                        │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**组件**: `ScoreMatrix` (5×5 grid heatmap)
+- IPC: `poisson_score_matrix(match_id) → { lambda_h, lambda_a, matrix: [[f64; 5]; 5], most_likely: [(score, prob)] }`
+
+### 11.9 P2-2: 休息天数 / 赛程密度
+
+**位置**: FixtureDetail → Match Info tab 内显示
+
+```
+┌─ Match Info ────────────────────────────────────────────────┐
+│                                                              │
+│  Home: Argentina           Away: Austria                     │
+│  ─────────────────         ─────────────────                 │
+│  Last match: Jun 19        Last match: Jun 18                │
+│  Rest days: 3              Rest days: 4                      │
+│  Matches (7d): 2           Matches (7d): 2                   │
+│  Fatigue index: Low        Fatigue index: Low                │
+│                                                              │
+│  ⚠ Argentina has 1 less rest day (potential disadvantage)   │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 11.10 P2-3: UMA 争议追踪
+
+**位置**: MarketDetail header badge
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Argentina vs Austria    ⚖ UMA DISPUTED   [Refresh ↻]      │
+│  World Cup 2026 · Resolving                                 │
+│  ┌─ UMA Dispute ────────────────────────────────────────┐   │
+│  │  Status: Disputed (2 parties disagree on outcome)    │   │
+│  │  Dispute raised: 2 hours ago by 0x1a2b…              │   │
+│  │  Resolution: Pending UMA vote                        │   │
+│  │  [View on Polymarket ↗]  [Track ↗]                  │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**组件**: `UmaDisputeBadge`
+- IPC: `uma_dispute_status(market_id) → { status: 'clear' | 'disputed' | 'resolving', detail, raised_at }`
+
+### 11.11 新增路由汇总
+
+| 路由 | 组件 | 优先级 |
+|---|---|---|
+| `/football/arb-board` | ArbBoard | P1-4 |
+| `/search` (复用 CommandPalette) | NlSearch | P1-2 |
+
+### 11.12 新增 i18n keys
+
+```
+nav.arb_board          "Arbitrage Board"
+nav.smart_money        "Smart Money"
+nav.news               "News"
+
+smart_money.score      "Smart Money Score"
+smart_money.yes_side   "YES side"
+smart_money.no_side    "NO side"
+smart_money.methodology "Score Methodology"
+
+calendar.title         "Schedule Calendar"
+calendar.no_fixtures   "No fixtures this month"
+
+spike.detected         "Spike Detected"
+spike.price_moved      "Price moved"
+
+news.catalyst          "Catalyst News"
+news.relevance         "Relevance"
+news.impact            "Impact"
+
+arb.title              "Arbitrage Opportunities"
+arb.yes_cost           "YES cost"
+arb.no_cost            "NO cost"
+arb.profit_margin      "Profit margin"
+arb.cross_platform     "Cross-Platform Arbitrage"
+
+poisson.score_matrix   "Score Matrix"
+poisson.most_likely    "Most likely score"
+
+uma.disputed           "UMA Disputed"
+uma.resolving          "Resolving"
+
+rest_days              "Rest days"
+fatigue_index          "Fatigue index"
+```
+
+---
+
+## 12. 与现有 docs 的关系
 
 | Doc | 关系 |
 |---|---|
