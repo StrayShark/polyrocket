@@ -76,6 +76,7 @@ fn loop_registry() -> &'static HashMap<&'static str, AtomicU64> {
             "sidecar_health",
             "paper_fills_reconcile",
             "degradation_check",
+            "signals_refresh", // v0.127
         ] {
             m.insert(name, AtomicU64::new(0));
         }
@@ -165,6 +166,7 @@ pub fn self_test() -> SchedulerSelfTest {
         ("sidecar_health",       30 * 1000),
         ("paper_fills_reconcile", 5 * 60 * 1000),
         ("degradation_check",    60 * 60 * 1000),
+        ("signals_refresh",      cfg.signals_refresh_interval.as_millis() as u64), // v0.127
     ];
     let reg = loop_registry();
     let mut loops: Vec<LoopStatus> = expected_ms
@@ -209,7 +211,8 @@ const DEFAULT_MIRROR_TICK_SEC: u64 = 30;
 /// 调度 loop 的可调参数（cadence + tz 等）。所有字段都从 env var 读，默认值
 /// 在 `DEFAULT_*` 常量里。
 ///
-/// **新增字段**：v0.6a 加 `mirror_tick`。每次加新 loop 时记得：
+/// **新增字段**：v0.6a 加 `mirror_tick`;v0.127 加 `signals_refresh_interval`。
+/// 每次加新 loop 时记得：
 ///   1. 在 `SchedulerConfig` 加字段
 ///   2. 在 `from_env` 读 env
 ///   3. 在 `loop_registry` 加 loop_name
@@ -226,6 +229,8 @@ pub struct SchedulerConfig {
     pub anomaly_window: Duration,
     /// v0.6a —— mirror executor tick 间隔。默认 30s。
     pub mirror_tick: Duration,
+    /// v0.127 —— signals_refresh loop tick 间隔。默认 30 min。
+    pub signals_refresh_interval: Duration,
 }
 
 impl SchedulerConfig {
@@ -238,6 +243,7 @@ impl SchedulerConfig {
     ///   - `POLYROCKET_DAILY_BRIEF_TZ_OFFSET_MIN`   (i32, default 0)
     ///   - `POLYROCKET_ANOMALY_WINDOW_MIN`          (u64, default 60)
     ///   - `POLYROCKET_MIRROR_TICK_SEC`             (u64, default 30)
+    ///   - `POLYROCKET_SIGNALS_REFRESH_MIN`         (u64, default 30) v0.127
     pub fn from_env() -> Self {
         Self {
             health_probe_interval: Duration::from_secs(
@@ -253,6 +259,9 @@ impl SchedulerConfig {
             ),
             mirror_tick: Duration::from_secs(
                 env_u64("POLYROCKET_MIRROR_TICK_SEC", DEFAULT_MIRROR_TICK_SEC),
+            ),
+            signals_refresh_interval: Duration::from_secs(
+                60 * env_u64("POLYROCKET_SIGNALS_REFRESH_MIN", signals_refresh::DEFAULT_SIGNALS_REFRESH_MIN),
             ),
         }
     }
@@ -274,9 +283,9 @@ impl SchedulerHandle {
     }
 }
 
-/// 启动所有后台调度 loop。8 个 `tokio::spawn` 任务：health_probe / daily_brief /
+/// 启动所有后台调度 loop。9 个 `tokio::spawn` 任务：health_probe / daily_brief /
 /// anomaly / mirror_executor / audit_purge / sidecar_health / paper_fills_reconcile /
-/// degradation_check。
+/// degradation_check / signals_refresh (v0.127)。
 ///
 /// **调用方**：`lib.rs::run()` 在 `setup` hook 里调一次。返回的 `SchedulerHandle`
 /// 在生产里直接 drop（loop 跑进程级），在测试里用来收尾。
@@ -380,6 +389,19 @@ pub fn start(pool: SqlitePool, http: reqwest::Client) -> SchedulerHandle {
         let shutdown = shutdown.clone();
         tokio::spawn(async move {
             run_market_anomaly_loop(pool, cfg, shutdown).await;
+        });
+    }
+    {
+        // v0.127 —— signals_refresh:每 30 分钟重算所有
+        // active football market 的 smart_money_score
+        // + crowd_opinion,UPSERT 到
+        // `market_signal_cache` 表。L1 走 cache 避免
+        // 每次 MarketDetail 现场重算。
+        let pool = pool.clone();
+        let cfg = cfg.clone();
+        let shutdown = shutdown.clone();
+        tokio::spawn(async move {
+            signals_refresh::run_signals_refresh_loop(pool, cfg, shutdown).await;
         });
     }
 
@@ -2011,11 +2033,11 @@ mod self_test_tests {
     use super::*;
 
     /// v0.49c —— loop 名字列表跨进程稳定。
-    /// 若加第 9 个 loop,本测试会失败;请更新列表。
+    /// 若加第 10 个 loop,本测试会失败;请更新列表。
     #[test]
-    fn self_test_returns_eight_loops() {
+    fn self_test_returns_nine_loops() {
         let st = self_test();
-        assert_eq!(st.loops.len(), 8, "got: {st:?}");
+        assert_eq!(st.loops.len(), 9, "got: {st:?}");
         // 按 name 字母序排序。
         let names: Vec<&str> = st.loops.iter().map(|l| l.name).collect();
         let mut sorted = names.clone();
@@ -2031,6 +2053,7 @@ mod self_test_tests {
             "mirror_executor",
             "paper_fills_reconcile",
             "sidecar_health",
+            "signals_refresh", // v0.127
         ] {
             assert!(names.contains(&expected), "missing loop {expected}");
         }
@@ -2066,6 +2089,7 @@ mod self_test_tests {
             "mirror_executor",
             "paper_fills_reconcile",
             "sidecar_health",
+            "signals_refresh", // v0.127
         ] {
             record_tick(name);
         }
@@ -2083,3 +2107,8 @@ mod self_test_tests {
         record_tick("definitely_not_a_loop");
     }
 }
+
+// v0.127 —— signals_refresh 子模块以独立文件提供。
+// 包含 compute_scores (pure) + run_signals_refresh_loop (scheduler)
+// + run_signals_refresh_now (IPC) + 单元测试。
+pub mod signals_refresh;

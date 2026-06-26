@@ -567,5 +567,26 @@ pub async fn ensure_primary_tables(pool: &SqlitePool) -> sqlx::Result<()> {
     .execute(pool)
     .await?;
 
+    // v0.127 —— market_signal_cache 表：用于 signals_refresh 调度循环
+    // 缓存 smart_money_score + crowd_opinion 的计算结果。
+    // 避免 L1 每次进入 MarketDetail 都触发一次重计算(涉及 bets + wallets JOIN)。
+    // scheduler 每 30 分钟 (POLYROCKET_SIGNALS_REFRESH_MIN) 重新计算所有
+    // 活跃 market 的两个分数并 UPSERT,MarketDetail 优先读 cache
+    // (由 IPC 内部判断 cache 是否新鲜,< 30 min 走 cache,
+    // 否则现场重算并写回)。
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS market_signal_cache (
+            market_id TEXT PRIMARY KEY,
+            smart_money_yes REAL NOT NULL,
+            smart_money_no REAL NOT NULL,
+            crowd_yes REAL NOT NULL,
+            crowd_no REAL NOT NULL,
+            computed_at INTEGER NOT NULL,
+            bet_count INTEGER NOT NULL DEFAULT 0
+        )",
+    )
+    .execute(pool)
+    .await?;
+
     Ok(())
 }
