@@ -22,15 +22,15 @@ export const commands = {
 	model_version: string,
 	best_brier: number | null,
 	/**
-	 *  v0.84b — `best_params: Option<serde_json::Value>` is omitted
-	 *  from the codegen stub because `serde_json::Value` doesn't
-	 *  implement `specta::Type`. The L1 layer keeps it as
-	 *  `Record<string, unknown> | null` in the hand-written
-	 *  `ActiveModel` interface (src/ipc.ts:1227). Drift detection
-	 *  for this field is therefore limited to the L1 layer
-	 *  (covered by the existing v2 contract test). v0.84+ may
-	 *  add a custom Type impl for serde_json::Value.
-	 *  v0.86b — Option<OptionBigInt<i64>> → TS `bigint | null`
+	 *  v0.84b —— `best_params: Option<serde_json::Value>` 在 codegen
+	 *  存根中被省略，因为 `serde_json::Value` 没有实现
+	 *  `specta::Type`。L1 层在手写的
+	 *  `ActiveModel` 接口（src/ipc.ts:1227）中将其保留为
+	 *  `Record<string, unknown> | null`。因此该字段的
+	 *  drift 检测仅限于 L1 层（由现有的 v2 contract
+	 *  测试覆盖）。v0.84+ 可能为 serde_json::Value
+	 *  添加自定义 Type 实现。
+	 *  v0.86b —— Option<OptionBigInt<i64>> → TS `bigint | null`
 	 */
 	promoted_at_ms: bigint | null,
 	weights: (number | null)[] | null,
@@ -53,130 +53,160 @@ export const commands = {
 	llmAnalyzeCodegen: (args: LlmAnalyzeArgsCodegen) => typedError<LlmAnalysisDtoCodegen, string>(__TAURI_INVOKE("llm_analyze_codegen", { args })),
 	runMirrorExecutorPassCodegen: (args: RunMirrorPassArgsCodegen) => typedError<ExecutorPassResultCodegen, string>(__TAURI_INVOKE("run_mirror_executor_pass_codegen", { args })),
 	/**
-	 *  v0.98 — codegen stub for `list_bets`. Real return type
-	 *  is `Vec<BetDto>`. Empty stub.
+	 *  v0.98 —— `list_bets` 的 codegen 存根。真实返回类型为
+	 *  `Vec<BetDto>`。空存根。
 	 */
 	listBetsCodegen: (args: ListBetsArgsCodegen) => typedError<BetDtoCodegen[], string>(__TAURI_INVOKE("list_bets_codegen", { args })),
 	/**
-	 *  v0.98 — codegen stub for `list_audit_log`. Real return
-	 *  type is `Vec<AuditEntry>`. Empty stub.
+	 *  v0.98 —— `list_audit_log` 的 codegen 存根。真实返回类型为
+	 *  `Vec<AuditEntry>`。空存根。
 	 */
 	listAuditLogCodegen: (args: ListAuditLogArgsCodegen) => typedError<AuditEntryDtoCodegen[], string>(__TAURI_INVOKE("list_audit_log_codegen", { args })),
 	/**
-	 *  v0.98 — codegen stub for `list_copy_targets`. Real
-	 *  return type is `Vec<CopyTarget>`. Empty stub.
+	 *  v0.98 —— `list_copy_targets` 的 codegen 存根。真实返回类型为
+	 *  `Vec<CopyTarget>`。空存根。
 	 */
 	listCopyTargetsCodegen: () => typedError<CopyTargetDtoCodegen[], string>(__TAURI_INVOKE("list_copy_targets_codegen")),
 	/**
-	 *  v0.98 — codegen stub for `list_promote_history`. Real
-	 *  return type is `PromoteHistoryResult` (uses existing
-	 *  `listPromoteHistory` from v0.76). Empty stub.
+	 *  v0.98 —— `list_promote_history` 的 codegen 存根。真实返回类型为
+	 *  `PromoteHistoryResult`（复用 v0.76 中的 `listPromoteHistory`）。
+	 *  空存根。
 	 */
 	listPromoteHistoryCodegen: () => typedError<ListPromoteHistoryCodegen, string>(__TAURI_INVOKE("list_promote_history_codegen")),
-	/**  v0.101a — codegen stub for `llm_stats_heatmap`. */
+	/**  v0.101a —— `llm_stats_heatmap` 的 codegen 存根。 */
 	llmStatsHeatmapCodegen: (args: StatsArgsCodegen) => typedError<LlmStatsCellCodegen[], string>(__TAURI_INVOKE("llm_stats_heatmap_codegen", { args })),
-	/**  v0.101a — codegen stub for `llm_stats_scatter`. */
+	/**  v0.101a —— `llm_stats_scatter` 的 codegen 存根。 */
 	llmStatsScatterCodegen: (windowDays: number | null) => typedError<LlmStatsScatterPointCodegen[], string>(__TAURI_INVOKE("llm_stats_scatter_codegen", { windowDays })),
-	/**  v0.101a — codegen stub for `llm_stats_timeseries`. */
+	/**  v0.101a —— `llm_stats_timeseries` 的 codegen 存根。 */
 	llmStatsTimeseriesCodegen: (windowDays: number | null) => typedError<LlmStatsTimeseriesPointCodegen[], string>(__TAURI_INVOKE("llm_stats_timeseries_codegen", { windowDays })),
-	/**  v0.101a — codegen stub for `llm_stats_decision`. */
+	/**  v0.101a —— `llm_stats_decision` 的 codegen 存根。 */
 	llmStatsDecisionCodegen: (windowDays: number | null) => typedError<LlmDecisionStatsCodegen[], string>(__TAURI_INVOKE("llm_stats_decision_codegen", { windowDays })),
-	/**  v0.101b — codegen stub for `llm_stats_by_confidence`. */
+	/**  v0.101b —— `llm_stats_by_confidence` 的 codegen 存根。 */
 	llmStatsByConfidenceCodegen: (args: StatsByConfidenceArgsCodegen) => typedError<LlmStatsConfidenceBandCodegen[], string>(__TAURI_INVOKE("llm_stats_by_confidence_codegen", { args })),
-	/**  v0.101b — codegen stub for `llm_stats_by_prompt`. */
+	/**  v0.101b —— `llm_stats_by_prompt` 的 codegen 存根。 */
 	llmStatsByPromptCodegen: (args: StatsByPromptArgsCodegen) => typedError<LlmStatsByPromptCodegen[], string>(__TAURI_INVOKE("llm_stats_by_prompt_codegen", { args })),
-	/**  v0.101b — codegen stub for `llm_stats_cost_efficiency`. */
+	/**  v0.101b —— `llm_stats_cost_efficiency` 的 codegen 存根。 */
 	llmStatsCostEfficiencyCodegen: (windowDays: number | null) => typedError<LlmStatsCostEfficiencyCodegen[], string>(__TAURI_INVOKE("llm_stats_cost_efficiency_codegen", { windowDays })),
 	/**
-	 *  v0.101b — codegen stub for `llm_stats_export`. Returns string
-	 *  (CSV or JSON) the L1 layer saves via tauri-plugin-fs.
+	 *  v0.101b —— `llm_stats_export` 的 codegen 存根。返回字符串
+	 * （CSV 或 JSON），L1 层通过 tauri-plugin-fs 保存。
 	 */
 	llmStatsExportCodegen: (args: ExportStatsArgsCodegen) => typedError<string, string>(__TAURI_INVOKE("llm_stats_export_codegen", { args })),
-	/**  v0.101c — codegen stub for `llm_traffic_summary`. */
+	/**  v0.101c —— `llm_traffic_summary` 的 codegen 存根。 */
 	llmTrafficSummaryCodegen: (args: TrafficArgsCodegen) => typedError<LlmTrafficSummaryCodegen[], string>(__TAURI_INVOKE("llm_traffic_summary_codegen", { args })),
-	/**  v0.101c — codegen stub for `scheduler_status`. */
+	/**  v0.101c —— `scheduler_status` 的 codegen 存根。 */
 	schedulerStatusCodegen: () => typedError<SchedulerStatusCodegen, string>(__TAURI_INVOKE("scheduler_status_codegen")),
-	/**  v0.101c — codegen stub for `scheduler_run_health_probe_now`. */
+	/**  v0.101c —— `scheduler_run_health_probe_now` 的 codegen 存根。 */
 	schedulerRunHealthProbeNowCodegen: () => typedError<TriggerResultCodegen, string>(__TAURI_INVOKE("scheduler_run_health_probe_now_codegen")),
-	/**  v0.101c — codegen stub for `scheduler_run_daily_brief_now`. */
+	/**  v0.101c —— `scheduler_run_daily_brief_now` 的 codegen 存根。 */
 	schedulerRunDailyBriefNowCodegen: () => typedError<TriggerResultCodegen, string>(__TAURI_INVOKE("scheduler_run_daily_brief_now_codegen")),
 	/**
-	 *  v0.101c — codegen stub for `scheduler_self_test_now`. Real
-	 *  impl is sync (not async) — it just reads atomics.
+	 *  v0.101c —— `scheduler_self_test_now` 的 codegen 存根。真实实现
+	 *  是同步的（非 async）—— 仅读取原子变量。
 	 */
 	schedulerSelfTestNowCodegen: () => typedError<SchedulerSelfTestCodegen, string>(__TAURI_INVOKE("scheduler_self_test_now_codegen")),
 	/**
-	 *  v0.102b — codegen stub for `degradation_check_now`. Returns
-	 *  () — the side effect is firing a telemetry event.
+	 *  v0.102b —— `degradation_check_now` 的 codegen 存根。返回
+	 *  () —— 副作用是触发一个 telemetry 事件。
 	 */
 	degradationCheckNowCodegen: (args: DegradationCheckNowArgsCodegen) => typedError<null, string>(__TAURI_INVOKE("degradation_check_now_codegen", { args })),
 	/**
-	 *  v0.102b — codegen stub for `purge_audit_log_now`. Returns
-	 *  `usize` count of purged rows.
+	 *  v0.102b —— `purge_audit_log_now` 的 codegen 存根。返回
+	 *  `usize` 表示被清理的行数。
 	 */
 	purgeAuditLogNowCodegen: () => typedError<number, string>(__TAURI_INVOKE("purge_audit_log_now_codegen")),
-	/**  v0.102b — codegen stub for `daily_brief_get`. */
+	/**  v0.102b —— `daily_brief_get` 的 codegen 存根。 */
 	dailyBriefGetCodegen: (args: BriefGetArgsCodegen) => typedError<DailyBriefEntryCodegen[], string>(__TAURI_INVOKE("daily_brief_get_codegen", { args })),
-	/**  v0.102b — codegen stub for `daily_brief_refresh`. */
+	/**  v0.102b —— `daily_brief_refresh` 的 codegen 存根。 */
 	dailyBriefRefreshCodegen: () => typedError<BriefRefreshResultCodegen, string>(__TAURI_INVOKE("daily_brief_refresh_codegen")),
-	/**  v0.102b — codegen stub for `daily_brief_dismiss`. */
+	/**  v0.102b —— `daily_brief_dismiss` 的 codegen 存根。 */
 	dailyBriefDismissCodegen: (args: BriefDismissArgsCodegen) => typedError<boolean, string>(__TAURI_INVOKE("daily_brief_dismiss_codegen", { args })),
-	/**  v0.102b — codegen stub for `daily_brief_set_prefs`. */
+	/**  v0.102b —— `daily_brief_set_prefs` 的 codegen 存根。 */
 	dailyBriefSetPrefsCodegen: (args: SetBriefPrefsArgsCodegen) => typedError<null, string>(__TAURI_INVOKE("daily_brief_set_prefs_codegen", { args })),
-	/**  v0.103b — codegen stub for `llm_provider_list`. */
+	/**  v0.103b —— `llm_provider_list` 的 codegen 存根。 */
 	llmProviderListCodegen: () => typedError<LlmProviderDtoFullCodegen[], string>(__TAURI_INVOKE("llm_provider_list_codegen")),
 	/**
-	 *  v0.103b — codegen stub for `llm_provider_upsert`. Takes
-	 *  the full LlmProviderDto.
+	 *  v0.103b —— `llm_provider_upsert` 的 codegen 存根。接收
+	 *  完整的 LlmProviderDto。
 	 */
 	llmProviderUpsertCodegen: (provider: LlmProviderDtoFullCodegen) => typedError<null, string>(__TAURI_INVOKE("llm_provider_upsert_codegen", { provider })),
-	/**  v0.103b — codegen stub for `llm_provider_delete`. */
+	/**  v0.103b —— `llm_provider_delete` 的 codegen 存根。 */
 	llmProviderDeleteCodegen: (providerId: string) => typedError<null, string>(__TAURI_INVOKE("llm_provider_delete_codegen", { providerId })),
-	/**  v0.103b2 — codegen stub for `llm_key_list`. */
+	/**  v0.103b2 —— `llm_key_list` 的 codegen 存根。 */
 	llmKeyListCodegen: (providerId: string | null) => typedError<LlmProviderKeyDtoCodegen[], string>(__TAURI_INVOKE("llm_key_list_codegen", { providerId })),
-	/**  v0.103b2 — codegen stub for `llm_key_upsert`. */
+	/**  v0.103b2 —— `llm_key_upsert` 的 codegen 存根。 */
 	llmKeyUpsertCodegen: (args: KeyUpsertArgsCodegen) => typedError<null, string>(__TAURI_INVOKE("llm_key_upsert_codegen", { args })),
-	/**  v0.103b2 — codegen stub for `llm_key_set_secret`. */
+	/**  v0.103b2 —— `llm_key_set_secret` 的 codegen 存根。 */
 	llmKeySetSecretCodegen: (args: KeySetSecretArgsCodegen) => typedError<null, string>(__TAURI_INVOKE("llm_key_set_secret_codegen", { args })),
-	/**  v0.103b2 — codegen stub for `llm_key_delete`. */
+	/**  v0.103b2 —— `llm_key_delete` 的 codegen 存根。 */
 	llmKeyDeleteCodegen: (keyId: string) => typedError<null, string>(__TAURI_INVOKE("llm_key_delete_codegen", { keyId })),
-	/**  v0.103b2 — codegen stub for `llm_test_connectivity`. */
+	/**  v0.103b2 —— `llm_test_connectivity` 的 codegen 存根。 */
 	llmTestConnectivityCodegen: (args: TestConnectivityArgsCodegen) => typedError<ConnectivityTestResultCodegen, string>(__TAURI_INVOKE("llm_test_connectivity_codegen", { args })),
-	/**  v0.103b2 — codegen stub for `llm_health_history`. */
+	/**  v0.103b2 —— `llm_health_history` 的 codegen 存根。 */
 	llmHealthHistoryCodegen: (providerId: string, limit: number | null) => typedError<LlmHealthCheckDtoCodegen[], string>(__TAURI_INVOKE("llm_health_history_codegen", { providerId, limit })),
-	/**  v0.103b2 — codegen stub for `llm_performance`. */
+	/**  v0.103b2 —— `llm_performance` 的 codegen 存根。 */
 	llmPerformanceCodegen: (windowDays: number | null, category: string | null) => typedError<LlmPerformanceRowCodegen[], string>(__TAURI_INVOKE("llm_performance_codegen", { windowDays, category })),
-	/**  v0.104b — codegen stub for `train_job`. Takes TrainJobArgs. */
+	/**  v0.104b —— `train_job` 的 codegen 存根。接收 TrainJobArgs。 */
 	trainJobCodegen: (args: TrainJobArgsCodegen) => typedError<TrainResultCodegen, string>(__TAURI_INVOKE("train_job_codegen", { args })),
-	/**  v0.104b — codegen stub for `sync_markets`. Returns row count. */
+	/**  v0.104b —— `sync_markets` 的 codegen 存根。返回行数。 */
 	syncMarketsCodegen: () => typedError<number, string>(__TAURI_INVOKE("sync_markets_codegen")),
-	/**  v0.104b — codegen stub for `recompute_signals`. Returns row count. */
+	/**  v0.104b —— `recompute_signals` 的 codegen 存根。返回行数。 */
 	recomputeSignalsCodegen: () => typedError<number, string>(__TAURI_INVOKE("recompute_signals_codegen")),
-	/**  v0.104b — codegen stub for `sidecar_health_now`. */
+	/**  v0.104b —— `sidecar_health_now` 的 codegen 存根。 */
 	sidecarHealthNowCodegen: () => typedError<SidecarHealthSnapshotCodegen, string>(__TAURI_INVOKE("sidecar_health_now_codegen")),
-	/**  v0.104b — codegen stub for `sidecar_health_snapshot`. */
+	/**  v0.104b —— `sidecar_health_snapshot` 的 codegen 存根。 */
 	sidecarHealthSnapshotCodegen: () => typedError<SidecarHealthSnapshotCodegen, string>(__TAURI_INVOKE("sidecar_health_snapshot_codegen")),
-	/**  v0.104b — codegen stub for `start_sidecar`. */
+	/**  v0.104b —— `start_sidecar` 的 codegen 存根。 */
 	startSidecarCodegen: (args: StartSidecarArgsCodegen) => typedError<SidecarStatusCodegen, string>(__TAURI_INVOKE("start_sidecar_codegen", { args })),
-	/**  v0.104b — codegen stub for `stop_sidecar`. */
+	/**  v0.104b —— `stop_sidecar` 的 codegen 存根。 */
 	stopSidecarCodegen: () => typedError<SidecarStatusCodegen, string>(__TAURI_INVOKE("stop_sidecar_codegen")),
-	/**  v0.104b — codegen stub for `polyrocket_wallet_set_pk`. */
+	/**  v0.104b —— `polyrocket_wallet_set_pk` 的 codegen 存根。 */
 	polyrocketWalletSetPkCodegen: (args: WalletSetPkArgsCodegen) => typedError<null, string>(__TAURI_INVOKE("polyrocket_wallet_set_pk_codegen", { args })),
 	/**
-	 *  v0.105b — codegen stub for `audit_count_for_actor`. Returns
-	 *  `i64` (real impl), stub uses i32 placeholder.
+	 *  v0.105b —— `audit_count_for_actor` 的 codegen 存根。返回
+	 *  `i64`(真实实现),存根使用 i32 占位符。
 	 */
 	auditCountForActorCodegen: (actor: string) => typedError<number, string>(__TAURI_INVOKE("audit_count_for_actor_codegen", { actor })),
-	/**  v0.105b — codegen stub for `rollback_model`. */
+	/**  v0.105b —— `rollback_model` 的 codegen 存根。 */
 	rollbackModelCodegen: (args: RollbackModelArgsCodegen) => typedError<RollbackResultCodegen, string>(__TAURI_INVOKE("rollback_model_codegen", { args })),
-	/**  v0.105b — codegen stub for `auto_promote_if_better`. */
+	/**  v0.105b —— `auto_promote_if_better` 的 codegen 存根。 */
 	autoPromoteIfBetterCodegen: (args: AutoPromoteIfBetterArgsCodegen) => typedError<AutoPromoteIfBetterResultCodegen, string>(__TAURI_INVOKE("auto_promote_if_better_codegen", { args })),
-	/**  v0.105b — codegen stub for `backtest_model`. */
+	/**  v0.105b —— `backtest_model` 的 codegen 存根。 */
 	backtestModelCodegen: (args: BacktestModelArgsCodegen) => typedError<BacktestResultCodegen, string>(__TAURI_INVOKE("backtest_model_codegen", { args })),
-	/**  v0.105b — codegen stub for `promote_model`. */
+	/**  v0.105b —— `promote_model` 的 codegen 存根。 */
 	promoteModelCodegen: (args: PromoteModelArgsCodegen) => typedError<PromoteModelResultCodegen, string>(__TAURI_INVOKE("promote_model_codegen", { args })),
-	/**  v0.105b — codegen stub for `promote_all_trials`. */
+	/**  v0.105b —— `promote_all_trials` 的 codegen 存根。 */
 	promoteAllTrialsCodegen: () => typedError<PromoteAllTrialsResultCodegen, string>(__TAURI_INVOKE("promote_all_trials_codegen")),
+	/**  v0.126 —— `arb_scan` 的 codegen 存根。 */
+	arbScanCodegen: () => typedError<ArbOpportunityDtoCodegen[], string>(__TAURI_INVOKE("arb_scan_codegen")),
+	/**  v0.126 —— `list_arb_opportunities` 的 codegen 存根。 */
+	listArbOpportunitiesCodegen: (limit: number | null) => typedError<ArbOpportunityDtoCodegen[], string>(__TAURI_INVOKE("list_arb_opportunities_codegen", { limit })),
+	/**  v0.126 —— `market_calendar` 的 codegen 存根。 */
+	marketCalendarCodegen: (year: number, month: number) => typedError<CalendarDayDtoCodegen[], string>(__TAURI_INVOKE("market_calendar_codegen", { year, month })),
+	/**  v0.126 —— `cross_platform_arb_scan` 的 codegen 存根。 */
+	crossPlatformArbScanCodegen: () => typedError<CrossPlatformArbDtoCodegen[], string>(__TAURI_INVOKE("cross_platform_arb_scan_codegen")),
+	/**  v0.126 —— `crowd_opinion` 的 codegen 存根。 */
+	crowdOpinionCodegen: (marketId: string) => typedError<CrowdOpinionDtoCodegen, string>(__TAURI_INVOKE("crowd_opinion_codegen", { marketId })),
+	/**  v0.126 —— `get_football_context` 的 codegen 存根。 */
+	getFootballContextCodegen: (marketId: string) => typedError<FootballContextDtoCodegen, string>(__TAURI_INVOKE("get_football_context_codegen", { marketId })),
+	/**  v0.126 —— `reversion_signal` 的 codegen 存根。 */
+	reversionSignalCodegen: (marketId: string, window: number | null) => typedError<ReversionSignalDtoCodegen, string>(__TAURI_INVOKE("reversion_signal_codegen", { marketId, window })),
+	/**  v0.126 —— `market_news` 的 codegen 存根。 */
+	marketNewsCodegen: (marketId: string) => typedError<NewsItemDtoCodegen[], string>(__TAURI_INVOKE("market_news_codegen", { marketId })),
+	/**  v0.126 —— `list_all_news` 的 codegen 存根。 */
+	listAllNewsCodegen: (limit: number | null) => typedError<NewsItemDtoCodegen[], string>(__TAURI_INVOKE("list_all_news_codegen", { limit })),
+	/**  v0.126 —— `nl_query` 的 codegen 存根。 */
+	nlQueryCodegen: (query: string) => typedError<NlQueryResultDtoCodegen, string>(__TAURI_INVOKE("nl_query_codegen", { query })),
+	/**  v0.126 —— `poisson_score_matrix` 的 codegen 存根。 */
+	poissonScoreMatrixCodegen: (marketId: string) => typedError<ScoreMatrixResultDtoCodegen, string>(__TAURI_INVOKE("poisson_score_matrix_codegen", { marketId })),
+	/**  v0.126 —— `smart_money_score` 的 codegen 存根。 */
+	smartMoneyScoreCodegen: (marketId: string) => typedError<SmartMoneyScoreDtoCodegen, string>(__TAURI_INVOKE("smart_money_score_codegen", { marketId })),
+	/**  v0.126 —— `list_spike_alerts` 的 codegen 存根。 */
+	listSpikeAlertsCodegen: (limit: number | null) => typedError<SpikeAlertDtoCodegen[], string>(__TAURI_INVOKE("list_spike_alerts_codegen", { limit })),
+	/**  v0.126 —— `run_spike_scan` 的 codegen 存根。 */
+	runSpikeScanCodegen: () => typedError<number, string>(__TAURI_INVOKE("run_spike_scan_codegen")),
+	/**  v0.126 —— `uma_dispute_status` 的 codegen 存根。 */
+	umaDisputeStatusCodegen: (marketId: string) => typedError<UmaDisputeStatusDtoCodegen, string>(__TAURI_INVOKE("uma_dispute_status_codegen", { marketId })),
 };
 
 /* Types */
@@ -184,15 +214,15 @@ export type ActiveModelCodegen = {
 	model_version: string,
 	best_brier: number | null,
 	/**
-	 *  v0.84b — `best_params: Option<serde_json::Value>` is omitted
-	 *  from the codegen stub because `serde_json::Value` doesn't
-	 *  implement `specta::Type`. The L1 layer keeps it as
-	 *  `Record<string, unknown> | null` in the hand-written
-	 *  `ActiveModel` interface (src/ipc.ts:1227). Drift detection
-	 *  for this field is therefore limited to the L1 layer
-	 *  (covered by the existing v2 contract test). v0.84+ may
-	 *  add a custom Type impl for serde_json::Value.
-	 *  v0.86b — Option<OptionBigInt<i64>> → TS `bigint | null`
+	 *  v0.84b —— `best_params: Option<serde_json::Value>` 在 codegen
+	 *  存根中被省略，因为 `serde_json::Value` 没有实现
+	 *  `specta::Type`。L1 层在手写的
+	 *  `ActiveModel` 接口（src/ipc.ts:1227）中将其保留为
+	 *  `Record<string, unknown> | null`。因此该字段的
+	 *  drift 检测仅限于 L1 层（由现有的 v2 contract
+	 *  测试覆盖）。v0.84+ 可能为 serde_json::Value
+	 *  添加自定义 Type 实现。
+	 *  v0.86b —— Option<OptionBigInt<i64>> → TS `bigint | null`
 	 */
 	promoted_at_ms: bigint | null,
 	weights: (number | null)[] | null,
@@ -200,9 +230,9 @@ export type ActiveModelCodegen = {
 };
 
 /**
- *  v0.88b — codegen stub args for `add_copy_target`. Real
- *  `AddCopyTargetArgs` (commands/copy.rs) has no i64 fields — all
- *  plain string/f64. Codegen shape is identical to real.
+ *  v0.88b —— `add_copy_target` 的 codegen 存根参数。真实的
+ *  `AddCopyTargetArgs`（commands/copy.rs）没有 i64 字段 —— 都是
+ *  普通的 string/f64。Codegen 形状与真实相同。
  */
 export type AddCopyTargetArgsCodegen = {
 	address: string,
@@ -212,11 +242,11 @@ export type AddCopyTargetArgsCodegen = {
 };
 
 /**
- *  v0.88a — codegen stub args for `add_wallet`. Real
- *  `AddWalletArgs` (commands/wallet.rs:26) has `chain_id: Option<i64>`;
- *  we truncate to i32 since chain IDs are small (Polygon mainnet = 137,
- *  fits comfortably). A future drift in `label`/`address`/`wallet_type`
- *  types or in `chain_id`'s Option-ness will surface here.
+ *  v0.88a —— `add_wallet` 的 codegen 存根参数。真实的
+ *  `AddWalletArgs`（commands/wallet.rs:26）拥有 `chain_id: Option<i64>`；
+ *  我们截断到 i32，因为 chain ID 较小（Polygon 主网 = 137，
+ *  可轻松容纳）。`label`/`address`/`wallet_type` 类型或
+ *  `chain_id` 是否可选的未来漂移会在这里显现。
  */
 export type AddWalletArgsCodegen = {
 	address: string,
@@ -226,49 +256,59 @@ export type AddWalletArgsCodegen = {
 };
 
 /**
- *  One allocation for a single market. Multiple signals on the same
- *  market are grouped into a single `AllocationItem` (with
- *  `source_signal_ids` listing the merged signals).
+ *  单个市场的一项分配。同一市场的多个信号会被合并为单个
+ *  `AllocationItem`（`source_signal_ids` 列出合并的信号）。
  */
 export type AllocationItem = {
 	market_id: string,
 	side: BetSide,
 	/**
-	 *  Final size in USDC, rounded to 2 decimals (string to avoid
-	 *  float precision issues — the DB column is TEXT).
+	 *  最终 USDC 金额，保留两位小数（使用字符串以避免
+	 *  浮点精度问题 —— 数据库列为 TEXT）。
 	 */
 	size_usdc: string,
-	/**  Raw Kelly fraction before any caps. Range: [0, 1]. */
+	/**  应用任何上限之前的原始凯利比例。范围：[0, 1]。 */
 	kelly_pct: number | null,
-	/**  Why this allocation was capped, if at all. */
+	/**  若分配被上限限制，记录原因（若有）。 */
 	capped_reason: CappedReason | null,
-	/**  Original signal IDs that were merged into this allocation. */
+	/**  合并到本分配的原始信号 ID 列表。 */
 	source_signal_ids: string[],
-	/**  Model version (most recent among merged signals). */
+	/**  模型版本（合并信号中最近的版本）。 */
 	model_version: string,
-	/**  Confidence (max across merged signals). */
+	/**  置信度（合并信号中的最大值）。 */
 	confidence: number | null,
-	/**  Expected ROI = edge × confidence. Used for display only. */
+	/**  预期 ROI = edge × confidence。仅用于展示。 */
 	expected_roi: number | null,
 };
 
-/**  Final allocation result. */
+/**  最终分配结果。 */
 export type AllocationResult = {
-	/**  Total USDC allocated across all markets (sum of size_usdc). */
+	/**  所有市场分配的总 USDC（size_usdc 之和）。 */
 	total_allocated_usdc: string,
-	/**  USDC held in reserve (not allocated). */
+	/**  保留未分配的 USDC。 */
 	reserved_usdc: string,
-	/**  Per-market allocations. */
+	/**  每个市场的分配。 */
 	per_market: AllocationItem[],
-	/**  Markets dropped due to liquidity (kelly > 0 but couldn't fit). */
+	/**  因流动性问题被丢弃的市场（凯利 > 0 但无法容纳）。 */
 	dropped_markets: string[],
+};
+
+/**  v0.126 —— `ArbOpportunityDto` 形状。 */
+export type ArbOpportunityDtoCodegen = {
+	market_id: string,
+	question: string,
+	yes_cost: number | null,
+	no_cost: number | null,
+	total_cost: number | null,
+	profit_margin: number | null,
+	category: string,
 };
 
 export type AuditEntryDtoCodegen = {
 	/**
-	 *  v0.98 — placeholder (real impl uses i64 with `#[specta(type = BigInt)]`
-	 *  or `Option<OptionBigInt<i64>>` for the optional case). Stub
-	 *  uses i32 since audit IDs are bounded by history size.
+	 *  v0.98 —— 占位符（真实实现使用带 `#[specta(type = BigInt)]` 的 i64，
+	 *  或者在可选情况下使用 `Option<OptionBigInt<i64>>`）。
+	 *  存根使用 i32，因为 audit ID 受历史大小的限制。
 	 */
 	id: number,
 	actor: string,
@@ -281,32 +321,32 @@ export type AuditRetentionViewCodegen = {
 	max_rows: bigint,
 	min_keep_rows: bigint,
 	/**
-	 *  v0.86c — `BigIntMap<String, i64>` → TS `{ [key: string]: bigint }`.
-	 *  See src-tauri/src/codegen/bigint_map.rs for the wrapper design.
+	 *  v0.86c —— `BigIntMap<String, i64>` → TS `{ [key: string]: bigint }`。
+	 *  有关包装器设计，请参见 src-tauri/src/codegen/bigint_map.rs。
 	 */
 	overrides: { [key in string]: bigint },
 };
 
 /**
- *  v0.28a — current auto-promote config. Returned by
- *  `get_auto_promote_config` for the L1 to display
- *  "what the Rust side currently has" (in case the L1
- *  store was reset, e.g. by a hard refresh).
+ *  v0.28a —— 当前的 auto-promote 配置。
+ *  由 `get_auto_promote_config` 返回给 L1，用于展示
+ *  「Rust 端现在持有的是什么」（例如硬刷新导致
+ *  L1 store 被重置时）。
  */
 export type AutoPromoteConfigDto = {
 	enabled: boolean,
 	brier_margin: number | null,
 };
 
-/**  v0.105b — AutoPromoteIfBetterArgs shape. */
+/**  v0.105b —— AutoPromoteIfBetterArgs 形状。 */
 export type AutoPromoteIfBetterArgsCodegen = {
-	/**  v0.105b — placeholder (real impl uses f64). brier_margin default 0.005. */
+	/**  v0.105b —— 占位符(真实实现使用 f64)。brier_margin 默认 0.005。 */
 	brier_margin: number | null,
-	/**  v0.105b — placeholder (real impl uses Option<u32>). Stub uses Option<u32>. */
+	/**  v0.105b —— 占位符(真实实现使用 Option<u32>)。存根使用 Option<u32>。 */
 	trial_index: number | null,
 };
 
-/**  v0.105b — AutoPromoteIfBetterResult shape. */
+/**  v0.105b —— AutoPromoteIfBetterResult 形状。 */
 export type AutoPromoteIfBetterResultCodegen = {
 	promoted: boolean,
 	skipped: boolean,
@@ -316,39 +356,39 @@ export type AutoPromoteIfBetterResultCodegen = {
 	margin: number | null,
 	model_version: string | null,
 	/**
-	 *  v0.105b — timestamp placeholder (real impl uses Option<i64>).
-	 *  BigInt for lossless export.
+	 *  v0.105b —— 时间戳占位符(真实实现使用 Option<i64>)。
+	 *  BigInt 实现无损导出。
 	 */
 	promoted_at_ms: bigint,
 	message: string | null,
 };
 
-/**  v0.105b — BacktestModelArgs shape. Nested Vec<BacktestSample>. */
+/**  v0.105b —— BacktestModelArgs 形状。嵌套 Vec<BacktestSample>。 */
 export type BacktestModelArgsCodegen = {
 	model_version: string,
 	samples: BacktestSampleCodegen[],
 };
 
-/**  v0.105b — BacktestResult shape. */
+/**  v0.105b —— BacktestResult 形状。 */
 export type BacktestResultCodegen = {
 	ok: boolean,
 	model_version: string,
-	/**  v0.105b — placeholder (real impl uses usize). Stub uses u32. */
+	/**  v0.105b —— 占位符(真实实现使用 usize)。存根使用 u32。 */
 	sample_count: number,
 	brier_mean: number | null,
 	brier_breakdown: (number | null)[],
-	/**  5 calibration buckets in [0, 1]. Each is a Vec<f64>. */
+	/**  [0, 1] 区间内的 5 个校准桶。每个都是 Vec<f64>。 */
 	calibration: ((number | null)[])[],
-	/**  v0.105b — placeholder (real impl uses usize). Stub uses u32. */
+	/**  v0.105b —— 占位符(真实实现使用 usize)。存根使用 u32。 */
 	n_winners: number,
 	winners: string[],
-	/**  v0.105b — placeholder (real impl uses usize). Stub uses u32. */
+	/**  v0.105b —— 占位符(真实实现使用 usize)。存根使用 u32。 */
 	n_losers: number,
 	losers: string[],
 	message: string | null,
 };
 
-/**  v0.105b — BacktestSample shape. All f64. */
+/**  v0.105b —— BacktestSample 形状。全部为 f64。 */
 export type BacktestSampleCodegen = {
 	price: number | null,
 	market_age_hours: number | null,
@@ -357,9 +397,9 @@ export type BacktestSampleCodegen = {
 };
 
 /**
- *  IPC-friendly DTO for `BankrollConfig`. Same shape, separate type
- *  so the L1↔L2 boundary stays clean (domain::BankrollConfig has no
- *  `specta::Type` derive to keep it free of IPC-layer types).
+ *  `BankrollConfig` 的 IPC 友好 DTO。形状相同但类型分开,以保持
+ *  L1↔L2 边界的清晰（domain::BankrollConfig 不含 `specta::Type` derive,
+ *  以避免依赖 IPC 层类型）。
  */
 export type BankrollConfigDto = {
 	kelly_multiplier: number | null,
@@ -377,17 +417,17 @@ export type BestParamsCodegen = {
 };
 
 /**
- *  v0.88c — codegen stub for `BetDto`. Real has 3× i64 fields
- *  (`placed_at`, `settled_at`, `signal_id`). Reuses v0.86b's
- *  OptionBigInt wrapper pattern.
+ *  v0.88c —— `BetDto` 的 codegen 存根。真实结构体包含 3× i64 字段
+ * （`placed_at`、`settled_at`、`signal_id`）。复用 v0.86b 的
+ *  OptionBigInt 包装器模式。
  */
 export type BetDtoCodegen = {
 	id: string,
 	wallet_id: string,
 	market_id: string,
 	/**
-	 *  v0.88c — `signal_id: Option<i64>` → `Option<OptionBigInt<i64>>`
-	 *  (TS `bigint | null`). Lossless for values within 53 bits.
+	 *  v0.88c —— `signal_id: Option<i64>` → `Option<OptionBigInt<i64>>`
+	 * （TS `bigint | null`）。对于 53 位以内的值无损。
 	 */
 	signal_id: bigint | null,
 	mode: string,
@@ -407,36 +447,36 @@ export type BetDtoCodegen = {
 	post_only: boolean,
 };
 
-/**  Side of the bet (Yes/No token on a prediction market). */
+/**  投注方向（预测市场中的 Yes/No 代币）。 */
 export type BetSide = "Yes" | "No";
 
-/**  v0.102b — args for `daily_brief_dismiss`. Market ID only. */
+/**  v0.102b —— `daily_brief_dismiss` 的参数。仅包含 Market ID。 */
 export type BriefDismissArgsCodegen = {
 	market_id: string,
 };
 
-/**  v0.102b — args for `daily_brief_get`. Matches real `BriefGetArgs`. */
+/**  v0.102b —— `daily_brief_get` 的参数。与真实 `BriefGetArgs` 匹配。 */
 export type BriefGetArgsCodegen = {
 	/**
-	 *  v0.102b — placeholder (real impl uses Option<i64>).
-	 *  Stub uses Option<u32>.
+	 *  v0.102b —— 占位符（真实实现使用 Option<i64>）。
+	 *  存根使用 Option<u32>。
 	 */
 	limit: number | null,
 	/**
-	 *  v0.102b — placeholder (real impl uses Option<i64>).
-	 *  Stub uses Option<u32> (kept for back-compat with old callers).
+	 *  v0.102b —— 占位符（真实实现使用 Option<i64>）。
+	 *  存根使用 Option<u32>（为旧调用方保留向后兼容）。
 	 */
 	max_items: number | null,
 };
 
-/**  v0.102b — BriefRefreshResult shape. */
+/**  v0.102b —— BriefRefreshResult 形状。 */
 export type BriefRefreshResultCodegen = {
 	computed_at: bigint,
-	/**  v0.102b — placeholder (real impl uses i64). Stub uses i32. */
+	/**  v0.102b —— 占位符（真实实现使用 i64）。存根使用 i32。 */
 	n_items: number,
 };
 
-/**  v0.102b — BriefWeights shape (nested struct). */
+/**  v0.102b —— BriefWeights 形状（嵌套结构体）。 */
 export type BriefWeightsCodegen = {
 	w1: number | null,
 	w2: number | null,
@@ -446,12 +486,28 @@ export type BriefWeightsCodegen = {
 	w6: number | null,
 };
 
+/**  v0.126 —— `CalendarDayDto` 形状。 */
+export type CalendarDayDtoCodegen = {
+	date: string,
+	fixtures: CalendarFixtureDtoCodegen[],
+};
+
+/**  v0.126 —— `CalendarFixtureDto` 形状。 */
+export type CalendarFixtureDtoCodegen = {
+	market_id: string,
+	home: string,
+	away: string,
+	time: string,
+	edge: number | null,
+	competition: string | null,
+};
+
 export type CappedReason = 
-/**  Allocation was capped by `max_per_signal_pct`. */
+/**  分配受 `max_per_signal_pct` 限制。 */
 "PerSignalCap" | 
-/**  Allocation was capped by market liquidity. */
+/**  分配受市场流动性限制。 */
 "Liquidity" | 
-/**  Total exposure > max_total_exposure_pct, scaled down. */
+/**  总敞口 > max_total_exposure_pct，按比例缩减。 */
 "TotalExposure";
 
 export type ComputeAllocationArgsCodegen = {
@@ -462,15 +518,15 @@ export type ComputeAllocationArgsCodegen = {
 };
 
 /**
- *  v0.103b2 — ConnectivityTestResult shape. status fields use
- *  i32 placeholders for counts.
+ *  v0.103b2 —— ConnectivityTestResult 形状。状态字段使用
+ *  i32 占位符表示计数。
  */
 export type ConnectivityTestResultCodegen = {
 	provider_id: string,
 	success: boolean,
-	/**  v0.103b2 — placeholder (real impl uses Option<i64>). */
+	/**  v0.103b2 —— 占位符(真实实现使用 Option<i64>)。 */
 	latency_ms: number | null,
-	/**  v0.103b2 — placeholder (real impl uses Option<i64>). */
+	/**  v0.103b2 —— 占位符(真实实现使用 Option<i64>)。 */
 	http_status: number | null,
 	model_used: string,
 	error_code: string | null,
@@ -478,9 +534,9 @@ export type ConnectivityTestResultCodegen = {
 };
 
 /**
- *  v0.88b — codegen stub for `CopyTargetDto`. Real has `created_at: i64`
- *  which specta-typescript forbids (BigInt); use OptionBigInt wrapper
- *  (v0.86b) → TS `bigint | null`. Same pattern as WalletDtoCodegen.
+ *  v0.88b —— `CopyTargetDto` 的 codegen 存根。真实类型拥有 `created_at: i64`，
+ *  specta-typescript 禁止该类型（BigInt）；使用 OptionBigInt 包装器
+ * （v0.86b）→ TS `bigint | null`。与 WalletDtoCodegen 模式相同。
  */
 export type CopyTargetDtoCodegen = {
 	id: string,
@@ -492,9 +548,36 @@ export type CopyTargetDtoCodegen = {
 	created_at: bigint,
 };
 
+/**  v0.126 —— `CrossPlatformArbDto` 形状。 */
+export type CrossPlatformArbDtoCodegen = {
+	match_name: string,
+	market_question: string,
+	pm_price: number | null,
+	kalshi_price: number | null,
+	spread: number | null,
+	direction: string,
+	est_profit_per_1000: number | null,
+};
+
+/**  v0.126 —— `CrowdOpinionDto` 形状。 */
+export type CrowdOpinionDtoCodegen = {
+	market_id: string,
+	yes_capital: number | null,
+	no_capital: number | null,
+	yes_weighted_pct: number | null,
+	no_weighted_pct: number | null,
+	hhi: number | null,
+	top3_share: number | null,
+	/**  v0.126 —— 占位符(真实类型 usize)。存根使用 i32。 */
+	n_holders: number,
+	smart_yes_pct: number | null,
+	smart_divergence: number | null,
+	computed_at: bigint,
+};
+
 /**
- *  v0.102b — DailyBriefEntry shape. timestamps use
- *  `#[specta(type = BigInt)]` for lossless export; counts use i32.
+ *  v0.102b —— DailyBriefEntry 形状。时间戳使用
+ *  `#[specta(type = BigInt)]` 以实现无损导出；计数使用 i32。
  */
 export type DailyBriefEntryCodegen = {
 	market_id: string,
@@ -503,7 +586,7 @@ export type DailyBriefEntryCodegen = {
 	market_end_date: bigint,
 	market_liquidity: string | null,
 	market_volume_24h: number | null,
-	/**  v0.102b — placeholder (real impl uses i64). Stub uses i32. */
+	/**  v0.102b —— 占位符（真实实现使用 i64）。存根使用 i32。 */
 	rank: number,
 	match_score: number | null,
 	score_breakdown: string | null,
@@ -525,13 +608,13 @@ export type DashboardKpisDto = {
 	open_positions: number,
 };
 
-/**  v0.102b — empty args (DegradationCheckNowArgs in real impl). */
+/**  v0.102b —— 空参数（真实实现中的 DegradationCheckNowArgs）。 */
 export type DegradationCheckNowArgsCodegen = Record<string, never>;
 
 /**
- *  v0.88b — codegen stub args for `enqueue_mirror`. Real
- *  `EnqueueArgs` (commands/mirror_executor.rs) has `event_id: i64`;
- *  we use BigInt<i64> attribute (v0.85c pattern) → TS `bigint`.
+ *  v0.88b —— `enqueue_mirror` 的 codegen 存根参数。真实的
+ *  `EnqueueArgs`（commands/mirror_executor.rs）拥有 `event_id: i64`；
+ *  我们使用 BigInt<i64> 属性（v0.85c 模式）→ TS `bigint`。
  */
 export type EnqueueMirrorArgsCodegen = {
 	event_id: bigint,
@@ -543,10 +626,10 @@ export type EnqueueMirrorArgsCodegen = {
 };
 
 /**
- *  v0.88e — codegen stub for `ExecutorPassResult`. Real has no i64
- *  fields (just Vec<String>, Vec<(String, RejectReason)>, two f64).
- *  Reuses the real type via specta::Type derive — but currently the
- *  real type doesn't have `Type`. We mirror the shape in a stub.
+ *  v0.88e —— `ExecutorPassResult` 的 codegen 存根。真实结构体没有 i64
+ *  字段（只有 Vec<String>、Vec<(String, RejectReason)>、两个 f64）。
+ *  通过 specta::Type derive 复用真实类型 —— 但目前真实
+ *  类型没有 `Type`。我们在存根中镜像其形状。
  */
 export type ExecutorPassResultCodegen = {
 	picked: string[],
@@ -555,25 +638,39 @@ export type ExecutorPassResultCodegen = {
 	headroom: number | null,
 };
 
-/**  v0.101b — args for `llm_stats_export`. Matches real `ExportStatsArgs`. */
+/**  v0.101b —— `llm_stats_export` 的参数。与真实 `ExportStatsArgs` 匹配。 */
 export type ExportStatsArgsCodegen = {
 	format: string,
-	/**  v0.101b — placeholder (real impl uses Option<i64>). Stub uses Option<u32>. */
+	/**  v0.101b —— 占位符（真实实现使用 Option<i64>）。存根使用 Option<u32>。 */
 	window_days: number | null,
 };
 
-/**  v0.103b2 — args for `llm_key_set_secret`. */
+/**  v0.126 —— `FootballContextDto` 形状。 */
+export type FootballContextDtoCodegen = {
+	market_id: string,
+	home_team: string,
+	away_team: string,
+	/**  v0.126 —— 占位符(真实类型 Option<i64>)。 */
+	home_rest_days: number | null,
+	away_rest_days: number | null,
+	home_matches_7d: number,
+	away_matches_7d: number,
+	home_fatigue: string,
+	away_fatigue: string,
+};
+
+/**  v0.103b2 —— `llm_key_set_secret` 的参数。 */
 export type KeySetSecretArgsCodegen = {
 	key_id: string,
 	secret: string,
 };
 
-/**  v0.103b2 — args for `llm_key_upsert`. Nested LlmProviderKeyDto. */
+/**  v0.103b2 —— `llm_key_upsert` 的参数。嵌套的 LlmProviderKeyDto。 */
 export type KeyUpsertArgsCodegen = {
 	key: LlmProviderKeyDtoCodegen,
 	/**
-	 *  Plaintext secret (optional). When provided, written to OS
-	 *  keyring; when None, only metadata is upserted.
+	 *  明文密钥(可选)。提供时写入 OS
+	 *  钥匙串;为 None 时,仅 upsert 元数据。
 	 */
 	secret: string | null,
 };
@@ -583,8 +680,8 @@ export type ListAuditLogArgsCodegen = {
 	actor: string | null,
 	action: string | null,
 	/**
-	 *  v0.98 — placeholder (real impl uses Option<i64> wrapped in
-	 *  OptionBigInt). Stub uses Option<u32> for ts export.
+	 *  v0.98 —— 占位符（真实实现使用包在
+	 *  OptionBigInt 中的 Option<i64>）。存根使用 Option<u32> 用于 ts 导出。
 	 */
 	since_ms: number | null,
 };
@@ -595,12 +692,12 @@ export type ListBetsArgsCodegen = {
 };
 
 /**
- *  v0.84c — codegen stub args. Real `ListMirrorsArgs` has
- *  `Option<i64>` (limit). Stub uses `Option<i32>`.
+ *  v0.84c —— codegen 存根参数。真实的 `ListMirrorsArgs` 拥有
+ *  `Option<i64>`（limit）。存根使用 `Option<i32>`。
  */
 export type ListMirrorsArgsCodegen = {
 	status: string | null,
-	/**  v0.86b — Option<OptionBigInt<i64>> → TS `bigint | null`. */
+	/**  v0.86b —— Option<OptionBigInt<i64>> → TS `bigint | null`。 */
 	limit: bigint | null,
 };
 
@@ -612,22 +709,22 @@ export type ListPromoteHistoryCodegen = {
 };
 
 /**
- *  v0.84c — codegen stub args. Real `ListSignalsArgs` has
- *  `Option<i64>` (limit), which is BigInt-forbidden. Stub uses
- *  `Option<i32>` (matches the codegen-friendly limit semantics).
+ *  v0.84c —— codegen 存根参数。真实的 `ListSignalsArgs` 拥有
+ *  `Option<i64>`（limit），这在 BigInt 中被禁止。存根使用
+ *  `Option<i32>`（与 codegen 友好的 limit 语义一致）。
  */
 export type ListSignalsArgsCodegen = {
 	min_edge: number | null,
 	category: string | null,
-	/**  v0.86b — Option<OptionBigInt<i64>> → TS `bigint | null`. */
+	/**  v0.86b —— Option<OptionBigInt<i64>> → TS `bigint | null`。 */
 	limit: bigint | null,
 };
 
 /**
- *  v0.88e — codegen stub for `LlmAnalysisDto`. Real has 4× i64 fields
- *  (`signal_id`, `requested_at`, `completed_at`, `total_latency_ms`)
- *  + nested Vec<LlmRecommendationDto>. This exercises the
- *  OptionBigInt + nested struct codegen path end-to-end.
+ *  v0.88e —— `LlmAnalysisDto` 的 codegen 存根。真实结构体包含 4× i64 字段
+ * （`signal_id`、`requested_at`、`completed_at`、`total_latency_ms`）
+ *  + 嵌套的 Vec<LlmRecommendationDto>。这端到端地测试了
+ *  OptionBigInt + 嵌套结构体的 codegen 路径。
  */
 export type LlmAnalysisDtoCodegen = {
 	id: string,
@@ -647,8 +744,8 @@ export type LlmAnalysisDtoCodegen = {
 };
 
 /**
- *  v0.88e — codegen stub args for `llm_analyze`. Real `AnalyzeArgs`
- *  has `signal_id: Option<i64>` → OptionBigInt; other fields are simple.
+ *  v0.88e —— `llm_analyze` 的 codegen 存根参数。真实的 `AnalyzeArgs`
+ *  拥有 `signal_id: Option<i64>` → OptionBigInt；其他字段较为简单。
  */
 export type LlmAnalyzeArgsCodegen = {
 	market_id: string,
@@ -658,22 +755,22 @@ export type LlmAnalyzeArgsCodegen = {
 	triggered_by: string | null,
 };
 
-/**  v0.101a — LlmDecisionStats shape. */
+/**  v0.101a —— LlmDecisionStats 形状。 */
 export type LlmDecisionStatsCodegen = {
 	category: string,
 	decision_type: string,
-	/**  v0.101a — placeholder (real impl uses i64). Stub uses i32. */
+	/**  v0.101a —— 占位符（真实实现使用 i64）。存根使用 i32。 */
 	n: number,
 	win_rate: number | null,
 	avg_pnl: number | null,
 };
 
-/**  v0.103b2 — LlmHealthCheckDto shape. timestamps use i32 placeholders. */
+/**  v0.103b2 —— LlmHealthCheckDto 形状。时间戳使用 i32 占位符。 */
 export type LlmHealthCheckDtoCodegen = {
-	/**  v0.103b2 — placeholder (real impl uses i64). i32. */
+	/**  v0.103b2 —— 占位符(真实实现使用 i64)。i32。 */
 	id: number,
 	provider_id: string,
-	/**  v0.103b2 — timestamp placeholder (real impl uses i64). i32. */
+	/**  v0.103b2 —— 时间戳占位符(真实实现使用 i64)。i32。 */
 	checked_at: number,
 	trigger: string,
 	success: boolean,
@@ -683,11 +780,11 @@ export type LlmHealthCheckDtoCodegen = {
 	error_message: string | null,
 };
 
-/**  v0.103b2 — LlmPerformanceRow shape. Count fields use i32. */
+/**  v0.103b2 —— LlmPerformanceRow 形状。计数字段使用 i32。 */
 export type LlmPerformanceRowCodegen = {
 	provider_id: string,
 	provider_name: string,
-	/**  v0.103b2 — placeholder (real impl uses i64). i32. */
+	/**  v0.103b2 —— 占位符(真实实现使用 i64)。i32。 */
 	n_recommendations: number,
 	n_evaluated: number,
 	win_rate: number | null,
@@ -697,9 +794,9 @@ export type LlmPerformanceRowCodegen = {
 };
 
 /**
- *  v0.88d — codegen stub for `upsert_llm_provider`. Takes
- *  `LlmProviderDto` directly (not nested under args) — same shape as
- *  the real command. `timeout_ms: i64` needs BigInt handling.
+ *  v0.88d —— `upsert_llm_provider` 的 codegen 存根。直接接受
+ *  `LlmProviderDto`（不嵌套在 args 下）—— 与真实命令形状相同。
+ *  `timeout_ms: i64` 需要 BigInt 处理。
  */
 export type LlmProviderDtoCodegen = {
 	id: string,
@@ -714,11 +811,11 @@ export type LlmProviderDtoCodegen = {
 };
 
 /**
- *  v0.103b — full LlmProviderDto shape. Many i64 fields use i32
- *  placeholders (drift detection only, L1 stays on `number`).
- *  Note: the v0.88d `LlmProviderDtoCodegen` (smaller, for
- *  upsert_llm_provider) already exists; we use `LlmProviderDtoFullCodegen`
- *  here to avoid name collision.
+ *  v0.103b —— 完整 LlmProviderDto 形状。许多 i64 字段使用 i32
+ *  占位符(仅用于 drift 检测,L1 仍使用 `number`)。
+ *  注意:v0.88d 中的 `LlmProviderDtoCodegen`(较小,用于
+ *  upsert_llm_provider)已存在;此处我们使用 `LlmProviderDtoFullCodegen`
+ *  以避免名称冲突。
  */
 export type LlmProviderDtoFullCodegen = {
 	id: string,
@@ -730,7 +827,7 @@ export type LlmProviderDtoFullCodegen = {
 	api_base: string | null,
 	key_alias: string,
 	default_model: string,
-	/**  v0.103b — placeholder (real impl uses i64). Stub uses i32. */
+	/**  v0.103b —— 占位符(真实实现使用 i64)。存根使用 i32。 */
 	timeout_ms: number,
 	request_timeout_ms: number,
 	max_retries: number,
@@ -745,29 +842,29 @@ export type LlmProviderDtoFullCodegen = {
 	health_latency_p50_ms: number | null,
 	health_latency_p95_ms: number | null,
 	/**
-	 *  v0.103b — timestamp (real impl uses Option<i64>). We use i32
-	 *  placeholder (drift detection only) — Option<i64> would need
-	 *  OptionBigInt for full lossless export.
+	 *  v0.103b —— 时间戳(真实实现使用 Option<i64>)。我们使用 i32
+	 *  占位符(仅用于 drift 检测)—— Option<i64> 需要
+	 *  OptionBigInt 才能实现完全无损导出。
 	 */
 	last_health_check_at: number | null,
 	last_health_error: string | null,
 	notes: string | null,
 };
 
-/**  v0.103b2 — LlmProviderKeyDto shape. Count fields use i32. */
+/**  v0.103b2 —— LlmProviderKeyDto 形状。计数字段使用 i32。 */
 export type LlmProviderKeyDtoCodegen = {
 	id: string,
 	provider_id: string,
 	alias: string,
 	keyring_alias: string,
 	enabled: boolean,
-	/**  v0.103b2 — placeholder (real impl uses i64). Stub uses i32. */
+	/**  v0.103b2 —— 占位符(真实实现使用 i64)。存根使用 i32。 */
 	priority: number,
 	weight: number,
-	/**  v0.103b2 — timestamp (real impl uses Option<i64>). i32 placeholder. */
+	/**  v0.103b2 —— 时间戳(真实实现使用 Option<i64>)。i32 占位符。 */
 	last_used_at: number | null,
 	last_error: string | null,
-	/**  v0.103b2 — timestamp (real impl uses Option<i64>). i32 placeholder. */
+	/**  v0.103b2 —— 时间戳(真实实现使用 Option<i64>)。i32 占位符。 */
 	last_error_at: number | null,
 	total_calls: number,
 	total_errors: number,
@@ -775,10 +872,10 @@ export type LlmProviderKeyDtoCodegen = {
 };
 
 /**
- *  v0.88e — codegen stub for `LlmRecommendationDto`. Real has 4× i64
- *  fields (`id`, `latency_ms`, `tokens_in`, `tokens_out`). The 3
- *  Option<i64> use OptionBigInt; the bare `id: i64` uses
- *  `specta(type = BigInt)`.
+ *  v0.88e —— `LlmRecommendationDto` 的 codegen 存根。真实结构体包含 4× i64
+ *  字段（`id`、`latency_ms`、`tokens_in`、`tokens_out`）。3 个
+ *  Option<i64> 使用 OptionBigInt；裸的 `id: i64` 使用
+ *  `specta(type = BigInt)`。
  */
 export type LlmRecommendationDtoCodegen = {
 	id: bigint,
@@ -797,23 +894,23 @@ export type LlmRecommendationDtoCodegen = {
 	parse_error: string | null,
 };
 
-/**  v0.101b — LlmStatsByPrompt shape. */
+/**  v0.101b —— LlmStatsByPrompt 形状。 */
 export type LlmStatsByPromptCodegen = {
 	provider_id: string,
 	prompt_version: string,
-	/**  v0.101b — placeholder (real impl uses i64). Stub uses i32. */
+	/**  v0.101b —— 占位符（真实实现使用 i64）。存根使用 i32。 */
 	n_recommendations: number,
 	n_evaluated: number,
 	win_rate: number | null,
 	brier: number | null,
 };
 
-/**  v0.101a — LlmStatsCell shape. Counts use i32 (drift detect only). */
+/**  v0.101a —— LlmStatsCell 形状。计数使用 i32（仅用于 drift 检测）。 */
 export type LlmStatsCellCodegen = {
 	provider_id: string,
 	provider_name: string,
 	category: string,
-	/**  v0.101a — placeholder (real impl uses i64). Stub uses i32. */
+	/**  v0.101a —— 占位符（真实实现使用 i64）。存根使用 i32。 */
 	n_recommendations: number,
 	n_evaluated: number,
 	win_rate: number | null,
@@ -821,17 +918,17 @@ export type LlmStatsCellCodegen = {
 	brier: number | null,
 };
 
-/**  v0.101b — LlmStatsConfidenceBand shape. */
+/**  v0.101b —— LlmStatsConfidenceBand 形状。 */
 export type LlmStatsConfidenceBandCodegen = {
 	provider_id: string,
 	band: string,
-	/**  v0.101b — placeholder (real impl uses i64). Stub uses i32. */
+	/**  v0.101b —— 占位符（真实实现使用 i64）。存根使用 i32。 */
 	n: number,
 	win_rate: number | null,
 	avg_pnl: number | null,
 };
 
-/**  v0.101b — LlmStatsCostEfficiency shape. */
+/**  v0.101b —— LlmStatsCostEfficiency 形状。 */
 export type LlmStatsCostEfficiencyCodegen = {
 	provider_id: string,
 	total_cost_cents: number | null,
@@ -840,31 +937,31 @@ export type LlmStatsCostEfficiencyCodegen = {
 	win_rate: number | null,
 };
 
-/**  v0.101a — LlmStatsScatterPoint shape. */
+/**  v0.101a —— LlmStatsScatterPoint 形状。 */
 export type LlmStatsScatterPointCodegen = {
 	provider_id: string,
 	provider_name: string,
-	/**  v0.101a — placeholder (real impl uses i64). Stub uses i32. */
+	/**  v0.101a —— 占位符（真实实现使用 i64）。存根使用 i32。 */
 	n_evaluated: number,
 	win_rate: number | null,
 	total_pnl: number | null,
 	avg_pnl: number | null,
 };
 
-/**  v0.101a — LlmStatsTimeseriesPoint shape. */
+/**  v0.101a —— LlmStatsTimeseriesPoint 形状。 */
 export type LlmStatsTimeseriesPointCodegen = {
 	provider_id: string,
 	bucket: string,
-	/**  v0.101a — placeholder (real impl uses i64). Stub uses i32. */
+	/**  v0.101a —— 占位符（真实实现使用 i64）。存根使用 i32。 */
 	n_evaluated: number,
 	win_rate: number | null,
 	brier: number | null,
 };
 
 /**
- *  v0.101c — LlmTrafficSummary shape. Many i64 fields use
- *  `#[specta(type = BigInt)]` for lossless export (real counts
- *  can exceed 2^32 in long windows).
+ *  v0.101c —— LlmTrafficSummary 形状。许多 i64 字段使用
+ *  `#[specta(type = BigInt)]` 以实现无损导出（真实计数
+ *  在长时间窗口下可能超过 2^32）。
  */
 export type LlmTrafficSummaryCodegen = {
 	provider_id: string,
@@ -884,26 +981,26 @@ export type LlmTrafficSummaryCodegen = {
 };
 
 /**
- *  v0.101c — LoopStatus shape. Real type uses `&'static str` for
- *  `name` but stub uses `String` because specta handles `&'static str`
- *  fine but we want to keep the codegen stub self-contained.
+ *  v0.101c —— LoopStatus 形状。真实类型对 `name` 使用 `&'static str`，
+ *  但存根使用 `String`，因为 specta 对 `&'static str`
+ *  的处理没问题，但我们希望让 codegen 存根保持自包含。
  */
 export type LoopStatusCodegen = {
 	name: string,
 	last_tick_unix_ms: bigint,
 	/**
-	 *  v0.101c — placeholder (real impl uses Option<u64>). Stub
-	 *  uses Option<u32> because specta-typescript forbids u64 in
-	 *  Option even with #[specta(type = BigInt)].
+	 *  v0.101c —— 占位符（真实实现使用 Option<u64>）。存根
+	 *  使用 Option<u32>，因为 specta-typescript 即使加上
+	 *  #[specta(type = BigInt)] 也禁止 Option 中的 u64。
 	 */
 	age_ms: number | null,
 	healthy: boolean,
 };
 
 /**
- *  v0.84c — codegen stub for `MirrorQueueStats`. Real has 5× i64
- *  counts (`n_pending`, `n_submitted`, `n_filled`, `n_rejected`,
- *  `n_expired`).
+ *  v0.84c —— `MirrorQueueStats` 的 codegen 存根。真实结构体包含 5× i64
+ *  计数（`n_pending`、`n_submitted`、`n_filled`、`n_rejected`、
+ *  `n_expired`）。
  */
 export type MirrorQueueStatsCodegen = {
 	n_pending: bigint,
@@ -916,13 +1013,13 @@ export type MirrorQueueStatsCodegen = {
 };
 
 /**
- *  v0.85b — codegen stub for `MirrorRow`. Real has 5× i64 fields
- *  (`event_id`, `created_at`, `submitted_at`, `filled_at`, ...).
- *  v0.85+: uses `#[specta(type = BigInt)]` attribute to mark i64
- *  fields as TS `bigint` (lossless for values that fit in 53 bits).
- *  The L1 layer (src/types/mirror.ts) keeps these as `number` for
- *  now (JSON.parse gives `number`, not `bigint`); explicit `BigInt()`
- *  conversion is added in a follow-up.
+ *  v0.85b —— `MirrorRow` 的 codegen 存根。真实结构体包含 5× i64 字段
+ * （`event_id`、`created_at`、`submitted_at`、`filled_at` 等）。
+ *  v0.85+：使用 `#[specta(type = BigInt)]` 属性将 i64
+ *  字段标记为 TS `bigint`（对于 53 位以内可容纳的值无损）。
+ *  L1 层（src/types/mirror.ts）暂时将其保留为 `number`
+ * （JSON.parse 给出 `number` 而非 `bigint`）；后续将添加
+ *  显式的 `BigInt()` 转换。
  */
 export type MirrorRowCodegen = {
 	id: string,
@@ -935,20 +1032,50 @@ export type MirrorRowCodegen = {
 	status: string,
 	created_at: bigint,
 	/**
-	 *  v0.86b — Option<OptionBigInt<i64>> → TS `bigint | null`
-	 *  (lossless for values that fit in 53 bits). The OptionBigInt
-	 *  wrapper is serde-transparent so wire format is identical to
-	 *  `Option<i64>`. See src-tauri/src/codegen/option_bigint.rs.
+	 *  v0.86b —— Option<OptionBigInt<i64>> → TS `bigint | null`
+	 * （对于 53 位以内可容纳的值无损）。OptionBigInt
+	 *  包装器对 serde 是透明的，因此线缆格式与
+	 *  `Option<i64>` 相同。请参见 src-tauri/src/codegen/option_bigint.rs。
 	 */
 	submitted_at: bigint | null,
 	filled_at: bigint | null,
 	bet_id: string | null,
 };
 
+/**  v0.126 —— `NewsItemDto` 形状。 */
+export type NewsItemDtoCodegen = {
+	id: bigint,
+	title: string,
+	source: string,
+	url: string,
+	published_at: bigint,
+	market_id: string | null,
+	relevance_score: number | null,
+	impact_direction: string | null,
+	summary: string | null,
+};
+
+/**  v0.126 —— `NlQueryResultDto` 形状。 */
+export type NlQueryResultDtoCodegen = {
+	sql: string,
+	results: NlQueryRowDtoCodegen[],
+	explanation: string,
+};
+
+/**  v0.126 —— `NlQueryRowDto` 形状。 */
+export type NlQueryRowDtoCodegen = {
+	market_id: string,
+	question: string,
+	yes_price: number | null,
+	model_prob: number | null,
+	edge: number | null,
+	category: string,
+};
+
 /**
- *  v0.88c — codegen stub args for `place_jump_link`. Same shape as
- *  PlaceSignedArgs but without the order_type / limit_price /
- *  stop_price / post_only fields. signal_id: Option<i64> → BigInt.
+ *  v0.88c —— `place_jump_link` 的 codegen 存根参数。形状与
+ *  PlaceSignedArgs 相同，但不包含 order_type / limit_price /
+ *  stop_price / post_only 字段。signal_id: Option<i64> → BigInt。
  */
 export type PlaceJumpArgsCodegen = {
 	market_slug: string,
@@ -961,9 +1088,9 @@ export type PlaceJumpArgsCodegen = {
 };
 
 /**
- *  v0.88c — codegen stub args for `place_signed_order`. Real
- *  `PlaceSignedArgs` (commands/bet.rs) has `signal_id: Option<i64>`
- *  → BigInt wrapper for lossless transport.
+ *  v0.88c —— `place_signed_order` 的 codegen 存根参数。真实的
+ *  `PlaceSignedArgs`（commands/bet.rs）拥有 `signal_id: Option<i64>`
+ *  → BigInt 包装器以实现无损传输。
  */
 export type PlaceSignedArgsCodegen = {
 	market_id: string,
@@ -979,11 +1106,11 @@ export type PlaceSignedArgsCodegen = {
 	post_only: boolean,
 };
 
-/**  v0.105b — PromoteAllTrialsResult shape. */
+/**  v0.105b —— PromoteAllTrialsResult 形状。 */
 export type PromoteAllTrialsResultCodegen = {
 	ok: boolean,
 	message: string,
-	/**  v0.105b — placeholder (real impl uses usize). Stub uses u32. */
+	/**  v0.105b —— 占位符(真实实现使用 usize)。存根使用 u32。 */
 	count: number,
 	results: PromoteTrialResultCodegen[],
 };
@@ -998,24 +1125,24 @@ export type PromoteHistoryEntryCodegen = {
 	reason: string,
 };
 
-/**  v0.105b — PromoteModelArgs shape. */
+/**  v0.105b —— PromoteModelArgs 形状。 */
 export type PromoteModelArgsCodegen = {
 	model_version: string | null,
-	/**  v0.105b — placeholder (real impl uses Option<u32>). */
+	/**  v0.105b —— 占位符(真实实现使用 Option<u32>)。 */
 	trial_index: number | null,
 };
 
-/**  v0.105b — PromoteModelResult shape. */
+/**  v0.105b —— PromoteModelResult 形状。 */
 export type PromoteModelResultCodegen = {
 	ok: boolean,
 	message: string,
-	/**  v0.105b — placeholder (real impl uses Option<i64>). */
+	/**  v0.105b —— 占位符(真实实现使用 Option<i64>)。 */
 	promoted_at_ms: bigint,
 	model_version: string | null,
 	best_brier: number | null,
 };
 
-/**  v0.105b — PromoteTrialResult shape (used by promote_all_trials). */
+/**  v0.105b —— PromoteTrialResult 形状(由 promote_all_trials 使用)。 */
 export type PromoteTrialResultCodegen = {
 	trial_index: number,
 	promoted: boolean,
@@ -1024,34 +1151,52 @@ export type PromoteTrialResultCodegen = {
 	promoted_at_ms: bigint,
 };
 
-/**  v0.105b — RollbackModelArgs shape. */
+/**  v0.126 —— `ReversionSignalDto` 形状。 */
+export type ReversionSignalDtoCodegen = {
+	market_id: string,
+	current: number | null,
+	mean: number | null,
+	std_dev: number | null,
+	z_score: number | null,
+	bollinger_upper: number | null,
+	bollinger_lower: number | null,
+	is_overextended: boolean,
+	direction: string,
+	/**  v0.126 —— 占位符(真实类型 usize)。存根使用 i32。 */
+	window_size: number,
+	fade_signal: number | null,
+	confidence: number | null,
+	computed_at: bigint,
+};
+
+/**  v0.105b —— RollbackModelArgs 形状。 */
 export type RollbackModelArgsCodegen = {
 	model_version: string,
 };
 
-/**  v0.105b — RollbackResult shape. timestamp uses BigInt. */
+/**  v0.105b —— RollbackResult 形状。时间戳使用 BigInt。 */
 export type RollbackResultCodegen = {
 	rolled_back: boolean,
 	status: string,
 	previous_path: string | null,
 	active_path: string | null,
 	/**
-	 *  v0.105b — timestamp placeholder (real impl uses Option<i64>).
-	 *  BigInt for lossless export.
+	 *  v0.105b —— 时间戳占位符(真实实现使用 Option<i64>)。
+	 *  BigInt 实现无损导出。
 	 */
 	rolled_back_at_ms: bigint,
 };
 
 /**
- *  v0.88e — codegen stub args for `run_mirror_executor_pass`. Real
- *  `RunPassArgs` has no i64 fields (just 2× String).
+ *  v0.88e —— `run_mirror_executor_pass` 的 codegen 存根参数。真实的
+ *  `RunPassArgs` 没有 i64 字段（只有 2× String）。
  */
 export type RunMirrorPassArgsCodegen = {
 	key_alias: string,
 	wallet_id: string,
 };
 
-/**  v0.101c — SchedulerSelfTest shape. matches real SchedulerSelfTest. */
+/**  v0.101c —— SchedulerSelfTest 形状。与真实 SchedulerSelfTest 匹配。 */
 export type SchedulerSelfTestCodegen = {
 	process_started_at_unix: bigint,
 	checked_at_unix_ms: bigint,
@@ -1060,20 +1205,30 @@ export type SchedulerSelfTestCodegen = {
 };
 
 /**
- *  v0.101c — SchedulerStatus shape. next_brief_run_at_unix_ms uses
- *  `#[specta(type = BigInt)]` for lossless timestamp.
+ *  v0.101c —— SchedulerStatus 形状。next_brief_run_at_unix_ms 使用
+ *  `#[specta(type = BigInt)]` 实现无损时间戳。
  */
 export type SchedulerStatusCodegen = {
 	/**
-	 *  v0.101c — placeholder (real impl uses u64). Stub uses u32
-	 *  because specta-typescript forbids u64 raw.
+	 *  v0.101c —— 占位符（真实实现使用 u64）。存根使用 u32，
+	 *  因为 specta-typescript 禁止 u64 原样导出。
 	 */
 	health_probe_interval_sec: number,
 	daily_brief_hour_utc: number,
 	daily_brief_tz_offset_min: number,
-	/**  v0.101c — placeholder (real impl uses u64). Stub uses u32. */
+	/**  v0.101c —— 占位符（真实实现使用 u64）。存根使用 u32。 */
 	anomaly_window_sec: number,
 	next_brief_run_at_unix_ms: bigint,
+};
+
+/**  v0.126 —— `ScoreMatrixResultDto` 形状。 */
+export type ScoreMatrixResultDtoCodegen = {
+	market_id: string,
+	lambda_h: number | null,
+	lambda_a: number | null,
+	matrix: [([(number | null), (number | null), (number | null), (number | null), (number | null)]), ([(number | null), (number | null), (number | null), (number | null), (number | null)]), ([(number | null), (number | null), (number | null), (number | null), (number | null)]), ([(number | null), (number | null), (number | null), (number | null), (number | null)]), ([(number | null), (number | null), (number | null), (number | null), (number | null)])],
+	/**  v0.126 —— 元组数组(speca 支持 Vec<(String, f64)>)。 */
+	most_likely: ([string, number | null])[],
 };
 
 export type SecretStatus = {
@@ -1090,9 +1245,9 @@ export type SecretsStatus = {
 };
 
 /**
- *  v0.88d — codegen stub args for `set_audit_retention`. Real
- *  `SetAuditRetentionArgs` (commands/audit.rs) has 3× Option<i64>;
- *  OptionBigInt wrapper (v0.86b) gives lossless transport.
+ *  v0.88d —— `set_audit_retention` 的 codegen 存根参数。真实的
+ *  `SetAuditRetentionArgs`（commands/audit.rs）包含 3× Option<i64>；
+ *  OptionBigInt 包装器（v0.86b）可实现无损传输。
  */
 export type SetAuditRetentionArgsCodegen = {
 	retain_recent_ms: bigint | null,
@@ -1101,10 +1256,10 @@ export type SetAuditRetentionArgsCodegen = {
 };
 
 /**
- *  v0.28a — args for `set_auto_promote_config`. Both fields
- *  are optional: `None` means "leave unchanged" so the L1
- *  can update only the field the user changed in the UI
- *  (e.g. just the toggle, not the margin).
+ *  v0.28a —— `set_auto_promote_config` 的入参。
+ *  两个字段都是可选的：`None` 意为「保持不变」，
+ *  这样 L1 只能更新用户在 UI 中改动的那一项
+ *  （例如只改开关、不动 margin）。
  */
 export type SetAutoPromoteConfigArgs = {
 	enabled: boolean | null,
@@ -1112,49 +1267,58 @@ export type SetAutoPromoteConfigArgs = {
 };
 
 /**
- *  v0.102b — args for `daily_brief_set_prefs`. Matches real
- *  `SetBriefPrefsArgs`. Nested Option<BriefWeights>.
+ *  v0.102b —— `daily_brief_set_prefs` 的参数。与真实
+ *  `SetBriefPrefsArgs` 匹配。嵌套 Option<BriefWeights>。
  */
 export type SetBriefPrefsArgsCodegen = {
 	user_id: string,
 	weights: BriefWeightsCodegen | null,
-	/**  v0.102b — placeholder (real impl uses Option<i64>). */
+	/**  v0.102b —— 占位符（真实实现使用 Option<i64>）。 */
 	max_items: number | null,
 	min_liquidity: string | null,
 	categories: string[] | null,
 };
 
 /**
- *  v0.88a — codegen stub args for `set_mirror_paper_mode`. Real
- *  `SetMirrorPaperModeArgs` (commands/mirror_executor.rs:162) wraps a
- *  single `enabled: bool`. Same pattern as `set_telemetry_enabled`.
+ *  v0.88a —— `set_mirror_paper_mode` 的 codegen 存根参数。真实的
+ *  `SetMirrorPaperModeArgs`（commands/mirror_executor.rs:162）
+ *  包装单个 `enabled: bool`。与 `set_telemetry_enabled` 模式相同。
  */
 export type SetMirrorPaperModeArgsCodegen = {
 	enabled: boolean,
 };
 
 /**
- *  v0.88a — codegen stub args for `set_telemetry_enabled`. Real
- *  `SetTelemetryEnabledArgs` (commands/sidecar.rs:1857) wraps a single
- *  `enabled: bool`. We mirror that shape exactly so the codegen
- *  signature matches what L1 sends.
+ *  v0.88a —— `set_telemetry_enabled` 的 codegen 存根参数。真实的
+ *  `SetTelemetryEnabledArgs`（commands/sidecar.rs:1857）
+ *  包装单个 `enabled: bool`。我们精确地镜像该形状，
+ *  使 codegen 签名与 L1 发送的内容匹配。
  */
 export type SetTelemetryEnabledArgsCodegen = {
 	enabled: boolean,
 };
 
-/**  v0.104b — SidecarHealthKind enum. */
+/**  v0.126 —— `SideBreakdownDto` 形状。 */
+export type SideBreakdownDtoCodegen = {
+	wallet_count: bigint,
+	avg_pnl: number | null,
+	win_rate: number | null,
+	median_position: number | null,
+	top_wallets: TopWalletDtoCodegen[],
+};
+
+/**  v0.104b —— SidecarHealthKind 枚举。 */
 export type SidecarHealthKindCodegen = "Ok" | "Failed" | "Unknown";
 
-/**  v0.104b — SidecarHealthRow shape. */
+/**  v0.104b —— SidecarHealthRow 形状。 */
 export type SidecarHealthRowCodegen = {
-	/**  v0.104b — placeholder (real impl uses i64). BigInt for lossless. */
+	/**  v0.104b —— 占位符(真实实现使用 i64)。BigInt 实现无损。 */
 	at_ms: bigint,
 	kind: SidecarHealthKindCodegen,
 	error: string | null,
 };
 
-/**  v0.104b — SidecarHealthSnapshot shape. 5 i64 fields use BigInt. */
+/**  v0.104b —— SidecarHealthSnapshot 形状。5 个 i64 字段使用 BigInt。 */
 export type SidecarHealthSnapshotCodegen = {
 	last_24h: SidecarHealthRowCodegen[],
 	success_count: bigint,
@@ -1170,7 +1334,7 @@ export type SidecarStatus = {
 	last_error: string | null,
 };
 
-/**  v0.104b — SidecarStatus shape. `pid: Option<u32>` is fine. */
+/**  v0.104b —— SidecarStatus 形状。`pid: Option<u32>` 没问题。 */
 export type SidecarStatusCodegen = {
 	running: boolean,
 	pid: number | null,
@@ -1191,10 +1355,10 @@ export type SignalCodegenDto = {
 };
 
 /**
- *  v0.84c — codegen stub for `SignalDto`. The real struct has 4× i64
- *  fields (`id`, `computed_at`, `horizon_hours`, ...). Stub uses i32
- *  (drift detection on the field set + names, not on the i64→i32
- *  precision; v0.84+ may switch to BigInt<i64> via serde feature).
+ *  v0.84c —— `SignalDto` 的 codegen 存根。真实结构体拥有 4× i64
+ *  字段（`id`、`computed_at`、`horizon_hours` 等）。存根使用 i32
+ * （针对字段集 + 名称的 drift 检测，而非 i64→i32
+ *  精度；v0.84+ 可能通过 serde feature 切换到 BigInt<i64>）。
  */
 export type SignalListItemCodegen = {
 	id: number,
@@ -1211,43 +1375,64 @@ export type SignalListItemCodegen = {
 	market_slug: string | null,
 };
 
-/**  v0.104b — args for `start_sidecar`. */
+/**  v0.126 —— `SmartMoneyScoreDto` 形状。 */
+export type SmartMoneyScoreDtoCodegen = {
+	market_id: string,
+	yes_score: number | null,
+	no_score: number | null,
+	yes_breakdown: SideBreakdownDtoCodegen,
+	no_breakdown: SideBreakdownDtoCodegen,
+	computed_at: bigint,
+};
+
+/**  v0.126 —— `SpikeAlertDto` 形状。 */
+export type SpikeAlertDtoCodegen = {
+	id: bigint,
+	market_id: string,
+	old_price: number | null,
+	new_price: number | null,
+	change_pct: number | null,
+	detected_at: bigint,
+	market_question: string | null,
+};
+
+/**  v0.104b —— `start_sidecar` 的参数。 */
 export type StartSidecarArgsCodegen = {
 	path: string | null,
 	auto_restart: boolean | null,
 };
 
-/**  v0.101a — args for `llm_stats_heatmap`. Matches real `StatsArgs`. */
+/**  v0.101a —— `llm_stats_heatmap` 的参数。与真实 `StatsArgs` 匹配。 */
 export type StatsArgsCodegen = {
 	provider_id: string | null,
 	category: string | null,
 	/**
-	 *  v0.101a — window_days placeholder (real impl uses Option<i64>
-	 *  wrapped in OptionBigInt). Stub uses Option<u32> for ts export.
+	 *  v0.101a —— window_days 占位符（真实实现使用
+	 *  包在 OptionBigInt 中的 Option<i64>）。存根使用 Option<u32> 用于 ts 导出。
 	 */
 	window_days: number | null,
 };
 
-/**  v0.101b — args for `llm_stats_by_confidence`. Matches real `StatsByConfidenceArgs`. */
+/**  v0.101b —— `llm_stats_by_confidence` 的参数。与真实 `StatsByConfidenceArgs` 匹配。 */
 export type StatsByConfidenceArgsCodegen = {
 	provider_id: string | null,
-	/**  v0.101b — placeholder (real impl uses Option<i64>). Stub uses Option<u32>. */
+	/**  v0.101b —— 占位符（真实实现使用 Option<i64>）。存根使用 Option<u32>。 */
 	window_days: number | null,
 };
 
-/**  v0.101b — args for `llm_stats_by_prompt`. Matches real `StatsByPromptArgs`. */
+/**  v0.101b —— `llm_stats_by_prompt` 的参数。与真实 `StatsByPromptArgs` 匹配。 */
 export type StatsByPromptArgsCodegen = {
 	prompt_version: string,
-	/**  v0.101b — placeholder (real impl uses Option<i64>). Stub uses Option<u32>. */
+	/**  v0.101b —— 占位符（真实实现使用 Option<i64>）。存根使用 Option<u32>。 */
 	window_days: number | null,
 };
 
 /**
- *  v0.84b — codegen stub for `StorageInfo`. The real struct has
- *  `free_bytes: Option<u64>` (BigInt-forbidden; even i64 is
- *  forbidden in specta-typescript's default mode). Stub uses
- *  `Option<f64>` (lossy above 2^53 bytes, but disk space in bytes
- *  fits comfortably for ~9 PB before precision loss).
+ *  v0.84b —— `StorageInfo` 的 codegen 存根。真实结构体
+ *  拥有 `free_bytes: Option<u64>`（BigInt 禁止；specta-typescript
+ *  默认模式下连 i64 也被禁止）。存根使用
+ *  `Option<f64>`（超过 2^53 字节会出现精度损失，
+ *  但在 ~9 PB 以内的磁盘空间字节数可以轻松容纳）。
  */
 export type StorageInfoCodegen = {
 	default_path: string,
@@ -1259,68 +1444,75 @@ export type StorageInfoCodegen = {
 	restart_required: boolean,
 };
 
-/**  v0.103b2 — args for `llm_test_connectivity`. */
+/**  v0.103b2 —— `llm_test_connectivity` 的参数。 */
 export type TestConnectivityArgsCodegen = {
 	provider_id: string,
 	key_id: string | null,
 };
 
-/**  v0.101c — args for `llm_traffic_summary`. Matches real `TrafficArgs`. */
+/**  v0.126 —— `TopWalletDto` 形状。 */
+export type TopWalletDtoCodegen = {
+	address: string,
+	pnl: number | null,
+	win_rate: number | null,
+};
+
+/**  v0.101c —— `llm_traffic_summary` 的参数。与真实 `TrafficArgs` 匹配。 */
 export type TrafficArgsCodegen = {
 	window: string | null,
 	provider_id: string | null,
 };
 
 /**
- *  v0.104b — args for `train_job`. Real TrainJobArgs has
- *  n_trials: Option<u32>, epochs: Option<u32>, timeout_ms: Option<u64>.
- *  Stub uses u32 placeholders (BigInt-forbidden workaround for u64).
+ *  v0.104b —— `train_job` 的参数。真实 TrainJobArgs 拥有
+ *  n_trials: Option<u32>、epochs: Option<u32>、timeout_ms: Option<u64>。
+ *  存根使用 u32 占位符(对 u64 的 BigInt 禁止变通方案)。
  */
 export type TrainJobArgsCodegen = {
 	n_trials: number | null,
 	epochs: number | null,
 	/**
-	 *  v0.104b — placeholder (real impl uses Option<u64>).
-	 *  Stub uses Option<u32>.
+	 *  v0.104b —— 占位符(真实实现使用 Option<u64>)。
+	 *  存根使用 Option<u32>。
 	 */
 	timeout_ms: number | null,
 };
 
-/**  v0.104b — TrainResult shape. */
+/**  v0.104b —— TrainResult 形状。 */
 export type TrainResultCodegen = {
 	job_id: string,
 	status: string,
 	best_brier: number | null,
 	/**
-	 *  v0.104b — best_params is Option<serde_json::Value> in real impl.
-	 *  Stub uses Option<String> (drift detection only).
+	 *  v0.104b —— 真实实现中 best_params 是 Option<serde_json::Value>。
+	 *  存根使用 Option<String>(仅用于 drift 检测)。
 	 */
 	best_params: string | null,
 	trials: TrainTrialDtoCodegen[],
-	/**  v0.104b — duration_ms (real impl uses i64). i32 placeholder. */
+	/**  v0.104b —— duration_ms(真实实现使用 i64)。i32 占位符。 */
 	duration_ms: number,
 	candidate_path: string | null,
 	message: string | null,
 };
 
-/**  v0.104b — TrainTrialDto shape. Count fields use i32. */
+/**  v0.104b —— TrainTrialDto 形状。计数字段使用 i32。 */
 export type TrainTrialDtoCodegen = {
-	/**  v0.104b — placeholder (real impl uses i64). i32. */
+	/**  v0.104b —— 占位符(真实实现使用 i64)。i32。 */
 	trial_index: number,
-	/**  v0.104b — placeholder (real impl uses i64). i32. */
+	/**  v0.104b —— 占位符(真实实现使用 i64)。i32。 */
 	duration_ms: number,
 	brier: number | null,
 	/**
-	 *  v0.104b — params is serde_json::Value in real impl.
-	 *  Stub uses String (drift detection only — L1 keeps as
-	 *  `Record<string, unknown>`).
+	 *  v0.104b —— 真实实现中 params 是 serde_json::Value。
+	 *  存根使用 String(仅用于 drift 检测 —— L1 保留为
+	 *  `Record<string, unknown>`)。
 	 */
 	params: string,
 };
 
 /**
- *  v0.101c — TriggerResult shape. triggered_at_unix_ms uses
- *  `#[specta(type = BigInt)]`.
+ *  v0.101c —— TriggerResult 形状。triggered_at_unix_ms 使用
+ *  `#[specta(type = BigInt)]`。
  */
 export type TriggerResultCodegen = {
 	triggered_at_unix_ms: bigint,
@@ -1329,9 +1521,19 @@ export type TriggerResultCodegen = {
 	error: string | null,
 };
 
+/**  v0.126 —— `UmaDisputeStatusDto` 形状。 */
+export type UmaDisputeStatusDtoCodegen = {
+	market_id: string,
+	status: string,
+	detail: string | null,
+	/**  v0.126 —— 占位符(真实类型 Option<i64>)。 */
+	raised_at: number | null,
+	raised_by: string | null,
+};
+
 /**
- *  v0.84c — codegen stub for `WalletDto`. Real has 3× i64 fields
- *  (`chain_id`, `created_at`, `last_synced_at`).
+ *  v0.84c —— `WalletDto` 的 codegen 存根。真实结构体包含 3× i64 字段
+ * （`chain_id`、`created_at`、`last_synced_at`）。
  */
 export type WalletDtoCodegen = {
 	id: string,
@@ -1340,14 +1542,14 @@ export type WalletDtoCodegen = {
 	chain_id: number,
 	wallet_type: string,
 	/**
-	 *  v0.86b — `created_at: i64` with `#[specta(type = BigInt)]` → TS `bigint`.
-	 *  `last_synced_at: Option<OptionBigInt<i64>>` → TS `bigint | null`.
+	 *  v0.86b —— `created_at: i64` 加 `#[specta(type = BigInt)]` → TS `bigint`。
+	 *  `last_synced_at: Option<OptionBigInt<i64>>` → TS `bigint | null`。
 	 */
 	created_at: bigint,
 	last_synced_at: bigint | null,
 };
 
-/**  v0.104b — args for `polyrocket_wallet_set_pk`. Real WalletSetPkArgs. */
+/**  v0.104b —— `polyrocket_wallet_set_pk` 的参数。真实的 WalletSetPkArgs。 */
 export type WalletSetPkArgsCodegen = {
 	private_key: string,
 	address: string,

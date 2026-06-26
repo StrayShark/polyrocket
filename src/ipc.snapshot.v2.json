@@ -12,6 +12,11 @@
       ],
       "returnType": null
     },
+    "getWalletBalance": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
     "listMarkets": {
       "params": 1,
       "paramNames": [
@@ -41,6 +46,38 @@
     "recomputeSignals": {
       "params": 0,
       "paramNames": [],
+      "returnType": null
+    },
+    "computeAllocationPreview": {
+      "params": 1,
+      "paramNames": [
+        "args"
+      ],
+      "returnType": null
+    },
+    "getBankrollConfig": {
+      "params": 1,
+      "paramNames": [
+        "walletId"
+      ],
+      "returnType": null
+    },
+    "setBankrollConfig": {
+      "params": 2,
+      "paramNames": [
+        "walletId",
+        "config"
+      ],
+      "returnType": null
+    },
+    "applyAllocation": {
+      "params": 4,
+      "paramNames": [
+        "walletId",
+        "result",
+        "bankrollUsdc",
+        "config"
+      ],
       "returnType": null
     },
     "placeJumpLink": {
@@ -680,35 +717,105 @@
       ],
       "returnType": null
     },
-    "computeAllocationPreview": {
+    "smartMoneyScore": {
       "params": 1,
       "paramNames": [
-        "args"
+        "marketId"
       ],
       "returnType": null
     },
-    "getBankrollConfig": {
-      "params": 1,
-      "paramNames": [
-        "walletId"
-      ],
-      "returnType": null
-    },
-    "setBankrollConfig": {
+    "marketCalendar": {
       "params": 2,
       "paramNames": [
-        "walletId",
-        "config"
+        "year",
+        "month"
       ],
       "returnType": null
     },
-    "applyAllocation": {
-      "params": 4,
+    "listSpikeAlerts": {
+      "params": 1,
       "paramNames": [
-        "walletId",
-        "result",
-        "bankrollUsdc",
-        "config"
+        "limit"
+      ],
+      "returnType": null
+    },
+    "runSpikeScan": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "marketNews": {
+      "params": 1,
+      "paramNames": [
+        "marketId"
+      ],
+      "returnType": null
+    },
+    "listAllNews": {
+      "params": 1,
+      "paramNames": [
+        "limit"
+      ],
+      "returnType": null
+    },
+    "nlQuery": {
+      "params": 1,
+      "paramNames": [
+        "query"
+      ],
+      "returnType": null
+    },
+    "arbScan": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "listArbOpportunities": {
+      "params": 1,
+      "paramNames": [
+        "limit"
+      ],
+      "returnType": null
+    },
+    "crossPlatformArbScan": {
+      "params": 0,
+      "paramNames": [],
+      "returnType": null
+    },
+    "poissonScoreMatrix": {
+      "params": 1,
+      "paramNames": [
+        "marketId"
+      ],
+      "returnType": null
+    },
+    "getFootballContext": {
+      "params": 1,
+      "paramNames": [
+        "marketId"
+      ],
+      "returnType": null
+    },
+    "umaDisputeStatus": {
+      "params": 1,
+      "paramNames": [
+        "marketId"
+      ],
+      "returnType": null
+    },
+    "crowdOpinion": {
+      "params": 1,
+      "paramNames": [
+        "marketId"
+      ],
+      "returnType": null
+    },
+    "reversionSignal": {
+      "params": 3,
+      "paramNames": [
+        "marketId",
+        "window",
+        "zThreshold"
       ],
       "returnType": null
     }
@@ -716,9 +823,12 @@
   "typeImports": [
     "AddCopyTargetArgs",
     "AddWalletArgs",
+    "AllocationResult",
     "AuditEntry",
+    "BankrollConfigDto",
     "Bet",
     "BriefRefreshResult",
+    "ComputeAllocationArgs",
     "ConnectivityTestResult",
     "CopyEvent",
     "CopyTarget",
@@ -756,10 +866,7 @@
     "UpsertLlmKeyArgs",
     "UpsertLlmProviderArgs",
     "ValidateOrderArgsArgs",
-    "Wallet",
-    "AllocationResult",
-    "ComputeAllocationArgs",
-    "BankrollConfigDto"
+    "Wallet"
   ],
-  "total": 112
+  "total": 128
 }

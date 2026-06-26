@@ -1,20 +1,20 @@
-//! `e2e_football` — full end-to-end football market analysis test.
+//! `e2e_football` —— 完整的端到端足球市场分析测试。
 //!
-//! Pipeline (uses the same code path the Tauri IPC uses):
-//!   1. Init in-memory SQLite with full schema (26 tables via migrations.rs)
-//!   2. Seed 1 real football market from SeedBundle.demo()
-//!   3. Insert 1 enabled LLM provider (Doubao — proven to work)
-//!   4. Build MarketContext + FootballMatchContext
-//!   5. Build football.v1.0 prompt (Dixon-Coles + Elo + xG + CLV)
-//!   6. Call the LLM via CustomClient::call() (same as dispatch internals)
-//!   7. Parse response with parse_football_recommendation()
-//!   8. Print the full match analysis to stdout
+//! 流水线(与 Tauri IPC 使用相同的代码路径):
+//!   1. 初始化内存 SQLite 与完整 schema(26 张表,通过 migrations.rs)
+//!   2. 从 SeedBundle.demo() 植入 1 个真实足球市场
+//!   3. 插入 1 个已启用的 LLM provider(豆包 —— 经验证可用)
+//!   4. 构造 MarketContext + FootballMatchContext
+//!   5. 构建 football.v1.0 prompt(Dixon-Coles + Elo + xG + CLV)
+//!   6. 通过 CustomClient::call() 调用 LLM(与 dispatch 内部相同)
+//!   7. 使用 parse_football_recommendation() 解析响应
+//!   8. 将完整的比赛分析输出到 stdout
 //!
-//! Run:
+//! 运行:
 //!   cd src-tauri && cargo run --bin e2e_football
 //!
-//! Requirements:
-//!   - DOUBAO_API_KEY in env (or keyring entry llm/doubao/prod-1)
+//! 依赖:
+//!   - 环境变量 DOUBAO_API_KEY(或钥匙串条目 llm/doubao/prod-1)
 
 use polyrocket_lib::domain::llm::prompts::{
     build_football_match_request, parse_football_recommendation, FootballMatchContext,
@@ -31,7 +31,7 @@ async fn main() {
     println!("=== e2e_football: end-to-end football market analysis ===\n");
     let started = Instant::now();
 
-    // -- 1. in-memory SQLite + full schema (26 tables)
+    // -- 1. 内存 SQLite + 完整 schema(26 张表)
     let pool = match sqlx::SqlitePool::connect("sqlite::memory:").await {
         Ok(p) => p,
         Err(e) => {
@@ -45,7 +45,7 @@ async fn main() {
     }
     println!("[e2e] ✓ schema initialised (26 tables via migrations.rs)");
 
-    // -- 2. seed a real football market via SeedBundle.demo()
+    // -- 2. 通过 SeedBundle.demo() 植入一个真实足球市场
     let bundle = SeedBundle::demo();
     let football_markets: Vec<_> = bundle.markets.iter().filter(|m| m.category == "football").collect();
     println!("[e2e] ✓ found {} football markets in seed bundle", football_markets.len());
@@ -60,7 +60,7 @@ async fn main() {
     println!("         slug     : {}", target.slug);
     println!("         volume24h: {}", target.volume_24h.unwrap_or(0.0));
 
-    // Insert the market into the DB (idempotent via INSERT OR REPLACE)
+    // 将市场插入数据库(通过 INSERT OR REPLACE 实现幂等)
     sqlx::query(
         "INSERT OR REPLACE INTO markets
             (id, slug, question, description, category, tags, end_date, active, resolved, outcome,
@@ -86,7 +86,7 @@ async fn main() {
     .expect("insert market");
     println!("[e2e] ✓ market inserted into DB");
 
-    // -- 3. set up provider list with fallback (Doubao first; fall back if rate-limited)
+    // -- 3. 设置带回退的 provider 列表(豆包优先;触发限流时回退)
     #[derive(Clone)]
     struct Provider {
         id: &'static str,
@@ -129,7 +129,7 @@ async fn main() {
         },
     ];
 
-    // Insert all 4 into DB as enabled (so any is selectable)
+    // 将全部 5 个插入数据库,设为启用(以便任意一个都可选用)
     for p in &providers {
         sqlx::query(
             "INSERT OR REPLACE INTO llm_providers
@@ -149,11 +149,11 @@ async fn main() {
     }
     println!("[e2e] ✓ {} providers inserted (doubao, qwen, moonshot, zhipu)", providers.len());
 
-    // -- 5. build MarketContext from the seeded market
-    let yes_price: u32 = 64; // from Polymarket: Real Madrid around 64¢ YES
+    // -- 5. 从植入的市场构造 MarketContext
+    let yes_price: u32 = 64; // 来自 Polymarket:皇马约 64¢ YES
     let no_price: u32 = 36;
     let vol = target.volume_24h.unwrap_or(0.0);
-    let liq = target.liquidity.unwrap_or_default().parse::<f64>().unwrap_or(0.0);
+    let liq = target.liquidity.as_deref().unwrap_or("").parse::<f64>().unwrap_or(0.0);
     let market_ctx = MarketContext {
         market_id: target.id.clone(),
         question: target.question.clone(),
@@ -169,7 +169,7 @@ async fn main() {
     };
     println!("[e2e] ✓ MarketContext built (yes={yes_price}¢ no={no_price}¢ vol=${vol:.0})");
 
-    // -- 6. route to football.v1.0 (auto-derives home/away + market_type)
+    // -- 6. 路由到 football.v1.0(自动推导主/客队 + market_type)
     let football_ctx = FootballMatchContext::from_market_context(market_ctx.clone());
     println!("[e2e] ✓ FootballMatchContext:");
     println!("         market_type = {:?}", football_ctx.market_type);
@@ -180,7 +180,7 @@ async fn main() {
     println!("         prompt_ver  = {PROMPT_VERSION_FOOTBALL_MATCH}");
 
 let req = build_football_match_request(providers[0].model, &football_ctx);
-    // Get user content (last message in the messages vec)
+    // 获取 user 内容(messages vec 中最后一条消息)
     let user_content = req.messages.iter()
         .rev()
         .find(|m| m.role == "user")
@@ -193,14 +193,14 @@ let req = build_football_match_request(providers[0].model, &football_ctx);
     println!("{}", preview);
     println!("...\n");
 
-    // -- 7. try each provider in order; use first that returns 2xx + parseable JSON
+    // -- 7. 按顺序尝试每个 provider;使用首个返回 2xx + 可解析 JSON 的
     let http = polyrocket_lib::domain::llm::new_http_client();
     let analysis_id_base = format!("e2e-{}", std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
 
     let mut selected: Option<(Provider, polyrocket_lib::domain::llm::CallOutcome)> = None;
     for p in &providers {
-        // Build per-provider req (model name differs)
+        // 为每个 provider 构造 req(模型名称不同)
         let req_p = build_football_match_request(p.model, &football_ctx);
         let env_var = format!("{}_API_KEY", p.id.to_uppercase());
         let keyring_alias = format!("llm/{}/prod-1", p.id);
@@ -235,11 +235,11 @@ let req = build_football_match_request(providers[0].model, &football_ctx);
             Err(e) => {
                 println!("[e2e]   ✗ {} failed ({}ms): code={} http={:?}",
                     p.id, elapsed.as_millis(), e.code, e.http_status);
-                // If auth / quota / not retryable, try next
+                // 鉴权/配额/不可重试:尝试下一个
                 if matches!(e.code, "auth" | "quota" | "model_not_found") || e.http_status == Some(401) || e.http_status == Some(403) || e.http_status == Some(404) {
                     continue;
                 }
-                // Transient errors: also continue but the message above shows
+                // 瞬时错误:也继续,但上面的消息已显示
             }
         }
     }
@@ -252,7 +252,7 @@ let req = build_football_match_request(providers[0].model, &football_ctx);
         }
     };
 
-    // -- 8. print the analysis result
+    // -- 8. 打印分析结果
     println!();
     println!("=== Match Analysis Result (provider={}) ===", selected_p.id);
     println!("display_name     : {}", selected_p.display);

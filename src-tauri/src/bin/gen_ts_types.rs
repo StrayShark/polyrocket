@@ -1,24 +1,24 @@
-//! v0.76 / v0.81 / v0.84 / v0.88 — codegen Phase 1+2+3+4 binary.
+//! v0.76 / v0.81 / v0.84 / v0.88 —— codegen Phase 1+2+3+4 二进制。
 //!
-//! Generates TS bindings from `#[tauri::command] + #[specta::specta]`
-//! -annotated commands.
+//! 从带 `#[tauri::command] + #[specta::specta]` 标注的命令
+//! 生成 TS 绑定。
 //!
-//! v0.76 = Phase 1: 1 command (dashboard_kpis) proof-of-concept.
-//! v0.81 = Phase 2: +4 bankroll commands
-//!   (compute_allocation_preview, get_bankroll_config,
-//!    set_bankroll_config, apply_allocation).
-//! v0.84 = Phase 3: +14 read-only commands (no input DTOs).
-//! v0.88 = Phase 4: input DTO commands. v0.88a adds 3 simple shape:
+//! v0.76 = Phase 1：1 个命令（dashboard_kpis）概念验证。
+//! v0.81 = Phase 2：+4 个 bankroll 命令
+//!   （compute_allocation_preview、get_bankroll_config、
+//!    set_bankroll_config、apply_allocation）。
+//! v0.84 = Phase 3：+14 个只读命令（无输入 DTO）。
+//! v0.88 = Phase 4：输入 DTO 命令。v0.88a 新增 3 种简单结构：
 //!   - add_wallet → AddWalletArgsCodegen + WalletDtoCodegen
 //!   - set_telemetry_enabled → SetTelemetryEnabledArgsCodegen
 //!   - set_mirror_paper_mode → SetMirrorPaperModeArgsCodegen
 //!
-//! Phase 5 (build pipeline: drift detector → pnpm build) is next.
+//! Phase 5（构建流水线：drift 检测器 → pnpm build）是下一步。
 //!
-//! Run: `cargo run --bin gen_ts_types`
-//! Output: `src/types/generated/index.ts`
+//! 运行：`cargo run --bin gen_ts_types`
+//! 输出：`src/types/generated/index.ts`
 //!
-//! See `docs/codegen-migration-plan.md` for the 5-phase plan.
+//! 参见 `docs/codegen-migration-plan.md` 中的 5 阶段计划。
 
 use polyrocket_lib::commands;
 use serde::{Deserialize, Serialize};
@@ -28,11 +28,11 @@ use polyrocket_lib::codegen::option_bigint::OptionBigInt;
 use specta_typescript::BigInt;
 use tauri_specta::{collect_commands, Builder};
 
-// v0.81 — codegen-friendly Signal. The real `domain::signal::Signal`
-// has `computed_at: i64` which specta-typescript forbids (BigInt).
-// This stub uses `i32` to bypass. The real TS DTOs in
-// `src/types/signal.ts` should also use number for computed_at —
-// we document this drift in the migration plan.
+// v0.81 —— 友好的 codegen Signal。真实的 `domain::signal::Signal`
+// 拥有 `computed_at: i64`，这在 specta-typescript 中被禁止（BigInt）。
+// 该存根使用 `i32` 来绕过。`src/types/signal.ts` 中的真实 TS DTO
+// 也应为 computed_at 使用 number ——
+// 我们在迁移计划中记录了这一漂移。
 #[derive(Serialize, Deserialize, Type)]
 struct SignalCodegenDto {
     market_id: String,
@@ -63,7 +63,7 @@ impl From<&polyrocket_lib::domain::signal::Signal> for SignalCodegenDto {
 }
 
 // =================================================================
-// v0.76 — DashboardKpis (Phase 1 pilot)
+// v0.76 —— DashboardKpis（Phase 1 试点）
 // =================================================================
 
 #[derive(serde::Serialize, serde::Deserialize, Type)]
@@ -90,14 +90,14 @@ async fn dashboard_kpis_codegen() -> Result<DashboardKpisDto, String> {
 }
 
 // =================================================================
-// v0.84 — Phase 3: 5 read-only commands (no i64 fields)
+// v0.84 —— Phase 3：5 个只读命令（无 i64 字段）
 // =================================================================
 //
-// These stubs use the REAL DTOs from `commands::*` directly so that
-// drift detection works: a Rust field rename / type change will
-// surface as a diff in `src/types/generated/index.ts` (v0.84d will
-// prove this). The stub commands return hardcoded data of the right
-// shape so the codegen can run without a Tauri State.
+// 这些存根直接使用 `commands::*` 中的真实 DTO，
+// 以便 drift 检测能够生效：Rust 中的字段重命名 / 类型变更
+// 会在 `src/types/generated/index.ts` 中以 diff 的形式体现
+// （v0.84d 将证明这一点）。存根命令返回正确
+// 形状的硬编码数据，使 codegen 可以在没有 Tauri State 时运行。
 
 #[tauri::command]
 #[specta::specta]
@@ -141,21 +141,21 @@ async fn get_telemetry_enabled_codegen() -> Result<bool, String> {
 }
 
 // =================================================================
-// v0.84 — Phase 3 batch 2: 5 simple-arg read-only commands
+// v0.84 —— Phase 3 batch 2：5 个简单参数的只读命令
 // =================================================================
 //
-// 3 of these 5 use the real DTOs (no i64 fields):
-//   - get_auto_promote_config → AutoPromoteConfigDto (no i64)
-//   - get_storage_info → StorageInfo (no i64)
-//   - get_mirror_paper_mode → bool (no struct)
+// 这 5 个中 3 个使用真实 DTO（无 i64 字段）：
+//   - get_auto_promote_config → AutoPromoteConfigDto（无 i64）
+//   - get_storage_info → StorageInfo（无 i64）
+//   - get_mirror_paper_mode → bool（无 struct）
 //
-// 2 use `*CodegenDto` stubs because the real types have i64 fields
-// (specta-typescript's default BigInt behavior is Fail). We use
-// `specta_typescript::Number<i64>` which exports as TS `number`
-// (precision loss accepted; safe for Unix ms timestamps within
-// ~285,000 years from epoch).
-//   - get_audit_retention → AuditRetentionViewCodegen (i64 fields)
-//   - get_active_model → ActiveModelCodegen (i64 fields)
+// 2 个使用 `*CodegenDto` 存根，因为真实类型包含 i64 字段
+//（specta-typescript 默认 BigInt 行为是 Fail）。
+// 我们使用 `specta_typescript::Number<i64>`，导出为 TS `number`
+//（接受精度损失；在距 epoch ~285,000 年内的
+// Unix ms 时间戳是安全的）。
+//   - get_audit_retention → AuditRetentionViewCodegen（i64 字段）
+//   - get_active_model → ActiveModelCodegen（i64 字段）
 
 #[tauri::command]
 #[specta::specta]
@@ -177,19 +177,19 @@ async fn get_storage_info_codegen(
         is_custom: false,
         exists: false,
         writable: false,
-        /// v0.84b — `free_bytes: Option<u64>` in real type is
-        /// BigInt-forbidden. Stub uses `Option<i64>` (signed
-        /// for lossless range to 2^63; bytes fit comfortably).
+        /// v0.84b —— 真实类型中 `free_bytes: Option<u64>` 被 BigInt 禁止。
+        /// 存根使用 `Option<i64>`（有符号，
+        /// 以在 2^63 范围内无损；字节数可以轻松容纳）。
         free_bytes: None,
         restart_required: false,
     })
 }
 
-/// v0.84b — codegen stub for `StorageInfo`. The real struct has
-/// `free_bytes: Option<u64>` (BigInt-forbidden; even i64 is
-/// forbidden in specta-typescript's default mode). Stub uses
-/// `Option<f64>` (lossy above 2^53 bytes, but disk space in bytes
-/// fits comfortably for ~9 PB before precision loss).
+/// v0.84b —— `StorageInfo` 的 codegen 存根。真实结构体
+/// 拥有 `free_bytes: Option<u64>`（BigInt 禁止；specta-typescript
+/// 默认模式下连 i64 也被禁止）。存根使用
+/// `Option<f64>`（超过 2^53 字节会出现精度损失，
+/// 但在 ~9 PB 以内的磁盘空间字节数可以轻松容纳）。
 #[derive(Serialize, Deserialize, Type)]
 struct StorageInfoCodegen {
     pub default_path: String,
@@ -207,12 +207,13 @@ async fn get_mirror_paper_mode_codegen() -> Result<bool, String> {
     Ok(true)
 }
 
-// v0.86c — for AuditRetentionView (has 4 i64 fields), the stub uses
-// `BigIntMap<String, i64>` for the map value and `#[specta(type = BigInt)]`
-// for the required i64 scalars. v0.85c had reverted to i32 placeholders
-// because `#[specta(type = BigInt)]` on `HashMap<String, i64>` doesn't
-// recurse into the value type; v0.86c adds the custom `BigIntMap` wrapper
-// to fix that case.
+// v0.86c —— 针对 AuditRetentionView（拥有 4 个 i64 字段），
+// 存根对 map value 使用 `BigIntMap<String, i64>`，
+// 对必需的 i64 标量使用 `#[specta(type = BigInt)]`。
+// v0.85c 曾经回退到 i32 占位符，因为
+// `HashMap<String, i64>` 上的 `#[specta(type = BigInt)]`
+// 不会递归到 value 类型；v0.86c 新增自定义 `BigIntMap`
+// 包装器以修复该情况。
 #[derive(Serialize, Deserialize, Type)]
 struct AuditRetentionViewCodegen {
     #[specta(type = BigInt)]
@@ -221,15 +222,16 @@ struct AuditRetentionViewCodegen {
     pub max_rows: i64,
     #[specta(type = BigInt)]
     pub min_keep_rows: i64,
-    /// v0.86c — `BigIntMap<String, i64>` → TS `{ [key: string]: bigint }`.
-    /// See src-tauri/src/codegen/bigint_map.rs for the wrapper design.
+    /// v0.86c —— `BigIntMap<String, i64>` → TS `{ [key: string]: bigint }`。
+    /// 有关包装器设计，请参见 src-tauri/src/codegen/bigint_map.rs。
     pub overrides: BigIntMap<String, i64>,
 }
 
-// v0.98 — DTO stubs for the 4 new commands.
-// Each mirrors the real Rust type but uses i32 / String
-// placeholders for fields that would be i64 / u64 / Decimal
-// in the real impl (which we skip in the codegen stub).
+// v0.98 —— 4 个新命令的 DTO 存根。
+// 每个都镜像真实的 Rust 类型，但对那些
+// 在真实实现中为 i64 / u64 / Decimal 的字段
+//（我们在 codegen 存根中跳过）使用 i32 / String
+// 占位符。
 
 #[derive(Serialize, Deserialize, Type)]
 struct ListBetsArgsCodegen {
@@ -242,16 +244,16 @@ struct ListAuditLogArgsCodegen {
     pub limit: i32,
     pub actor: Option<String>,
     pub action: Option<String>,
-    /// v0.98 — placeholder (real impl uses Option<i64> wrapped in
-    /// OptionBigInt). Stub uses Option<u32> for ts export.
+    /// v0.98 —— 占位符（真实实现使用包在
+    /// OptionBigInt 中的 Option<i64>）。存根使用 Option<u32> 用于 ts 导出。
     pub since_ms: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Type)]
 struct AuditEntryDtoCodegen {
-    /// v0.98 — placeholder (real impl uses i64 with `#[specta(type = BigInt)]`
-    /// or `Option<OptionBigInt<i64>>` for the optional case). Stub
-    /// uses i32 since audit IDs are bounded by history size.
+    /// v0.98 —— 占位符（真实实现使用带 `#[specta(type = BigInt)]` 的 i64，
+    /// 或者在可选情况下使用 `Option<OptionBigInt<i64>>`）。
+    /// 存根使用 i32，因为 audit ID 受历史大小的限制。
     pub id: i32,
     pub actor: String,
     pub action: String,
@@ -301,15 +303,15 @@ async fn get_audit_retention_codegen(
 struct ActiveModelCodegen {
     pub model_version: String,
     pub best_brier: Option<f64>,
-    /// v0.84b — `best_params: Option<serde_json::Value>` is omitted
-    /// from the codegen stub because `serde_json::Value` doesn't
-    /// implement `specta::Type`. The L1 layer keeps it as
-    /// `Record<string, unknown> | null` in the hand-written
-    /// `ActiveModel` interface (src/ipc.ts:1227). Drift detection
-    /// for this field is therefore limited to the L1 layer
-    /// (covered by the existing v2 contract test). v0.84+ may
-    /// add a custom Type impl for serde_json::Value.
-    /// v0.86b — Option<OptionBigInt<i64>> → TS `bigint | null`
+    /// v0.84b —— `best_params: Option<serde_json::Value>` 在 codegen
+    /// 存根中被省略，因为 `serde_json::Value` 没有实现
+    /// `specta::Type`。L1 层在手写的
+    /// `ActiveModel` 接口（src/ipc.ts:1227）中将其保留为
+    /// `Record<string, unknown> | null`。因此该字段的
+    /// drift 检测仅限于 L1 层（由现有的 v2 contract
+    /// 测试覆盖）。v0.84+ 可能为 serde_json::Value
+    /// 添加自定义 Type 实现。
+    /// v0.86b —— Option<OptionBigInt<i64>> → TS `bigint | null`
     pub promoted_at_ms: Option<OptionBigInt<i64>>,
     pub weights: Option<Vec<f64>>,
     pub source_path: String,
@@ -328,30 +330,30 @@ async fn get_active_model_codegen() -> Result<Option<ActiveModelCodegen>, String
 }
 
 // =================================================================
-// v0.84 — Phase 3 batch 3: 4 Vec-return commands
+// v0.84 —— Phase 3 batch 3：4 个返回 Vec 的命令
 // =================================================================
 //
-// All 4 DTOs have i64 fields (BigInt-forbidden). We use `*CodegenDto`
-// stubs with i32 placeholders, following the v0.81 SignalCodegenDto
-// pattern. Real types stay untouched.
+// 4 个 DTO 都包含 i64 字段（BigInt 禁止）。我们使用带
+// i32 占位符的 `*CodegenDto` 存根，遵循 v0.81 SignalCodegenDto
+// 模式。真实类型保持不变。
 
-// ---------- SignalDto (list_active_signals) ----------
+// ---------- SignalDto（list_active_signals）----------
 
-/// v0.84c — codegen stub args. Real `ListSignalsArgs` has
-/// `Option<i64>` (limit), which is BigInt-forbidden. Stub uses
-/// `Option<i32>` (matches the codegen-friendly limit semantics).
+/// v0.84c —— codegen 存根参数。真实的 `ListSignalsArgs` 拥有
+/// `Option<i64>`（limit），这在 BigInt 中被禁止。存根使用
+/// `Option<i32>`（与 codegen 友好的 limit 语义一致）。
 #[derive(Serialize, Deserialize, Type, Default)]
 struct ListSignalsArgsCodegen {
     pub min_edge: Option<f64>,
     pub category: Option<String>,
-    /// v0.86b — Option<OptionBigInt<i64>> → TS `bigint | null`.
+    /// v0.86b —— Option<OptionBigInt<i64>> → TS `bigint | null`。
     pub limit: Option<OptionBigInt<i64>>,
 }
 
-/// v0.84c — codegen stub for `SignalDto`. The real struct has 4× i64
-/// fields (`id`, `computed_at`, `horizon_hours`, ...). Stub uses i32
-/// (drift detection on the field set + names, not on the i64→i32
-/// precision; v0.84+ may switch to BigInt<i64> via serde feature).
+/// v0.84c —— `SignalDto` 的 codegen 存根。真实结构体拥有 4× i64
+/// 字段（`id`、`computed_at`、`horizon_hours` 等）。存根使用 i32
+///（针对字段集 + 名称的 drift 检测，而非 i64→i32
+/// 精度；v0.84+ 可能通过 serde feature 切换到 BigInt<i64>）。
 #[derive(Serialize, Deserialize, Type)]
 struct SignalListItemCodegen {
     pub id: i32,
@@ -376,24 +378,24 @@ async fn list_active_signals_codegen(
     Ok(vec![])
 }
 
-// ---------- MirrorRow (list_mirrors) ----------
+// ---------- MirrorRow（list_mirrors）----------
 
-/// v0.84c — codegen stub args. Real `ListMirrorsArgs` has
-/// `Option<i64>` (limit). Stub uses `Option<i32>`.
+/// v0.84c —— codegen 存根参数。真实的 `ListMirrorsArgs` 拥有
+/// `Option<i64>`（limit）。存根使用 `Option<i32>`。
 #[derive(Serialize, Deserialize, Type, Default)]
 struct ListMirrorsArgsCodegen {
     pub status: Option<String>,
-    /// v0.86b — Option<OptionBigInt<i64>> → TS `bigint | null`.
+    /// v0.86b —— Option<OptionBigInt<i64>> → TS `bigint | null`。
     pub limit: Option<OptionBigInt<i64>>,
 }
 
-/// v0.85b — codegen stub for `MirrorRow`. Real has 5× i64 fields
-/// (`event_id`, `created_at`, `submitted_at`, `filled_at`, ...).
-/// v0.85+: uses `#[specta(type = BigInt)]` attribute to mark i64
-/// fields as TS `bigint` (lossless for values that fit in 53 bits).
-/// The L1 layer (src/types/mirror.ts) keeps these as `number` for
-/// now (JSON.parse gives `number`, not `bigint`); explicit `BigInt()`
-/// conversion is added in a follow-up.
+/// v0.85b —— `MirrorRow` 的 codegen 存根。真实结构体包含 5× i64 字段
+///（`event_id`、`created_at`、`submitted_at`、`filled_at` 等）。
+/// v0.85+：使用 `#[specta(type = BigInt)]` 属性将 i64
+/// 字段标记为 TS `bigint`（对于 53 位以内可容纳的值无损）。
+/// L1 层（src/types/mirror.ts）暂时将其保留为 `number`
+///（JSON.parse 给出 `number` 而非 `bigint`）；后续将添加
+/// 显式的 `BigInt()` 转换。
 #[derive(Serialize, Deserialize, Type)]
 struct MirrorRowCodegen {
     pub id: String,
@@ -407,10 +409,10 @@ struct MirrorRowCodegen {
     pub status: String,
     #[specta(type = BigInt)]
     pub created_at: i64,
-    /// v0.86b — Option<OptionBigInt<i64>> → TS `bigint | null`
-    /// (lossless for values that fit in 53 bits). The OptionBigInt
-    /// wrapper is serde-transparent so wire format is identical to
-    /// `Option<i64>`. See src-tauri/src/codegen/option_bigint.rs.
+    /// v0.86b —— Option<OptionBigInt<i64>> → TS `bigint | null`
+    ///（对于 53 位以内可容纳的值无损）。OptionBigInt
+    /// 包装器对 serde 是透明的，因此线缆格式与
+    /// `Option<i64>` 相同。请参见 src-tauri/src/codegen/option_bigint.rs。
     pub submitted_at: Option<OptionBigInt<i64>>,
     pub filled_at: Option<OptionBigInt<i64>>,
     pub bet_id: Option<String>,
@@ -424,10 +426,10 @@ async fn list_mirrors_codegen(
     Ok(vec![])
 }
 
-// ---------- WalletDto (list_wallets) ----------
+// ---------- WalletDto（list_wallets）----------
 
-/// v0.84c — codegen stub for `WalletDto`. Real has 3× i64 fields
-/// (`chain_id`, `created_at`, `last_synced_at`).
+/// v0.84c —— `WalletDto` 的 codegen 存根。真实结构体包含 3× i64 字段
+///（`chain_id`、`created_at`、`last_synced_at`）。
 #[derive(Serialize, Deserialize, Type)]
 struct WalletDtoCodegen {
     pub id: String,
@@ -435,8 +437,8 @@ struct WalletDtoCodegen {
     pub label: Option<String>,
     pub chain_id: i32,
     pub wallet_type: String,
-    /// v0.86b — `created_at: i64` with `#[specta(type = BigInt)]` → TS `bigint`.
-    /// `last_synced_at: Option<OptionBigInt<i64>>` → TS `bigint | null`.
+    /// v0.86b —— `created_at: i64` 加 `#[specta(type = BigInt)]` → TS `bigint`。
+    /// `last_synced_at: Option<OptionBigInt<i64>>` → TS `bigint | null`。
     #[specta(type = BigInt)]
     pub created_at: i64,
     pub last_synced_at: Option<OptionBigInt<i64>>,
@@ -449,23 +451,23 @@ async fn list_wallets_codegen() -> Result<Vec<WalletDtoCodegen>, String> {
 }
 
 // =================================================================
-// v0.88a — Phase 4 batch 1: 3 input-DTO commands (simple shape)
+// v0.88a —— Phase 4 batch 1：3 个输入 DTO 命令（简单结构）
 // =================================================================
 //
-// Drift detection for input DTOs. The real commands live in
+// 输入 DTO 的 drift 检测。真实命令位于
 // `commands/wallet.rs` / `commands/sidecar.rs` /
-// `commands/mirror_executor.rs` — these stubs exist purely so the
-// codegen can run and the drift detector can catch any future
-// rename/type change in the real args DTOs. L1 still calls the real
-// commands (`add_wallet` / `set_telemetry_enabled` /
-// `set_mirror_paper_mode`) — the `_codegen` suffix here is a marker
-// for the codegen surface, not an L1-callable IPC.
+// `commands/mirror_executor.rs` —— 这些存根纯粹为了让 codegen
+// 运行，并让 drift 检测器能够捕捉真实 args DTO
+// 中的任何未来重命名 / 类型变更。L1 仍然调用真实
+// 命令（`add_wallet` / `set_telemetry_enabled` /
+// `set_mirror_paper_mode`）—— 此处的 `_codegen` 后缀
+// 是 codegen 面的标记，而非 L1 可调用的 IPC。
 
-/// v0.88a — codegen stub args for `add_wallet`. Real
-/// `AddWalletArgs` (commands/wallet.rs:26) has `chain_id: Option<i64>`;
-/// we truncate to i32 since chain IDs are small (Polygon mainnet = 137,
-/// fits comfortably). A future drift in `label`/`address`/`wallet_type`
-/// types or in `chain_id`'s Option-ness will surface here.
+/// v0.88a —— `add_wallet` 的 codegen 存根参数。真实的
+/// `AddWalletArgs`（commands/wallet.rs:26）拥有 `chain_id: Option<i64>`；
+/// 我们截断到 i32，因为 chain ID 较小（Polygon 主网 = 137，
+/// 可轻松容纳）。`label`/`address`/`wallet_type` 类型或
+/// `chain_id` 是否可选的未来漂移会在这里显现。
 #[derive(Serialize, Deserialize, Type)]
 struct AddWalletArgsCodegen {
     pub address: String,
@@ -479,9 +481,9 @@ struct AddWalletArgsCodegen {
 async fn add_wallet_codegen(
     _args: AddWalletArgsCodegen,
 ) -> Result<WalletDtoCodegen, String> {
-    // v0.88a — stub. Real impl in commands/wallet.rs:55 inserts row +
-    // returns the created WalletDto. We return a hardcoded shape so
-    // the codegen can export the type signature.
+    // v0.88a —— 存根。真实实现在 commands/wallet.rs:55 插入行并
+    // 返回创建的 WalletDto。我们返回硬编码的形状，以便
+    // codegen 可以导出类型签名。
     Ok(WalletDtoCodegen {
         id: "00000000-0000-0000-0000-000000000000".to_string(),
         address: String::new(),
@@ -493,10 +495,10 @@ async fn add_wallet_codegen(
     })
 }
 
-/// v0.88a — codegen stub args for `set_telemetry_enabled`. Real
-/// `SetTelemetryEnabledArgs` (commands/sidecar.rs:1857) wraps a single
-/// `enabled: bool`. We mirror that shape exactly so the codegen
-/// signature matches what L1 sends.
+/// v0.88a —— `set_telemetry_enabled` 的 codegen 存根参数。真实的
+/// `SetTelemetryEnabledArgs`（commands/sidecar.rs:1857）
+/// 包装单个 `enabled: bool`。我们精确地镜像该形状，
+/// 使 codegen 签名与 L1 发送的内容匹配。
 #[derive(Serialize, Deserialize, Type)]
 struct SetTelemetryEnabledArgsCodegen {
     pub enabled: bool,
@@ -510,9 +512,9 @@ async fn set_telemetry_enabled_codegen(
     Ok(args.enabled)
 }
 
-/// v0.88a — codegen stub args for `set_mirror_paper_mode`. Real
-/// `SetMirrorPaperModeArgs` (commands/mirror_executor.rs:162) wraps a
-/// single `enabled: bool`. Same pattern as `set_telemetry_enabled`.
+/// v0.88a —— `set_mirror_paper_mode` 的 codegen 存根参数。真实的
+/// `SetMirrorPaperModeArgs`（commands/mirror_executor.rs:162）
+/// 包装单个 `enabled: bool`。与 `set_telemetry_enabled` 模式相同。
 #[derive(Serialize, Deserialize, Type)]
 struct SetMirrorPaperModeArgsCodegen {
     pub enabled: bool,
@@ -523,23 +525,23 @@ struct SetMirrorPaperModeArgsCodegen {
 async fn set_mirror_paper_mode_codegen(
     _args: SetMirrorPaperModeArgsCodegen,
 ) -> Result<bool, String> {
-    // v0.88a — stub. Real impl in commands/mirror_executor.rs:174
-    // takes State<'_,'_, AppState> and writes to state.mirror_paper_mode
-    // (an Arc<Mutex<bool>>). State can't be constructed in a bin
-    // context, so we return hardcoded data of the right shape.
+    // v0.88a —— 存根。commands/mirror_executor.rs:174 中的真实实现
+    // 接受 State<'_,'_, AppState> 并写入 state.mirror_paper_mode
+    //（一个 Arc<Mutex<bool>>）。在 bin 上下文中无法构造 State，
+    // 因此我们返回正确形状的硬编码数据。
     Ok(true)
 }
 
 // =================================================================
-// v0.88b — Phase 4 batch 2: 2 Copy-route commands (input DTOs)
+// v0.88b —— Phase 4 batch 2：2 个 Copy 路由命令（输入 DTO）
 // =================================================================
 //
-// Drift detection for `add_copy_target` and `enqueue_mirror`. Real
-// commands live in commands/copy.rs and commands/mirror_executor.rs.
+// `add_copy_target` 和 `enqueue_mirror` 的 drift 检测。真实
+// 命令位于 commands/copy.rs 和 commands/mirror_executor.rs。
 
-/// v0.88b — codegen stub for `CopyTargetDto`. Real has `created_at: i64`
-/// which specta-typescript forbids (BigInt); use OptionBigInt wrapper
-/// (v0.86b) → TS `bigint | null`. Same pattern as WalletDtoCodegen.
+/// v0.88b —— `CopyTargetDto` 的 codegen 存根。真实类型拥有 `created_at: i64`，
+/// specta-typescript 禁止该类型（BigInt）；使用 OptionBigInt 包装器
+///（v0.86b）→ TS `bigint | null`。与 WalletDtoCodegen 模式相同。
 #[derive(Serialize, Deserialize, Type)]
 struct CopyTargetDtoCodegen {
     pub id: String,
@@ -552,9 +554,9 @@ struct CopyTargetDtoCodegen {
     pub created_at: i64,
 }
 
-/// v0.88b — codegen stub args for `add_copy_target`. Real
-/// `AddCopyTargetArgs` (commands/copy.rs) has no i64 fields — all
-/// plain string/f64. Codegen shape is identical to real.
+/// v0.88b —— `add_copy_target` 的 codegen 存根参数。真实的
+/// `AddCopyTargetArgs`（commands/copy.rs）没有 i64 字段 —— 都是
+/// 普通的 string/f64。Codegen 形状与真实相同。
 #[derive(Serialize, Deserialize, Type)]
 struct AddCopyTargetArgsCodegen {
     pub address: String,
@@ -568,8 +570,8 @@ struct AddCopyTargetArgsCodegen {
 async fn add_copy_target_codegen(
     _args: AddCopyTargetArgsCodegen,
 ) -> Result<CopyTargetDtoCodegen, String> {
-    // v0.88b — stub. Real impl in commands/copy.rs:68 inserts row +
-    // returns the created CopyTargetDto. We return hardcoded shape.
+    // v0.88b —— 存根。commands/copy.rs:68 中的真实实现插入行并
+    // 返回创建的 CopyTargetDto。我们返回硬编码的形状。
     Ok(CopyTargetDtoCodegen {
         id: "00000000-0000-0000-0000-000000000000".to_string(),
         address: String::new(),
@@ -581,9 +583,9 @@ async fn add_copy_target_codegen(
     })
 }
 
-/// v0.88b — codegen stub args for `enqueue_mirror`. Real
-/// `EnqueueArgs` (commands/mirror_executor.rs) has `event_id: i64`;
-/// we use BigInt<i64> attribute (v0.85c pattern) → TS `bigint`.
+/// v0.88b —— `enqueue_mirror` 的 codegen 存根参数。真实的
+/// `EnqueueArgs`（commands/mirror_executor.rs）拥有 `event_id: i64`；
+/// 我们使用 BigInt<i64> 属性（v0.85c 模式）→ TS `bigint`。
 #[derive(Serialize, Deserialize, Type)]
 struct EnqueueMirrorArgsCodegen {
     #[specta(type = BigInt)]
@@ -600,10 +602,10 @@ struct EnqueueMirrorArgsCodegen {
 async fn enqueue_mirror_codegen(
     _args: EnqueueMirrorArgsCodegen,
 ) -> Result<MirrorRowCodegen, String> {
-    // v0.88b — stub. Real impl in commands/mirror_executor.rs:76
-    // inserts into copy_mirror_queue + returns MirrorRow. We return
-    // hardcoded shape; MirrorRowCodegen reuses v0.86b's BigInt
-    // wrappers for submitted_at / filled_at.
+    // v0.88b —— 存根。commands/mirror_executor.rs:76 中的真实实现
+    // 插入到 copy_mirror_queue 并返回 MirrorRow。我们返回
+    // 硬编码的形状；MirrorRowCodegen 复用 v0.86b 的 BigInt
+    // 包装器处理 submitted_at / filled_at。
     Ok(MirrorRowCodegen {
         id: String::new(),
         event_id: 0,
@@ -621,22 +623,22 @@ async fn enqueue_mirror_codegen(
 }
 
 // =================================================================
-// v0.88c — Phase 4 batch 3: 2 Trade-route commands (input DTOs)
+// v0.88c —— Phase 4 batch 3：2 个 Trade 路由命令（输入 DTO）
 // =================================================================
 //
-// Drift detection for `place_signed_order` and `place_jump_link`.
-// Real commands live in commands/bet.rs.
+// `place_signed_order` 和 `place_jump_link` 的 drift 检测。
+// 真实命令位于 commands/bet.rs。
 
-/// v0.88c — codegen stub for `BetDto`. Real has 3× i64 fields
-/// (`placed_at`, `settled_at`, `signal_id`). Reuses v0.86b's
-/// OptionBigInt wrapper pattern.
+/// v0.88c —— `BetDto` 的 codegen 存根。真实结构体包含 3× i64 字段
+///（`placed_at`、`settled_at`、`signal_id`）。复用 v0.86b 的
+/// OptionBigInt 包装器模式。
 #[derive(Serialize, Deserialize, Type)]
 struct BetDtoCodegen {
     pub id: String,
     pub wallet_id: String,
     pub market_id: String,
-    /// v0.88c — `signal_id: Option<i64>` → `Option<OptionBigInt<i64>>`
-    /// (TS `bigint | null`). Lossless for values within 53 bits.
+    /// v0.88c —— `signal_id: Option<i64>` → `Option<OptionBigInt<i64>>`
+    ///（TS `bigint | null`）。对于 53 位以内的值无损。
     pub signal_id: Option<OptionBigInt<i64>>,
     pub mode: String,
     pub side: String,
@@ -656,9 +658,9 @@ struct BetDtoCodegen {
     pub post_only: bool,
 }
 
-/// v0.88c — codegen stub args for `place_signed_order`. Real
-/// `PlaceSignedArgs` (commands/bet.rs) has `signal_id: Option<i64>`
-/// → BigInt wrapper for lossless transport.
+/// v0.88c —— `place_signed_order` 的 codegen 存根参数。真实的
+/// `PlaceSignedArgs`（commands/bet.rs）拥有 `signal_id: Option<i64>`
+/// → BigInt 包装器以实现无损传输。
 #[derive(Serialize, Deserialize, Type)]
 struct PlaceSignedArgsCodegen {
     pub market_id: String,
@@ -679,10 +681,10 @@ struct PlaceSignedArgsCodegen {
 async fn place_signed_order_codegen(
     _args: PlaceSignedArgsCodegen,
 ) -> Result<BetDtoCodegen, String> {
-    // v0.88c — stub. Real impl in commands/bet.rs validates +
-    // signs + inserts bets row + returns BetDto. We return hardcoded
-    // shape with placed_at=0 / signal_id=None / settled_at=None
-    // (consistent with a "just placed, not yet settled" bet).
+    // v0.88c —— 存根。commands/bet.rs 中的真实实现会验证 +
+    // 签名 + 插入 bets 行 + 返回 BetDto。我们返回硬编码的形状，
+    // 其中 placed_at=0 / signal_id=None / settled_at=None
+    //（与"刚下单，尚未结算"的 bet 一致）。
     Ok(BetDtoCodegen {
         id: "00000000-0000-0000-0000-000000000000".to_string(),
         wallet_id: String::new(),
@@ -706,9 +708,9 @@ async fn place_signed_order_codegen(
     })
 }
 
-/// v0.88c — codegen stub args for `place_jump_link`. Same shape as
-/// PlaceSignedArgs but without the order_type / limit_price /
-/// stop_price / post_only fields. signal_id: Option<i64> → BigInt.
+/// v0.88c —— `place_jump_link` 的 codegen 存根参数。形状与
+/// PlaceSignedArgs 相同，但不包含 order_type / limit_price /
+/// stop_price / post_only 字段。signal_id: Option<i64> → BigInt。
 #[derive(Serialize, Deserialize, Type)]
 struct PlaceJumpArgsCodegen {
     pub market_slug: String,
@@ -725,23 +727,23 @@ struct PlaceJumpArgsCodegen {
 async fn place_jump_link_codegen(
     args: PlaceJumpArgsCodegen,
 ) -> Result<String, String> {
-    // v0.88c — stub. Real impl returns a polymarket.com jump URL
-    // built from args.market_slug + args.side + args.price. We return
-    // a hardcoded URL so the codegen exports the right return type.
+    // v0.88c —— 存根。真实实现返回由 args.market_slug + args.side +
+    // args.price 构建的 polymarket.com 跳转 URL。我们返回
+    // 硬编码的 URL，使 codegen 导出正确的返回类型。
     let _ = args;
     Ok("https://polymarket.com/event/_stub_".to_string())
 }
 
 // =================================================================
-// v0.88d — Phase 4 batch 4: Settings + ModelLab + LlmMgmt
+// v0.88d —— Phase 4 batch 4：Settings + ModelLab + LlmMgmt
 // =================================================================
 //
-// Drift detection for `set_audit_retention`, `set_auto_promote_config`,
-// `upsert_llm_provider`.
+// `set_audit_retention`、`set_auto_promote_config`、
+// `upsert_llm_provider` 的 drift 检测。
 
-/// v0.88d — codegen stub args for `set_audit_retention`. Real
-/// `SetAuditRetentionArgs` (commands/audit.rs) has 3× Option<i64>;
-/// OptionBigInt wrapper (v0.86b) gives lossless transport.
+/// v0.88d —— `set_audit_retention` 的 codegen 存根参数。真实的
+/// `SetAuditRetentionArgs`（commands/audit.rs）包含 3× Option<i64>；
+/// OptionBigInt 包装器（v0.86b）可实现无损传输。
 #[derive(Serialize, Deserialize, Type)]
 struct SetAuditRetentionArgsCodegen {
     pub retain_recent_ms: Option<OptionBigInt<i64>>,
@@ -754,16 +756,16 @@ struct SetAuditRetentionArgsCodegen {
 async fn set_audit_retention_codegen(
     _args: SetAuditRetentionArgsCodegen,
 ) -> Result<u32, String> {
-    // v0.88d — stub. Real impl writes retention policy + runs an
-    // immediate purge, returns the count of purged rows. We return 0
-    // since the codegen bin can't construct DB state. u32 instead of
-    // usize because specta-typescript forbids usize export.
+    // v0.88d —— 存根。真实实现写入保留策略并立即
+    // 执行一次清理，返回被清理的行数。我们返回 0，
+    // 因为 codegen bin 无法构造 DB 状态。u32 而非
+    // usize，因为 specta-typescript 禁止 usize 导出。
     Ok(0)
 }
 
-/// v0.88d — codegen stub for `upsert_llm_provider`. Takes
-/// `LlmProviderDto` directly (not nested under args) — same shape as
-/// the real command. `timeout_ms: i64` needs BigInt handling.
+/// v0.88d —— `upsert_llm_provider` 的 codegen 存根。直接接受
+/// `LlmProviderDto`（不嵌套在 args 下）—— 与真实命令形状相同。
+/// `timeout_ms: i64` 需要 BigInt 处理。
 #[derive(Serialize, Deserialize, Type)]
 struct LlmProviderDtoCodegen {
     pub id: String,
@@ -783,7 +785,7 @@ struct LlmProviderDtoCodegen {
 async fn upsert_llm_provider_codegen(
     _provider: LlmProviderDtoCodegen,
 ) -> Result<(), String> {
-    // v0.88d — stub. Real impl does INSERT ... ON CONFLICT UPDATE.
+    // v0.88d —— 存根。真实实现执行 INSERT ... ON CONFLICT UPDATE。
     Ok(())
 }
 
@@ -792,9 +794,9 @@ async fn upsert_llm_provider_codegen(
 async fn set_auto_promote_config_codegen(
     args: polyrocket_lib::commands::sidecar::SetAutoPromoteConfigArgs,
 ) -> Result<polyrocket_lib::commands::sidecar::AutoPromoteConfigDto, String> {
-    // v0.88d — stub. Real impl reads current config, applies the
-    // partial update, writes back. We return the default config so
-    // the codegen exports the right return type.
+    // v0.88d —— 存根。真实实现读取当前配置，应用
+    // 部分更新，然后写回。我们返回默认配置，使
+    // codegen 导出正确的返回类型。
     let _ = args;
     Ok(polyrocket_lib::commands::sidecar::AutoPromoteConfigDto {
         enabled: false,
@@ -803,19 +805,19 @@ async fn set_auto_promote_config_codegen(
 }
 
 // =================================================================
-// v0.88e — Phase 4 batch 5: complex nested DTOs (LLM + mirror executor)
+// v0.88e —— Phase 4 batch 5：复杂嵌套 DTO（LLM + mirror executor）
 // =================================================================
 //
-// Drift detection for `llm_analyze` and `run_mirror_executor_pass`.
-// These have nested Vec<i64> + multiple Option<i64> fields, exercising
-// the BigInt wrappers end-to-end (OptionBigInt + BigIntMap not needed
-// here — just OptionBigInt for Option<i64> and `specta(type=BigInt)`
-// for bare i64).
+// `llm_analyze` 和 `run_mirror_executor_pass` 的 drift 检测。
+// 它们包含嵌套的 Vec<i64> + 多个 Option<i64> 字段，
+// 端到端地测试 BigInt 包装器（这里不需要
+// OptionBigInt + BigIntMap —— 只需要为 Option<i64> 使用 OptionBigInt，
+// 并为裸 i64 使用 `specta(type=BigInt)`）。
 
-/// v0.88e — codegen stub for `LlmRecommendationDto`. Real has 4× i64
-/// fields (`id`, `latency_ms`, `tokens_in`, `tokens_out`). The 3
-/// Option<i64> use OptionBigInt; the bare `id: i64` uses
-/// `specta(type = BigInt)`.
+/// v0.88e —— `LlmRecommendationDto` 的 codegen 存根。真实结构体包含 4× i64
+/// 字段（`id`、`latency_ms`、`tokens_in`、`tokens_out`）。3 个
+/// Option<i64> 使用 OptionBigInt；裸的 `id: i64` 使用
+/// `specta(type = BigInt)`。
 #[derive(Serialize, Deserialize, Type)]
 struct LlmRecommendationDtoCodegen {
     #[specta(type = BigInt)]
@@ -835,10 +837,10 @@ struct LlmRecommendationDtoCodegen {
     pub parse_error: Option<String>,
 }
 
-/// v0.88e — codegen stub for `LlmAnalysisDto`. Real has 4× i64 fields
-/// (`signal_id`, `requested_at`, `completed_at`, `total_latency_ms`)
-/// + nested Vec<LlmRecommendationDto>. This exercises the
-/// OptionBigInt + nested struct codegen path end-to-end.
+/// v0.88e —— `LlmAnalysisDto` 的 codegen 存根。真实结构体包含 4× i64 字段
+///（`signal_id`、`requested_at`、`completed_at`、`total_latency_ms`）
+/// + 嵌套的 Vec<LlmRecommendationDto>。这端到端地测试了
+/// OptionBigInt + 嵌套结构体的 codegen 路径。
 #[derive(Serialize, Deserialize, Type)]
 struct LlmAnalysisDtoCodegen {
     pub id: String,
@@ -858,8 +860,8 @@ struct LlmAnalysisDtoCodegen {
     pub recommendations: Vec<LlmRecommendationDtoCodegen>,
 }
 
-/// v0.88e — codegen stub args for `llm_analyze`. Real `AnalyzeArgs`
-/// has `signal_id: Option<i64>` → OptionBigInt; other fields are simple.
+/// v0.88e —— `llm_analyze` 的 codegen 存根参数。真实的 `AnalyzeArgs`
+/// 拥有 `signal_id: Option<i64>` → OptionBigInt；其他字段较为简单。
 #[derive(Serialize, Deserialize, Type)]
 struct LlmAnalyzeArgsCodegen {
     pub market_id: String,
@@ -874,10 +876,10 @@ struct LlmAnalyzeArgsCodegen {
 async fn llm_analyze_codegen(
     _args: LlmAnalyzeArgsCodegen,
 ) -> Result<LlmAnalysisDtoCodegen, String> {
-    // v0.88e — stub. Real impl dispatches to enabled providers,
-    // gathers responses, writes llm_analyses + llm_recommendations
-    // rows, returns the aggregated DTO. We return hardcoded shape
-    // with empty recommendations vec.
+    // v0.88e —— 存根。真实实现将请求分发到已启用的 providers，
+    // 收集响应，写入 llm_analyses + llm_recommendations
+    // 行，并返回聚合后的 DTO。我们返回硬编码的形状，
+    // recommendations vec 为空。
     Ok(LlmAnalysisDtoCodegen {
         id: "00000000-0000-0000-0000-000000000000".to_string(),
         market_id: String::new(),
@@ -896,10 +898,10 @@ async fn llm_analyze_codegen(
     })
 }
 
-/// v0.88e — codegen stub for `ExecutorPassResult`. Real has no i64
-/// fields (just Vec<String>, Vec<(String, RejectReason)>, two f64).
-/// Reuses the real type via specta::Type derive — but currently the
-/// real type doesn't have `Type`. We mirror the shape in a stub.
+/// v0.88e —— `ExecutorPassResult` 的 codegen 存根。真实结构体没有 i64
+/// 字段（只有 Vec<String>、Vec<(String, RejectReason)>、两个 f64）。
+/// 通过 specta::Type derive 复用真实类型 —— 但目前真实
+/// 类型没有 `Type`。我们在存根中镜像其形状。
 #[derive(Serialize, Deserialize, Type)]
 struct ExecutorPassResultCodegen {
     pub picked: Vec<String>,
@@ -908,8 +910,8 @@ struct ExecutorPassResultCodegen {
     pub headroom: f64,
 }
 
-/// v0.88e — codegen stub args for `run_mirror_executor_pass`. Real
-/// `RunPassArgs` has no i64 fields (just 2× String).
+/// v0.88e —— `run_mirror_executor_pass` 的 codegen 存根参数。真实的
+/// `RunPassArgs` 没有 i64 字段（只有 2× String）。
 #[derive(Serialize, Deserialize, Type)]
 struct RunMirrorPassArgsCodegen {
     pub key_alias: String,
@@ -921,9 +923,9 @@ struct RunMirrorPassArgsCodegen {
 async fn run_mirror_executor_pass_codegen(
     _args: RunMirrorPassArgsCodegen,
 ) -> Result<ExecutorPassResultCodegen, String> {
-    // v0.88e — stub. Real impl reads mirror queue, picks orders that
-    // pass size + horizon + exposure filters, submits signed orders,
-    // returns ExecutorPassResult. We return hardcoded empty result.
+    // v0.88e —— 存根。真实实现读取 mirror queue，挑选通过
+    // size + horizon + exposure 过滤的订单，提交已签名的订单，
+    // 返回 ExecutorPassResult。我们返回硬编码的空结果。
     Ok(ExecutorPassResultCodegen {
         picked: vec![],
         rejected: vec![],
@@ -932,11 +934,11 @@ async fn run_mirror_executor_pass_codegen(
     })
 }
 
-// ---------- MirrorQueueStats (mirror_queue_stats) ----------
+// ---------- MirrorQueueStats（mirror_queue_stats）----------
 
-/// v0.84c — codegen stub for `MirrorQueueStats`. Real has 5× i64
-/// counts (`n_pending`, `n_submitted`, `n_filled`, `n_rejected`,
-/// `n_expired`).
+/// v0.84c —— `MirrorQueueStats` 的 codegen 存根。真实结构体包含 5× i64
+/// 计数（`n_pending`、`n_submitted`、`n_filled`、`n_rejected`、
+/// `n_expired`）。
 #[derive(Serialize, Deserialize, Type)]
 struct MirrorQueueStatsCodegen {
     #[specta(type = BigInt)]
@@ -968,14 +970,14 @@ async fn mirror_queue_stats_codegen() -> Result<MirrorQueueStatsCodegen, String>
 }
 
 // =================================================================
-// v0.81 — Bankroll commands (Phase 2 — 4 commands)
+// v0.81 —— Bankroll 命令（Phase 2 —— 4 个命令）
 // =================================================================
 //
-// For codegen, we use stub commands that match the real L1 IPC
-// signatures. The real commands need Tauri State for DB access;
-// stubs return hardcoded data. The point of v0.81 is to validate
-// that the generated TS types match the hand-written DTOs in
-// `src/types/bankroll.ts` and `src/ipc.ts`.
+// 对于 codegen，我们使用与真实 L1 IPC 签名匹配的存根命令。
+// 真实命令需要 Tauri State 来访问 DB；
+// 存根返回硬编码数据。v0.81 的目的在于验证
+// 生成的 TS 类型与 `src/types/bankroll.ts` 和
+// `src/ipc.ts` 中手写的 DTO 相匹配。
 
 #[derive(Serialize, Deserialize, Type)]
 struct ComputeAllocationArgsCodegen {
@@ -990,7 +992,7 @@ struct ComputeAllocationArgsCodegen {
 fn compute_allocation_preview_codegen(
     args: ComputeAllocationArgsCodegen,
 ) -> Result<polyrocket_lib::domain::bankroll::AllocationResult, polyrocket_lib::infra::error::AppError> {
-    // Convert codegen DTOs back to real types
+    // 将 codegen DTO 转换回真实类型
     let real_signals: Vec<polyrocket_lib::domain::signal::Signal> = args
         .signals
         .into_iter()
@@ -1027,7 +1029,7 @@ fn compute_allocation_preview_codegen(
 async fn get_bankroll_config_codegen(
     _wallet_id: String,
 ) -> Result<polyrocket_lib::commands::bankroll::BankrollConfigDto, polyrocket_lib::infra::error::AppError> {
-    // v0.81 — stub. Real impl reads from DB.
+    // v0.81 —— 存根。真实实现从 DB 读取。
     Ok(polyrocket_lib::commands::bankroll::BankrollConfigDto {
         kelly_multiplier: 0.25,
         max_per_signal_pct: 0.10,
@@ -1044,7 +1046,7 @@ async fn set_bankroll_config_codegen(
     _wallet_id: String,
     _config: polyrocket_lib::commands::bankroll::BankrollConfigDto,
 ) -> Result<(), polyrocket_lib::infra::error::AppError> {
-    // v0.81 — stub. Real impl validates + writes to DB.
+    // v0.81 —— 存根。真实实现会校验并写入 DB。
     Ok(())
 }
 
@@ -1056,22 +1058,22 @@ async fn set_bankroll_config_codegen(
     _bankroll_usdc: String,
     _config: polyrocket_lib::commands::bankroll::BankrollConfigDto,
 ) -> Result<String, polyrocket_lib::infra::error::AppError> {
-    // v0.81 — stub. Real impl writes to allocation_batches + bets.
+    // v0.81 —— 存根。真实实现写入 allocation_batches + bets。
     Ok("00000000-0000-0000-0000-000000000000".to_string())
 }
 
 // =================================================================
-// v0.98 — Phase 4 batch 6: 4 more read-only list commands
+// v0.98 —— Phase 4 batch 6：另外 4 个只读 list 命令
 // =================================================================
 //
-// Drift detection for the read-only list endpoints used by
-// /history, /audit, /copy, and the ModelLab history panel.
-// Each stub returns a hardcoded empty array of the right
-// shape; the drift detector catches any future rename / type
-// change in the real DTOs. L1 still calls the real commands.
+// 用于 /history、/audit、/copy 以及 ModelLab 历史面板的
+// 只读 list 端点 drift 检测。
+// 每个存根返回正确形状的硬编码空数组；drift 检测器
+// 会捕捉真实 DTO 中任何未来的重命名 / 类型变更。
+// L1 仍然调用真实命令。
 
-/// v0.98 — codegen stub for `list_bets`. Real return type
-/// is `Vec<BetDto>`. Empty stub.
+/// v0.98 —— `list_bets` 的 codegen 存根。真实返回类型为
+/// `Vec<BetDto>`。空存根。
 #[tauri::command]
 #[specta::specta]
 async fn list_bets_codegen(
@@ -1080,8 +1082,8 @@ async fn list_bets_codegen(
     Ok(vec![])
 }
 
-/// v0.98 — codegen stub for `list_audit_log`. Real return
-/// type is `Vec<AuditEntry>`. Empty stub.
+/// v0.98 —— `list_audit_log` 的 codegen 存根。真实返回类型为
+/// `Vec<AuditEntry>`。空存根。
 #[tauri::command]
 #[specta::specta]
 async fn list_audit_log_codegen(
@@ -1090,17 +1092,17 @@ async fn list_audit_log_codegen(
     Ok(vec![])
 }
 
-/// v0.98 — codegen stub for `list_copy_targets`. Real
-/// return type is `Vec<CopyTarget>`. Empty stub.
+/// v0.98 —— `list_copy_targets` 的 codegen 存根。真实返回类型为
+/// `Vec<CopyTarget>`。空存根。
 #[tauri::command]
 #[specta::specta]
 async fn list_copy_targets_codegen() -> Result<Vec<CopyTargetDtoCodegen>, String> {
     Ok(vec![])
 }
 
-/// v0.98 — codegen stub for `list_promote_history`. Real
-/// return type is `PromoteHistoryResult` (uses existing
-/// `listPromoteHistory` from v0.76). Empty stub.
+/// v0.98 —— `list_promote_history` 的 codegen 存根。真实返回类型为
+/// `PromoteHistoryResult`（复用 v0.76 中的 `listPromoteHistory`）。
+/// 空存根。
 #[tauri::command]
 #[specta::specta]
 async fn list_promote_history_codegen() -> Result<ListPromoteHistoryCodegen, String> {
@@ -1113,33 +1115,33 @@ async fn list_promote_history_codegen() -> Result<ListPromoteHistoryCodegen, Str
 }
 
 // =================================================================
-// v0.101a — Phase 4 batch 7: LLM stats heatmap + scatter
-//                     + timeseries + decision (4 read-only commands)
+// v0.101a —— Phase 4 batch 7：LLM stats heatmap + scatter
+//                     + timeseries + decision（4 个只读命令）
 // =================================================================
 //
-// Drift detection for the L1 "LLM Performance" page. Each
-// stub returns an empty Vec; the drift detector catches any
-// future rename / type change in the real DTOs. i64 fields
-// use either `#[specta(type = BigInt)]` (timestamps) or
-// `i32` placeholder (counts) following the v0.98 pattern.
+// L1 "LLM Performance" 页面的 drift 检测。每个
+// 存根返回空 Vec；drift 检测器会捕捉真实 DTO 中任何
+// 未来的重命名 / 类型变更。i64 字段使用
+// `#[specta(type = BigInt)]`（时间戳）或
+// 遵循 v0.98 模式的 `i32` 占位符（计数）。
 
-/// v0.101a — args for `llm_stats_heatmap`. Matches real `StatsArgs`.
+/// v0.101a —— `llm_stats_heatmap` 的参数。与真实 `StatsArgs` 匹配。
 #[derive(Serialize, Deserialize, Type)]
 struct StatsArgsCodegen {
     pub provider_id: Option<String>,
     pub category: Option<String>,
-    /// v0.101a — window_days placeholder (real impl uses Option<i64>
-    /// wrapped in OptionBigInt). Stub uses Option<u32> for ts export.
+    /// v0.101a —— window_days 占位符（真实实现使用
+    /// 包在 OptionBigInt 中的 Option<i64>）。存根使用 Option<u32> 用于 ts 导出。
     pub window_days: Option<u32>,
 }
 
-/// v0.101a — LlmStatsCell shape. Counts use i32 (drift detect only).
+/// v0.101a —— LlmStatsCell 形状。计数使用 i32（仅用于 drift 检测）。
 #[derive(Serialize, Deserialize, Type)]
 struct LlmStatsCellCodegen {
     pub provider_id: String,
     pub provider_name: String,
     pub category: String,
-    /// v0.101a — placeholder (real impl uses i64). Stub uses i32.
+    /// v0.101a —— 占位符（真实实现使用 i64）。存根使用 i32。
     pub n_recommendations: i32,
     pub n_evaluated: i32,
     pub win_rate: Option<f64>,
@@ -1147,7 +1149,7 @@ struct LlmStatsCellCodegen {
     pub brier: Option<f64>,
 }
 
-/// v0.101a — codegen stub for `llm_stats_heatmap`.
+/// v0.101a —— `llm_stats_heatmap` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn llm_stats_heatmap_codegen(
@@ -1156,19 +1158,19 @@ async fn llm_stats_heatmap_codegen(
     Ok(vec![])
 }
 
-/// v0.101a — LlmStatsScatterPoint shape.
+/// v0.101a —— LlmStatsScatterPoint 形状。
 #[derive(Serialize, Deserialize, Type)]
 struct LlmStatsScatterPointCodegen {
     pub provider_id: String,
     pub provider_name: String,
-    /// v0.101a — placeholder (real impl uses i64). Stub uses i32.
+    /// v0.101a —— 占位符（真实实现使用 i64）。存根使用 i32。
     pub n_evaluated: i32,
     pub win_rate: f64,
     pub total_pnl: f64,
     pub avg_pnl: f64,
 }
 
-/// v0.101a — codegen stub for `llm_stats_scatter`.
+/// v0.101a —— `llm_stats_scatter` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn llm_stats_scatter_codegen(
@@ -1177,18 +1179,18 @@ async fn llm_stats_scatter_codegen(
     Ok(vec![])
 }
 
-/// v0.101a — LlmStatsTimeseriesPoint shape.
+/// v0.101a —— LlmStatsTimeseriesPoint 形状。
 #[derive(Serialize, Deserialize, Type)]
 struct LlmStatsTimeseriesPointCodegen {
     pub provider_id: String,
     pub bucket: String,
-    /// v0.101a — placeholder (real impl uses i64). Stub uses i32.
+    /// v0.101a —— 占位符（真实实现使用 i64）。存根使用 i32。
     pub n_evaluated: i32,
     pub win_rate: f64,
     pub brier: f64,
 }
 
-/// v0.101a — codegen stub for `llm_stats_timeseries`.
+/// v0.101a —— `llm_stats_timeseries` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn llm_stats_timeseries_codegen(
@@ -1197,18 +1199,18 @@ async fn llm_stats_timeseries_codegen(
     Ok(vec![])
 }
 
-/// v0.101a — LlmDecisionStats shape.
+/// v0.101a —— LlmDecisionStats 形状。
 #[derive(Serialize, Deserialize, Type)]
 struct LlmDecisionStatsCodegen {
     pub category: String,
     pub decision_type: String,
-    /// v0.101a — placeholder (real impl uses i64). Stub uses i32.
+    /// v0.101a —— 占位符（真实实现使用 i64）。存根使用 i32。
     pub n: i32,
     pub win_rate: f64,
     pub avg_pnl: f64,
 }
 
-/// v0.101a — codegen stub for `llm_stats_decision`.
+/// v0.101a —— `llm_stats_decision` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn llm_stats_decision_codegen(
@@ -1218,33 +1220,33 @@ async fn llm_stats_decision_codegen(
 }
 
 // =================================================================
-// v0.101b — Phase 4 batch 7 part 2: LLM stats by_confidence
-//                     + by_prompt + cost_efficiency + export (4 commands)
+// v0.101b —— Phase 4 batch 7 part 2：LLM stats by_confidence
+//                     + by_prompt + cost_efficiency + export（4 个命令）
 // =================================================================
 //
-// Continuation of v0.101a batch 7 — covers the L1 "LLM Management"
-// page's confidence / prompt / cost panels + the CSV/JSON export.
+// v0.101a batch 7 的延续 —— 覆盖 L1 "LLM Management" 页面的
+// confidence / prompt / cost 面板以及 CSV/JSON 导出。
 
-/// v0.101b — args for `llm_stats_by_confidence`. Matches real `StatsByConfidenceArgs`.
+/// v0.101b —— `llm_stats_by_confidence` 的参数。与真实 `StatsByConfidenceArgs` 匹配。
 #[derive(Serialize, Deserialize, Type)]
 struct StatsByConfidenceArgsCodegen {
     pub provider_id: Option<String>,
-    /// v0.101b — placeholder (real impl uses Option<i64>). Stub uses Option<u32>.
+    /// v0.101b —— 占位符（真实实现使用 Option<i64>）。存根使用 Option<u32>。
     pub window_days: Option<u32>,
 }
 
-/// v0.101b — LlmStatsConfidenceBand shape.
+/// v0.101b —— LlmStatsConfidenceBand 形状。
 #[derive(Serialize, Deserialize, Type)]
 struct LlmStatsConfidenceBandCodegen {
     pub provider_id: String,
     pub band: String,
-    /// v0.101b — placeholder (real impl uses i64). Stub uses i32.
+    /// v0.101b —— 占位符（真实实现使用 i64）。存根使用 i32。
     pub n: i32,
     pub win_rate: f64,
     pub avg_pnl: f64,
 }
 
-/// v0.101b — codegen stub for `llm_stats_by_confidence`.
+/// v0.101b —— `llm_stats_by_confidence` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn llm_stats_by_confidence_codegen(
@@ -1253,27 +1255,27 @@ async fn llm_stats_by_confidence_codegen(
     Ok(vec![])
 }
 
-/// v0.101b — args for `llm_stats_by_prompt`. Matches real `StatsByPromptArgs`.
+/// v0.101b —— `llm_stats_by_prompt` 的参数。与真实 `StatsByPromptArgs` 匹配。
 #[derive(Serialize, Deserialize, Type)]
 struct StatsByPromptArgsCodegen {
     pub prompt_version: String,
-    /// v0.101b — placeholder (real impl uses Option<i64>). Stub uses Option<u32>.
+    /// v0.101b —— 占位符（真实实现使用 Option<i64>）。存根使用 Option<u32>。
     pub window_days: Option<u32>,
 }
 
-/// v0.101b — LlmStatsByPrompt shape.
+/// v0.101b —— LlmStatsByPrompt 形状。
 #[derive(Serialize, Deserialize, Type)]
 struct LlmStatsByPromptCodegen {
     pub provider_id: String,
     pub prompt_version: String,
-    /// v0.101b — placeholder (real impl uses i64). Stub uses i32.
+    /// v0.101b —— 占位符（真实实现使用 i64）。存根使用 i32。
     pub n_recommendations: i32,
     pub n_evaluated: i32,
     pub win_rate: f64,
     pub brier: f64,
 }
 
-/// v0.101b — codegen stub for `llm_stats_by_prompt`.
+/// v0.101b —— `llm_stats_by_prompt` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn llm_stats_by_prompt_codegen(
@@ -1282,7 +1284,7 @@ async fn llm_stats_by_prompt_codegen(
     Ok(vec![])
 }
 
-/// v0.101b — LlmStatsCostEfficiency shape.
+/// v0.101b —— LlmStatsCostEfficiency 形状。
 #[derive(Serialize, Deserialize, Type)]
 struct LlmStatsCostEfficiencyCodegen {
     pub provider_id: String,
@@ -1292,7 +1294,7 @@ struct LlmStatsCostEfficiencyCodegen {
     pub win_rate: f64,
 }
 
-/// v0.101b — codegen stub for `llm_stats_cost_efficiency`.
+/// v0.101b —— `llm_stats_cost_efficiency` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn llm_stats_cost_efficiency_codegen(
@@ -1301,16 +1303,16 @@ async fn llm_stats_cost_efficiency_codegen(
     Ok(vec![])
 }
 
-/// v0.101b — args for `llm_stats_export`. Matches real `ExportStatsArgs`.
+/// v0.101b —— `llm_stats_export` 的参数。与真实 `ExportStatsArgs` 匹配。
 #[derive(Serialize, Deserialize, Type)]
 struct ExportStatsArgsCodegen {
     pub format: String,
-    /// v0.101b — placeholder (real impl uses Option<i64>). Stub uses Option<u32>.
+    /// v0.101b —— 占位符（真实实现使用 Option<i64>）。存根使用 Option<u32>。
     pub window_days: Option<u32>,
 }
 
-/// v0.101b — codegen stub for `llm_stats_export`. Returns string
-/// (CSV or JSON) the L1 layer saves via tauri-plugin-fs.
+/// v0.101b —— `llm_stats_export` 的 codegen 存根。返回字符串
+///（CSV 或 JSON），L1 层通过 tauri-plugin-fs 保存。
 #[tauri::command]
 #[specta::specta]
 async fn llm_stats_export_codegen(
@@ -1320,25 +1322,25 @@ async fn llm_stats_export_codegen(
 }
 
 // =================================================================
-// v0.101c — Phase 4 batch 7 part 3: LLM traffic_summary + 4 scheduler
-//                     commands (5 read-only + 2 trigger + 1 self_test)
+// v0.101c —— Phase 4 batch 7 part 3：LLM traffic_summary + 4 个 scheduler
+//                     命令（5 个只读 + 2 个 trigger + 1 个 self_test）
 // =================================================================
 //
-// Drift detection for the L1 "LLM Mgmt traffic" panel and the
-// Settings "Scheduler" + "Self Test" cards. trigger commands
-// return Result<TriggerResult, String> just like the real ones;
-// self_test returns SchedulerSelfTest sync (no State needed).
+// L1 "LLM Mgmt traffic" 面板以及 Settings "Scheduler" + "Self Test"
+// 卡片的 drift 检测。trigger 命令与真实命令一样
+// 返回 Result<TriggerResult, String>；
+// self_test 返回 SchedulerSelfTest 同步结果（无需 State）。
 
-/// v0.101c — args for `llm_traffic_summary`. Matches real `TrafficArgs`.
+/// v0.101c —— `llm_traffic_summary` 的参数。与真实 `TrafficArgs` 匹配。
 #[derive(Serialize, Deserialize, Type)]
 struct TrafficArgsCodegen {
     pub window: Option<String>,
     pub provider_id: Option<String>,
 }
 
-/// v0.101c — LlmTrafficSummary shape. Many i64 fields use
-/// `#[specta(type = BigInt)]` for lossless export (real counts
-/// can exceed 2^32 in long windows).
+/// v0.101c —— LlmTrafficSummary 形状。许多 i64 字段使用
+/// `#[specta(type = BigInt)]` 以实现无损导出（真实计数
+/// 在长时间窗口下可能超过 2^32）。
 #[derive(Serialize, Deserialize, Type)]
 struct LlmTrafficSummaryCodegen {
     pub provider_id: String,
@@ -1364,7 +1366,7 @@ struct LlmTrafficSummaryCodegen {
     pub delta_cost_last_window: f64,
 }
 
-/// v0.101c — codegen stub for `llm_traffic_summary`.
+/// v0.101c —— `llm_traffic_summary` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn llm_traffic_summary_codegen(
@@ -1373,22 +1375,22 @@ async fn llm_traffic_summary_codegen(
     Ok(vec![])
 }
 
-/// v0.101c — SchedulerStatus shape. next_brief_run_at_unix_ms uses
-/// `#[specta(type = BigInt)]` for lossless timestamp.
+/// v0.101c —— SchedulerStatus 形状。next_brief_run_at_unix_ms 使用
+/// `#[specta(type = BigInt)]` 实现无损时间戳。
 #[derive(Serialize, Deserialize, Type)]
 struct SchedulerStatusCodegen {
-    /// v0.101c — placeholder (real impl uses u64). Stub uses u32
-    /// because specta-typescript forbids u64 raw.
+    /// v0.101c —— 占位符（真实实现使用 u64）。存根使用 u32，
+    /// 因为 specta-typescript 禁止 u64 原样导出。
     pub health_probe_interval_sec: u32,
     pub daily_brief_hour_utc: u32,
     pub daily_brief_tz_offset_min: i32,
-    /// v0.101c — placeholder (real impl uses u64). Stub uses u32.
+    /// v0.101c —— 占位符（真实实现使用 u64）。存根使用 u32。
     pub anomaly_window_sec: u32,
     #[specta(type = BigInt)]
     pub next_brief_run_at_unix_ms: i64,
 }
 
-/// v0.101c — codegen stub for `scheduler_status`.
+/// v0.101c —— `scheduler_status` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn scheduler_status_codegen(
@@ -1402,8 +1404,8 @@ async fn scheduler_status_codegen(
     })
 }
 
-/// v0.101c — TriggerResult shape. triggered_at_unix_ms uses
-/// `#[specta(type = BigInt)]`.
+/// v0.101c —— TriggerResult 形状。triggered_at_unix_ms 使用
+/// `#[specta(type = BigInt)]`。
 #[derive(Serialize, Deserialize, Type)]
 struct TriggerResultCodegen {
     #[specta(type = BigInt)]
@@ -1413,7 +1415,7 @@ struct TriggerResultCodegen {
     pub error: Option<String>,
 }
 
-/// v0.101c — codegen stub for `scheduler_run_health_probe_now`.
+/// v0.101c —— `scheduler_run_health_probe_now` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn scheduler_run_health_probe_now_codegen(
@@ -1426,7 +1428,7 @@ async fn scheduler_run_health_probe_now_codegen(
     })
 }
 
-/// v0.101c — codegen stub for `scheduler_run_daily_brief_now`.
+/// v0.101c —— `scheduler_run_daily_brief_now` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn scheduler_run_daily_brief_now_codegen(
@@ -1439,22 +1441,22 @@ async fn scheduler_run_daily_brief_now_codegen(
     })
 }
 
-/// v0.101c — LoopStatus shape. Real type uses `&'static str` for
-/// `name` but stub uses `String` because specta handles `&'static str`
-/// fine but we want to keep the codegen stub self-contained.
+/// v0.101c —— LoopStatus 形状。真实类型对 `name` 使用 `&'static str`，
+/// 但存根使用 `String`，因为 specta 对 `&'static str`
+/// 的处理没问题，但我们希望让 codegen 存根保持自包含。
 #[derive(Serialize, Deserialize, Type)]
 struct LoopStatusCodegen {
     pub name: String,
     #[specta(type = BigInt)]
     pub last_tick_unix_ms: u64,
-    /// v0.101c — placeholder (real impl uses Option<u64>). Stub
-    /// uses Option<u32> because specta-typescript forbids u64 in
-    /// Option even with #[specta(type = BigInt)].
+    /// v0.101c —— 占位符（真实实现使用 Option<u64>）。存根
+    /// 使用 Option<u32>，因为 specta-typescript 即使加上
+    /// #[specta(type = BigInt)] 也禁止 Option 中的 u64。
     pub age_ms: Option<u32>,
     pub healthy: bool,
 }
 
-/// v0.101c — SchedulerSelfTest shape. matches real SchedulerSelfTest.
+/// v0.101c —— SchedulerSelfTest 形状。与真实 SchedulerSelfTest 匹配。
 #[derive(Serialize, Deserialize, Type)]
 struct SchedulerSelfTestCodegen {
     #[specta(type = BigInt)]
@@ -1465,8 +1467,8 @@ struct SchedulerSelfTestCodegen {
     pub loops: Vec<LoopStatusCodegen>,
 }
 
-/// v0.101c — codegen stub for `scheduler_self_test_now`. Real
-/// impl is sync (not async) — it just reads atomics.
+/// v0.101c —— `scheduler_self_test_now` 的 codegen 存根。真实实现
+/// 是同步的（非 async）—— 仅读取原子变量。
 #[tauri::command]
 #[specta::specta]
 async fn scheduler_self_test_now_codegen(
@@ -1480,22 +1482,22 @@ async fn scheduler_self_test_now_codegen(
 }
 
 // =================================================================
-// v0.102b — Phase 4 batch 8: degradation + audit purge +
-//                     daily_brief (6 read-only / write commands)
+// v0.102b —— Phase 4 batch 8：degradation + audit purge +
+//                     daily_brief（6 个只读 / 写命令）
 // =================================================================
 //
-// Drift detection for the L1 Settings "Degradation", "Audit
-// retention purge now", and the Dashboard "Daily Brief" panel.
-// daily_brief_set_prefs uses an inner struct (BriefWeights) —
-// nested Type is supported by specta.
+// L1 Settings 的 "Degradation"、"Audit retention purge now"
+// 以及 Dashboard "Daily Brief" 面板的 drift 检测。
+// daily_brief_set_prefs 使用内部结构体（BriefWeights）——
+// specta 支持嵌套 Type。
 
 // ---------- degradation_check_now ----------
-/// v0.102b — empty args (DegradationCheckNowArgs in real impl).
+/// v0.102b —— 空参数（真实实现中的 DegradationCheckNowArgs）。
 #[derive(Serialize, Deserialize, Type, Default)]
 struct DegradationCheckNowArgsCodegen {}
 
-/// v0.102b — codegen stub for `degradation_check_now`. Returns
-/// () — the side effect is firing a telemetry event.
+/// v0.102b —— `degradation_check_now` 的 codegen 存根。返回
+/// () —— 副作用是触发一个 telemetry 事件。
 #[tauri::command]
 #[specta::specta]
 async fn degradation_check_now_codegen(
@@ -1505,8 +1507,8 @@ async fn degradation_check_now_codegen(
 }
 
 // ---------- purge_audit_log_now ----------
-/// v0.102b — codegen stub for `purge_audit_log_now`. Returns
-/// `usize` count of purged rows.
+/// v0.102b —— `purge_audit_log_now` 的 codegen 存根。返回
+/// `usize` 表示被清理的行数。
 #[tauri::command]
 #[specta::specta]
 async fn purge_audit_log_now_codegen() -> Result<u32, String> {
@@ -1514,19 +1516,19 @@ async fn purge_audit_log_now_codegen() -> Result<u32, String> {
 }
 
 // ---------- daily_brief_get ----------
-/// v0.102b — args for `daily_brief_get`. Matches real `BriefGetArgs`.
+/// v0.102b —— `daily_brief_get` 的参数。与真实 `BriefGetArgs` 匹配。
 #[derive(Serialize, Deserialize, Type, Default)]
 struct BriefGetArgsCodegen {
-    /// v0.102b — placeholder (real impl uses Option<i64>).
-    /// Stub uses Option<u32>.
+    /// v0.102b —— 占位符（真实实现使用 Option<i64>）。
+    /// 存根使用 Option<u32>。
     pub limit: Option<u32>,
-    /// v0.102b — placeholder (real impl uses Option<i64>).
-    /// Stub uses Option<u32> (kept for back-compat with old callers).
+    /// v0.102b —— 占位符（真实实现使用 Option<i64>）。
+    /// 存根使用 Option<u32>（为旧调用方保留向后兼容）。
     pub max_items: Option<u32>,
 }
 
-/// v0.102b — DailyBriefEntry shape. timestamps use
-/// `#[specta(type = BigInt)]` for lossless export; counts use i32.
+/// v0.102b —— DailyBriefEntry 形状。时间戳使用
+/// `#[specta(type = BigInt)]` 以实现无损导出；计数使用 i32。
 #[derive(Serialize, Deserialize, Type)]
 struct DailyBriefEntryCodegen {
     pub market_id: String,
@@ -1536,7 +1538,7 @@ struct DailyBriefEntryCodegen {
     pub market_end_date: i64,
     pub market_liquidity: Option<String>,
     pub market_volume_24h: Option<f64>,
-    /// v0.102b — placeholder (real impl uses i64). Stub uses i32.
+    /// v0.102b —— 占位符（真实实现使用 i64）。存根使用 i32。
     pub rank: i32,
     pub match_score: f64,
     pub score_breakdown: Option<String>,
@@ -1551,7 +1553,7 @@ struct DailyBriefEntryCodegen {
     pub dismissed: bool,
 }
 
-/// v0.102b — codegen stub for `daily_brief_get`.
+/// v0.102b —— `daily_brief_get` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn daily_brief_get_codegen(
@@ -1561,16 +1563,16 @@ async fn daily_brief_get_codegen(
 }
 
 // ---------- daily_brief_refresh ----------
-/// v0.102b — BriefRefreshResult shape.
+/// v0.102b —— BriefRefreshResult 形状。
 #[derive(Serialize, Deserialize, Type)]
 struct BriefRefreshResultCodegen {
     #[specta(type = BigInt)]
     pub computed_at: i64,
-    /// v0.102b — placeholder (real impl uses i64). Stub uses i32.
+    /// v0.102b —— 占位符（真实实现使用 i64）。存根使用 i32。
     pub n_items: i32,
 }
 
-/// v0.102b — codegen stub for `daily_brief_refresh`.
+/// v0.102b —— `daily_brief_refresh` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn daily_brief_refresh_codegen(
@@ -1582,13 +1584,13 @@ async fn daily_brief_refresh_codegen(
 }
 
 // ---------- daily_brief_dismiss ----------
-/// v0.102b — args for `daily_brief_dismiss`. Market ID only.
+/// v0.102b —— `daily_brief_dismiss` 的参数。仅包含 Market ID。
 #[derive(Serialize, Deserialize, Type, Default)]
 struct BriefDismissArgsCodegen {
     pub market_id: String,
 }
 
-/// v0.102b — codegen stub for `daily_brief_dismiss`.
+/// v0.102b —— `daily_brief_dismiss` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn daily_brief_dismiss_codegen(
@@ -1598,7 +1600,7 @@ async fn daily_brief_dismiss_codegen(
 }
 
 // ---------- daily_brief_set_prefs ----------
-/// v0.102b — BriefWeights shape (nested struct).
+/// v0.102b —— BriefWeights 形状（嵌套结构体）。
 #[derive(Serialize, Deserialize, Type)]
 struct BriefWeightsCodegen {
     pub w1: f64,
@@ -1609,19 +1611,19 @@ struct BriefWeightsCodegen {
     pub w6: f64,
 }
 
-/// v0.102b — args for `daily_brief_set_prefs`. Matches real
-/// `SetBriefPrefsArgs`. Nested Option<BriefWeights>.
+/// v0.102b —— `daily_brief_set_prefs` 的参数。与真实
+/// `SetBriefPrefsArgs` 匹配。嵌套 Option<BriefWeights>。
 #[derive(Serialize, Deserialize, Type)]
 struct SetBriefPrefsArgsCodegen {
     pub user_id: String,
     pub weights: Option<BriefWeightsCodegen>,
-    /// v0.102b — placeholder (real impl uses Option<i64>).
+    /// v0.102b —— 占位符（真实实现使用 Option<i64>）。
     pub max_items: Option<u32>,
     pub min_liquidity: Option<String>,
     pub categories: Option<Vec<String>>,
 }
 
-/// v0.102b — codegen stub for `daily_brief_set_prefs`.
+/// v0.102b —— `daily_brief_set_prefs` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn daily_brief_set_prefs_codegen(
@@ -1631,19 +1633,19 @@ async fn daily_brief_set_prefs_codegen(
 }
 
 // =================================================================
-// v0.103b — Phase 4 batch 9 part 1: LLM provider CRUD (4 commands)
+// v0.103b —— Phase 4 batch 9 part 1：LLM provider CRUD（4 个命令）
 // =================================================================
 //
-// Drift detection for the L1 "LLM Management" page. The real
-// LlmProviderDto has 25+ fields — we use `i32` placeholders for
-// count/time fields and `#[specta(type = BigInt)]` for the
-// last_health_check_at timestamp.
+// L1 "LLM Management" 页面的 drift 检测。真实的
+// LlmProviderDto 拥有 25+ 字段 —— 我们对
+// 计数/时间字段使用 `i32` 占位符,
+// 对 last_health_check_at 时间戳使用 `#[specta(type = BigInt)]`。
 
-/// v0.103b — full LlmProviderDto shape. Many i64 fields use i32
-/// placeholders (drift detection only, L1 stays on `number`).
-/// Note: the v0.88d `LlmProviderDtoCodegen` (smaller, for
-/// upsert_llm_provider) already exists; we use `LlmProviderDtoFullCodegen`
-/// here to avoid name collision.
+/// v0.103b —— 完整 LlmProviderDto 形状。许多 i64 字段使用 i32
+/// 占位符(仅用于 drift 检测,L1 仍使用 `number`)。
+/// 注意:v0.88d 中的 `LlmProviderDtoCodegen`(较小,用于
+/// upsert_llm_provider)已存在;此处我们使用 `LlmProviderDtoFullCodegen`
+/// 以避免名称冲突。
 #[derive(Serialize, Deserialize, Type)]
 struct LlmProviderDtoFullCodegen {
     pub id: String,
@@ -1655,7 +1657,7 @@ struct LlmProviderDtoFullCodegen {
     pub api_base: Option<String>,
     pub key_alias: String,
     pub default_model: String,
-    /// v0.103b — placeholder (real impl uses i64). Stub uses i32.
+    /// v0.103b —— 占位符(真实实现使用 i64)。存根使用 i32。
     pub timeout_ms: i32,
     pub request_timeout_ms: i32,
     pub max_retries: i32,
@@ -1669,15 +1671,15 @@ struct LlmProviderDtoFullCodegen {
     pub health_status: String,
     pub health_latency_p50_ms: Option<i32>,
     pub health_latency_p95_ms: Option<i32>,
-    /// v0.103b — timestamp (real impl uses Option<i64>). We use i32
-    /// placeholder (drift detection only) — Option<i64> would need
-    /// OptionBigInt for full lossless export.
+    /// v0.103b —— 时间戳(真实实现使用 Option<i64>)。我们使用 i32
+    /// 占位符(仅用于 drift 检测)—— Option<i64> 需要
+    /// OptionBigInt 才能实现完全无损导出。
     pub last_health_check_at: Option<i32>,
     pub last_health_error: Option<String>,
     pub notes: Option<String>,
 }
 
-/// v0.103b — codegen stub for `llm_provider_list`.
+/// v0.103b —— `llm_provider_list` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn llm_provider_list_codegen(
@@ -1685,8 +1687,8 @@ async fn llm_provider_list_codegen(
     Ok(vec![])
 }
 
-/// v0.103b — codegen stub for `llm_provider_upsert`. Takes
-/// the full LlmProviderDto.
+/// v0.103b —— `llm_provider_upsert` 的 codegen 存根。接收
+/// 完整的 LlmProviderDto。
 #[tauri::command]
 #[specta::specta]
 async fn llm_provider_upsert_codegen(
@@ -1695,7 +1697,7 @@ async fn llm_provider_upsert_codegen(
     Ok(())
 }
 
-/// v0.103b — codegen stub for `llm_provider_delete`.
+/// v0.103b —— `llm_provider_delete` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn llm_provider_delete_codegen(
@@ -1705,15 +1707,15 @@ async fn llm_provider_delete_codegen(
 }
 
 // =================================================================
-// v0.103b2 — Phase 4 batch 9 part 2: LLM key CRUD + connectivity
-//                      + health + performance (7 commands)
+// v0.103b2 —— Phase 4 batch 9 part 2：LLM key CRUD + connectivity
+//                      + health + performance（7 个命令）
 // =================================================================
 //
-// Continuation of v0.103b part 1 — covers the rest of the LLM
-// management surface: key CRUD, connectivity testing, health
-// history, and aggregate performance.
+// v0.103b part 1 的延续 —— 覆盖其余 LLM
+// 管理界面:key CRUD、连通性测试、health
+// 历史记录以及聚合性能。
 
-/// v0.103b2 — LlmProviderKeyDto shape. Count fields use i32.
+/// v0.103b2 —— LlmProviderKeyDto 形状。计数字段使用 i32。
 #[derive(Serialize, Deserialize, Type)]
 struct LlmProviderKeyDtoCodegen {
     pub id: String,
@@ -1721,20 +1723,20 @@ struct LlmProviderKeyDtoCodegen {
     pub alias: String,
     pub keyring_alias: String,
     pub enabled: bool,
-    /// v0.103b2 — placeholder (real impl uses i64). Stub uses i32.
+    /// v0.103b2 —— 占位符(真实实现使用 i64)。存根使用 i32。
     pub priority: i32,
     pub weight: i32,
-    /// v0.103b2 — timestamp (real impl uses Option<i64>). i32 placeholder.
+    /// v0.103b2 —— 时间戳(真实实现使用 Option<i64>)。i32 占位符。
     pub last_used_at: Option<i32>,
     pub last_error: Option<String>,
-    /// v0.103b2 — timestamp (real impl uses Option<i64>). i32 placeholder.
+    /// v0.103b2 —— 时间戳(真实实现使用 Option<i64>)。i32 占位符。
     pub last_error_at: Option<i32>,
     pub total_calls: i32,
     pub total_errors: i32,
     pub notes: Option<String>,
 }
 
-/// v0.103b2 — codegen stub for `llm_key_list`.
+/// v0.103b2 —— `llm_key_list` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn llm_key_list_codegen(
@@ -1743,16 +1745,16 @@ async fn llm_key_list_codegen(
     Ok(vec![])
 }
 
-/// v0.103b2 — args for `llm_key_upsert`. Nested LlmProviderKeyDto.
+/// v0.103b2 —— `llm_key_upsert` 的参数。嵌套的 LlmProviderKeyDto。
 #[derive(Serialize, Deserialize, Type)]
 struct KeyUpsertArgsCodegen {
     pub key: LlmProviderKeyDtoCodegen,
-    /// Plaintext secret (optional). When provided, written to OS
-    /// keyring; when None, only metadata is upserted.
+    /// 明文密钥(可选)。提供时写入 OS
+    /// 钥匙串;为 None 时,仅 upsert 元数据。
     pub secret: Option<String>,
 }
 
-/// v0.103b2 — codegen stub for `llm_key_upsert`.
+/// v0.103b2 —— `llm_key_upsert` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn llm_key_upsert_codegen(
@@ -1761,14 +1763,14 @@ async fn llm_key_upsert_codegen(
     Ok(())
 }
 
-/// v0.103b2 — args for `llm_key_set_secret`.
+/// v0.103b2 —— `llm_key_set_secret` 的参数。
 #[derive(Serialize, Deserialize, Type)]
 struct KeySetSecretArgsCodegen {
     pub key_id: String,
     pub secret: String,
 }
 
-/// v0.103b2 — codegen stub for `llm_key_set_secret`.
+/// v0.103b2 —— `llm_key_set_secret` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn llm_key_set_secret_codegen(
@@ -1777,7 +1779,7 @@ async fn llm_key_set_secret_codegen(
     Ok(())
 }
 
-/// v0.103b2 — codegen stub for `llm_key_delete`.
+/// v0.103b2 —— `llm_key_delete` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn llm_key_delete_codegen(
@@ -1786,29 +1788,29 @@ async fn llm_key_delete_codegen(
     Ok(())
 }
 
-/// v0.103b2 — args for `llm_test_connectivity`.
+/// v0.103b2 —— `llm_test_connectivity` 的参数。
 #[derive(Serialize, Deserialize, Type)]
 struct TestConnectivityArgsCodegen {
     pub provider_id: String,
     pub key_id: Option<String>,
 }
 
-/// v0.103b2 — ConnectivityTestResult shape. status fields use
-/// i32 placeholders for counts.
+/// v0.103b2 —— ConnectivityTestResult 形状。状态字段使用
+/// i32 占位符表示计数。
 #[derive(Serialize, Deserialize, Type)]
 struct ConnectivityTestResultCodegen {
     pub provider_id: String,
     pub success: bool,
-    /// v0.103b2 — placeholder (real impl uses Option<i64>).
+    /// v0.103b2 —— 占位符(真实实现使用 Option<i64>)。
     pub latency_ms: Option<i32>,
-    /// v0.103b2 — placeholder (real impl uses Option<i64>).
+    /// v0.103b2 —— 占位符(真实实现使用 Option<i64>)。
     pub http_status: Option<i32>,
     pub model_used: String,
     pub error_code: Option<String>,
     pub error_message: Option<String>,
 }
 
-/// v0.103b2 — codegen stub for `llm_test_connectivity`.
+/// v0.103b2 —— `llm_test_connectivity` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn llm_test_connectivity_codegen(
@@ -1825,13 +1827,13 @@ async fn llm_test_connectivity_codegen(
     })
 }
 
-/// v0.103b2 — LlmHealthCheckDto shape. timestamps use i32 placeholders.
+/// v0.103b2 —— LlmHealthCheckDto 形状。时间戳使用 i32 占位符。
 #[derive(Serialize, Deserialize, Type)]
 struct LlmHealthCheckDtoCodegen {
-    /// v0.103b2 — placeholder (real impl uses i64). i32.
+    /// v0.103b2 —— 占位符(真实实现使用 i64)。i32。
     pub id: i32,
     pub provider_id: String,
-    /// v0.103b2 — timestamp placeholder (real impl uses i64). i32.
+    /// v0.103b2 —— 时间戳占位符(真实实现使用 i64)。i32。
     pub checked_at: i32,
     pub trigger: String,
     pub success: bool,
@@ -1841,7 +1843,7 @@ struct LlmHealthCheckDtoCodegen {
     pub error_message: Option<String>,
 }
 
-/// v0.103b2 — codegen stub for `llm_health_history`.
+/// v0.103b2 —— `llm_health_history` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn llm_health_history_codegen(
@@ -1851,12 +1853,12 @@ async fn llm_health_history_codegen(
     Ok(vec![])
 }
 
-/// v0.103b2 — LlmPerformanceRow shape. Count fields use i32.
+/// v0.103b2 —— LlmPerformanceRow 形状。计数字段使用 i32。
 #[derive(Serialize, Deserialize, Type)]
 struct LlmPerformanceRowCodegen {
     pub provider_id: String,
     pub provider_name: String,
-    /// v0.103b2 — placeholder (real impl uses i64). i32.
+    /// v0.103b2 —— 占位符(真实实现使用 i64)。i32。
     pub n_recommendations: i32,
     pub n_evaluated: i32,
     pub win_rate: f64,
@@ -1865,7 +1867,7 @@ struct LlmPerformanceRowCodegen {
     pub total_cost_cents: f64,
 }
 
-/// v0.103b2 — codegen stub for `llm_performance`.
+/// v0.103b2 —— `llm_performance` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn llm_performance_codegen(
@@ -1876,45 +1878,45 @@ async fn llm_performance_codegen(
 }
 
 // =================================================================
-// v0.104b — Phase 4 batch 10: sidecar lifecycle + train +
-//                     markets + wallet key mgmt (8 commands)
+// v0.104b —— Phase 4 batch 10：sidecar lifecycle + train +
+//                     markets + wallet key mgmt（8 个命令）
 // =================================================================
 //
-// Drift detection for the L1 ModelLab / Settings / Wallets panels.
-// Includes complex TrainResult (with nested TrainTrialDto + serde_json::Value)
-// and SidecarHealthSnapshot (5 i64 fields).
+// L1 ModelLab / Settings / Wallets 面板的 drift 检测。
+// 包含复杂的 TrainResult(嵌套 TrainTrialDto + serde_json::Value)
+// 以及 SidecarHealthSnapshot（5 个 i64 字段）。
 
-/// v0.104b — TrainTrialDto shape. Count fields use i32.
+/// v0.104b —— TrainTrialDto 形状。计数字段使用 i32。
 #[derive(Serialize, Deserialize, Type)]
 struct TrainTrialDtoCodegen {
-    /// v0.104b — placeholder (real impl uses i64). i32.
+    /// v0.104b —— 占位符(真实实现使用 i64)。i32。
     pub trial_index: i32,
-    /// v0.104b — placeholder (real impl uses i64). i32.
+    /// v0.104b —— 占位符(真实实现使用 i64)。i32。
     pub duration_ms: i32,
     pub brier: f64,
-    /// v0.104b — params is serde_json::Value in real impl.
-    /// Stub uses String (drift detection only — L1 keeps as
-    /// `Record<string, unknown>`).
+    /// v0.104b —— 真实实现中 params 是 serde_json::Value。
+    /// 存根使用 String(仅用于 drift 检测 —— L1 保留为
+    /// `Record<string, unknown>`)。
     pub params: String,
 }
 
-/// v0.104b — TrainResult shape.
+/// v0.104b —— TrainResult 形状。
 #[derive(Serialize, Deserialize, Type)]
 struct TrainResultCodegen {
     pub job_id: String,
     pub status: String,
     pub best_brier: Option<f64>,
-    /// v0.104b — best_params is Option<serde_json::Value> in real impl.
-    /// Stub uses Option<String> (drift detection only).
+    /// v0.104b —— 真实实现中 best_params 是 Option<serde_json::Value>。
+    /// 存根使用 Option<String>(仅用于 drift 检测)。
     pub best_params: Option<String>,
     pub trials: Vec<TrainTrialDtoCodegen>,
-    /// v0.104b — duration_ms (real impl uses i64). i32 placeholder.
+    /// v0.104b —— duration_ms(真实实现使用 i64)。i32 占位符。
     pub duration_ms: i32,
     pub candidate_path: Option<String>,
     pub message: Option<String>,
 }
 
-/// v0.104b — codegen stub for `train_job`. Takes TrainJobArgs.
+/// v0.104b —— `train_job` 的 codegen 存根。接收 TrainJobArgs。
 #[tauri::command]
 #[specta::specta]
 async fn train_job_codegen(
@@ -1932,33 +1934,33 @@ async fn train_job_codegen(
     })
 }
 
-/// v0.104b — args for `train_job`. Real TrainJobArgs has
-/// n_trials: Option<u32>, epochs: Option<u32>, timeout_ms: Option<u64>.
-/// Stub uses u32 placeholders (BigInt-forbidden workaround for u64).
+/// v0.104b —— `train_job` 的参数。真实 TrainJobArgs 拥有
+/// n_trials: Option<u32>、epochs: Option<u32>、timeout_ms: Option<u64>。
+/// 存根使用 u32 占位符(对 u64 的 BigInt 禁止变通方案)。
 #[derive(Serialize, Deserialize, Type, Default)]
 struct TrainJobArgsCodegen {
     pub n_trials: Option<u32>,
     pub epochs: Option<u32>,
-    /// v0.104b — placeholder (real impl uses Option<u64>).
-    /// Stub uses Option<u32>.
+    /// v0.104b —— 占位符(真实实现使用 Option<u64>)。
+    /// 存根使用 Option<u32>。
     pub timeout_ms: Option<u32>,
 }
 
-/// v0.104b — codegen stub for `sync_markets`. Returns row count.
+/// v0.104b —— `sync_markets` 的 codegen 存根。返回行数。
 #[tauri::command]
 #[specta::specta]
 async fn sync_markets_codegen() -> Result<u32, String> {
     Ok(0)
 }
 
-/// v0.104b — codegen stub for `recompute_signals`. Returns row count.
+/// v0.104b —— `recompute_signals` 的 codegen 存根。返回行数。
 #[tauri::command]
 #[specta::specta]
 async fn recompute_signals_codegen() -> Result<u32, String> {
     Ok(0)
 }
 
-/// v0.104b — SidecarHealthKind enum.
+/// v0.104b —— SidecarHealthKind 枚举。
 #[derive(Serialize, Deserialize, Type)]
 enum SidecarHealthKindCodegen {
     Ok,
@@ -1966,17 +1968,17 @@ enum SidecarHealthKindCodegen {
     Unknown,
 }
 
-/// v0.104b — SidecarHealthRow shape.
+/// v0.104b —— SidecarHealthRow 形状。
 #[derive(Serialize, Deserialize, Type)]
 struct SidecarHealthRowCodegen {
-    /// v0.104b — placeholder (real impl uses i64). BigInt for lossless.
+    /// v0.104b —— 占位符(真实实现使用 i64)。BigInt 实现无损。
     #[specta(type = BigInt)]
     pub at_ms: i64,
     pub kind: SidecarHealthKindCodegen,
     pub error: Option<String>,
 }
 
-/// v0.104b — SidecarHealthSnapshot shape. 5 i64 fields use BigInt.
+/// v0.104b —— SidecarHealthSnapshot 形状。5 个 i64 字段使用 BigInt。
 #[derive(Serialize, Deserialize, Type)]
 struct SidecarHealthSnapshotCodegen {
     pub last_24h: Vec<SidecarHealthRowCodegen>,
@@ -1990,7 +1992,7 @@ struct SidecarHealthSnapshotCodegen {
     pub last_failure_at_ms: Option<i64>,
 }
 
-/// v0.104b — codegen stub for `sidecar_health_now`.
+/// v0.104b —— `sidecar_health_now` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn sidecar_health_now_codegen(
@@ -2004,7 +2006,7 @@ async fn sidecar_health_now_codegen(
     })
 }
 
-/// v0.104b — codegen stub for `sidecar_health_snapshot`.
+/// v0.104b —— `sidecar_health_snapshot` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn sidecar_health_snapshot_codegen(
@@ -2018,7 +2020,7 @@ async fn sidecar_health_snapshot_codegen(
     })
 }
 
-/// v0.104b — SidecarStatus shape. `pid: Option<u32>` is fine.
+/// v0.104b —— SidecarStatus 形状。`pid: Option<u32>` 没问题。
 #[derive(Serialize, Deserialize, Type)]
 struct SidecarStatusCodegen {
     pub running: bool,
@@ -2027,14 +2029,14 @@ struct SidecarStatusCodegen {
     pub last_error: Option<String>,
 }
 
-/// v0.104b — args for `start_sidecar`.
+/// v0.104b —— `start_sidecar` 的参数。
 #[derive(Serialize, Deserialize, Type, Default)]
 struct StartSidecarArgsCodegen {
     pub path: Option<String>,
     pub auto_restart: Option<bool>,
 }
 
-/// v0.104b — codegen stub for `start_sidecar`.
+/// v0.104b —— `start_sidecar` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn start_sidecar_codegen(
@@ -2048,7 +2050,7 @@ async fn start_sidecar_codegen(
     })
 }
 
-/// v0.104b — codegen stub for `stop_sidecar`.
+/// v0.104b —— `stop_sidecar` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn stop_sidecar_codegen() -> Result<SidecarStatusCodegen, String> {
@@ -2060,7 +2062,7 @@ async fn stop_sidecar_codegen() -> Result<SidecarStatusCodegen, String> {
     })
 }
 
-/// v0.104b — args for `polyrocket_wallet_set_pk`. Real WalletSetPkArgs.
+/// v0.104b —— `polyrocket_wallet_set_pk` 的参数。真实的 WalletSetPkArgs。
 #[derive(Serialize, Deserialize, Type, Default)]
 struct WalletSetPkArgsCodegen {
     pub private_key: String,
@@ -2068,7 +2070,7 @@ struct WalletSetPkArgsCodegen {
     pub alias: Option<String>,
 }
 
-/// v0.104b — codegen stub for `polyrocket_wallet_set_pk`.
+/// v0.104b —— `polyrocket_wallet_set_pk` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn polyrocket_wallet_set_pk_codegen(
@@ -2078,15 +2080,15 @@ async fn polyrocket_wallet_set_pk_codegen(
 }
 
 // =================================================================
-// v0.105b — Phase 4 batch 11: audit + promote + backtest (6 commands)
+// v0.105b —— Phase 4 batch 11：audit + promote + backtest（6 个命令）
 // =================================================================
 //
-// Drift detection for the L1 Audit/ModeLab/Backtest panels. Includes
-// nested BacktestSample in BacktestModelArgs and heavy timestamp usage.
+// L1 Audit/ModeLab/Backtest 面板的 drift 检测。包含
+// 嵌套在 BacktestModelArgs 中的 BacktestSample 以及大量时间戳使用。
 
 // ---------- audit_count_for_actor ----------
-/// v0.105b — codegen stub for `audit_count_for_actor`. Returns
-/// `i64` (real impl), stub uses i32 placeholder.
+/// v0.105b —— `audit_count_for_actor` 的 codegen 存根。返回
+/// `i64`(真实实现),存根使用 i32 占位符。
 #[tauri::command]
 #[specta::specta]
 async fn audit_count_for_actor_codegen(
@@ -2096,26 +2098,26 @@ async fn audit_count_for_actor_codegen(
 }
 
 // ---------- rollback_model ----------
-/// v0.105b — RollbackModelArgs shape.
+/// v0.105b —— RollbackModelArgs 形状。
 #[derive(Serialize, Deserialize, Type, Default)]
 struct RollbackModelArgsCodegen {
     pub model_version: String,
 }
 
-/// v0.105b — RollbackResult shape. timestamp uses BigInt.
+/// v0.105b —— RollbackResult 形状。时间戳使用 BigInt。
 #[derive(Serialize, Deserialize, Type)]
 struct RollbackResultCodegen {
     pub rolled_back: bool,
     pub status: String,
     pub previous_path: Option<String>,
     pub active_path: Option<String>,
-    /// v0.105b — timestamp placeholder (real impl uses Option<i64>).
-    /// BigInt for lossless export.
+    /// v0.105b —— 时间戳占位符(真实实现使用 Option<i64>)。
+    /// BigInt 实现无损导出。
     #[specta(type = BigInt)]
     pub rolled_back_at_ms: Option<i64>,
 }
 
-/// v0.105b — codegen stub for `rollback_model`.
+/// v0.105b —— `rollback_model` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn rollback_model_codegen(
@@ -2131,16 +2133,16 @@ async fn rollback_model_codegen(
 }
 
 // ---------- auto_promote_if_better ----------
-/// v0.105b — AutoPromoteIfBetterArgs shape.
+/// v0.105b —— AutoPromoteIfBetterArgs 形状。
 #[derive(Serialize, Deserialize, Type, Default)]
 struct AutoPromoteIfBetterArgsCodegen {
-    /// v0.105b — placeholder (real impl uses f64). brier_margin default 0.005.
+    /// v0.105b —— 占位符(真实实现使用 f64)。brier_margin 默认 0.005。
     pub brier_margin: f64,
-    /// v0.105b — placeholder (real impl uses Option<u32>). Stub uses Option<u32>.
+    /// v0.105b —— 占位符(真实实现使用 Option<u32>)。存根使用 Option<u32>。
     pub trial_index: Option<u32>,
 }
 
-/// v0.105b — AutoPromoteIfBetterResult shape.
+/// v0.105b —— AutoPromoteIfBetterResult 形状。
 #[derive(Serialize, Deserialize, Type)]
 struct AutoPromoteIfBetterResultCodegen {
     pub promoted: bool,
@@ -2150,14 +2152,14 @@ struct AutoPromoteIfBetterResultCodegen {
     pub active_brier: Option<f64>,
     pub margin: f64,
     pub model_version: Option<String>,
-    /// v0.105b — timestamp placeholder (real impl uses Option<i64>).
-    /// BigInt for lossless export.
+    /// v0.105b —— 时间戳占位符(真实实现使用 Option<i64>)。
+    /// BigInt 实现无损导出。
     #[specta(type = BigInt)]
     pub promoted_at_ms: Option<i64>,
     pub message: Option<String>,
 }
 
-/// v0.105b — codegen stub for `auto_promote_if_better`.
+/// v0.105b —— `auto_promote_if_better` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn auto_promote_if_better_codegen(
@@ -2177,7 +2179,7 @@ async fn auto_promote_if_better_codegen(
 }
 
 // ---------- backtest_model ----------
-/// v0.105b — BacktestSample shape. All f64.
+/// v0.105b —— BacktestSample 形状。全部为 f64。
 #[derive(Serialize, Deserialize, Type)]
 struct BacktestSampleCodegen {
     pub price: f64,
@@ -2186,34 +2188,34 @@ struct BacktestSampleCodegen {
     pub label: Option<String>,
 }
 
-/// v0.105b — BacktestModelArgs shape. Nested Vec<BacktestSample>.
+/// v0.105b —— BacktestModelArgs 形状。嵌套 Vec<BacktestSample>。
 #[derive(Serialize, Deserialize, Type)]
 struct BacktestModelArgsCodegen {
     pub model_version: String,
     pub samples: Vec<BacktestSampleCodegen>,
 }
 
-/// v0.105b — BacktestResult shape.
+/// v0.105b —— BacktestResult 形状。
 #[derive(Serialize, Deserialize, Type)]
 struct BacktestResultCodegen {
     pub ok: bool,
     pub model_version: String,
-    /// v0.105b — placeholder (real impl uses usize). Stub uses u32.
+    /// v0.105b —— 占位符(真实实现使用 usize)。存根使用 u32。
     pub sample_count: u32,
     pub brier_mean: Option<f64>,
     pub brier_breakdown: Vec<f64>,
-    /// 5 calibration buckets in [0, 1]. Each is a Vec<f64>.
+    /// [0, 1] 区间内的 5 个校准桶。每个都是 Vec<f64>。
     pub calibration: Vec<Vec<f64>>,
-    /// v0.105b — placeholder (real impl uses usize). Stub uses u32.
+    /// v0.105b —— 占位符(真实实现使用 usize)。存根使用 u32。
     pub n_winners: u32,
     pub winners: Vec<String>,
-    /// v0.105b — placeholder (real impl uses usize). Stub uses u32.
+    /// v0.105b —— 占位符(真实实现使用 usize)。存根使用 u32。
     pub n_losers: u32,
     pub losers: Vec<String>,
     pub message: Option<String>,
 }
 
-/// v0.105b — codegen stub for `backtest_model`.
+/// v0.105b —— `backtest_model` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn backtest_model_codegen(
@@ -2235,27 +2237,27 @@ async fn backtest_model_codegen(
 }
 
 // ---------- promote_model + promote_all_trials ----------
-/// v0.105b — PromoteModelArgs shape.
+/// v0.105b —— PromoteModelArgs 形状。
 #[derive(Serialize, Deserialize, Type, Default)]
 struct PromoteModelArgsCodegen {
     pub model_version: Option<String>,
-    /// v0.105b — placeholder (real impl uses Option<u32>).
+    /// v0.105b —— 占位符(真实实现使用 Option<u32>)。
     pub trial_index: Option<u32>,
 }
 
-/// v0.105b — PromoteModelResult shape.
+/// v0.105b —— PromoteModelResult 形状。
 #[derive(Serialize, Deserialize, Type)]
 struct PromoteModelResultCodegen {
     pub ok: bool,
     pub message: String,
-    /// v0.105b — placeholder (real impl uses Option<i64>).
+    /// v0.105b —— 占位符(真实实现使用 Option<i64>)。
     #[specta(type = BigInt)]
     pub promoted_at_ms: Option<i64>,
     pub model_version: Option<String>,
     pub best_brier: Option<f64>,
 }
 
-/// v0.105b — codegen stub for `promote_model`.
+/// v0.105b —— `promote_model` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn promote_model_codegen(
@@ -2270,7 +2272,7 @@ async fn promote_model_codegen(
     })
 }
 
-/// v0.105b — PromoteTrialResult shape (used by promote_all_trials).
+/// v0.105b —— PromoteTrialResult 形状(由 promote_all_trials 使用)。
 #[derive(Serialize, Deserialize, Type)]
 struct PromoteTrialResultCodegen {
     pub trial_index: i32,
@@ -2281,17 +2283,17 @@ struct PromoteTrialResultCodegen {
     pub promoted_at_ms: Option<i64>,
 }
 
-/// v0.105b — PromoteAllTrialsResult shape.
+/// v0.105b —— PromoteAllTrialsResult 形状。
 #[derive(Serialize, Deserialize, Type)]
 struct PromoteAllTrialsResultCodegen {
     pub ok: bool,
     pub message: String,
-    /// v0.105b — placeholder (real impl uses usize). Stub uses u32.
+    /// v0.105b —— 占位符(真实实现使用 usize)。存根使用 u32。
     pub count: u32,
     pub results: Vec<PromoteTrialResultCodegen>,
 }
 
-/// v0.105b — codegen stub for `promote_all_trials`.
+/// v0.105b —— `promote_all_trials` 的 codegen 存根。
 #[tauri::command]
 #[specta::specta]
 async fn promote_all_trials_codegen(
@@ -2304,79 +2306,502 @@ async fn promote_all_trials_codegen(
     })
 }
 
+// =================================================================
+// v0.126 —— Phase 4 batch 12：Football Feature Pack
+//                     (13 个 IPC 命令:arb/calendar/crowd_wisdom/
+//                      cross_platform_arb/football_context/mean_reversion/
+//                      news/nl_query/poisson/smart_money/spike/uma)
+// =================================================================
+//
+// L1 Analysis / MarketDetail / ArbBoard / Signals 页面调用的 13 个
+// football IPC。存根返回硬编码形状使 codegen 在没有 Tauri State 时
+// 也能运行。drift 检测器捕捉未来 Rust DTO 的字段重命名 / 类型变更。
+// i64 字段使用 `#[specta(type = BigInt)]` (时间戳)或 `i32` (计数)。
+
+// ---------- arb ----------
+/// v0.126 —— `ArbOpportunityDto` 形状。
+#[derive(Serialize, Deserialize, Type)]
+struct ArbOpportunityDtoCodegen {
+    pub market_id: String,
+    pub question: String,
+    pub yes_cost: f64,
+    pub no_cost: f64,
+    pub total_cost: f64,
+    pub profit_margin: f64,
+    pub category: String,
+}
+
+/// v0.126 —— `arb_scan` 的 codegen 存根。
+#[tauri::command]
+#[specta::specta]
+async fn arb_scan_codegen() -> Result<Vec<ArbOpportunityDtoCodegen>, String> {
+    Ok(vec![])
+}
+
+/// v0.126 —— `list_arb_opportunities` 的 codegen 存根。
+#[tauri::command]
+#[specta::specta]
+async fn list_arb_opportunities_codegen(
+    _limit: Option<i32>,
+) -> Result<Vec<ArbOpportunityDtoCodegen>, String> {
+    Ok(vec![])
+}
+
+// ---------- calendar ----------
+/// v0.126 —— `CalendarFixtureDto` 形状。
+#[derive(Serialize, Deserialize, Type)]
+struct CalendarFixtureDtoCodegen {
+    pub market_id: String,
+    pub home: String,
+    pub away: String,
+    pub time: String,
+    pub edge: Option<f64>,
+    pub competition: Option<String>,
+}
+
+/// v0.126 —— `CalendarDayDto` 形状。
+#[derive(Serialize, Deserialize, Type)]
+struct CalendarDayDtoCodegen {
+    pub date: String,
+    pub fixtures: Vec<CalendarFixtureDtoCodegen>,
+}
+
+/// v0.126 —— `market_calendar` 的 codegen 存根。
+#[tauri::command]
+#[specta::specta]
+async fn market_calendar_codegen(
+    _year: i32,
+    _month: u32,
+) -> Result<Vec<CalendarDayDtoCodegen>, String> {
+    Ok(vec![])
+}
+
+// ---------- cross_platform_arb ----------
+/// v0.126 —— `CrossPlatformArbDto` 形状。
+#[derive(Serialize, Deserialize, Type)]
+struct CrossPlatformArbDtoCodegen {
+    pub match_name: String,
+    pub market_question: String,
+    pub pm_price: f64,
+    pub kalshi_price: f64,
+    pub spread: f64,
+    pub direction: String,
+    pub est_profit_per_1000: f64,
+}
+
+/// v0.126 —— `cross_platform_arb_scan` 的 codegen 存根。
+#[tauri::command]
+#[specta::specta]
+async fn cross_platform_arb_scan_codegen(
+) -> Result<Vec<CrossPlatformArbDtoCodegen>, String> {
+    Ok(vec![])
+}
+
+// ---------- crowd_wisdom ----------
+/// v0.126 —— `CrowdOpinionDto` 形状。
+#[derive(Serialize, Deserialize, Type)]
+struct CrowdOpinionDtoCodegen {
+    pub market_id: String,
+    pub yes_capital: f64,
+    pub no_capital: f64,
+    pub yes_weighted_pct: f64,
+    pub no_weighted_pct: f64,
+    pub hhi: f64,
+    pub top3_share: f64,
+    /// v0.126 —— 占位符(真实类型 usize)。存根使用 i32。
+    pub n_holders: i32,
+    pub smart_yes_pct: f64,
+    pub smart_divergence: f64,
+    #[specta(type = BigInt)]
+    pub computed_at: i64,
+}
+
+/// v0.126 —— `crowd_opinion` 的 codegen 存根。
+#[tauri::command]
+#[specta::specta]
+async fn crowd_opinion_codegen(
+    _market_id: String,
+) -> Result<CrowdOpinionDtoCodegen, String> {
+    Ok(CrowdOpinionDtoCodegen {
+        market_id: String::new(),
+        yes_capital: 0.0,
+        no_capital: 0.0,
+        yes_weighted_pct: 0.0,
+        no_weighted_pct: 0.0,
+        hhi: 0.0,
+        top3_share: 0.0,
+        n_holders: 0,
+        smart_yes_pct: 0.0,
+        smart_divergence: 0.0,
+        computed_at: 0,
+    })
+}
+
+// ---------- football_context ----------
+/// v0.126 —— `FootballContextDto` 形状。
+#[derive(Serialize, Deserialize, Type)]
+struct FootballContextDtoCodegen {
+    pub market_id: String,
+    pub home_team: String,
+    pub away_team: String,
+    /// v0.126 —— 占位符(真实类型 Option<i64>)。
+    pub home_rest_days: Option<i32>,
+    pub away_rest_days: Option<i32>,
+    pub home_matches_7d: i32,
+    pub away_matches_7d: i32,
+    pub home_fatigue: String,
+    pub away_fatigue: String,
+}
+
+/// v0.126 —— `get_football_context` 的 codegen 存根。
+#[tauri::command]
+#[specta::specta]
+async fn get_football_context_codegen(
+    _market_id: String,
+) -> Result<FootballContextDtoCodegen, String> {
+    Ok(FootballContextDtoCodegen {
+        market_id: String::new(),
+        home_team: String::new(),
+        away_team: String::new(),
+        home_rest_days: None,
+        away_rest_days: None,
+        home_matches_7d: 0,
+        away_matches_7d: 0,
+        home_fatigue: String::new(),
+        away_fatigue: String::new(),
+    })
+}
+
+// ---------- mean_reversion ----------
+/// v0.126 —— `ReversionSignalDto` 形状。
+#[derive(Serialize, Deserialize, Type)]
+struct ReversionSignalDtoCodegen {
+    pub market_id: String,
+    pub current: f64,
+    pub mean: f64,
+    pub std_dev: f64,
+    pub z_score: f64,
+    pub bollinger_upper: f64,
+    pub bollinger_lower: f64,
+    pub is_overextended: bool,
+    pub direction: String,
+    /// v0.126 —— 占位符(真实类型 usize)。存根使用 i32。
+    pub window_size: i32,
+    pub fade_signal: f64,
+    pub confidence: f64,
+    #[specta(type = BigInt)]
+    pub computed_at: i64,
+}
+
+/// v0.126 —— `reversion_signal` 的 codegen 存根。
+#[tauri::command]
+#[specta::specta]
+async fn reversion_signal_codegen(
+    _market_id: String,
+    _window: Option<i32>,
+) -> Result<ReversionSignalDtoCodegen, String> {
+    Ok(ReversionSignalDtoCodegen {
+        market_id: String::new(),
+        current: 0.0,
+        mean: 0.0,
+        std_dev: 0.0,
+        z_score: 0.0,
+        bollinger_upper: 0.0,
+        bollinger_lower: 0.0,
+        is_overextended: false,
+        direction: String::new(),
+        window_size: 0,
+        fade_signal: 0.0,
+        confidence: 0.0,
+        computed_at: 0,
+    })
+}
+
+// ---------- news ----------
+/// v0.126 —— `NewsItemDto` 形状。
+#[derive(Serialize, Deserialize, Type)]
+struct NewsItemDtoCodegen {
+    #[specta(type = BigInt)]
+    pub id: i64,
+    pub title: String,
+    pub source: String,
+    pub url: String,
+    #[specta(type = BigInt)]
+    pub published_at: i64,
+    pub market_id: Option<String>,
+    pub relevance_score: Option<f64>,
+    pub impact_direction: Option<String>,
+    pub summary: Option<String>,
+}
+
+/// v0.126 —— `market_news` 的 codegen 存根。
+#[tauri::command]
+#[specta::specta]
+async fn market_news_codegen(
+    _market_id: String,
+) -> Result<Vec<NewsItemDtoCodegen>, String> {
+    Ok(vec![])
+}
+
+/// v0.126 —— `list_all_news` 的 codegen 存根。
+#[tauri::command]
+#[specta::specta]
+async fn list_all_news_codegen(
+    _limit: Option<i32>,
+) -> Result<Vec<NewsItemDtoCodegen>, String> {
+    Ok(vec![])
+}
+
+// ---------- nl_query ----------
+/// v0.126 —— `NlQueryRowDto` 形状。
+#[derive(Serialize, Deserialize, Type)]
+struct NlQueryRowDtoCodegen {
+    pub market_id: String,
+    pub question: String,
+    pub yes_price: Option<f64>,
+    pub model_prob: Option<f64>,
+    pub edge: Option<f64>,
+    pub category: String,
+}
+
+/// v0.126 —— `NlQueryResultDto` 形状。
+#[derive(Serialize, Deserialize, Type)]
+struct NlQueryResultDtoCodegen {
+    pub sql: String,
+    pub results: Vec<NlQueryRowDtoCodegen>,
+    pub explanation: String,
+}
+
+/// v0.126 —— `nl_query` 的 codegen 存根。
+#[tauri::command]
+#[specta::specta]
+async fn nl_query_codegen(
+    _query: String,
+) -> Result<NlQueryResultDtoCodegen, String> {
+    Ok(NlQueryResultDtoCodegen {
+        sql: String::new(),
+        results: vec![],
+        explanation: String::new(),
+    })
+}
+
+// ---------- poisson ----------
+/// v0.126 —— `ScoreMatrixResultDto` 形状。
+#[derive(Serialize, Deserialize, Type)]
+struct ScoreMatrixResultDtoCodegen {
+    pub market_id: String,
+    pub lambda_h: f64,
+    pub lambda_a: f64,
+    pub matrix: [[f64; 5]; 5],
+    /// v0.126 —— 元组数组(speca 支持 Vec<(String, f64)>)。
+    pub most_likely: Vec<(String, f64)>,
+}
+
+/// v0.126 —— `poisson_score_matrix` 的 codegen 存根。
+#[tauri::command]
+#[specta::specta]
+async fn poisson_score_matrix_codegen(
+    _market_id: String,
+) -> Result<ScoreMatrixResultDtoCodegen, String> {
+    Ok(ScoreMatrixResultDtoCodegen {
+        market_id: String::new(),
+        lambda_h: 0.0,
+        lambda_a: 0.0,
+        matrix: [[0.0; 5]; 5],
+        most_likely: vec![],
+    })
+}
+
+// ---------- smart_money ----------
+/// v0.126 —— `TopWalletDto` 形状。
+#[derive(Serialize, Deserialize, Type)]
+struct TopWalletDtoCodegen {
+    pub address: String,
+    pub pnl: f64,
+    pub win_rate: f64,
+}
+
+/// v0.126 —— `SideBreakdownDto` 形状。
+#[derive(Serialize, Deserialize, Type)]
+struct SideBreakdownDtoCodegen {
+    #[specta(type = BigInt)]
+    pub wallet_count: i64,
+    pub avg_pnl: f64,
+    pub win_rate: f64,
+    pub median_position: f64,
+    pub top_wallets: Vec<TopWalletDtoCodegen>,
+}
+
+/// v0.126 —— `SmartMoneyScoreDto` 形状。
+#[derive(Serialize, Deserialize, Type)]
+struct SmartMoneyScoreDtoCodegen {
+    pub market_id: String,
+    pub yes_score: f64,
+    pub no_score: f64,
+    pub yes_breakdown: SideBreakdownDtoCodegen,
+    pub no_breakdown: SideBreakdownDtoCodegen,
+    #[specta(type = BigInt)]
+    pub computed_at: i64,
+}
+
+/// v0.126 —— `smart_money_score` 的 codegen 存根。
+#[tauri::command]
+#[specta::specta]
+async fn smart_money_score_codegen(
+    _market_id: String,
+) -> Result<SmartMoneyScoreDtoCodegen, String> {
+    Ok(SmartMoneyScoreDtoCodegen {
+        market_id: String::new(),
+        yes_score: 0.0,
+        no_score: 0.0,
+        yes_breakdown: SideBreakdownDtoCodegen {
+            wallet_count: 0,
+            avg_pnl: 0.0,
+            win_rate: 0.0,
+            median_position: 0.0,
+            top_wallets: vec![],
+        },
+        no_breakdown: SideBreakdownDtoCodegen {
+            wallet_count: 0,
+            avg_pnl: 0.0,
+            win_rate: 0.0,
+            median_position: 0.0,
+            top_wallets: vec![],
+        },
+        computed_at: 0,
+    })
+}
+
+// ---------- spike ----------
+/// v0.126 —— `SpikeAlertDto` 形状。
+#[derive(Serialize, Deserialize, Type)]
+struct SpikeAlertDtoCodegen {
+    #[specta(type = BigInt)]
+    pub id: i64,
+    pub market_id: String,
+    pub old_price: f64,
+    pub new_price: f64,
+    pub change_pct: f64,
+    #[specta(type = BigInt)]
+    pub detected_at: i64,
+    pub market_question: Option<String>,
+}
+
+/// v0.126 —— `list_spike_alerts` 的 codegen 存根。
+#[tauri::command]
+#[specta::specta]
+async fn list_spike_alerts_codegen(
+    _limit: Option<i32>,
+) -> Result<Vec<SpikeAlertDtoCodegen>, String> {
+    Ok(vec![])
+}
+
+/// v0.126 —— `run_spike_scan` 的 codegen 存根。
+#[tauri::command]
+#[specta::specta]
+async fn run_spike_scan_codegen() -> Result<i32, String> {
+    Ok(0)
+}
+
+// ---------- uma ----------
+/// v0.126 —— `UmaDisputeStatusDto` 形状。
+#[derive(Serialize, Deserialize, Type)]
+struct UmaDisputeStatusDtoCodegen {
+    pub market_id: String,
+    pub status: String,
+    pub detail: Option<String>,
+    /// v0.126 —— 占位符(真实类型 Option<i64>)。
+    pub raised_at: Option<i32>,
+    pub raised_by: Option<String>,
+}
+
+/// v0.126 —— `uma_dispute_status` 的 codegen 存根。
+#[tauri::command]
+#[specta::specta]
+async fn uma_dispute_status_codegen(
+    _market_id: String,
+) -> Result<UmaDisputeStatusDtoCodegen, String> {
+    Ok(UmaDisputeStatusDtoCodegen {
+        market_id: String::new(),
+        status: String::new(),
+        detail: None,
+        raised_at: None,
+        raised_by: None,
+    })
+}
+
 fn main() {
-    // Keep the original command symbols alive (in case the linker
-    // would optimize them out as unused — they're used by the
-    // generated export).
+    // 保留原始命令符号(防止链接器
+    // 将它们优化掉 —— 它们会被生成的导出使用)。
     let _ = commands::pnl::dashboard_kpis;
     let _ = commands::bankroll::compute_allocation_preview;
     let _ = commands::bankroll::get_bankroll_config;
     let _ = commands::bankroll::set_bankroll_config;
     let _ = commands::bankroll::apply_allocation;
-    // v0.84 — Phase 3 read-only commands (no State needed, but the
-    // symbols must remain reachable for drift detection).
+    // v0.84 —— Phase 3 只读命令(不需要 State,但
+    // 符号必须保持可访问以用于 drift 检测)。
     let _ = commands::seed::is_seeded;
     let _ = commands::sidecar::sidecar_status;
     let _ = commands::secrets::secrets_status;
     let _ = commands::notify::notification_permission_state;
     let _ = commands::sidecar::get_telemetry_enabled;
-    // v0.84b — Phase 3 batch 2
+    // v0.84b —— Phase 3 batch 2
     let _ = commands::sidecar::get_auto_promote_config;
     let _ = commands::storage::get_storage_info;
     let _ = commands::mirror_executor::get_mirror_paper_mode;
     let _ = commands::audit::get_audit_retention;
     let _ = commands::active_model::get_active_model;
-    // v0.84c — Phase 3 batch 3
+    // v0.84c —— Phase 3 batch 3
     let _ = commands::signal::list_active_signals;
     let _ = commands::mirror_executor::list_mirrors;
     let _ = commands::wallet::list_wallets;
     let _ = commands::mirror_executor::mirror_queue_stats;
-    // v0.88a — Phase 4 batch 1 (input DTOs, simple shape)
+    // v0.88a —— Phase 4 batch 1(输入 DTO,简单形状)
     let _ = commands::wallet::add_wallet;
     let _ = commands::sidecar::set_telemetry_enabled;
     let _ = commands::mirror_executor::set_mirror_paper_mode;
-    // v0.88b — Phase 4 batch 2 (Copy route, input DTOs)
+    // v0.88b —— Phase 4 batch 2(Copy 路由,输入 DTO)
     let _ = commands::copy::add_copy_target;
     let _ = commands::mirror_executor::enqueue_mirror;
-    // v0.88c — Phase 4 batch 3 (Trade route, input DTOs)
+    // v0.88c —— Phase 4 batch 3(Trade 路由,输入 DTO)
     let _ = commands::bet::place_signed_order;
     let _ = commands::bet::place_jump_link;
-    // v0.88d — Phase 4 batch 4 (Settings / ModelLab / LlmMgmt)
+    // v0.88d —— Phase 4 batch 4(Settings / ModelLab / LlmMgmt)
     let _ = commands::audit::set_audit_retention;
     let _ = commands::llm::upsert_llm_provider;
     let _ = commands::sidecar::set_auto_promote_config;
-    // v0.88e — Phase 4 batch 5 (complex nested DTOs)
+    // v0.88e —— Phase 4 batch 5(复杂嵌套 DTO)
     let _ = commands::llm::llm_analyze;
     let _ = commands::mirror_executor::run_mirror_executor_pass;
-    // v0.101a — Phase 4 batch 7: LLM stats heatmap + scatter + timeseries + decision
+    // v0.101a —— Phase 4 batch 7：LLM stats heatmap + scatter + timeseries + decision
     let _ = commands::llm::llm_stats_heatmap;
     let _ = commands::llm::llm_stats_scatter;
     let _ = commands::llm::llm_stats_timeseries;
     let _ = commands::llm::llm_stats_decision;
-    // v0.101b — Phase 4 batch 7 part 2: LLM stats by_confidence + by_prompt
+    // v0.101b —— Phase 4 batch 7 part 2：LLM stats by_confidence + by_prompt
     //                                                  + cost_efficiency + export
     let _ = commands::llm_mgmt::llm_stats_by_confidence;
     let _ = commands::llm_mgmt::llm_stats_by_prompt;
     let _ = commands::llm_mgmt::llm_stats_cost_efficiency;
     let _ = commands::llm_mgmt::llm_stats_export;
-    // v0.101c — Phase 4 batch 7 part 3: LLM traffic + scheduler (5 commands)
+    // v0.101c —— Phase 4 batch 7 part 3：LLM traffic + scheduler（5 个命令）
     let _ = commands::llm_mgmt::llm_traffic_summary;
     let _ = commands::scheduler::scheduler_status;
     let _ = commands::scheduler::scheduler_run_health_probe_now;
     let _ = commands::scheduler::scheduler_run_daily_brief_now;
     let _ = commands::scheduler::scheduler_self_test_now;
-    // v0.102b — Phase 4 batch 8: degradation + audit purge + daily_brief (6 commands)
+    // v0.102b —— Phase 4 batch 8：degradation + audit purge + daily_brief（6 个命令）
     let _ = commands::scheduler::degradation_check_now;
     let _ = commands::audit::purge_audit_log_now;
     let _ = commands::brief::daily_brief_get;
     let _ = commands::brief::daily_brief_refresh;
     let _ = commands::brief::daily_brief_dismiss;
     let _ = commands::brief::daily_brief_set_prefs;
-    // v0.103b — Phase 4 batch 9 part 1: LLM provider CRUD (4 commands)
+    // v0.103b —— Phase 4 batch 9 part 1：LLM provider CRUD（4 个命令）
     let _ = commands::llm_mgmt::llm_provider_list;
     let _ = commands::llm_mgmt::llm_provider_upsert;
     let _ = commands::llm_mgmt::llm_provider_delete;
-    // v0.103b2 — Phase 4 batch 9 part 2: LLM key CRUD + connectivity + health + performance (7 commands)
+    // v0.103b2 —— Phase 4 batch 9 part 2：LLM key CRUD + connectivity + health + performance（7 个命令）
     let _ = commands::llm_mgmt::llm_key_list;
     let _ = commands::llm_mgmt::llm_key_upsert;
     let _ = commands::llm_mgmt::llm_key_set_secret;
@@ -2384,7 +2809,7 @@ fn main() {
     let _ = commands::llm_mgmt::llm_test_connectivity;
     let _ = commands::llm_mgmt::llm_health_history;
     let _ = commands::llm::llm_performance;
-    // v0.104b — Phase 4 batch 10: sidecar + train + markets + wallet (8 commands)
+    // v0.104b —— Phase 4 batch 10：sidecar + train + markets + wallet（8 个命令）
     let _ = commands::sidecar::train_job;
     let _ = commands::market::sync_markets;
     let _ = commands::signal::recompute_signals;
@@ -2393,13 +2818,29 @@ fn main() {
     let _ = commands::sidecar::start_sidecar;
     let _ = commands::sidecar::stop_sidecar;
     let _ = commands::secrets::polyrocket_wallet_set_pk;
-    // v0.105b — Phase 4 batch 11: audit + promote + backtest (6 commands)
+    // v0.105b —— Phase 4 batch 11：audit + promote + backtest（6 个命令）
     let _ = commands::audit::audit_count_for_actor;
     let _ = commands::sidecar::rollback_model;
     let _ = commands::sidecar::auto_promote_if_better;
     let _ = commands::sidecar::backtest_model;
     let _ = commands::sidecar::promote_model;
     let _ = commands::sidecar::promote_all_trials;
+    // v0.126 —— Phase 4 batch 12：Football Feature Pack（13 个 IPC 命令）
+    let _ = commands::arb::arb_scan;
+    let _ = commands::arb::list_arb_opportunities;
+    let _ = commands::calendar::market_calendar;
+    let _ = commands::cross_platform_arb::cross_platform_arb_scan;
+    let _ = commands::crowd_wisdom::crowd_opinion;
+    let _ = commands::football_context::get_football_context;
+    let _ = commands::mean_reversion::reversion_signal;
+    let _ = commands::news::market_news;
+    let _ = commands::news::list_all_news;
+    let _ = commands::nl_query::nl_query;
+    let _ = commands::poisson::poisson_score_matrix;
+    let _ = commands::smart_money::smart_money_score;
+    let _ = commands::spike::list_spike_alerts;
+    let _ = commands::spike::run_spike_scan;
+    let _ = commands::uma::uma_dispute_status;
 
     let builder: Builder<tauri::Wry> = Builder::new().commands(collect_commands![
         dashboard_kpis_codegen,
@@ -2407,73 +2848,73 @@ fn main() {
         get_bankroll_config_codegen,
         set_bankroll_config_codegen,
         apply_allocation_codegen,
-        // v0.84 — Phase 3 read-only commands
+        // v0.84 —— Phase 3 只读命令
         is_seeded_codegen,
         sidecar_status_codegen,
         secrets_status_codegen,
         notification_permission_state_codegen,
         get_telemetry_enabled_codegen,
-        // v0.84b — Phase 3 batch 2
+        // v0.84b —— Phase 3 batch 2
         get_auto_promote_config_codegen,
         get_storage_info_codegen,
         get_mirror_paper_mode_codegen,
         get_audit_retention_codegen,
         get_active_model_codegen,
-        // v0.84c — Phase 3 batch 3
+        // v0.84c —— Phase 3 batch 3
         list_active_signals_codegen,
         list_mirrors_codegen,
         list_wallets_codegen,
         mirror_queue_stats_codegen,
-        // v0.88a — Phase 4 batch 1 (input DTOs, simple shape)
+        // v0.88a —— Phase 4 batch 1(输入 DTO,简单形状)
         add_wallet_codegen,
         set_telemetry_enabled_codegen,
         set_mirror_paper_mode_codegen,
-        // v0.88b — Phase 4 batch 2 (Copy route, input DTOs)
+        // v0.88b —— Phase 4 batch 2(Copy 路由,输入 DTO)
         add_copy_target_codegen,
         enqueue_mirror_codegen,
-        // v0.88c — Phase 4 batch 3 (Trade route, input DTOs)
+        // v0.88c —— Phase 4 batch 3(Trade 路由,输入 DTO)
         place_signed_order_codegen,
         place_jump_link_codegen,
-        // v0.88d — Phase 4 batch 4 (Settings / ModelLab / LlmMgmt)
+        // v0.88d —— Phase 4 batch 4(Settings / ModelLab / LlmMgmt)
         set_audit_retention_codegen,
         upsert_llm_provider_codegen,
         set_auto_promote_config_codegen,
-        // v0.88e — Phase 4 batch 5 (complex nested DTOs)
+        // v0.88e —— Phase 4 batch 5(复杂嵌套 DTO)
         llm_analyze_codegen,
         run_mirror_executor_pass_codegen,
-        // v0.98 — Phase 4 batch 6: 4 more read-only list commands
+        // v0.98 —— Phase 4 batch 6：另外 4 个只读 list 命令
         list_bets_codegen,
         list_audit_log_codegen,
         list_copy_targets_codegen,
         list_promote_history_codegen,
-        // v0.101a — Phase 4 batch 7: LLM stats (4 read-only commands)
+        // v0.101a —— Phase 4 batch 7：LLM stats（4 个只读命令）
         llm_stats_heatmap_codegen,
         llm_stats_scatter_codegen,
         llm_stats_timeseries_codegen,
         llm_stats_decision_codegen,
-        // v0.101b — Phase 4 batch 7 part 2: LLM stats (4 more)
+        // v0.101b —— Phase 4 batch 7 part 2：LLM stats（另外 4 个）
         llm_stats_by_confidence_codegen,
         llm_stats_by_prompt_codegen,
         llm_stats_cost_efficiency_codegen,
         llm_stats_export_codegen,
-        // v0.101c — Phase 4 batch 7 part 3: LLM traffic + scheduler (5 commands)
+        // v0.101c —— Phase 4 batch 7 part 3：LLM traffic + scheduler（5 个命令）
         llm_traffic_summary_codegen,
         scheduler_status_codegen,
         scheduler_run_health_probe_now_codegen,
         scheduler_run_daily_brief_now_codegen,
         scheduler_self_test_now_codegen,
-        // v0.102b — Phase 4 batch 8: degradation + audit purge + daily_brief (6 commands)
+        // v0.102b —— Phase 4 batch 8：degradation + audit purge + daily_brief（6 个命令）
         degradation_check_now_codegen,
         purge_audit_log_now_codegen,
         daily_brief_get_codegen,
         daily_brief_refresh_codegen,
         daily_brief_dismiss_codegen,
         daily_brief_set_prefs_codegen,
-        // v0.103b — Phase 4 batch 9 part 1: LLM provider CRUD (4 commands)
+        // v0.103b —— Phase 4 batch 9 part 1：LLM provider CRUD（4 个命令）
         llm_provider_list_codegen,
         llm_provider_upsert_codegen,
         llm_provider_delete_codegen,
-        // v0.103b2 — Phase 4 batch 9 part 2: LLM key CRUD + connectivity + health + performance (7 commands)
+        // v0.103b2 —— Phase 4 batch 9 part 2：LLM key CRUD + connectivity + health + performance（7 个命令）
         llm_key_list_codegen,
         llm_key_upsert_codegen,
         llm_key_set_secret_codegen,
@@ -2481,7 +2922,7 @@ fn main() {
         llm_test_connectivity_codegen,
         llm_health_history_codegen,
         llm_performance_codegen,
-        // v0.104b — Phase 4 batch 10: sidecar + train + markets + wallet (8 commands)
+        // v0.104b —— Phase 4 batch 10：sidecar + train + markets + wallet（8 个命令）
         train_job_codegen,
         sync_markets_codegen,
         recompute_signals_codegen,
@@ -2490,17 +2931,33 @@ fn main() {
         start_sidecar_codegen,
         stop_sidecar_codegen,
         polyrocket_wallet_set_pk_codegen,
-        // v0.105b — Phase 4 batch 11: audit + promote + backtest (6 commands)
+        // v0.105b —— Phase 4 batch 11：audit + promote + backtest（6 个命令）
         audit_count_for_actor_codegen,
         rollback_model_codegen,
         auto_promote_if_better_codegen,
         backtest_model_codegen,
         promote_model_codegen,
         promote_all_trials_codegen,
+        // v0.126 —— Phase 4 batch 12：Football Feature Pack（13 个 IPC 命令）
+        arb_scan_codegen,
+        list_arb_opportunities_codegen,
+        market_calendar_codegen,
+        cross_platform_arb_scan_codegen,
+        crowd_opinion_codegen,
+        get_football_context_codegen,
+        reversion_signal_codegen,
+        market_news_codegen,
+        list_all_news_codegen,
+        nl_query_codegen,
+        poisson_score_matrix_codegen,
+        smart_money_score_codegen,
+        list_spike_alerts_codegen,
+        run_spike_scan_codegen,
+        uma_dispute_status_codegen,
     ]);
 
-    // CARGO_MANIFEST_DIR is `src-tauri/`, so the parent is
-    // the project root. We want `<project>/src/types/generated/`.
+    // CARGO_MANIFEST_DIR 是 `src-tauri/`,因此父目录是
+    // 项目根目录。我们需要 `<project>/src/types/generated/`。
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
         .expect("CARGO_MANIFEST_DIR");
     let out_dir = std::path::PathBuf::from(manifest_dir)
@@ -2510,8 +2967,8 @@ fn main() {
     std::fs::create_dir_all(&out_dir).expect("create generated dir");
     let out_file = out_dir.join("index.ts");
 
-    // Use specta_typescript directly. Must match tauri-specta's
-    // bundled version (0.0.12) — see Cargo.toml comment.
+    // 直接使用 specta_typescript。必须匹配 tauri-specta 的
+    // 捆绑版本(0.0.12)—— 参见 Cargo.toml 注释。
     builder
         .export(specta_typescript::Typescript::default(), &out_file)
         .expect("export ts bindings");
