@@ -1,13 +1,13 @@
-//! L3 — Signal detection (M2).
+//! L3 — 信号检测（M2）。
 //!
-//! Computes model-vs-market edges and decides which signals are
-//! "actionable" (active=1) for the frontend.
+//! 计算 model-vs-market 的 edge,并决定哪些信号对前端
+//! 是「可执行的」（active=1）。
 //!
-//! Real impl: M2 milestone is a heuristic scorer — the heavy ML is
-//! in M7 (model-lab). This module owns the **filter + sort + edge
-//! math** that runs at every recompute.
+//! 真实实现：M2 里程碑是启发式打分器 —— 较重的 ML 部分在
+//! M7（model-lab）。本模块负责每次重算时运行的
+//! **filter + sort + edge 数学**。
 //!
-//! Spec: docs/polyrocket-modules.md §2.M2
+//! 规范：docs/polyrocket-modules.md §2.M2
 
 use crate::domain::polymarket::hours_until_close;
 use serde::{Deserialize, Serialize};
@@ -37,24 +37,24 @@ pub struct Signal {
 }
 
 impl Signal {
-    /// `true` if the edge is large enough to be actionable.
-    /// Combines: |edge| >= min_edge AND confidence >= 0.6.
+    /// 当 edge 足够大、可以执行时返回 `true`。
+    /// 综合条件:|edge| >= min_edge 且 confidence >= 0.6。
     pub fn is_actionable(&self, min_edge: f64) -> bool {
         self.edge.abs() >= min_edge && self.confidence >= 0.6
     }
 }
 
-/// Score a single (predicted, market) pair. Returns (edge, confidence).
-/// Edge = predicted - market. Confidence defaults to |edge| but capped
-/// at 0.95 — pure edge isn't a real confidence measure (a real model
-/// would output a separate uncertainty). This is the v0.4 placeholder.
+/// 对单个 (predicted, market) 对打分。返回 (edge, confidence)。
+/// Edge = predicted - market。Confidence 默认为 |edge|，但上限为 0.95 ——
+/// 纯 edge 并非真正的 confidence 指标（真实 model 应输出独立的
+/// 不确定性）。这是 v0.4 的占位实现。
 pub fn score(predicted_prob: f64, market_prob: f64) -> (f64, f64) {
     let edge = predicted_prob - market_prob;
     let confidence = (edge.abs() * 2.0).min(0.95);
     (edge, confidence)
 }
 
-/// Filter a list of signals by min edge and active-only.
+/// 按最小 edge 以及 active-only 过滤信号列表。
 pub fn filter_active(signals: &[Signal], min_edge: f64) -> Vec<Signal> {
     signals
         .iter()
@@ -63,12 +63,12 @@ pub fn filter_active(signals: &[Signal], min_edge: f64) -> Vec<Signal> {
         .collect()
 }
 
-/// Sort signals by |edge| descending (largest edges first).
+/// 按 |edge| 降序对信号排序（最大 edge 排在前）。
 pub fn sort_by_edge_abs(signals: &mut [Signal]) {
     signals.sort_by(|a, b| b.edge.abs().partial_cmp(&a.edge.abs()).unwrap_or(std::cmp::Ordering::Equal));
 }
 
-/// Pick the best edge for a given market.
+/// 为指定市场挑选最佳 edge。
 pub fn best_for_market<'a>(signals: &'a [Signal], market_id: &str) -> Option<&'a Signal> {
     signals
         .iter()
@@ -76,7 +76,7 @@ pub fn best_for_market<'a>(signals: &'a [Signal], market_id: &str) -> Option<&'a
         .max_by(|a, b| a.edge.abs().partial_cmp(&b.edge.abs()).unwrap_or(std::cmp::Ordering::Equal))
 }
 
-/// Stats: count + avg |edge| for a slice of signals.
+/// 统计信息：信号切片的数量 + 平均 |edge|。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SignalStats {
     pub n: usize,
@@ -111,8 +111,8 @@ pub fn stats(signals: &[Signal]) -> SignalStats {
     }
 }
 
-/// Auto-expire signals whose market has already closed.
-/// Returns the IDs of signals that should be marked inactive.
+/// 自动过期所属市场已关闭的信号。
+/// 返回应标记为不活跃的信号 ID 列表。
 pub fn expire_for_closed_markets(signals: &[Signal], now_ms: i64) -> Vec<String> {
     signals
         .iter()
@@ -201,7 +201,7 @@ mod tests {
 
     #[test]
     fn expire_returns_past_due() {
-        // computed_at = 0, horizon = 24h → end at now_24h_ago
+        // computed_at = 0, horizon = 24h → 截止时间为 now_24h_ago
         let s = vec![sig("a", 0.05, 0.7)];
         let expired = expire_for_closed_markets(&s, 100 * 3_600_000);
         assert_eq!(expired, vec!["a".to_string()]);

@@ -1,23 +1,23 @@
-//! E2E test mode for the Tauri app — invoked via `polyrocket --e2e-football`.
+//! Tauri 应用的 E2E 测试模式 —— 通过 `polyrocket --e2e-football` 调用。
 //!
-//! Flow (per market):
-//!   1. Tauri app boots normally (DB, scheduler, plugins, webview)
-//!   2. Wait 3s for the React app to load
-//!   3. Navigate the webview to `/markets/{market_id}` via
-//!      real BrowserRouter pushState (same path a user click takes)
-//!   4. Wait 5s for the MarketDetail page to fetch + render
-//!   5. Invoke the `llm_analyze` IPC from the webview (same call the
-//!      "Run analysis" button makes — real `__TAURI_INTERNALS__.invoke`)
-//!   6. Capture the result via `eval_with_callback`
-//!   7. Write JSON to `/tmp/polyrocket-e2e-result.json` (path override
-//!      via `POLYROCKET_E2E_RESULT_PATH`)
-//!   8. Repeat for next market
+//! 流程（每个市场）：
+//!   1. Tauri 应用正常启动（DB、调度器、插件、webview）
+//!   2. 等待 3 秒让 React 应用加载完成
+//!   3. 通过真实的 BrowserRouter pushState 将 webview 导航到
+//!      `/markets/{market_id}`（与用户点击路径相同）
+//!   4. 等待 5 秒让 MarketDetail 页面完成数据获取与渲染
+//!   5. 从 webview 调用 `llm_analyze` IPC（与"Run analysis"
+//!      按钮相同的调用 —— 真实的 `__TAURI_INTERNALS__.invoke`）
+//!   6. 通过 `eval_with_callback` 捕获结果
+//!   7. 将 JSON 写入 `/tmp/polyrocket-e2e-result.json`
+//!      （可通过 `POLYROCKET_E2E_RESULT_PATH` 覆盖路径）
+//!   8. 对下一个市场重复上述流程
 //!
-//! **Multi-market mode**: by default runs 4 football seed markets
-//! (set `POLYROCKET_E2E_SINGLE=1` to limit to the first one for
-//! legacy single-market scripts).
+//! **多市场模式**：默认运行 4 个足球种子市场
+//! （设置 `POLYROCKET_E2E_SINGLE=1` 可仅运行第一个市场，
+//! 以兼容旧的单市场脚本）。
 //!
-//! Used by `scripts/e2e_football_app.sh`.
+//! 由 `scripts/e2e_football_app.sh` 调用。
 
 use serde_json::{json, Value};
 use std::sync::mpsc;
@@ -25,7 +25,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager};
 use crate::infra::state::AppState;
 
-/// v0.121 — the 4 football seed markets. Run in this order.
+/// v0.121 — 4 个足球种子市场。按此顺序运行。
 const FOOTBALL_MARKETS: &[&str] = &[
     "mkt-football-eu-final-2026",
     "mkt-football-la-liga",
@@ -42,7 +42,7 @@ pub async fn run(app: AppHandle) {
 
     tracing::info!("[e2e-football] starting; result_path={}", result_path);
 
-    // -- 1. wait for window + React app to load
+    // -- 1. 等待窗口与 React 应用加载完成
     tokio::time::sleep(Duration::from_secs(3)).await;
 
     let window = match app.get_webview_window("main") {
@@ -57,18 +57,18 @@ pub async fn run(app: AppHandle) {
     };
     tracing::info!("[e2e-football] window ready");
 
-    // -- 1.5. self-bootstrap: ensure at least one enabled LLM provider + key
-    //   so llm_analyze has something to call. Reads credentials from env
-    //   (DOUBAO_API_KEY / MINIMAX_API_KEY / QWEN_API_KEY / MOONSHOT_API_KEY /
-    //   ZHIPU_API_KEY) and registers whichever is present (MiniMax first
-    //   because it had no quota issues during dev).
+    // -- 1.5. 自举：确保至少有一个启用的 LLM provider + key，
+    //   使 llm_analyze 有可调用的对象。从环境变量读取凭证
+    //   （DOUBAO_API_KEY / MINIMAX_API_KEY / QWEN_API_KEY /
+    //   MOONSHOT_API_KEY / ZHIPU_API_KEY），注册其中存在的那个
+    //   （优先 MiniMax，因为开发期间它没有配额问题）。
     if let Err(e) = bootstrap_providers(&app).await {
         tracing::error!("[e2e-football] bootstrap_providers failed: {e}");
     } else {
         tracing::info!("[e2e-football] providers bootstrapped");
     }
 
-    // -- 2. probe whether the React app actually loaded
+    // -- 2. 探测 React 应用是否真的加载完成
     let probe = eval_with_callback(&window, r#"
         (() => {
             const ok = typeof window.__TAURI_INTERNALS__ !== 'undefined'
@@ -87,7 +87,7 @@ pub async fn run(app: AppHandle) {
     "#).await;
     tracing::info!("[e2e-football] probe: {}", probe);
 
-    // -- 3. navigate to the football market detail page (BrowserRouter pushState)
+    // -- 3. 导航到足球市场详情页面（BrowserRouter pushState）
     let market_id_str = std::env::var("POLYROCKET_E2E_MARKET_ID")
         .unwrap_or_else(|_| "mkt-football-eu-final-2026".to_string());
     let nav = eval_with_callback(&window, &format!(r#"
@@ -103,19 +103,20 @@ pub async fn run(app: AppHandle) {
     "#, market_id_str)).await;
     tracing::info!("[e2e-football] nav: {}", nav);
 
-    // -- 4. wait for the MarketDetail page to fetch + render the Analyze button
+    // -- 4. 等待 MarketDetail 页面完成获取并渲染 Analyze 按钮
     tokio::time::sleep(Duration::from_secs(6)).await;
 
-    // -- 5. invoke the real analyze IPC from the webview (same code path the
-    //       "Analyze" button uses). provider_ids forced to MiniMax (Doubao
-    //       5-hour quota was exhausted during dev).
+    // -- 5. 从 webview 调用真实的 analyze IPC（与 "Analyze"
+    //       按钮相同的代码路径）。provider_ids 强制设为 MiniMax
+    //       （开发期间 Doubao 的 5 小时配额已耗尽）。
     //
-    // Trick: `eval_with_callback` serializes the JS expression's return value
-    // back to Rust. For async expressions, the value is the Promise (serializes
-    // to `{}`), not its resolved result. So we use a 2-eval pattern:
-    //   a) round-trip 1: kick off the async work, store result in
-    //      `window.__e2e_football_result__`, return synchronously
-    //   b) round-trip 2 (after a delay): read the stored result
+    // 技巧：`eval_with_callback` 将 JS 表达式的返回值
+    // 序列化回 Rust。对于异步表达式，返回值是 Promise
+    // （序列化为 `{}`），而不是其已解析的结果。
+    // 因此我们使用 2 次 eval 模式：
+    //   a) 第一轮：启动异步任务，将结果存储到
+    //      `window.__e2e_football_result__`，同步返回
+    //   b) 第二轮（延迟后）：读取已存储的结果
     let kick_off_js = r#"
         (() => {
             window.__e2e_football_result__ = null;
@@ -135,9 +136,9 @@ pub async fn run(app: AppHandle) {
                         }
                     });
                     const t1 = Date.now();
-                    // Store BOTH the string (for raw inspection) and the object
-                    // (so eval_with_callback can return it directly without
-                    // double-quoting).
+                    // 同时存储字符串（用于原始检查）和对象
+                    // （以便 eval_with_callback 直接返回它，避免
+                    // 双重引号转义）。
                     const obj = {
                         ok: true,
                         stage: 'analyze',
@@ -180,7 +181,7 @@ pub async fn run(app: AppHandle) {
                 }
                 window.__e2e_football_done__ = true;
             })();
-            // Return an object (will be serialized to JSON without extra wrapping)
+            // 返回对象（将被序列化为 JSON，且不会有额外的引号包裹）
             return { kicked_off: true, started_at: window.__e2e_football_started_at__ };
         })()
     "#;
@@ -189,13 +190,13 @@ pub async fn run(app: AppHandle) {
     let kick_off_result = eval_with_callback(&window, kick_off_js).await;
     tracing::info!("[e2e-football] kick_off: {}", kick_off_result);
 
-    // -- 5b. Poll for the result. The LLM call typically takes 5-15s. We
-    //       poll every 2s for up to ANALYZE_TIMEOUT_SECS.
+    // -- 5b. 轮询结果。LLM 调用通常需要 5-15 秒。
+    //       我们每 2 秒轮询一次，最长不超过 ANALYZE_TIMEOUT_SECS。
     let poll_js = r#"
         (() => {
-            // eval_with_callback serializes the return value to JSON. Returning a
-            // string here would get double-quoted ("..."), so we return the object
-            // directly when pending and unwrap the stored string when done.
+            // eval_with_callback 将返回值序列化为 JSON。
+            // 如果这里返回字符串，它会被双引号包裹（"..."），
+            // 因此我们在等待时直接返回对象，完成时再展开已存储的字符串。
             if (!window.__e2e_football_done__) {
                 return {
                     ok: false,
@@ -204,13 +205,12 @@ pub async fn run(app: AppHandle) {
                     elapsed_ms: Date.now() - window.__e2e_football_started_at__,
                 };
             }
-            // window.__e2e_football_result__ is already a JSON string written by
-            // the kicked-off async work. eval_with_callback would serialize the
-            // string again (wrapping in quotes). So we have the kick-off JS store
-            // a plain object instead — but that means re-storing here. The simplest
-            // path: return the parsed object back, but the async work already
-            // built the object. So we read a different global that holds the
-            // object directly. If only the string is stored, we re-parse.
+            // window.__e2e_football_result__ 已经是 kicked-off 异步任务
+            // 写入的 JSON 字符串。eval_with_callback 会再次序列化该字符串
+            // （用引号包裹）。因此 kick-off JS 应该存储一个普通对象 —
+            // 但这意味着需要在此处重新存储。最简单的路径：返回已解析的对象，
+            // 但异步任务已经构建好了对象。所以我们读取另一个持有
+            // 对象的全局变量。如果只存储了字符串，我们重新解析。
             if (window.__e2e_football_result_obj__) {
                 return window.__e2e_football_result_obj__;
             }
@@ -226,10 +226,10 @@ pub async fn run(app: AppHandle) {
     loop {
         iteration += 1;
         let poll = eval_with_callback(&window, poll_js).await;
-        // Debug: show first 80 chars as escaped + length
+        // 调试：显示前 80 个字符（转义后）+ 长度
         let preview: String = poll.chars().take(80).collect();
         tracing::info!("[e2e-football] poll #{} (len={}): {:?}", iteration, poll.len(), preview);
-        // poll is either "{\"pending\":true,...}" or the actual result JSON
+        // poll 要么是 "{\"pending\":true,...}"，要么是实际的结果 JSON
         let is_pending = serde_json::from_str::<Value>(&poll)
             .ok()
             .and_then(|p| p.get("pending").and_then(|v| v.as_bool()))
@@ -251,36 +251,36 @@ pub async fn run(app: AppHandle) {
             tracing::info!("[e2e-football] poll #{} sleeping done, continuing", iteration);
             continue;
         }
-        // Got the result (or poll_js returned something unexpected — treat as result)
+        // 拿到结果（或 poll_js 返回了意料之外的内容 —— 也视为结果）
         result_str = poll;
         elapsed_ms = poll_start.elapsed().as_millis() as u64;
         break;
     }
     tracing::info!("[e2e-football] analyze raw (elapsed {}ms, {} polls): {}", elapsed_ms, iteration, &result_str[..result_str.len().min(500)]);
 
-    // -- 5c. POST-ANALYZE: full prediction loop using PM credentials.
+    // -- 5c. 分析后阶段：使用 PM 凭证的完整预测循环。
     //
-    //   a) `clob_feed_status` → verify PM credentials recognized
-    //   b) `latest_clob_snapshot` → fetch current PM orderbook mid price
-    //   c) compare model_prob vs market_implied → compute edge
-    //   d) if edge > 0.05 → invoke `place_signed_order` (paper-mode)
-    //      via the same Rust IPC the trade UI uses
-    //   e) verify the trade landed in `bets` table
+    //   a) `clob_feed_status` → 验证 PM 凭证被识别
+    //   b) `latest_clob_snapshot` → 获取当前 PM 订单簿中间价
+    //   c) 对比 model_prob 与 market_implied → 计算 edge
+    //   d) 如果 edge > 0.05 → 通过交易 UI 相同的 Rust IPC 调用
+    //      `place_signed_order`（paper 模式）
+    //   e) 验证交易已落入 `bets` 表
     //
-    // Each IPC call uses the kick-off + poll pattern (eval_with_callback
-    // doesn't await Promises — it serializes the in-flight Promise to
-    // `{}` immediately). Helper `kick_poll_ipc` writes the result into a
-    // window global, marks done, and we poll for the marker.
+    // 每个 IPC 调用都采用 kick-off + poll 模式（eval_with_callback
+    // 不会 await Promise —— 它会立即将进行中的 Promise 序列化为
+    // `{}`）。辅助函数 `kick_poll_ipc` 将结果写入
+    // window 全局变量，标记完成，然后我们轮询该标记。
 
-    /// Spawn an async IPC call from JS, store result in `window.__e2e_<name>_result__`,
-    /// mark done with `window.__e2e_<name>_done__ = true`. Returns the final JSON.
+    /// 从 JS 启动一个异步 IPC 调用，将结果存储到 `window.__e2e_<name>_result__`，
+    /// 通过 `window.__e2e_<name>_done__ = true` 标记完成。返回最终的 JSON。
     async fn kick_poll_ipc(
         window: &tauri::WebviewWindow,
         name: &str,
         kick_js: &str,
         timeout_secs: u64,
     ) -> String {
-        // Kick off: wrap the async work, store on window, mark done flag.
+        // Kick off：包装异步任务，存储到 window，标记完成标志。
         let wrapped = format!(
             r#"
             (() => {{
@@ -360,22 +360,22 @@ pub async fn run(app: AppHandle) {
         extras["clob_feed_status"] = parsed;
     }
 
-    // b) latest_clob_snapshot — first record a synthetic orderbook so
-    //    `latest_clob_snapshot` has data to return. In production this
-    //    would be a real PM CLOB orderbook fetch; for the demo we
-    //    inject a plausible book at best_bid=0.45, best_ask=0.55
-    //    (implied mid = 0.50 — close to Polymarket's typical football
-    //    favorite pricing).
+    // b) latest_clob_snapshot —— 首先插入一个合成的订单簿，使
+    //    `latest_clob_snapshot` 有数据可返回。生产环境中这应该是
+    //    真实的 PM CLOB 订单簿抓取；对于本 demo，我们
+    //    注入一个看起来合理的账本：best_bid=0.45，best_ask=0.55
+    //    （隐含中间价 = 0.50 —— 接近 Polymarket 足球
+    //    热门标的的典型定价）。
     let snapshot_raw: String;
     {
         let now_ms = chrono::Utc::now().timestamp_millis();
-        let _ = app.state::<AppState>().db.clone(); // ensure pool reachable
-        // Insert directly via Rust SQL (skipping the IPC round-trip for the demo).
-        // `clob_snapshots` is a flat table — one row per (side, price, size).
-        // Insert a 4-level ladder chosen so market_mid ≈ 0.30 while the
-        // LLM's prediction lands near 0.50 → edge ≈ +0.20 (actionable).
-        // The bid/ask spread (0.28/0.32) is typical for a Polymarket
-        // football longshot.
+        let _ = app.state::<AppState>().db.clone(); // 确保 pool 可达
+        // 直接通过 Rust SQL 插入（demo 中跳过 IPC 来回）。
+        // `clob_snapshots` 是一个扁平表 —— 每个 (side, price, size) 一行。
+        // 插入一个 4 档深度，使 market_mid ≈ 0.30 而
+        // LLM 预测落在 0.50 附近 → edge ≈ +0.20（可执行）。
+        // 买卖价差（0.28/0.32）对于 Polymarket
+        // 足球冷门标的是典型的。
         if let Some(state) = app.try_state::<AppState>() {
             let pool = state.db.clone();
             let market_id = std::env::var("POLYROCKET_E2E_MARKET_ID")
@@ -419,11 +419,12 @@ pub async fn run(app: AppHandle) {
         extras["clob_snapshot"] = parsed.clone();
         snapshot_raw = raw;
 
-        // c) compute edge from snapshot vs model
-        // `parsed` = {ok: true, snapshot: {market_id, bids, asks, captured_at}}.
-        // ClobSnapshot has `bids: [(price, size), ...]` (sorted DESC) and
-        // `asks: [(price, size), ...]` (sorted ASC). best_bid = bids[0][0],
-        // best_ask = asks[0][0], market_mid = (best_bid + best_ask) / 2.
+        // c) 基于快照与模型计算 edge
+        // `parsed` = {ok: true, snapshot: {market_id, bids, asks, captured_at}}。
+        // ClobSnapshot 包含 `bids: [(price, size), ...]`（按价格降序）和
+        // `asks: [(price, size), ...]`（按价格升序）。
+        // best_bid = bids[0][0]，best_ask = asks[0][0]，
+        // market_mid = (best_bid + best_ask) / 2。
         if let Some(rec) = parsed.get("snapshot") {
             let best_bid = rec.get("bids")
                 .and_then(|v| v.as_array())
@@ -466,7 +467,7 @@ pub async fn run(app: AppHandle) {
         }
     }
 
-    // d) place paper trade if edge is actionable
+    // d) 如果 edge 可执行，则下 paper 交易
     let model_side = serde_json::from_str::<Value>(&result_str)
         .ok()
         .and_then(|v| v.get("consensus_side").and_then(|s| s.as_str()).map(String::from))
@@ -528,7 +529,7 @@ pub async fn run(app: AppHandle) {
         extras["trade_decision"] = parsed;
     }
 
-    // e) verify the trade landed in `bets` table
+    // e) 验证交易已落入 `bets` 表
     {
         let kick = r#"
             const r = await window.__TAURI_INTERNALS__.invoke('list_bets', { args: { limit: 50 } });
@@ -540,14 +541,14 @@ pub async fn run(app: AppHandle) {
         extras["bets_in_db"] = parsed;
     }
 
-    // -- 6. parse + write
+    // -- 6. 解析 + 写入
     let parsed: Value = serde_json::from_str(&result_str)
         .unwrap_or_else(|e| json!({"ok": false, "stage": "parse", "raw": result_str, "error": format!("json parse: {e}")}));
 
-    // -- 6.5. merge post-analyze extras (clob status, snapshot, edge,
-    //       trade decision, bets-in-db verification) into the final
-    //       payload so the e2e result file reflects the full business
-    //       loop, not just the LLM call.
+    // -- 6.5. 将分析后的附加信息（clob status、snapshot、edge、
+    //       trade decision、bets-in-db 验证）合并到最终
+    //       payload 中，使 e2e 结果文件反映完整业务
+    //       循环，而不仅仅是 LLM 调用。
     let mut merged = parsed.as_object().cloned().unwrap_or_default();
     for (k, v) in extras.as_object().cloned().unwrap_or_default() {
         merged.insert(k, v);
@@ -555,21 +556,21 @@ pub async fn run(app: AppHandle) {
     let merged = Value::Object(merged);
     write_result(&result_path, &merged);
 
-    // -- 6.6. also bind `parsed` ref below to merged so summary
-    //         reflects the full payload.
+    // -- 6.6. 同时将下方的 `parsed` 引用绑定到 merged，
+    //         使摘要反映完整的 payload。
     let parsed = merged;
 
-    // -- 7. print human summary to stderr
+    // -- 7. 将人类可读的摘要输出到 stderr
     print_summary(&parsed);
 
-    // -- 7.5. v0.119 — convert the LLM analyze result into a `signals`
-    //       row so the MarketDetail page (and the Dashboard "Recent
-    //       activity" list) render the prediction. Without this, the
-    //       result lives only in `llm_analyses` / `llm_recommendations`
-    //       and the UI doesn't surface it.
+    // -- 7.5. v0.119 — 将 LLM analyze 结果转换为 `signals`
+    //       行，使 MarketDetail 页面（以及 Dashboard 的
+    //       "Recent activity" 列表）能够渲染预测结果。
+    //       否则结果仅存在于 `llm_analyses` / `llm_recommendations` 中，
+    //       UI 无法显示。
     //
-    //       Also INVALIDATE the React Query cache for `signals` and
-    //       `markets` so the live UI re-fetches.
+    //       同时使 `signals` 和 `markets` 的 React Query 缓存失效，
+    //       以便实时 UI 重新获取数据。
     let market_id_for_signal = std::env::var("POLYROCKET_E2E_MARKET_ID")
         .unwrap_or_else(|_| "mkt-football-eu-final-2026".to_string());
     let market_id_for_signal = market_id_for_signal.clone();
@@ -609,8 +610,8 @@ pub async fn run(app: AppHandle) {
         );
     }
 
-    // -- 7.6. navigate to /markets/{market_id} so the user
-    //       sees the prediction rendered on MarketDetail page.
+    // -- 7.6. 导航到 /markets/{market_id}，以便用户
+    //       能够在 MarketDetail 页面上看到渲染出的预测。
     let nav_path = format!(
         "window.history.pushState({{}}, '', '/markets/{}'); \
          window.dispatchEvent(new PopStateEvent('popstate'));",
@@ -618,30 +619,30 @@ pub async fn run(app: AppHandle) {
     );
     let _ = window.eval(nav_path);
 
-    // -- 7.7. invalidate React Query cache so UI re-fetches with new signal.
-    //   Best-effort: try the cached queryClient first (it may not be exposed
-    //   in prod builds), then fall back to a hard reload which guarantees a
-    //   fresh fetch from `signals` and `markets` endpoints.
+    // -- 7.7. 使 React Query 缓存失效，以便 UI 使用新 signal 重新获取数据。
+    //   尽力而为：先尝试缓存的 queryClient（在生产构建中
+    //   可能未暴露），然后回退到硬重载，保证
+    //   从 `signals` 和 `markets` 端点获取最新数据。
     let _ = window.eval(
         "if (window.__rq__) { \
             window.__rq__.invalidateQueries({ queryKey: ['signals'] }); \
             window.__rq__.invalidateQueries({ queryKey: ['markets'] }); \
          }".to_string()
     );
-    // Brief pause so the JS invalidation can flush, then a hard reload to
-    // guarantee the page re-mounts and React Query re-issues its hooks.
+    // 短暂暂停以让 JS 的失效操作刷出，然后硬重载
+    // 以保证页面重新挂载，React Query 重新发起其 hooks。
     tokio::time::sleep(Duration::from_millis(500)).await;
     let _ = window.eval("window.location.reload();".to_string());
 
-    // -- 8. exit cleanly OR keep alive for screenshot
-    //   POLYROCKET_E2E_KEEP_RUNNING=1 → stay running so the operator can
-    //   screencapture the rendered prediction in the UI.
+    // -- 8. 干净退出 或保持运行以便截图
+    //   POLYROCKET_E2E_KEEP_RUNNING=1 → 保持运行，使操作员可以
+    //   截屏 UI 中渲染的预测。
     let keep_running = std::env::var("POLYROCKET_E2E_KEEP_RUNNING")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
     if keep_running {
         tracing::info!("[e2e-football] POLYROCKET_E2E_KEEP_RUNNING=1 — staying alive for screenshot");
-        // Park forever; operator kills via SIGTERM.
+        // 永久挂起；操作员通过 SIGTERM 终止。
         loop {
             tokio::time::sleep(Duration::from_secs(3600)).await;
         }
@@ -655,18 +656,18 @@ pub async fn run(app: AppHandle) {
     app.exit(exit_code);
 }
 
-/// v0.121 — multi-market e2e. Runs the standard `run()` flow
-/// for each football seed market. Each market's result is
-/// written to a separate file at `/tmp/polyrocket-e2e-{N}.json`
-/// (N = 1..4) so the operator can see all 4 predictions
-/// independently. The combined "all_markets" file is at
-/// `/tmp/polyrocket-e2e-all-football.json`.
+/// v0.121 — 多市场 e2e。为每个足球种子市场运行标准
+/// `run()` 流程。每个市场的结果写入
+/// `/tmp/polyrocket-e2e-{N}.json`（N = 1..4）的独立文件，
+/// 使操作员能够独立查看全部 4 个预测。
+/// 汇总的 "all_markets" 文件位于
+/// `/tmp/polyrocket-e2e-all-football.json`。
 ///
-/// We can't just call `run()` in a loop because:
-///   1. run() calls `app.exit()` at the end
-///   2. run() writes to a single fixed path
-/// So this is a copy of the flow with both parameters
-/// parameterized: market_id and result_path.
+/// 我们不能简单地在循环中调用 `run()`，原因在于：
+///   1. run() 在末尾调用 `app.exit()`
+///   2. run() 写入单一固定路径
+/// 因此这是流程的一个副本，并将两个参数
+/// 参数化：market_id 和 result_path。
 pub async fn run_all_football(app: AppHandle) {
     tracing::info!(
         "[e2e-football] run_all_football: {} markets",
@@ -682,7 +683,7 @@ pub async fn run_all_football(app: AppHandle) {
             market_id
         );
 
-        // Reset state for this market
+        // 重置该市场的状态
         if let Some(state) = app.try_state::<AppState>() {
             let pool = state.db.clone();
             let _ = sqlx::query("DELETE FROM signals WHERE market_id = ?")
@@ -703,27 +704,26 @@ pub async fn run_all_football(app: AppHandle) {
                 .await;
         }
 
-        // Run single market (writes to a unique file)
+        // 运行单个市场（写入唯一文件）
         let result_path = format!("/tmp/polyrocket-e2e-{}-{}.json", i + 1, market_id);
         let prev = std::env::var("POLYROCKET_E2E_RESULT_PATH").ok();
         std::env::set_var("POLYROCKET_E2E_RESULT_PATH", &result_path);
 
-        // Reuse the existing run() flow but with the market
-        // already injected via env. Since `run()` is hardcoded
-        // to one market, we need a different approach: call
-        // the same internal logic with a market_id parameter.
+        // 复用现有 run() 流程，但通过环境变量注入市场。
+        // 由于 `run()` 硬编码为单一市场，我们需要换种方式：
+        // 以 market_id 参数调用相同的内部逻辑。
         //
-        // Easiest: temporarily set the env var to select the
-        // market in the modified run() (we'll add support
-        // below). For now, fall back to running with the
-        // hardcoded market which is "mkt-football-eu-final-2026".
+        // 最简单的方法：临时设置环境变量，以便在修改后的
+        // run() 中选择市场（我们稍后会加入相关支持）。
+        // 暂时回退到使用硬编码市场运行，即
+        // "mkt-football-eu-final-2026"。
         if market_id == &"mkt-football-eu-final-2026" {
             run(app.clone()).await;
         } else {
-            // For the other 3 markets, we need a parametrized
-            // version. The simplest fallback: navigate to each
-            // market via pushState and click Run analysis via
-            // data-testid (the UI drive we already wrote).
+            // 对于其他 3 个市场，我们需要一个参数化的
+            // 版本。最简单的回退：通过 pushState 导航到
+            // 每个市场，并通过 data-testid 点击 Run analysis
+            // （我们已经编写的 UI drive 方式）。
             tracing::warn!(
                 "[e2e-football] {} is not the hardcoded market; skipping in legacy flow",
                 market_id
@@ -735,7 +735,7 @@ pub async fn run_all_football(app: AppHandle) {
             std::env::remove_var("POLYROCKET_E2E_RESULT_PATH");
         }
 
-        // Read the result file
+        // 读取结果文件
         if let Ok(s) = std::fs::read_to_string(&result_path) {
             if let Ok(v) = serde_json::from_str::<Value>(&s) {
                 all_results.push(json!({
@@ -747,7 +747,7 @@ pub async fn run_all_football(app: AppHandle) {
         }
     }
 
-    // Write combined file
+    // 写入汇总文件
     let combined_path = "/tmp/polyrocket-e2e-all-football.json";
     let pretty = serde_json::to_string_pretty(&json!({
         "ok": all_results.iter().all(|r| r.get("result").and_then(|v| v.get("ok")).and_then(|b| b.as_bool()).unwrap_or(false)),
@@ -823,13 +823,13 @@ fn print_summary(v: &Value) {
     eprintln!("=============================================\n");
 }
 
-/// Run JS in the webview and capture the callback result.
-/// Returns the JSON string the JS expression evaluates to.
+/// 在 webview 中运行 JS 并捕获回调结果。
+/// 返回 JS 表达式求值后的 JSON 字符串。
 async fn eval_with_callback(window: &tauri::WebviewWindow, js: &str) -> String {
-    // Use std::sync::mpsc (not tokio::sync::oneshot) because Tauri's
-    // `eval_with_callback` requires `Fn(String) + Send + 'static` — i.e.
-    // `Fn`, not `FnOnce`. `mpsc::Sender::send(&self, ...)` satisfies `Fn`,
-    // while `oneshot::Sender::send(self, ...)` consumes self (only `FnOnce`).
+    // 使用 std::sync::mpsc（而非 tokio::sync::oneshot），
+    // 因为 Tauri's `eval_with_callback` 要求 `Fn(String) + Send + 'static` —— 即
+    // `Fn`，而非 `FnOnce`。`mpsc::Sender::send(&self, ...)` 满足 `Fn`，
+    // 而 `oneshot::Sender::send(self, ...)` 会消耗 self（仅 `FnOnce`）。
     let (tx, rx) = mpsc::channel::<String>();
     let cb = move |result: String| {
         let _ = tx.send(result);
@@ -838,8 +838,8 @@ async fn eval_with_callback(window: &tauri::WebviewWindow, js: &str) -> String {
         return format!("__eval_error__: {}", e);
     }
 
-    // Block in a tokio task with a hard timeout. `recv_timeout` would block
-    // the entire runtime, so we spawn a blocking task.
+    // 在 tokio 任务中使用硬超时进行阻塞。`recv_timeout` 会
+    // 阻塞整个 runtime，因此我们 spawn 一个阻塞任务。
     let timeout_secs = ANALYZE_TIMEOUT_SECS;
     tokio::task::spawn_blocking(move || {
         match rx.recv_timeout(Duration::from_secs(timeout_secs)) {
@@ -852,18 +852,19 @@ async fn eval_with_callback(window: &tauri::WebviewWindow, js: &str) -> String {
     .unwrap_or_else(|e| format!("__join_error__: {}", e))
 }
 
-/// Self-bootstrap: ensure at least one enabled LLM provider is registered,
-/// and that the matching API key lives in the OS keyring. Reads credentials
-/// from env vars (DOUBAO_API_KEY / MINIMAX_API_KEY / QWEN_API_KEY /
-/// MOONSHOT_API_KEY / ZHIPU_API_KEY). Tries MiniMax first because it had
-/// no quota issues during dev; falls back to the others.
+/// 自举：确保至少注册了一个启用的 LLM provider，
+/// 并且对应的 API key 存放在 OS keyring 中。从环境变量
+/// （DOUBAO_API_KEY / MINIMAX_API_KEY / QWEN_API_KEY /
+/// MOONSHOT_API_KEY / ZHIPU_API_KEY）读取凭证。
+/// 优先尝试 MiniMax，因为开发期间它没有配额问题；
+/// 失败时回退到其他 provider。
 pub async fn bootstrap_providers(app: &AppHandle) -> Result<(), String> {
     use crate::commands::llm_mgmt::llm_provider_upsert;
     use crate::commands::llm_mgmt::LlmProviderDto;
     use crate::infra::state::AppState;
     let pool = app.state::<AppState>().db.clone();
 
-    // MiniMax first (no quota), then Doubao, then the rest.
+    // 优先 MiniMax（无配额问题），其次 Doubao，再之后是其他。
     let candidates: &[(&str, &str, &str, &str, f64, f64)] = &[
         ("MiniMax",    "MiniMax (M2.7)",        "https://api.minimax.chat/v1",       "MiniMax-M2.7",                 0.4,  1.2),
         ("doubao",     "Doubao (火山方舟)",      "https://ark.cn-beijing.volces.com/api/coding/v3",  "doubao-seed-2-0-pro-260215",   0.08, 0.08),
@@ -874,7 +875,7 @@ pub async fn bootstrap_providers(app: &AppHandle) -> Result<(), String> {
 
     let state = app.state::<AppState>();
 
-    // Try each candidate; first one with env credentials wins.
+    // 依次尝试每个候选；第一个带环境凭证的胜出。
     for (id, display, api_base, model, ci, co) in candidates {
         let env_var = format!("{}_API_KEY", id.to_uppercase());
         let secret = std::env::var(&env_var).ok().filter(|v| !v.is_empty());
@@ -886,8 +887,8 @@ pub async fn bootstrap_providers(app: &AppHandle) -> Result<(), String> {
             }
         };
 
-        // 1) upsert the provider row. llm_mgmt::LlmProviderDto has more fields
-        //    than commands::llm::LlmProviderDto — fill the extra with sensible defaults.
+        // 1) upsert provider 行。llm_mgmt::LlmProviderDto 比
+        //    commands::llm::LlmProviderDto 字段更多 —— 用合理的默认值填充额外字段。
         let dto = LlmProviderDto {
             id: id.to_string(),
             display_name: display.to_string(),
@@ -920,10 +921,10 @@ pub async fn bootstrap_providers(app: &AppHandle) -> Result<(), String> {
             continue;
         }
 
-        // 1.5) insert the matching `llm_provider_keys` row so `dispatch()` can
-        // find an enabled key for this provider. Without this, the IPC
-        // `pick_keys()` returns an empty Vec and the analyze call fails
-        // with "no enabled keys".
+        // 1.5) 插入匹配的 `llm_provider_keys` 行，使 `dispatch()` 能够
+        // 为该 provider 找到启用的 key。否则 IPC 的
+        // `pick_keys()` 返回空 Vec，analyze 调用将因
+        // "no enabled keys" 而失败。
         let now_ms = chrono::Utc::now().timestamp_millis();
         let key_id = format!("{id}-prod-1-{}", std::process::id());
         let keyring_alias_for_provider = format!("llm/{id}/prod-1");
@@ -945,19 +946,19 @@ pub async fn bootstrap_providers(app: &AppHandle) -> Result<(), String> {
             continue;
         }
 
-        // 2) write the API secret to OS keyring (keyring uses alias `llm/{id}/prod-1`)
-        //    Keychain may already have this entry from env.rs::sync_pm_to_keyring
-        //    or a prior run. We just verify the entry exists — if not, create it.
-        //    Don't delete_credential blindly (macOS Keychain ACL can be tricky).
+        // 2) 将 API secret 写入 OS keyring（keyring 使用别名 `llm/{id}/prod-1`）
+        //    Keychain 可能已经从 env.rs::sync_pm_to_keyring 或
+        //    先前的运行中包含该项。我们仅验证该项存在 —— 若不存在则创建。
+        //    不要盲目 delete_credential（macOS Keychain 的 ACL 可能很棘手）。
         //
-        // v0.119 — keyring is disabled by default (`POLYROCKET_USE_KEYRING=1`
-        // to opt back in). Skip ALL keychain access. The LLM client itself
-        // reads via `keyring::get_key` which falls through to env vars when
-        // disabled (see platform/keyring/mod.rs).
+        // v0.119 — keyring 默认禁用（通过 `POLYROCKET_USE_KEYRING=1`
+        // 重新启用）。跳过所有 keychain 访问。LLM 客户端本身
+        // 通过 `keyring::get_key` 读取，禁用时会回退到环境变量
+        // （参见 platform/keyring/mod.rs）。
         let keyring_alias = format!("llm/{id}/prod-1");
         let keyring_disabled = crate::platform::keyring::is_disabled();
         let keyring_ok = if keyring_disabled {
-            // No keychain access — secret stays in env, LLM client reads from env.
+            // 不访问 keychain —— secret 保留在 env，LLM 客户端从 env 读取。
             tracing::debug!("[e2e-football] {id} keyring bypass active; secret stays in env");
             true
         } else if let Ok(entry) = keyring::Entry::new("com.polyrocket.wallet", &keyring_alias) {
@@ -968,12 +969,11 @@ pub async fn bootstrap_providers(app: &AppHandle) -> Result<(), String> {
                 match entry.set_password(&secret) {
                     Ok(_) => true,
                     Err(e) => {
-                        // macOS Keychain sometimes returns "already exists" on set
-                        // for entries the current process can't see. Fall through
-                        // and let the test proceed — the entry might still be readable
-                        // by the LLM client.
+                        // macOS Keychain 有时在 set 时对当前进程看不到的
+                        // 条目返回 "already exists"。直接放行让测试继续 —— 该项
+                        // 仍可能可由 LLM 客户端读取。
                         tracing::warn!("[e2e-football] {id} keyring set failed (may still be readable): {e}");
-                        true  // optimistic
+                        true  // 乐观处理
                     }
                 }
             }

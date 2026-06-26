@@ -1,82 +1,80 @@
-//! L5 — Cross-platform OS keyring adapter.
+//! L5 —— 跨平台 OS 钥匙串适配器。
 //!
-//! The `keyring` crate (3.x) handles the per-OS differences internally
-//! (apple-native, windows-native, sync-secret-service on Linux via
-//! dbus). This module is a thin wrapper that:
-//!   1. Pins the service name (`com.polyrocket.wallet`) for the whole app.
-//!   2. Adds a few helpers (`has_key`, batched delete) that aren't
-//!      part of the upstream crate.
-//!   3. Re-exports alias builders from `aliases.rs`.
+//! `keyring` crate(3.x)在内部处理各 OS 差异
+//!(apple-native、windows-native、Linux 通过 dbus 的
+//! sync-secret-service)。本模块是一个薄包装:
+//!   1. 固定服务名(`com.polyrocket.wallet`),全应用共享。
+//!   2. 添加上游 crate 未提供的若干助手(`has_key`、批量删除)。
+//!   3. 重新导出 `aliases.rs` 中的别名构造函数。
 //!
-//! **Security model**: the secret string is `String` here (not `&str`)
-//! because we accept ownership from the caller. We never log the
-//! secret. We never write the secret to SQLite, JSON, or any file.
+//! **安全模型**:此处密钥字符串为 `String`(而非 `&str`),
+//! 因为我们接受调用方的所有权。我们永不记录密钥。
+//! 永不将密钥写入 SQLite、JSON 或任何文件。
 //!
-//! **v0.119 — env-first, no UI prompts**:
+//! **v0.119 —— 环境变量优先,无 UI 提示**:
 //!
-//! The OS keyring (macOS Keychain / Windows Credential Manager /
-//! Linux Secret Service) is **disabled by default**. All secrets come
-//! from `.env` (via process env vars). Rationale:
-//!   - `.env` is the single source of truth (already symlinked to
-//!     `~/global_env/.env` for cross-project credentials).
-//!   - The macOS Keychain ACL popup blocks headless tests forever on
-//!     adhoc-signed binaries (and prompts the user mid-dev otherwise).
-//!   - The UI never asks the user to type passwords / API keys —
-//!     they live in `.env`, period.
+//! OS 钥匙串(macOS Keychain / Windows Credential Manager /
+//! Linux Secret Service)**默认禁用**。所有密钥均来自
+//! `.env`(通过进程环境变量)。原因:
+//!   - `.env` 是单一可信源(已通过符号链接到
+//!     `~/global_env/.env` 共享跨项目凭据)。
+//!   - macOS 钥匙串 ACL 弹窗会在临时签名二进制上永远阻塞无头测试
+//!     (并且会在开发中途打断用户)。
+//!   - UI 永不要求用户输入密码/API 密钥 ——
+//!     它们就放在 `.env` 中,完毕。
 //!
-//! To opt BACK IN to OS keyring storage (production-hardened
-//! deployments that want secrets off the filesystem), set:
+//! 若要重新启用 OS 钥匙串存储(生产加固部署,
+//! 避免密钥留在文件系统),设置:
 //!   `POLYROCKET_USE_KEYRING=1`
 //!
-//! With that flag set, `set_key` writes to OS keyring, `get_key` reads
-//! from OS keyring, and `.env` is no longer consulted. The UI
-//! password fields become functional again.
+//! 设置该标志后,`set_key` 写入 OS 钥匙串,`get_key` 从
+//! OS 钥匙串读取,不再查询 `.env`。UI 的密码输入框
+//! 也会重新生效。
 
 use keyring::Entry;
 
-/// Service name registered with the OS credential store. This is the
-/// "namespace" inside which every polyrocket alias lives.
+/// 向 OS 凭据存储注册的服务名。这是每个 polyrocket 别名所处的 "命名空间"。
 const SERVICE: &str = "com.polyrocket.wallet";
 
-/// True when the OS keyring should be SKIPPED in favor of process
-/// env vars. Default = TRUE (env-only). Set `POLYROCKET_USE_KEYRING=1`
-/// to re-enable keyring storage (production-hardened mode).
+/// 当 OS 钥匙串应被跳过、改用进程环境变量时返回 true。
+/// 默认 = TRUE(仅使用环境变量)。设置 `POLYROCKET_USE_KEYRING=1`
+/// 可重新启用钥匙串存储(生产加固模式)。
 pub fn is_disabled() -> bool {
-    // Inverted logic: keyring is OFF by default.
+    // 反向逻辑:钥匙串默认关闭。
     let enabled = std::env::var("POLYROCKET_USE_KEYRING")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
     !enabled
 }
 
-/// Map a keyring alias → process env var name. Used only when
-/// `is_disabled()` is true so that the dev-mode bypass can find
-/// the secret in `std::env::var` instead of the OS keyring.
+/// 将钥匙串别名映射为进程环境变量名。仅在 `is_disabled()` 为 true
+/// 时使用,以便 dev 模式绕过能够从 `std::env::var` 而非
+/// OS 钥匙串找到密钥。
 fn alias_to_env_var(alias: &str) -> Option<String> {
     match alias {
-        // Polymarket CLOB (matches `aliases.rs` pm_*_alias())
+        // Polymarket CLOB(对应 `aliases.rs` 中的 pm_*_alias())
         "polyrocket/pm/api"        => Some("POLYMARKET_API_KEY".to_string()),
         "polyrocket/pm/secret"     => Some("POLYMARKET_API_SECRET".to_string()),
         "polyrocket/pm/passphrase" => Some("POLYMARKET_API_PASSPHRASE".to_string()),
-        // Wallet — `polyrocket/wallet/{name}` → POLYROCKET_WALLET_PRIVATE_KEY
+        // 钱包 —— `polyrocket/wallet/{name}` → POLYROCKET_WALLET_PRIVATE_KEY
         a if a.starts_with("polyrocket/wallet/") => {
             Some("POLYROCKET_WALLET_PRIVATE_KEY".to_string())
         }
-        // LLM — `llm/{provider_id}/{alias}` → {PROVIDER}_API_KEY
-        // Examples:
-        //   llm/openai/openai-prod-1   → OPENAI_API_KEY
-        //   llm/openai/openai-backup   → OPENAI_BACKUP_KEY
-        //   llm/anthropic/anthropic-prod-1 → ANTHROPIC_API_KEY
+        // LLM —— `llm/{provider_id}/{alias}` → {PROVIDER}_API_KEY
+        // 示例:
+        //   llm/openai/openai-prod-1        → OPENAI_API_KEY
+        //   llm/openai/openai-backup        → OPENAI_BACKUP_KEY
+        //   llm/anthropic/anthropic-prod-1  → ANTHROPIC_API_KEY
         a if a.starts_with("llm/") => {
-            // strip "llm/" prefix → "{provider_id}/{alias}"
+            // 剥离 "llm/" 前缀 → "{provider_id}/{alias}"
             let rest = &a[4..];
             let parts: Vec<&str> = rest.splitn(2, '/').collect();
             if parts.len() != 2 { return None; }
             let provider_id = parts[0];
             let key_alias = parts[1];
-            // Map (provider_id, key_alias) → env var name. Mirrors
-            // the table in env.rs::sync_env_to_keyring so the dev
-            // bypass stays in sync with what the sync layer writes.
+            // 将 (provider_id, key_alias) 映射为环境变量名。
+            // 与 env.rs::sync_env_to_keyring 中的表保持一致,
+            // 确保 dev 绕过与同步层写入的内容同步。
             let env_var = match (provider_id, key_alias) {
                 ("openai", "openai-prod-1")     => "OPENAI_API_KEY",
                 ("openai", "openai-backup")     => "OPENAI_BACKUP_KEY",
@@ -85,16 +83,16 @@ fn alias_to_env_var(alias: &str) -> Option<String> {
                 ("google", "google-prod-1")     => "GOOGLE_API_KEY",
                 ("deepseek", "deepseek-prod-1") => "DEEPSEEK_API_KEY",
                 ("custom", "custom-prod-1")     => "CUSTOM_LLM_API_KEY",
-                // Chinese LLM providers — used by the e2e_football bootstrap
-                // and the WelcomeStep flow. Alias is the short "prod-1" form.
+                // 中国 LLM 提供商 —— 由 e2e_football bootstrap
+                // 和 WelcomeStep 流程使用。别名为简写 "prod-1" 形式。
                 ("MiniMax", "prod-1") => "MINIMAX_API_KEY",
                 ("doubao",  "prod-1") => "DOUBAO_API_KEY",
                 ("qwen",     "prod-1") => "QWEN_API_KEY",
                 ("moonshot", "prod-1") => "MOONSHOT_API_KEY",
                 ("zhipu",    "prod-1") => "ZHIPU_API_KEY",
                 ("hunyuan",  "prod-1") => "HUNYUAN_API_KEY",
-                // Generic fallback: "{PROVIDER}_API_KEY" for any alias.
-                // This catches every short alias ("prod-1", "prod-2", "main", …).
+                // 通用回退:对任何别名使用 "{PROVIDER}_API_KEY"。
+                // 这可覆盖所有简写别名("prod-1"、"prod-2"、"main" 等)。
                 _ => {
                     return Some(format!("{}_API_KEY", provider_id.to_uppercase()));
                 }
@@ -105,22 +103,22 @@ fn alias_to_env_var(alias: &str) -> Option<String> {
     }
 }
 
-/// Build an `Entry` (lazy — no IO). All errors are `keyring::Error`
-/// which we convert at the call site.
+/// 构造一个 `Entry`(惰性 —— 无 IO)。所有错误均为 `keyring::Error`,
+/// 在调用处进行转换。
 fn entry(alias: &str) -> crate::AppResult<Entry> {
     Entry::new(SERVICE, alias).map_err(|e| {
         crate::AppError::Internal(format!("keyring entry({alias}): {e}"))
     })
 }
 
-// ---------- public raw API ----------
+// ---------- 公共原始 API ----------
 
-/// Store a secret under `alias`. Overwrites any prior value at that alias.
+/// 在 `alias` 下存储一个密钥。覆盖该别名下的现有值。
 pub fn set_key(alias: &str, secret: &str) -> crate::AppResult<()> {
     if is_disabled() {
-        // No-op in dev mode. The secret lives in process env / .env only.
-        // Returning Ok here would mask the absence of a real write; instead
-        // emit a tracing warning so dev knows the call was a no-op.
+        // dev 模式下为空操作。密钥仅保存在进程环境/.env 中。
+        // 此处直接返回 Ok 会掩盖未真正写入的事实;
+        // 因此改用 tracing 警告,让开发者知道调用是空操作。
         tracing::warn!(
             "keyring.set_key({alias}): bypass (POLYROCKET_DEV_NO_KEYRING=1); secret stays in env"
         );
@@ -132,13 +130,12 @@ pub fn set_key(alias: &str, secret: &str) -> crate::AppResult<()> {
     })
 }
 
-/// Read the secret at `alias`. Returns `AppError::Internal` if the entry
-/// does not exist OR the OS denies access (we deliberately don't
-/// distinguish the two cases — the audit log doesn't need to leak
-/// "this alias exists but is locked" vs "doesn't exist").
+/// 读取 `alias` 处的密钥。若条目不存在或 OS 拒绝访问,
+/// 返回 `AppError::Internal`(我们故意不区分两种情况
+/// —— 审计日志不需要泄露 "别名存在但被锁定" 与 "不存在" 的差异)。
 ///
-/// v0.119 — dev-mode bypass: when `POLYROCKET_DEV_NO_KEYRING=1`, falls
-/// through to process env vars (mapped via `alias_to_env_var`).
+/// v0.119 —— dev 模式绕过:当 `POLYROCKET_DEV_NO_KEYRING=1` 时,
+/// 回退到进程环境变量(通过 `alias_to_env_var` 映射)。
 pub fn get_key(alias: &str) -> crate::AppResult<String> {
     if is_disabled() {
         let env_var = alias_to_env_var(alias).ok_or_else(|| {
@@ -162,11 +159,10 @@ pub fn get_key(alias: &str) -> crate::AppResult<String> {
     })
 }
 
-/// Delete the secret at `alias`. Idempotent — a missing entry is
-/// silently treated as success.
+/// 删除 `alias` 处的密钥。幂等 —— 缺失的条目被静默视为成功。
 pub fn delete_key(alias: &str) -> crate::AppResult<()> {
     if is_disabled() {
-        // Nothing to delete — the secret lives in process env.
+        // 无需删除 —— 密钥保存在进程环境中。
         return Ok(());
     }
     let e = entry(alias)?;
@@ -179,9 +175,9 @@ pub fn delete_key(alias: &str) -> crate::AppResult<()> {
     }
 }
 
-/// Cheap "is the secret present and non-empty?" check.
+/// 低开销的 "密钥是否存在且非空" 检查。
 ///
-/// v0.119 — dev-mode bypass: checks process env instead of OS keyring.
+/// v0.119 —— dev 模式绕过:改为检查进程环境而非 OS 钥匙串。
 pub fn has_key(alias: &str) -> bool {
     if is_disabled() {
         return alias_to_env_var(alias)

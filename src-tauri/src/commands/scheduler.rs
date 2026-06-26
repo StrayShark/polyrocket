@@ -1,13 +1,13 @@
-//! L2 — Scheduler manual triggers.
+//! L2 —— 调度器手动触发。
 //!
-//! Thin IPC layer over L4 `infra::scheduler` (the 3 background loops
-//! run independently — these IPCs let the UI force a run).
+//! 位于 L4 `infra::scheduler` 之上的薄 IPC 层（3 个后台循环独立运行 ——
+//! 这些 IPC 让 UI 可以强制触发一次运行）。
 //!
-//! These IPCs let the UI force a health-probe sweep or daily-brief run
-//! without waiting for the cron tick. Useful in three cases:
-//!  1. user clicks "Refresh now" on LLM Management or Daily Brief page
-//!  2. just-pasted LLM key, want immediate connectivity verification
-//!  3. dev / QA: simulate a cron run
+//! 这些 IPC 让 UI 无需等待定时触发就能强制跑一次健康探测或日报生成。
+//! 适用于以下三种场景：
+//!  1. 用户在 LLM 管理或日报页面点击「立即刷新」
+//!  2. 刚粘贴完 LLM key，希望立刻验证连通性
+//!  3. 开发 / QA：模拟一次定时任务运行
 
 use crate::AppResult;
 use crate::infra::error::AppError;
@@ -89,22 +89,19 @@ fn next_brief_unix_ms(hour_utc: u32, tz_offset_min: i32, now_ms: i64) -> i64 {
 }
 
 // =================================================================
-// ============== v0.48a — model degradation manual trigger ======
+// ============== v0.48a —— 模型衰减手动触发 =================
 // =================================================================
 
-/// v0.48a — args for the `degradation_check_now`
-/// IPC. No fields today; the struct is a future
-/// hook (e.g. for a custom sample size or
-/// threshold override).
+/// v0.48a —— `degradation_check_now` IPC 的入参。
+/// 当前没有字段；该结构是预留扩展点（例如将来
+/// 自定义样本量或阈值覆盖）。
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct DegradationCheckNowArgs {}
 
-/// v0.48a — manual trigger for the model
-/// degradation check. Useful for the L1
-/// "Check now" button on the ModelLab page or
-/// after a big market sync. The actual telemetry
-/// event is emitted by the underlying scheduler
-/// helper.
+/// v0.48a —— 模型衰减检测的手动触发。可供 L1
+/// ModelLab 页面的「立即检测」按钮使用，也可在
+/// 完成大批量市场同步后调用。实际的遥测事件
+/// 由底层的调度器辅助函数发出。
 #[tauri::command]
 pub async fn degradation_check_now(
     state: State<'_, AppState>,
@@ -116,20 +113,17 @@ pub async fn degradation_check_now(
 }
 
 // =================================================================
-// ============== v0.49c — scheduler self-test =====================
+// ============== v0.49c —— 调度器自检 ==========================
 // =================================================================
 
-/// v0.49c — return a snapshot of the 7 background
-/// scheduler loops' liveness. Each loop's last
-/// tick timestamp is captured in a process-global
-/// atomic (see `infra::scheduler::self_test`).
+/// v0.49c —— 返回 7 个后台调度循环活跃度的快照。
+/// 每个循环上一次 tick 的时间戳记录在进程全局原子量中
+/// （见 `infra::scheduler::self_test`）。
 ///
-/// The L1 Settings card renders this as a row of
-/// green/red dots per loop. "Healthy" means the
-/// loop ticked within 3x its expected interval.
-/// If a loop has never ticked (process just
-/// started and the stagger sleep hasn't elapsed),
-/// it's marked unhealthy with `age_ms = None`.
+/// L1 设置页的卡片按循环渲染为一行绿 / 红圆点。
+/// 「健康」意味着循环在预期间隔的 3 倍之内完成了 tick。
+/// 若某个循环从未 tick（进程刚启动且启动错峰休眠
+/// 尚未结束），则会标记为不健康且 `age_ms = None`。
 #[tauri::command]
 pub fn scheduler_self_test_now() -> SchedulerSelfTest {
     scheduler::self_test()

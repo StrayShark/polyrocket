@@ -1,8 +1,8 @@
-//! L2 — Daily brief (M12).
+//! L2 —— 每日简报（M12）。
 //!
-//! IPCs: `daily_brief_get` (today's top-N with consensus + signal join),
-//! `daily_brief_dismiss`, `daily_brief_refresh` (re-score candidates),
-//! `daily_brief_set_prefs` (weights + max_items per user).
+//! IPC:`daily_brief_get`（今日 top-N,关联 consensus + signal）、
+//! `daily_brief_dismiss`、`daily_brief_refresh`（对候选重新打分）、
+//! `daily_brief_set_prefs`（按用户的权重与最大条数）。
 
 use crate::AppResult;
 use crate::infra::state::AppState;
@@ -31,10 +31,10 @@ pub struct DailyBriefEntry {
     pub rank: i64,
     pub match_score: f64,
     pub score_breakdown: Option<String>, // JSON
-    pub edge: Option<f64>,               // from signals (if any)
-    pub confidence: Option<f64>,         // from signals or LLM consensus
-    pub consensus_side: Option<String>,  // from llm_analyses (if any)
-    pub consensus_strength: Option<f64>, // 0..1, how many LLMs agree
+    pub edge: Option<f64>,               // 来自 signals（如有）
+    pub confidence: Option<f64>,         // 来自 signals 或 LLM consensus
+    pub consensus_side: Option<String>,  // 来自 llm_analyses（如有）
+    pub consensus_strength: Option<f64>, // 0..1,达成共识的 LLM 占比
     pub computed_at: i64,
     pub expires_at: i64,
     pub dismissed: bool,
@@ -64,13 +64,13 @@ pub async fn daily_brief_get(
     let limit = args.limit.or(args.max_items).unwrap_or(5);
     let now = chrono::Utc::now().timestamp_millis();
 
-    // v0.119 — football pivot: filter briefs to football category only.
-    // polyrocket is a football-only product (see docs/polyrocket-football-prd.md).
-    // Backend `daily_briefs` table still contains cs2/politics/etc briefs
-    // (for future flexibility / debugging), but UI never surfaces them.
-    // Use a SQL filter rather than post-filter so the LIMIT counts only
-    // football entries (otherwise the user might see 3/5 football briefs
-    // instead of 5/5).
+    // v0.119 —— 足球聚焦:将 brief 过滤为仅 football 分类。
+    // polyrocket 是足球专一产品（见 docs/polyrocket-football-prd.md）。
+    // 后端 `daily_briefs` 表仍可能包含 cs2/politics 等类别的 brief
+    // （保留以备将来灵活性/调试）,但 UI 不会展示它们。
+    // 在 SQL 层而非结果层过滤,使 LIMIT 仅统计
+    // football 条目（否则用户可能只看到 3/5 条 football brief,
+    // 而不是 5/5）。
     let rows = sqlx::query_as::<_, DailyBriefEntry>(
         "SELECT
             db.market_id,
@@ -102,7 +102,7 @@ pub async fn daily_brief_get(
          ORDER BY db.rank ASC
          LIMIT ?",
     )
-    .bind(now - 24 * 3600 * 1000) // dismissed within last 24h
+    .bind(now - 24 * 3600 * 1000) // 最近 24h 内被 dismiss
     .bind(now)
     .bind(limit)
     .fetch_all(&state.db)
@@ -151,12 +151,12 @@ pub async fn daily_brief_refresh(
         .and_utc()
         .timestamp_millis();
     let expires = today_start + 24 * 3600 * 1000;
-    let max_items: i64 = 5; // from user prefs (TODO v0.3: read user_brief_prefs)
+    let max_items: i64 = 5; // 来自 user prefs (TODO v0.3: 读取 user_brief_prefs)
 
-    // v0.119 — football pivot: candidates limited to football only.
-    // polyrocket is a football-only product (see docs/polyrocket-football-prd.md).
-    // SQL-level filter so the scoring only considers football markets; the
-    // resulting daily_briefs rows are also implicitly football.
+    // v0.119 —— 足球聚焦:候选限定为 football。
+    // polyrocket 是足球专一产品（见 docs/polyrocket-football-prd.md）。
+    // 在 SQL 层做过滤,使得打分仅考虑 football 市场;
+    // 写入的 daily_briefs 行也因此隐含为 football。
     let candidates: Vec<(String, f64, Option<f64>, Option<f64>, Option<String>, Option<f64>, Option<String>)> = sqlx::query_as(
         "SELECT m.id,
                 CAST(COALESCE(m.liquidity, '0') AS REAL) as liq,
@@ -184,7 +184,7 @@ pub async fn daily_brief_refresh(
     .fetch_all(&state.db)
     .await?;
 
-    // score each candidate (default weights)
+    // 对每个候选打分（默认权重）
     let w = BriefWeights::default();
     let mut scored: Vec<(String, f64, f64, f64, f64, f64, f64, f64)> = candidates
         .into_iter()
@@ -192,10 +192,10 @@ pub async fn daily_brief_refresh(
             let edge_n = edge.map(|e| e.abs().min(1.0)).unwrap_or(0.0);
             let conf_n = conf.unwrap_or(0.0);
             let cons_n = cons_str.unwrap_or(0.0);
-            let liq_n = (liq / 1_000_000.0).min(1.0); // normalize: $1M liquidity = 1.0
-            let time_n = 0.5; // placeholder
-            let user_n = 0.0; // placeholder
-            let cost_n = 0.0; // placeholder
+            let liq_n = (liq / 1_000_000.0).min(1.0); // 归一化:$1M 流动性 = 1.0
+            let time_n = 0.5; // 占位
+            let user_n = 0.0; // 占位
+            let cost_n = 0.0; // 占位
             let score = w.w1 * edge_n
                 + w.w2 * conf_n
                 + w.w3 * cons_n
@@ -208,7 +208,7 @@ pub async fn daily_brief_refresh(
     scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     scored.truncate(max_items as usize);
 
-    // wipe today's briefs, insert new
+    // 清空今日 briefs,写入新一批
     let mut tx = state.db.begin().await?;
     sqlx::query("DELETE FROM daily_briefs WHERE computed_at >= ?")
         .bind(today_start)
@@ -262,7 +262,7 @@ pub struct BriefWeights {
     pub w3: f64, // consensus
     pub w4: f64, // time
     pub w5: f64, // user_interest
-    pub w6: f64, // cost penalty
+    pub w6: f64, // cost penalty 成本惩罚
 }
 
 impl Default for BriefWeights {
@@ -284,11 +284,11 @@ pub struct SetBriefPrefsArgs {
 ///
 /// **6 个 weight 默认**（`BriefWeights::default()`）：
 ///   - w1=0.35 edge（最重）
-///   - w2=0.20 confidence
-///   - w3=0.20 consensus
-///   - w4=0.15 time
-///   - w5=0.10 user_interest
-///   - w6=0.10 cost penalty
+///   - w2=0.20 confidence（置信度）
+///   - w3=0.20 consensus（共识度）
+///   - w4=0.15 time（时间衰减）
+///   - w5=0.10 user_interest（用户兴趣）
+///   - w6=0.10 cost penalty（成本惩罚）
 ///
 /// **UPSERT** 写入 `user_brief_prefs` 表，按 `user_id` 唯一。
 #[tauri::command]
@@ -318,29 +318,28 @@ pub async fn daily_brief_set_prefs(
 }
 
 // =================================================================
-// ============== v0.119 — football-only brief tests =============
+// ============== v0.119 —— 仅 football brief 的测试 =============
 // =================================================================
 //
-// polyrocket is a football-only product (see docs/polyrocket-football-prd.md).
-// These tests verify the SQL filter is in place at the source-code level
-// (string match), preventing accidental removal during refactors.
+// polyrocket 是足球专一产品（见 docs/polyrocket-football-prd.md）。
+// 这些测试在源码级别（字符串匹配）验证 SQL 过滤仍然存在,
+// 防止重构过程中被无意删除。
 //
-// Why string-match: We can't easily run integration tests for the SQL
-// without a populated DB; the SQL filter is a single literal that must
-// stay present. A simple regex match catches "someone deleted
-// `AND m.category = 'football'`".
+// 为什么要字符串匹配:在没有填充好的数据库时,
+// 难以运行 SQL 的集成测试;SQL 过滤是一条必须保留的字面量。
+// 简单的正则匹配即可捕捉「有人删掉了
+// `AND m.category = 'football'`」的情况。
 
 #[cfg(test)]
 mod football_filter_tests {
-    /// Snapshot of the relevant SQL with whitespace normalized.
-    /// We grep this against the file content to ensure the filter
-    /// is still present.
+    /// 相关 SQL 的片段,空白已归一化。
+    /// 我们将其与文件内容做 grep 比对,以确保过滤仍在。
     const REQUIRED_FILTER: &str = "m.category = 'football'";
 
     #[test]
     fn daily_brief_get_has_football_filter() {
         let src = include_str!("brief.rs");
-        // Search for the SQL string by looking at the daily_brief_get function
+        // 通过定位 daily_brief_get 函数体来搜索 SQL 字符串
         let in_get = src
             .split("async fn daily_brief_get")
             .nth(1)

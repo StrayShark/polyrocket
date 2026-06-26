@@ -1,8 +1,7 @@
-//! L2 — PnL dashboard KPIs (M8).
+//! L2 —— PnL 仪表盘 KPI（M8）。
 //!
-//! IPC: `dashboard_kpis` — aggregates `bets`, `model_performance`,
-//! `signals` tables for the home dashboard tiles. Computation will
-//! move into `domain::pnl` per M8 milestone.
+//! IPC:dashboard_kpis —— 聚合 bets、model_performance、signals
+//! 表，用于首页仪表盘磁贴。计算逻辑将按 M8 里程碑迁移到 `domain::pnl`。
 
 use crate::AppResult;
 use crate::infra::error::AppError;
@@ -21,21 +20,18 @@ pub struct DashboardKpis {
     pub open_positions: i64,
 }
 
-/// Aggregated KPIs for the Dashboard page.
-/// Computed in Rust for speed — full query stays local.
+/// Dashboard 页面的聚合 KPI。
+/// 为了性能在 Rust 端计算 —— 查询完全留在本地。
 #[tauri::command]
 #[specta::specta]
 pub async fn dashboard_kpis(state: State<'_, AppState>) -> AppResult<DashboardKpis> {
-    // v0.122b+ catchup fix — `bets.size` and `bets.pnl` are
-    // TEXT in the schema, but `SUM()` returns REAL. Reading
-    // the result as `Option<String>` triggers the
-    // "Rust type String (as TEXT) is not compatible with
-    // SQL type REAL" error and breaks the whole Dashboard
-    // page (the React Query error boundary catches it and
-    // shows "Something went wrong" instead of the KPI
-    // cards). The fix: CAST to REAL at the SQL layer,
-    // decode as f64 here, and format to a 4-decimal
-    // string for the wire DTO.
+    // v0.122b+ 补齐修复 —— schema 中 `bets.size` 和 `bets.pnl` 都是
+    // TEXT 类型，但 `SUM()` 返回 REAL。若把结果以 `Option<String>`
+    // 读取会触发 "Rust type String (as TEXT) is not compatible with
+    // SQL type REAL" 错误，进而让整个 Dashboard 页崩溃
+    // （React Query 的错误边界会捕获并显示 "Something went wrong"，
+    // 而不是 KPI 卡片）。修复方案：在 SQL 层 CAST 为 REAL，
+    // 这里以 f64 解码，再格式化为 4 位小数字符串作为 DTO 传输。
     let total_equity: Option<f64> = sqlx::query_scalar(
         "SELECT COALESCE(SUM(CAST(size AS REAL)), 0.0) FROM bets WHERE status = 'open'",
     )
@@ -72,10 +68,9 @@ pub async fn dashboard_kpis(state: State<'_, AppState>) -> AppResult<DashboardKp
         .await?;
 
     Ok(DashboardKpis {
-        // Format the f64 totals as 4-decimal strings for the
-        // wire DTO. `unwrap_or(0.0)` keeps the API stable when
-        // the bets table is empty (SUM returns NULL → COALESCE
-        // returns 0.0 → still goes through this branch).
+        // 把 f64 的总额格式化为 4 位小数字符串作为 DTO 传输。
+        // `unwrap_or(0.0)` 在 bets 表为空时保持 API 稳定
+        // （SUM 返回 NULL → COALESCE 返回 0.0 → 仍然走这一分支）。
         total_equity_usdc: format!("{:.4}", total_equity.unwrap_or(0.0)),
         open_pnl_usdc: format!("{:.4}", open_pnl.unwrap_or(0.0)),
         win_rate_30d: win_rate,
@@ -86,41 +81,31 @@ pub async fn dashboard_kpis(state: State<'_, AppState>) -> AppResult<DashboardKp
 }
 
 // =================================================================
-// ============== v0.45b — paper trading PnL summary ==============
+// ============== v0.45b —— 模拟交易 PnL 汇总 ==============
 // =================================================================
 
-/// v0.45b — paper trading PnL summary. Aggregates
-/// the `paper_fills` table into a single struct the
-/// L1 can show on the Dashboard / PnL page as a
-/// "what would have happened" stat.
+/// v0.45b —— 模拟交易 PnL 汇总。把 `paper_fills` 表聚合为一个结构体，
+/// L1 可在 Dashboard / PnL 页面以「如果当时下了注会怎样」的指标呈现。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaperPnlSummary {
-    /// Total paper fills recorded (settled + unsettled).
+    /// 累计已记录的模拟成交条数（已结算 + 未结算）。
     pub total_fills: i64,
-    /// Number of paper fills that have been
-    /// reconciled against a market resolution.
+    /// 已对照市场结算结果完成对账的模拟成交条数。
     pub settled_fills: i64,
-    /// Number of those that were wins (side matched
-    /// the resolution outcome).
+    /// 其中判定为获胜（方向与结算结果一致）的成交条数。
     pub won_fills: i64,
-    /// Number that were losses.
+    /// 其中判定为失败的成交条数。
     pub lost_fills: i64,
-    /// Settled win rate (won / settled). 0.0 when
-    /// no fills are settled yet.
+    /// 结算胜率（won / settled）。尚无已结算成交时为 0.0。
     pub win_rate: f64,
-    /// Total realized PnL across all settled fills,
-    /// in USDC. Positive = gains, negative = losses.
+    /// 所有已结算成交的累计已实现 PnL，单位 USDC。正数 = 盈利，负数 = 亏损。
     pub realized_pnl_usdc: String,
-    /// Whether the user has paper mode enabled.
-    /// The L1 uses this to decide whether to show
-    /// the card at all.
+    /// 用户是否启用了模拟交易模式。L1 用此决定是否渲染该卡片。
     pub paper_mode_enabled: bool,
 }
 
-/// v0.45b — paper PnL IPC. Returns the aggregate
-/// summary, plus the current paper_mode flag (so
-/// the L1 can show / hide the card without a
-/// second query).
+/// v0.45b —— 模拟交易 PnL IPC。返回聚合汇总以及当前 paper_mode 标志
+///（这样 L1 可以在不发起第二次查询的情况下，决定显示或隐藏该卡片）。
 #[tauri::command]
 pub async fn paper_pnl_summary(
     state: State<'_, AppState>,
@@ -144,9 +129,8 @@ pub async fn paper_pnl_summary(
     } else {
         0.0
     };
-    // Realized PnL — sum of pnl_usdc across settled
-    // fills. We compute in SQL to avoid floating
-    // point error in the Rust loop.
+    // 已实现 PnL —— 对所有已结算成交的 pnl_usdc 求和。
+    // 在 SQL 端计算是为了避免在 Rust 循环中累积浮点误差。
     let realized_pnl: f64 = sqlx::query_scalar(
         "SELECT COALESCE(SUM(CAST(pnl_usdc AS REAL)), 0.0) FROM paper_fills
          WHERE settled_at IS NOT NULL AND pnl_usdc IS NOT NULL",
@@ -169,23 +153,20 @@ pub async fn paper_pnl_summary(
 }
 
 // =================================================================
-// ============== v0.50c — fill analytics =========================
+// ============== v0.50c —— 成交分析 =========================
 // =================================================================
 
-/// v0.50c + v0.51b — fill analytics summary. Aggregates
-/// the `bets` table into a struct the L1 Dashboard
-/// can show as a "Fill analytics" card.
+/// v0.50c + v0.51b —— 成交分析汇总。把 `bets` 表聚合为一个结构体，
+/// L1 Dashboard 可显示为「成交分析」卡片。
 ///
-/// v0.51b adds slippage and time-to-fill:
-///   - avg_slippage = mean(|fill_price - price|) over
-///     filled rows where fill_price is non-null.
-///     For the v0.5d deterministic stub (where
-///     fill_price = price) this is 0 by construction;
-///     when v0.51+ wires the real CLOB it'll reflect
-///     actual slip.
-///   - avg_time_to_fill_ms = mean(filled_at - placed_at)
-///     over filled rows. Same story.
-///   - partial_fill_count / partial_fill_rate.
+/// v0.51b 新增滑点与成交耗时：
+///   - avg_slippage = 对所有 fill_price 非空的已成交行
+///     求 |fill_price - price| 的均值。在 v0.5d 的
+///     确定性桩数据中（fill_price == price）恒为 0；
+///     v0.51+ 接入真实 CLOB 后会反映实际滑点。
+///   - avg_time_to_fill_ms = 对已成交行求
+///     (filled_at - placed_at) 的均值。同上。
+///   - partial_fill_count / partial_fill_rate。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FillAnalytics {
     pub total_fills: i64,
@@ -193,36 +174,30 @@ pub struct FillAnalytics {
     pub won_count: i64,
     pub lost_count: i64,
     pub cancelled_count: i64,
-    /// (settled_at - placed_at) average, ms.
-    /// None when no bets have settled yet.
+    /// (settled_at - placed_at) 的平均值，单位毫秒。
+    /// 尚未结算时为 None。
     pub avg_time_to_settlement_ms: Option<f64>,
-    /// Settled win rate (won / settled). 0.0 when
-    /// nothing is settled yet.
+    /// 结算胜率（won / settled）。尚未结算时为 0.0。
     pub win_rate: f64,
-    /// Total realized PnL across settled rows, USDC.
+    /// 已结算行的已实现 PnL 合计，单位 USDC。
     pub realized_pnl_usdc: String,
-    /// Breakdown of fills by order_type. The key is
-    /// "market" | "limit" | "stop_loss"; pre-v0.50
-    /// rows are bucketed under "market" (the
-    /// migration default).
+    /// 按 order_type 分组的成交分布。取值范围
+    /// "market" | "limit" | "stop_loss"；v0.50 之前的
+    /// 行归入 "market"（迁移时的默认值）。
     pub by_order_type: Vec<OrderTypeBucket>,
-    /// Count of post_only fills (limit + post_only).
+    /// post_only 成交数量（限价单 + post_only）。
     pub post_only_count: i64,
-    /// Share of fills that were post_only. 0.0
-    /// when total_fills == 0.
+    /// post_only 成交的占比。total_fills == 0 时为 0.0。
     pub post_only_rate: f64,
-    /// v0.51b — average |fill_price - price| across
-    /// filled rows. None when no rows have a
-    /// fill_price (i.e. pre-v0.51b database).
+    /// v0.51b —— 已成交行 |fill_price - price| 的平均值。
+    /// 当没有任何行具备 fill_price（即 v0.51b 之前的数据库）时为 None。
     pub avg_slippage: Option<f64>,
-    /// v0.51b — average (filled_at - placed_at) in
-    /// ms. None when no rows have a filled_at.
+    /// v0.51b —— (filled_at - placed_at) 的平均值，
+    /// 单位毫秒。没有任何行具备 filled_at 时为 None。
     pub avg_time_to_fill_ms: Option<f64>,
-    /// v0.51b — count of partial fills (fill_size
-    /// present and < shares).
+    /// v0.51b —— 部分成交数量（存在 fill_size 且 < shares）。
     pub partial_fill_count: i64,
-    /// v0.51b — share of fills that were partial.
-    /// 0.0 when total_fills == 0.
+    /// v0.51b —— 部分成交的占比。total_fills == 0 时为 0.0。
     pub partial_fill_rate: f64,
 }
 
@@ -235,14 +210,12 @@ pub struct OrderTypeBucket {
     pub realized_pnl_usdc: f64,
 }
 
-/// v0.50c — fill analytics IPC. Aggregates the
-/// `bets` table. Returns `FillAnalytics` for the
-/// L1 Dashboard card.
+/// v0.50c —— 成交分析 IPC。聚合 `bets` 表，返回供 L1 Dashboard 卡片使用的
+/// `FillAnalytics`。
 #[tauri::command]
 pub async fn fill_analytics(state: State<'_, AppState>) -> AppResult<FillAnalytics> {
-    // Whole-table aggregates. COUNT/AVG/SUM — no
-    // scan risk since `bets` is small (< 100k rows
-    // for a single user).
+    // 全表聚合。COUNT/AVG/SUM —— 不会触发扫描风险，
+    // 因为 `bets` 对单用户而言很小（< 100k 行）。
     let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bets")
         .fetch_one(&state.db)
         .await?;
@@ -273,7 +246,7 @@ pub async fn fill_analytics(state: State<'_, AppState>) -> AppResult<FillAnalyti
         0.0
     };
 
-    // Avg time-to-settlement (only settled rows).
+    // 平均成交到结算时间（仅统计已结算行）。
     let avg_tts: Option<f64> = sqlx::query_scalar(
         "SELECT AVG(settled_at - placed_at) FROM bets
          WHERE settled_at IS NOT NULL",
@@ -281,7 +254,7 @@ pub async fn fill_analytics(state: State<'_, AppState>) -> AppResult<FillAnalyti
     .fetch_one(&state.db)
     .await?;
 
-    // Realized PnL across settled rows.
+    // 已结算行的已实现 PnL。
     let realized: Option<f64> = sqlx::query_scalar(
         "SELECT COALESCE(SUM(CAST(pnl AS REAL)), 0.0) FROM bets
          WHERE status IN ('won', 'lost') AND pnl IS NOT NULL",
@@ -290,10 +263,9 @@ pub async fn fill_analytics(state: State<'_, AppState>) -> AppResult<FillAnalyti
     .await?;
     let realized = realized.unwrap_or(0.0);
 
-    // Order-type breakdown. We do 3 separate
-    // COUNT/SUM queries; an alternative is one
-    // GROUP BY, but the explicit form is easier
-    // to read and the table is small.
+    // 按订单类型拆分。执行 3 次独立的 COUNT/SUM 查询；
+    // 也可以用一条 GROUP BY，但显式写法更易读，
+    // 而且表很小。
     let mut by_order_type = Vec::new();
     for ot in ["market", "limit", "stop_loss"] {
         let count: i64 = sqlx::query_scalar(
@@ -342,9 +314,8 @@ pub async fn fill_analytics(state: State<'_, AppState>) -> AppResult<FillAnalyti
         0.0
     };
 
-    // v0.51b — slippage and time-to-fill. Both
-    // queries skip rows where the fill columns are
-    // NULL (pre-v0.51b database).
+    // v0.51b —— 滑点与成交耗时。两个查询都会跳过
+    // fill 列为 NULL 的行（v0.51b 之前的数据库）。
     let avg_slippage: Option<f64> = sqlx::query_scalar(
         "SELECT AVG(ABS(fill_price - price)) FROM bets
          WHERE fill_price IS NOT NULL",
@@ -388,23 +359,21 @@ pub async fn fill_analytics(state: State<'_, AppState>) -> AppResult<FillAnalyti
 }
 
 // ============================================================
-// v0.50c — fill_analytics cargo tests
+// v0.50c —— fill_analytics cargo 测试
 // ============================================================
 //
-// The IPC handler is mostly SQL. The interesting
-// shape to verify is that empty tables don't divide
-// by zero, that order-type buckets add up to the
-// total, and that post_only_rate uses the right
-// denominator. We exercise all three with a
-// hand-rolled pool.
+// IPC 处理函数基本就是 SQL。真正需要验证的几点是：
+// 空表不能除以零、各 order_type 桶的合计等于总数、
+// post_only_rate 用了正确的分母。我们用一个手搓的连接池
+// 来覆盖这三点。
 
 #[cfg(test)]
 mod fill_analytics_tests {
     use super::*;
     use sqlx::sqlite::SqlitePoolOptions;
 
-    /// Build a fresh DB with the schema we need:
-    /// `bets` with the v0.50a columns.
+    /// 创建一个包含所需 schema 的全新数据库：
+    /// `bets` 表带 v0.50a 的列。
     async fn make_pool() -> sqlx::SqlitePool {
         let dir = std::env::temp_dir().join(format!(
             "polyrocket_fill_analytics_test_{}",
@@ -443,15 +412,13 @@ mod fill_analytics_tests {
         pool
     }
 
-    /// v0.50c — empty table returns zeros, no
-    /// divide-by-zero, all buckets present.
+    /// v0.50c —— 空表返回 0、无除零错误、所有桶都存在。
     #[tokio::test]
     async fn fill_analytics_empty_db() {
         let pool = make_pool().await;
-        // Inline the SQL — fill_analytics' signature
-        // takes a tauri::State which is awkward to
-        // build in a unit test. The SQL is what we
-        // actually want to verify.
+        // 把 SQL 直接写在这里 —— fill_analytics 的签名
+        // 需要 tauri::State，在单元测试里构造它很别扭。
+        // 我们真正想验证的是 SQL 本身。
         let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bets")
             .fetch_one(&pool).await.unwrap();
         assert_eq!(total, 0);
@@ -463,8 +430,7 @@ mod fill_analytics_tests {
         )
         .fetch_one(&pool).await.unwrap();
         assert_eq!(post_only, 0);
-        // Avg TTS over settled rows is None when no
-        // rows have settled.
+        // 当没有任何已结算行时，已结算行的 avg TTS 为 None。
         let avg: Option<f64> = sqlx::query_scalar(
             "SELECT AVG(settled_at - placed_at) FROM bets WHERE settled_at IS NOT NULL",
         )
@@ -472,15 +438,14 @@ mod fill_analytics_tests {
         assert!(avg.is_none());
     }
 
-    /// v0.50c — mixed bag: status counts and the
-    /// order-type buckets add up to total_fills.
+    /// v0.50c —— 混合场景：状态计数和 order_type 桶的合计等于 total_fills。
     #[tokio::test]
     async fn fill_analytics_with_mixed_bets() {
         let pool = make_pool().await;
-        // Insert 5 rows: 2 open, 2 won, 1 lost.
-        //   1 market + 1 limit + 1 stop_loss in the
-        //   settled bucket; 1 market + 1 limit open.
-        //   1 of the limit orders is post_only.
+        // 插入 5 行：2 open、2 won、1 lost。
+        //   在已结算桶中包含 1 market + 1 limit + 1 stop_loss；
+        //   open 状态中包含 1 market + 1 limit。
+        //   其中 1 个限价单为 post_only。
         let rows = [
             ("b1", "m1", "YES", "100", 0.50, 1_000_000, Some(1_100_000), Some(50.0),  "won",       "market",   None,      None,     0),
             ("b2", "m1", "NO",  "100", 0.45, 1_000_000, Some(1_200_000), Some(40.0),  "won",       "limit",    Some(0.45), None,   1),
@@ -503,7 +468,7 @@ mod fill_analytics_tests {
             .await
             .unwrap();
         }
-        // Status counts.
+        // 状态计数。
         let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bets")
             .fetch_one(&pool).await.unwrap();
         let open_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bets WHERE status = 'open'")
@@ -519,25 +484,25 @@ mod fill_analytics_tests {
         assert_eq!(won_count, 2);
         assert_eq!(lost_count, 1);
         assert_eq!(cancelled_count, 0);
-        // avg TTS = ((100+200+50) / 3) = 116.666... ms
+        // 平均 TTS（成交到结算耗时）= ((100+200+50) / 3) = 116.666... ms
         let avg: Option<f64> = sqlx::query_scalar(
             "SELECT AVG(settled_at - placed_at) FROM bets WHERE settled_at IS NOT NULL",
         )
         .fetch_one(&pool).await.unwrap();
         let avg = avg.expect("avg TTS");
         assert!((avg - 116_666.666).abs() < 1.0, "got: {avg}");
-        // win_rate = 2 / (2 + 1) = 0.6666...
+        // 胜率 = 2 / (2 + 1) = 0.6666...
         let settled = won_count + lost_count + cancelled_count;
         let win_rate = if settled > 0 { won_count as f64 / settled as f64 } else { 0.0 };
         assert!((win_rate - 2.0 / 3.0).abs() < 1e-6);
-        // realized PnL = 50 + 40 + (-50) = 40.0
+        // 已实现盈亏 = 50 + 40 + (-50) = 40.0
         let realized: f64 = sqlx::query_scalar(
             "SELECT COALESCE(SUM(CAST(pnl AS REAL)), 0.0) FROM bets
              WHERE status IN ('won', 'lost') AND pnl IS NOT NULL",
         )
         .fetch_one(&pool).await.unwrap();
         assert!((realized - 40.0).abs() < 1e-6, "got: {realized}");
-        // 1 of 5 is post_only → rate 0.2
+        // 5 个中有 1 个 post_only → 比率 0.2
         let post_only_count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM bets WHERE post_only = 1",
         )
@@ -547,7 +512,7 @@ mod fill_analytics_tests {
             post_only_count as f64 / total as f64
         } else { 0.0 };
         assert!((post_only_rate - 0.2).abs() < 1e-6);
-        // Order-type buckets add up.
+        // 各 order_type 桶的合计等于总数。
         let mut total_bucketed = 0;
         for ot in ["market", "limit", "stop_loss"] {
             let n: i64 = sqlx::query_scalar(
@@ -562,18 +527,14 @@ mod fill_analytics_tests {
         assert_eq!(total_bucketed, total);
     }
 
-    /// v0.50c — pre-v0.50 rows (no order_type column
-    /// at write time) default to 'market'. We verify
-    /// by inserting rows WITHOUT specifying order_type
-    /// — since SQLite adds the column with NOT NULL
-    /// DEFAULT 'market', an explicit NULL would be
-    /// rejected. (Skipping that case; the migration's
-    /// DEFAULT is the contract.)
+    /// v0.50c —— v0.50 之前的行（写入时还没有 order_type 列）
+    /// 默认为 'market'。我们通过「不指定 order_type 就插入」
+    /// 来验证这一点 —— SQLite 用 NOT NULL DEFAULT 'market'
+    /// 新增列，显式 NULL 会被拒绝。（这里跳过该用例；
+    /// 迁移里的 DEFAULT 才是契约。）
     #[test]
     fn pre_v050_default_is_market_marker() {
-        // Marker test. The real invariant is enforced
-        // by the ALTER TABLE migration in
-        // infra/db/bets_columns.rs. Here we just
-        // assert the helper structure compiles.
+        // 占位测试。真正的不变式由 infra/db/bets_columns.rs
+        // 中的 ALTER TABLE 迁移保证。这里仅断言辅助结构能编译。
     }
 }

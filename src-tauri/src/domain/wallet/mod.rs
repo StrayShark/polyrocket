@@ -1,13 +1,13 @@
-//! L3 — Wallet (UI-side helpers; signing is in L5 platform::keyring).
+//! L3 —— 钱包（UI 端辅助函数；签名位于 L5 platform::keyring）。
 //!
-//! Wallets live in the `wallets` table. The private key is NEVER stored
-//! in SQLite — it's kept in the OS keyring under a `wallet_alias`
-//! (see `crate::platform::keyring::wallet_alias` — re-exported from
-//! the `aliases` submodule). This module owns the metadata layer:
-//! list, register, and label wallets.
+//! 钱包保存在 `wallets` 表中。私钥**绝不**存入 SQLite ——
+//! 而是通过 `wallet_alias` 存放于 OS keyring
+//! （参见 `crate::platform::keyring::wallet_alias` ——
+//! 从 `aliases` 子模块重新导出）。本模块拥有元数据层:
+//! 列出、注册、给钱包加标签。
 //!
-//! **Status (v0.3c): stub.** L2 `commands::wallet` has the working SQL
-//! — it will move here as part of the M3 "Wallet management" milestone.
+//! **状态（v0.3c）:桩。** L2 `commands::wallet` 持有可工作的 SQL
+//! —— 它将作为 M3“钱包管理”里程碑的一部分迁移到此处。
 
 use crate::AppError;
 use crate::AppResult;
@@ -29,11 +29,11 @@ pub struct Wallet {
     pub last_synced_at: Option<i64>,
 }
 
-/// Polygon mainnet is the default chain for Polymarket.
+/// Polygon 主网是 Polymarket 的默认链。
 pub const POLYGON_MAINNET: i64 = 137;
 
-/// All chain IDs the app currently supports.
-pub const SUPPORTED_CHAINS: &[i64] = &[137, 80002]; // Polygon mainnet + Amoy testnet
+/// 应用当前支持的所有链 ID。
+pub const SUPPORTED_CHAINS: &[i64] = &[137, 80002]; // Polygon 主网 + Amoy 测试网
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WalletType {
@@ -58,11 +58,11 @@ impl WalletType {
 }
 
 // ============================================================
-// ============== Validation (pure) ===========================
+// ============== 校验（纯函数）================================
 // ============================================================
 
-/// Validate an EVM address (0x + 40 hex chars).
-/// Returns `Err(AppError::Invalid)` if it doesn't match.
+/// 校验一个 EVM 地址（0x + 40 个十六进制字符）。
+/// 若不匹配则返回 `Err(AppError::Invalid)`。
 pub fn validate_address(addr: &str) -> AppResult<()> {
     if !addr.starts_with("0x") {
         return Err(AppError::Invalid("address must start with 0x".into()));
@@ -101,7 +101,7 @@ pub fn validate_label(label: Option<&str>) -> AppResult<()> {
     Ok(())
 }
 
-/// Format an address for display: 0x1234…abcd
+/// 格式化地址显示：前缀 4 位 + 后缀 4 位（如 0x1234…abcd）。
 pub fn short_address(addr: &str) -> String {
     if addr.len() < 10 {
         return addr.to_string();
@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn validate_address_valid() {
-        // Vitalik's address (well-known)
+        // Vitalik 的地址（广为人知）
         let vitalik = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
         assert!(validate_address(vitalik).is_ok());
     }
@@ -159,7 +159,7 @@ mod tests {
 
     #[test]
     fn validate_chain_rejects_unknown() {
-        assert!(validate_chain(1).is_err()); // Ethereum mainnet — not supported
+        assert!(validate_chain(1).is_err()); // Ethereum 主网 —— 不支持
     }
 
     #[test]

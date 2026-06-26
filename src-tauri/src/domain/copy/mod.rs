@@ -1,10 +1,10 @@
-//! L3 — Copy trading.
+//! L3 — 跟单交易。
 //!
-//! Watches `copy_targets` (whale addresses) for on-chain trades and
-//! records matches in `copy_events`. Real impl: depends on
-//! `polymarket::fetch_trades_for_address` which is not yet implemented.
+//! 监听 `copy_targets`（巨鲸地址）的链上交易并将匹配
+//! 记录到 `copy_events`。真实实现：依赖尚未实现的
+//! `polymarket::fetch_trades_for_address`（按地址拉取交易）。
 //!
-//! **Status (v0.3c): stub.** M7 "Copy trading" milestone.
+//! **状态（v0.3c）：存根。** M7「Copy trading」里程碑。
 
 use crate::domain::wallet::validate_address;
 use crate::AppError;
@@ -47,11 +47,11 @@ pub struct CopyEvent {
 }
 
 // ============================================================
-// ============== Pure helpers =================================
+// ============== 纯辅助函数 =================================
 // ============================================================
 
-/// Validate a copy target before insert. Re-uses the wallet address
-/// validator (EVM 0x + 40 hex) since copy targets are wallet addrs.
+/// 插入前校验 copy target。复用钱包地址校验器
+///（EVM 0x + 40 位十六进制），因为 copy target 即钱包地址。
 pub fn validate_target_args(address: &str, min_edge: Option<f64>, allocation_cap: Option<&str>) -> AppResult<()> {
     validate_address(address)?;
     if let Some(e) = min_edge {
@@ -68,9 +68,9 @@ pub fn validate_target_args(address: &str, min_edge: Option<f64>, allocation_cap
     Ok(())
 }
 
-/// Decide whether a fill from a watched address should trigger
-/// a mirror order. Returns the mirror side ("YES"/"NO") and size,
-/// or None if the target is disabled or the edge is too small.
+/// 判断被观察地址的一笔成交是否应触发 mirror 订单。
+/// 返回 mirror 方向（"YES"/"NO"）与金额；若 target 被禁用
+/// 或 edge 太小则返回 None。
 pub fn should_mirror(
     target: &CopyTarget,
     fill_side: &str,
@@ -97,8 +97,8 @@ pub fn should_mirror(
     Some(MirrorDecision {
         side: mirror_side.into(),
         size: size.to_string(),
-        // Mirror is skipped if the whale's side disagrees with our edge
-        // (i.e. the model is short while whale is long)
+        // 当 whale 方向与我们的 edge 不一致时仍 mirror
+        //（即 model 看空而 whale 看多）
         flip: fill_side.to_uppercase() != mirror_side,
     })
 }
@@ -110,37 +110,37 @@ pub fn should_mirror(
 /// **字段**：
 ///   - `side` — "YES" / "NO"（跟 model edge 方向一致）
 ///   - `size` — 已被 `allocation_cap` 截断后的 USDC
-///   - `flip` — true if fill_side 与 model side 不一致
+///   - `flip` — 当 fill_side 与 model side 不一致时为 true
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MirrorDecision {
     pub side: String,    // "YES" or "NO"
     pub size: String,    // decimal string
-    pub flip: bool,      // true if the model disagrees with the whale's direction
+    pub flip: bool,      // 若模型方向与 whale 不一致则为 true
 }
 
-/// Check if a `tx_hash` is already in the recent events list (dedup).
+/// 检查 `tx_hash` 是否已出现在近期事件列表中（去重）。
 pub fn is_duplicate_tx(events: &[CopyEvent], tx_hash: &str) -> bool {
     events.iter().any(|e| e.tx_hash == tx_hash)
 }
 
 // ============================================================
-// ============== Mirror queue state machine ====================
+// ============== Mirror 队列状态机 ===============================
 // ============================================================
 
-/// A pending mirror order, derived from a CopyEvent + market edge.
-/// Persisted in `copy_mirror_queue` table; the L2 scheduler picks
-/// up `Pending` rows and submits them as bets.
+/// 由 CopyEvent + market edge 派生的待执行 mirror 订单。
+/// 持久化到 `copy_mirror_queue` 表；L2 调度器会选取
+/// `Pending` 行并以 bet 形式提交。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum MirrorStatus {
-    /// Decided by should_mirror; waiting for executor to pick up
+    /// 已被 should_mirror 决定；等待 executor 拉取
     Pending,
-    /// Submitted as a bet; awaiting on-chain fill confirmation
+    /// 已作为 bet 提交；等待链上 fill 确认
     Submitted,
-    /// Successfully filled and recorded in `bets` (matched_bet_id set)
+    /// 已成功 fill 并记录到 `bets`（matched_bet_id 已设置）
     Filled,
-    /// Rejected by executor (insufficient balance, network error, etc.)
+    /// 被 executor 拒绝（余额不足、网络错误等）
     Rejected,
-    /// Expired — market closed before mirror could be filled
+    /// 已过期 —— 市场在 mirror 成交前已关盘
     Expired,
 }
 
@@ -164,8 +164,9 @@ impl MirrorStatus {
             _ => None,
         }
     }
-    /// Legal: Pending → (Submitted | Rejected | Expired)
-    ///        Submitted → (Filled | Rejected)
+    /// 合法的状态转移：Pending → (Submitted | Rejected | Expired)
+    ///                Submitted → (Filled | Rejected)
+    ///                （状态机合法转移路径）
     pub fn can_transition_to(self, next: MirrorStatus) -> bool {
         match (self, next) {
             (MirrorStatus::Pending, MirrorStatus::Submitted) => true,
@@ -178,7 +179,7 @@ impl MirrorStatus {
     }
 }
 
-/// Build a MirrorOrder from a decision + the underlying event.
+/// 根据决策与对应事件构建 MirrorOrder。
 pub fn build_mirror(
     event: &CopyEvent,
     decision: &MirrorDecision,
@@ -331,7 +332,7 @@ mod tests {
     #[test]
     fn mirror_detects_direction_disagreement() {
         let t = target(true, 0.05, None);
-        // Whale buys YES, but our edge is negative (we want NO)
+        // Whale 买入 YES，但我们的 edge 为负（我们看 NO）
         let m = should_mirror(&t, "YES", "100", -0.10).unwrap();
         assert_eq!(m.side, "NO");
         assert!(m.flip);
@@ -395,7 +396,7 @@ mod tests {
         assert!(MirrorStatus::Pending.can_transition_to(MirrorStatus::Expired));
         assert!(MirrorStatus::Submitted.can_transition_to(MirrorStatus::Filled));
         assert!(MirrorStatus::Submitted.can_transition_to(MirrorStatus::Rejected));
-        // illegal
+        // 非法转移
         assert!(!MirrorStatus::Filled.can_transition_to(MirrorStatus::Pending));
         assert!(!MirrorStatus::Expired.can_transition_to(MirrorStatus::Submitted));
         assert!(!MirrorStatus::Submitted.can_transition_to(MirrorStatus::Expired));

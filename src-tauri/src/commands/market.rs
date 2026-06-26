@@ -1,8 +1,8 @@
-//! L2 — Markets (M4).
+//! L2 —— 市场（M4）。
 //!
-//! IPCs: `list_markets` (filter by category / active-only / limit),
-//! `sync_markets` (pull from Polymarket Gamma API → SQLite).
-//! Depends on L3 `domain::polymarket::fetch_active_markets`.
+//! IPC:`list_markets`（按 category / active-only / limit 过滤）、
+//! `sync_markets`（从 Polymarket Gamma API 拉取 → SQLite）。
+//! 依赖 L3 `domain::polymarket::fetch_active_markets`。
 
 use std::error::Error as StdError;
 use crate::AppResult;
@@ -73,50 +73,49 @@ pub async fn list_markets(
     Ok(rows)
 }
 
-/// Sync from Polymarket Gamma API into local SQLite.
+/// 从 Polymarket Gamma API 同步到本地 SQLite。
 ///
-/// v0.119 — football pivot: polyrocket is a football-only product
-/// (see docs/polyrocket-football-prd.md). At sync time we FILTER OUT
-/// non-football markets so they never enter the local DB. This is
-/// the cleanest enforcement point — UI never has to defend against
-/// non-football rows because they never exist.
+/// v0.119 —— 足球聚焦:polyrocket 是足球专一产品
+/// （见 docs/polyrocket-football-prd.md）。同步时过滤掉
+/// 非足球市场,使其永不进入本地 DB。这是
+/// 最干净的强制执行点 —— UI 永远无需防御
+/// 非足球行,因为它们根本不存在。
 ///
-/// Polymarket's Gamma API returns `category` as a free-form string.
-/// Common football values: "Soccer", "Football", "Sports", "World Cup",
-/// "Premier League", "NBA", "MLB" (we want all football-related).
-/// Common non-football values: "Politics", "Crypto", "Tech", "Pop Culture".
+/// Polymarket Gamma API 的 `category` 是自由格式字符串。
+/// 常见的足球值: "Soccer"、"Football"、"Sports"、"World Cup"、
+/// "Premier League"、"NBA"、"MLB"（我们想要所有足球相关）。
+/// 常见的非足球值: "Politics"、"Crypto"、"Tech"、"Pop Culture"。
 ///
-/// We use substring matching on the lowercase category string. The
-/// `category_classify()` helper in `domain::polymarket` does similar
-/// mapping for LLM prompts; we keep this filter inline for clarity
-/// and zero coupling between commands and domain layer.
+/// 我们在小写 category 字符串上做子串匹配。
+/// `domain::polymarket` 中的 `category_classify()` 辅助函数
+/// 为 LLM prompt 做类似映射;此处保留内联过滤,
+/// 保持命令层与 domain 层零耦合,且更清晰。
 ///
-/// **Edge cases**:
-///   - Empty / missing category → REJECT (safer default; "Sports" is football,
-///     so any unknown category is more likely non-football than football)
-///   - "Sports" alone is ambiguous (NBA / NFL / F1 also "Sports") →
-///     we accept "sports" only when paired with a football keyword
-///   - Test fixtures: seed data uses category="football" so existing
-///     tests are unaffected
-/// v0.124 — football classifier. Updated to work with the live
-/// Gamma API shape: `category` is `None` for most markets, and
-/// `tags` is also `None` for the v0.124 sample. The reliable signal
-/// is the **question text** + the (sometimes present) category.
+/// **边界情况**:
+///   - 空 / 缺失 category → 拒绝（更安全的默认; "Sports" 属足球,
+///     任何未知类别相比之下更可能是非足球）
+///   - 仅 "Sports" 有歧义（NBA / NFL / F1 也属 "Sports"）→
+///     仅当伴随足球关键词时才接受 "sports"
+///   - 测试 fixture:seed 数据使用 category="football",
+///     不影响现有测试
+/// v0.124 —— 足球分类器。已适配实时 Gamma API 形态:
+/// 大多数 market 的 `category` 为 None,v0.124 样本的
+/// `tags` 也为 None。**question 文本**（加上有时存在的 category）
+/// 是最可靠的信号。
 ///
-/// We try in priority order:
-///   1. `category` substring (when present, it's often "Sports"
-///      or a specific league name)
-///   2. `tags[0]` (when category is null but tags has league tags)
-///   3. Question text — the most reliable signal in practice
-///      (PM's market questions usually name the teams or the
-///      tournament directly: "Will Real Madrid win ...", "Premier
-///      League top 4", "La Liga 2025-26")
+/// 按优先级尝试:
+///   1. `category` 子串（若存在,通常为 "Sports" 或具体联赛名）
+///   2. `tags[0]`（category 为空、但 tags 含联赛标签时）
+///   3. question 文本 —— 实践中最可靠的信号
+///      （PM 的 market question 通常直接写明球队或赛事:
+///      "Will Real Madrid win ..."、"Premier League top 4"、
+///      "La Liga 2025-26"）
 ///
-/// False positives are filtered out by the `team/league/match`
-/// word-list gate so we don't catch generic "sports" questions.
+/// 通过 team/league/match 词表门控过滤误报,
+/// 避免误抓通用 "sports" 问题。
 pub fn is_football_market(m: &polymarket::MarketSummary) -> bool {
-    // Helper: a string is "football-y" if it contains a football
-    // keyword OR a strong team/league match with a football context.
+    // 辅助:字符串若包含足球关键词,或与足球上下文中的
+    // 球队/联赛高度匹配,则视为「足球味」。
     let is_football_text = |s: &str| -> bool {
         let lower = s.to_lowercase();
         lower.contains("football")
@@ -154,13 +153,13 @@ pub fn is_football_market(m: &polymarket::MarketSummary) -> bool {
             || lower.contains("marseille")
     };
 
-    // 1) explicit category (rare on PM but worth checking)
+    // 1) 显式 category（PM 上少见,但值得检查）
     if let Some(cat) = m.category.as_deref() {
         if !cat.trim().is_empty() && is_football_text(cat) {
             return true;
         }
     }
-    // 2) tags (sometimes has a league tag)
+    // 2) tags（有时含联赛标签）
     if let Some(tags) = m.tags.as_ref() {
         for t in tags {
             if is_football_text(t) {
@@ -168,23 +167,23 @@ pub fn is_football_market(m: &polymarket::MarketSummary) -> bool {
             }
         }
     }
-    // 3) question text — the most reliable signal
+    // 3) question 文本 —— 最可靠的信号
     is_football_text(&m.question)
 }
 
 #[tauri::command]
 pub async fn sync_markets(state: State<'_, AppState>) -> AppResult<usize> {
-    // v0.124 — diagnostic log so we can see in the dev console
-    // when the IPC was actually called (vs the click never
-    // reaching the React handler).
+    // v0.124 —— 诊断日志,便于在 dev 控制台查看
+    // IPC 是否真的被调用（与点击未触达 React
+    // handler 形成对比）。
     tracing::info!("sync_markets: IPC called, fetching from Gamma");
     let remote = polymarket::fetch_active_markets().await;
     match &remote {
         Ok(r) => tracing::info!("sync_markets: fetch returned {} markets", r.len()),
         Err(e) => {
-            // AppError wraps reqwest::Error which wraps the
-            // underlying serde_json::Error. Print the source chain
-            // so we can see WHICH field mismatched the DTO.
+            // AppError 包装 reqwest::Error,后者又包装
+            // 底层的 serde_json::Error。打印 source chain,
+            // 以便查看究竟是哪个字段与 DTO 不匹配。
             tracing::warn!("sync_markets: fetch failed: {e}");
             let mut src: Option<&dyn StdError> = e.source();
             let mut depth = 0;
@@ -197,18 +196,16 @@ pub async fn sync_markets(state: State<'_, AppState>) -> AppResult<usize> {
         }
     }
     let remote = remote?;
-    // v0.119 — football-only filter at sync time.
+    // v0.119 —— 同步时仅保留 football 的过滤。
     let remote: Vec<_> = remote.into_iter().filter(is_football_market).collect();
     let mut tx = state.db.begin().await?;
     let mut n = 0usize;
-    // v0.47a — also record a price snapshot per market.
-    // For now, we use a placeholder (best_bid=0.5,
-    // best_ask=0.5) because the Gamma API doesn't
-    // expose an order book — only metadata. v0.50+
-    // can wire a real CLOB order-book feed and the
-    // schema is ready. The v0.47b backtest falls
-    // back to 0.5 when no real snapshot exists, so
-    // pre-v0.50 markets still get a sensible default.
+    // v0.47a —— 同时记录每个 market 的 price snapshot。
+    // 目前使用占位（best_bid=0.5、best_ask=0.5）,
+    // 因为 Gamma API 不暴露订单簿 —— 只有 metadata。
+    // v0.50+ 可接入真实 CLOB 订单簿行情,
+    // schema 已就绪。v0.47b backtest 在无真实 snapshot 时
+    // 回退到 0.5,所以 v0.50 之前的 market 仍得到合理默认值。
     let now_ms = chrono::Utc::now().timestamp_millis();
     let n_remote = remote.len();
     let mut n_written = 0usize;
@@ -222,14 +219,15 @@ pub async fn sync_markets(state: State<'_, AppState>) -> AppResult<usize> {
         }
         tracing::info!("sync_markets: inserting id={} q={:?}", m.id, m.question);
         n_written += 1;
-        // v0.124 — Gamma API returns ISO strings + numbers
-        // (not the legacy i64-millis / string-encoded fields the
-        // v0.122-era DTO assumed). We map here at the boundary:
-        //   - end_date  → m.end_date_ms (parsed) || 0 on parse fail
-        //   - resolved  → m.closed  (the API's "closed" flag)
+        // v0.124 —— Gamma API 返回 ISO 字符串 + 数字
+        // （不是 v0.122 时代 DTO 假设的
+        // i64-millis / string-encoded 字段）。
+        // 我们在边界处做映射:
+        //   - end_date  → m.end_date_ms（解析后）|| 0 on parse fail
+        //   - resolved  → m.closed（API 的 "closed" 标志）
         //   - active    → m.active && !m.archived
-        //   - liquidity → m.liquidity is a STRING (e.g. "16639.42")
-        //   - volume_24h→ m.volume_24hr (a real number, not a string)
+        //   - liquidity → m.liquidity 为 STRING（如 "16639.42"）
+        //   - volume_24h→ m.volume_24hr（实数,非字符串）
         let end_ms = m.end_date_ms.unwrap_or(0);
         let active_flag = m.active && !m.archived;
         let resolved_flag = m.closed;
@@ -257,9 +255,9 @@ pub async fn sync_markets(state: State<'_, AppState>) -> AppResult<usize> {
         .bind(end_ms)
         .bind(active_flag)
         .bind(resolved_flag)
-        .bind(&m.liquidity)  // v0.124 — STRING (parsed at deser)
-        .bind(m.volume_24hr) // v0.124 — NUMBER
-        .bind(now_ms)        // v0.125 — created_at (added: schema requires NOT NULL)
+        .bind(&m.liquidity)  // v0.124 —— STRING（反序列化时已解析）
+        .bind(m.volume_24hr) // v0.124 —— NUMBER
+        .bind(now_ms)        // v0.125 —— created_at（schema 要求 NOT NULL,新增）
         .bind(now_ms)        // updated_at
         .execute(&mut *tx)
         .await
@@ -270,11 +268,10 @@ pub async fn sync_markets(state: State<'_, AppState>) -> AppResult<usize> {
             );
             e
         })?;
-        // v0.47a — placeholder snapshot. Will be
-        // replaced with real order-book data in
-        // v0.50+. For now this exercises the path
-        // and the backtest falls back to 0.5 when
-        // it's the latest.
+        // v0.47a —— 占位 snapshot。会在 v0.50+
+        // 被真实订单簿数据替换。
+        // 目前用于打通路径,backtest 在其为
+        // 最新一条时回退到 0.5。
         sqlx::query(
             "INSERT INTO price_snapshots
                 (market_id, captured_at, best_bid, best_ask, mid_price, spread)
@@ -292,61 +289,52 @@ pub async fn sync_markets(state: State<'_, AppState>) -> AppResult<usize> {
 }
 
 // =================================================================
-// ============== v0.46a — backtest sample source ==================
+// ============== v0.46a —— backtest 样本源 ==================
 // =================================================================
 
-/// v0.46a — one pre-formatted backtest sample
-/// sourced from a resolved market. The L1 builds
-/// `BacktestSample[]` from these. Note: we don't
-/// have historical price snapshots, so `price` is
-/// a fixed default (0.5 — the "no signal"
-/// midpoint). The user can edit the textarea
-/// before clicking Run if they have actual prices.
+/// v0.46a —— 一条来自已结算 market 的预格式化 backtest 样本。
+/// L1 据此构建 `BacktestSample[]`。注意:我们
+/// 没有历史 price snapshot,因此 `price` 是
+/// 固定默认值（0.5 —— 「无信号」中点）。
+/// 如果用户掌握真实价格,可在点击 Run 之前编辑 textarea。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResolvedMarketSample {
     pub market_id: String,
     pub question: String,
     pub outcome: String,
-    /// Derived age in hours. v0.46a uses a fixed
-    /// "predict 1 day before close" convention
-    /// (24h). Real price history would let us
-    /// record the actual age at predict-time.
+    /// 派生出的年龄（小时）。v0.46a 使用固定的
+    /// 「在收市前 1 天预测」约定（24h）。
+    /// 真实价格历史可让我们记录预测时的实际年龄。
     pub market_age_hours: f64,
-    /// Always 0.5 in v0.46a. Documented as a
-    /// known limitation: real price history is
-    /// not stored, so the L1 uses a midpoint
-    /// default. v0.46+ could add a price-snapshot
-    /// table to enable real backtests.
+    /// v0.46a 中始终为 0.5。已记录的已知限制:
+    /// 未存储真实价格历史,因此 L1 使用中点默认值。
+    /// v0.46+ 可新增 price-snapshot 表来支持真实 backtest。
     pub price: f64,
 }
 
-/// v0.46a — args for `list_resolved_markets_for_backtest`.
-/// Same shape as `ListMarketsArgs` for consistency,
-/// plus an optional `since_ms` for time-bounded
-/// queries.
+/// v0.46a —— `list_resolved_markets_for_backtest` 的参数。
+/// 与 `ListMarketsArgs` 形状一致以保持统一,
+/// 另含可选的 `since_ms` 用于时间窗口查询。
 #[derive(Debug, Deserialize)]
 pub struct ListResolvedMarketsForBacktestArgs {
     pub category: Option<String>,
     pub limit: Option<i64>,
-    /// Optional filter: only markets that ended
-    /// at or after this unix-ms timestamp. Used
-    /// by the L1 to bound "last 30 days" etc.
+    /// 可选过滤:仅保留 end_date ≥ 此 unix-ms 时间戳的
+    /// market。L1 用它来限定「最近 30 天」等。
     pub since_ms: Option<i64>,
 }
 
-/// v0.46a — query resolved markets and convert
-/// each to a backtest sample. The L1 feeds these
-/// into the BacktestReport textarea via a
-/// "Pull from resolved markets" button.
+/// v0.46a —— 查询已结算的 market,并把每条
+/// 转换为 backtest 样本。L1 通过「从已结算 market 拉取」
+/// 按钮把这些样本填入 BacktestReport 的 textarea。
 ///
-/// v0.47b — joined against `price_snapshots` to
-/// surface the most recent observed price. Until
-/// v0.50+ wires a real CLOB order-book feed, the
-/// snapshots are placeholders (best_bid =
-/// best_ask = 0.5), so the behavior matches v0.46
-/// for users who have been syncing markets. After
-/// v0.50+ lands, this becomes a real backtest
-/// without any L1 changes.
+/// v0.47b —— 与 `price_snapshots` 做 JOIN,
+/// 以展示最近观察到的价格。在 v0.50+ 接入
+/// 真实 CLOB 订单簿之前,snapshot 是占位
+/// （best_bid = best_ask = 0.5）,因此对一直
+/// 同步市场的用户而言,行为与 v0.46 一致。
+/// v0.50+ 落地后,无需任何 L1 改动即变为
+/// 真正的 backtest。
 #[tauri::command]
 pub async fn list_resolved_markets_for_backtest(
     state: State<'_, AppState>,
@@ -354,21 +342,17 @@ pub async fn list_resolved_markets_for_backtest(
 ) -> AppResult<Vec<ResolvedMarketSample>> {
     let limit = args.limit.unwrap_or(100);
     let since = args.since_ms.unwrap_or(0);
-    // v0.47b — join with the latest price_snapshots
-    // entry per market. The LATERAL subquery
-    // pattern (or correlated subquery) picks the
-    // row with the highest captured_at per
-    // market_id. We use a correlated subquery
-    // here for clarity; SQLite optimizes it
-    // against the price_snapshots_market_recent_idx.
+    // v0.47b —— 与每个 market 的最近 price_snapshots
+    // 条目做 JOIN。LATERAL 子查询模式（或相关子查询）
+    // 会选出每个 market_id 下 captured_at 最大的
+    // 行。为求清晰,这里使用相关子查询;SQLite 会基于
+    // price_snapshots_market_recent_idx 优化。
     //
-    // If a market has no snapshot (typical for
-    // pre-v0.47 DBs that never wrote a snapshot
-    // for resolved markets), the LEFT JOIN gives
-    // us NULL for the snapshot fields; the COALESCE
-    // falls back to 0.5 / 24 — the v0.46 degenerate
-    // default. This keeps pre-v0.47 DBs
-    // working unchanged.
+    // 若某个 market 没有 snapshot（v0.47 之前的 DB
+    // 常见情况,从不为已结算 market 写 snapshot）,
+    // LEFT JOIN 会让 snapshot 字段为 NULL;
+    // COALESCE 回退到 0.5 / 24 —— 即 v0.46 的退化默认。
+    // 这样 v0.47 之前的 DB 可保持原状继续工作。
     let rows: Vec<(String, String, String, Option<f64>, Option<f64>, Option<i64>)> = match args.category.as_deref() {
         Some(cat) => sqlx::query_as(
             "SELECT m.id, m.question, m.outcome,
@@ -422,9 +406,9 @@ pub async fn list_resolved_markets_for_backtest(
                 question,
                 outcome,
                 market_age_hours: PREDICT_BEFORE_CLOSE_HOURS,
-                // v0.47b — use the snapshot's
-                // mid_price when available; fall back
-                // to 0.5 when not (degenerate default).
+                // v0.47b —— 优先使用 snapshot 的
+                // mid_price;无 snapshot 时
+                // 回退到 0.5（退化默认值）。
                 price: mid_price.unwrap_or(0.5),
             },
         )
@@ -437,9 +421,9 @@ mod tests {
     use super::*;
     use crate::domain::polymarket::MarketSummary;
 
-    // v0.119 — football-only sync filter tests.
-    // polyrocket is a football-only product (see docs/polyrocket-football-prd.md).
-    // `sync_markets` must reject non-football markets before they hit the DB.
+    // v0.119 —— 仅 football 同步过滤测试。
+    // polyrocket 是足球专一产品（见 docs/polyrocket-football-prd.md）。
+    // `sync_markets` 必须在其进入 DB 前拒绝非足球 market。
 
     fn mk(category: &str, question: &str) -> MarketSummary {
         MarketSummary {
@@ -464,7 +448,7 @@ mod tests {
     fn is_football_accepts_football_category() {
         assert!(is_football_market(&mk("Football", "Will X win?")));
         assert!(is_football_market(&mk("Soccer", "Will X win?")));
-        assert!(is_football_market(&mk("Sports", "Will Lakers win?")) == false); // sports alone is broad
+        assert!(is_football_market(&mk("Sports", "Will Lakers win?")) == false); // 单独的 sports 太宽泛
     }
 
     #[test]
@@ -480,7 +464,7 @@ mod tests {
         assert!(!is_football_market(&mk("Crypto", "Will BTC reach 100k?")));
         assert!(!is_football_market(&mk("Tech", "Will OpenAI launch GPT-7?")));
         assert!(!is_football_market(&mk("Pop Culture", "Will Beyoncé release album?")));
-        assert!(!is_football_market(&mk("", "?"))); // empty
+        assert!(!is_football_market(&mk("", "?"))); // 空字符串
     }
 
     #[test]
@@ -497,19 +481,18 @@ mod tests {
 
     #[test]
     fn is_football_rejects_other_sports() {
-        // NBA / NFL / MLB / NHL / F1 — Sports category but NOT football.
-        // Question has no football keywords.
+        // NBA / NFL / MLB / NHL / F1 —— 属 Sports 类别但不属于足球。
+        // 问题文本不含足球关键词。
         assert!(!is_football_market(&mk("Sports", "Will Lakers beat Celtics?")));
         assert!(!is_football_market(&mk("Sports", "NFL Super Bowl winner?")));
         assert!(!is_football_market(&mk("Sports", "MLB World Series?")));
     }
 
-    /// v0.46a — list_resolved_markets_for_backtest
-    /// returns one sample per resolved market with
-    /// the documented degenerate defaults (price=0.5,
-    /// age=24h). The function is the L1's main hook
-    /// for auto-populating the BacktestReport
-    /// textarea.
+    /// v0.46a —— `list_resolved_markets_for_backtest`
+    /// 对每个已结算 market 返回一条样本,采用
+    /// 已记录的退化默认值（price=0.5、age=24h）。
+    /// 该函数是 L1 自动填充 BacktestReport
+    /// textarea 的主要挂钩点。
     #[tokio::test]
     async fn resolved_markets_for_backtest_returns_one_per_market() {
         use sqlx::sqlite::SqlitePoolOptions;
@@ -531,7 +514,7 @@ mod tests {
         .execute(&pool)
         .await
         .unwrap();
-        // 3 markets: 2 resolved (one YES, one NO), 1 unresolved.
+        // 3 个 market:2 个已结算（一个 YES、一个 NO）,1 个未结算。
         sqlx::query("INSERT INTO markets VALUES ('m1', 'cat', 'q1', 1, 'YES', 1_700_000_000_000)")
             .execute(&pool)
             .await
@@ -544,12 +527,10 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
-        // We need State<'_, AppState> to call
-        // list_resolved_markets_for_backtest, but
-        // the AppState constructor is heavy. Test
-        // the SQL by hand instead: the function
-        // does a single SELECT + map; we verify
-        // the SELECT first.
+        // 调用 list_resolved_markets_for_backtest 需要
+        // State<'_, AppState>,但 AppState 构造较重。
+        // 因此改为手测 SQL:该函数只做
+        // 一次 SELECT + map;我们先验证 SELECT。
         let rows: Vec<(String, String, String, i64)> = sqlx::query_as(
             "SELECT id, question, outcome, end_date
              FROM markets
@@ -561,16 +542,15 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(rows.len(), 2);
-        // m1 is YES, m2 is NO.
+        // m1 为 YES,m2 为 NO。
         assert_eq!(rows[0].2, "YES");
         assert_eq!(rows[1].2, "NO");
     }
 
-    /// v0.47b — the LEFT JOIN against the latest
-    /// price_snapshots row per market returns the
-    /// most recent mid_price (or NULL when no
-    /// snapshot exists). The function maps NULL →
-    /// 0.5 (the v0.46 fallback).
+    /// v0.47b —— LEFT JOIN 每个 market 最近的
+    /// price_snapshots 行,返回最近的 mid_price
+    /// （无 snapshot 时为 NULL）。函数把 NULL 映射为
+    /// 0.5（v0.46 回退值）。
     #[tokio::test]
     async fn backtest_join_uses_latest_snapshot() {
         use sqlx::sqlite::SqlitePoolOptions;
@@ -606,8 +586,8 @@ mod tests {
         .execute(&pool)
         .await
         .unwrap();
-        // One resolved market with two snapshots
-        // (older + newer). The newer one wins.
+        // 一个已结算 market 含两条 snapshot（旧的 + 新的）。
+        // 新的那条胜出。
         sqlx::query("INSERT INTO markets VALUES ('m1', 'cat', 'q1', 1, 'YES', 1_700_000_000_000)")
             .execute(&pool)
             .await
@@ -636,8 +616,8 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(rows.len(), 1);
-        // The newer snapshot (0.75) wins, not the
-        // older 0.5.
+        // 新的 snapshot（0.75）胜出,
+        // 而不是旧的 0.5。
         assert_eq!(rows[0].1, Some(0.75));
     }
 }

@@ -1,17 +1,14 @@
-//! L2 — Telemetry file-management IPC commands (v0.49a).
+//! L2 —— telemetry 文件管理 IPC 命令（v0.49a）。
 //!
-//! The runtime on/off toggle is owned by `commands::sidecar`
-//! (v0.42c). This module adds the file-retention surface
-//! that v0.49a introduces: list the on-disk session files,
-//! and manually trigger the retention sweep.
+//! 运行时的开 / 关开关由 `commands::sidecar` 拥有（v0.42c）。
+//! 本模块新增 v0.49a 引入的文件保留表面：
+//! 列出磁盘上的会话文件，并手动触发保留清扫。
 //!
-//! - `list_telemetry_logs` — return the on-disk session
-//!   files in the current log dir, with the current
-//!   process's file flagged `is_current`.
-//! - `purge_telemetry_logs` — manually trigger the
-//!   retention sweep. Returns the count of files
-//!   deleted. The retention window is
-//!   `POLYROCKET_TELEMETRY_RETENTION_DAYS` (default 14).
+//! - `list_telemetry_logs` —— 返回当前日志目录中的
+//!   磁盘会话文件，并把当前进程的文件标记为 `is_current`。
+//! - `purge_telemetry_logs` —— 手动触发保留清扫。
+//!   返回被删除的文件数。保留窗口由
+//!   `POLYROCKET_TELEMETRY_RETENTION_DAYS` 决定（默认 14）。
 
 use crate::infra::telemetry;
 

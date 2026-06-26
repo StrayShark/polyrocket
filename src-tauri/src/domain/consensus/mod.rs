@@ -1,15 +1,15 @@
-//! L3 — Consensus.
+//! L3 — 共识。
 //!
-//! Aggregates individual LLM [`crate::domain::llm::CallOutcome`]s into a
-//! single side + strength verdict (used by the Daily Brief and signal UI).
+//! 将多个 LLM [`crate::domain::llm::CallOutcome`] 聚合成
+//! 单一的方向 + 强度裁决（用于每日简报和信号 UI）。
 //!
-//! **Status (v0.3c): stub.** Public API surface is declared so L2 commands
-//! can wire up imports. Real implementation lands when the M9 "Multi-LLM
-//! consensus" milestone moves to active.
+//! **状态（v0.3c）：存根。** 公共 API 已声明，便于 L2 命令
+//! 接入 import。真正的实现将在 M9「多 LLM 共识」里程碑
+//! 进入 active 后落地。
 
 use serde::{Deserialize, Serialize};
 
-/// Side the LLMs agree on (`"YES"` / `"NO"` / `"MAYBE"`).
+/// LLM 达成一致的方向（`"YES"` / `"NO"` / `"MAYBE"`）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ConsensusSide {
     Yes,
@@ -35,15 +35,15 @@ impl ConsensusSide {
     }
 }
 
-/// Result of a consensus pass over N LLM answers.
+/// 对 N 个 LLM 答案执行共识的结果。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Consensus {
     pub side: ConsensusSide,
-    /// Fraction of LLMs that agreed with the winning side (0..1).
+    /// 与胜出方向一致的 LLM 比例（0..1）。
     pub strength: f64,
-    /// How many LLMs contributed to this consensus.
+    /// 参与本共识的 LLM 数量。
     pub n_models: usize,
-    /// Average confidence across contributing LLMs.
+    /// 各参与 LLM 置信度的平均值。
     pub avg_confidence: f64,
 }
 

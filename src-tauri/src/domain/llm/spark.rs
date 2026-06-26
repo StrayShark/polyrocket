@@ -1,6 +1,6 @@
-//! Spark 讯飞 (v0.114) — WebSocket 协议 client (结构 + 解析 + 鉴权).
+//! Spark 讯飞 (v0.114) — WebSocket 协议 client (结构 + 解析 + 鉴权)。
 //!
-//! **Why a separate client**:
+//! **为什么独立 client**:
 //!   - 讯飞星火是 WebSocket 协议(不是 HTTP),用 `wss://spark-api.xf-yun.com/v1.1/chat`
 //!   - 鉴权:URL query 里塞 `appId` / `apiKey` / `apiSecret`(不是 Authorization header)
 //!   - **流式**:Spark 协议设计是流式,服务端持续 send `data: {...}` chunks
@@ -8,11 +8,11 @@
 //!
 //! **v0.114 范围**:
 //!   - ✅ SparkClient struct + 鉴权 URL 构造 + JSON request/response schema
-//!   - ✅ Tests: 12 unit tests 覆盖 auth URL, body schema, response parse
+//!   - ✅ Tests: 12 个 unit tests 覆盖 auth URL、body schema、response parse
 //!   - ⏸️ **WebSocket 实际收发** deferred v0.114.1+ (需要 `tokio-tungstenite` dep)
 //!   - 当前 `call()` 用 `unimplemented!()` 返 err::UNKNOWN (contract: 不 panic)
 //!
-//! **Keyring secret 格式**: `{appId}:{apiKey}:{apiSecret}` (splitn(3, ':')).
+//! **Keyring secret 格式**: `{appId}:{apiKey}:{apiSecret}` (splitn(3, ':'))。
 //! 讯飞鉴权 3 件套(相比 OpenAI 1 个 key、ERNIE 2 件套、腾讯 2 件套)。
 
 use crate::domain::llm::{CallError, CallOutcome, CallRequest, CostRate, LlmClient, ProviderKind, err};
@@ -29,10 +29,10 @@ const SPARK_PATH_V3_0: &str = "/v3.0/chat";
 const SPARK_PATH_V3_5: &str = "/v3.5/chat";
 
 /// Spark 3 个版本 path。**v3.5 是最新**,2026 stable。模型 ID 配 v3.5:
-///   - `general` (v1.1)
-///   - `generalv2` (v2.0)
-///   - `generalv3` (v3.0)
-///   - `generalv3.5` (v3.5, 推荐)
+///   - `general` (v1.1)（v1.1 模型）
+///   - `generalv2` (v2.0)（v2.0 模型）
+///   - `generalv3` (v3.0)（v3.0 模型）
+///   - `generalv3.5` (v3.5, 推荐)（v3.5 模型，推荐使用）
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SparkVersion {
     V1_1,
@@ -75,7 +75,7 @@ pub fn build_spark_url(app_id: &str, api_key: &str, version: SparkVersion) -> St
     )
 }
 
-/// Spark request body. 嵌套结构 (跟 OpenAI / 国产大模型不同)。
+/// Spark 请求体。嵌套结构（跟 OpenAI / 国产大模型不同）。
 #[derive(Debug, Serialize)]
 pub struct SparkRequest {
     pub header: SparkHeader,
@@ -96,7 +96,7 @@ pub struct SparkParameter {
 
 #[derive(Debug, Serialize)]
 pub struct SparkChatParameter {
-    pub domain: String,        // "general" / "generalv2" / "generalv3" / "generalv3.5"
+    pub domain: String,        // "general" / "generalv2" / "generalv3" / "generalv3.5"之一
     pub temperature: f64,
     pub max_tokens: u32,
     pub top_k: i32,
@@ -120,7 +120,7 @@ pub struct SparkTextItem {
     pub content: String,
 }
 
-/// Response side: Spark 响应里的 `text` 数组。
+/// 响应侧：Spark 响应里的 `text` 数组。
 #[derive(Debug, Clone, Deserialize)]
 pub struct SparkResponseTextItem {
     pub role: String,
@@ -173,10 +173,10 @@ pub struct SparkResponse {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct SparkResponseHeader {
-    pub code: i32,    // 0 = success
+    pub code: i32,    // 0 = 成功
     pub message: String,
     pub sid: String,
-    pub status: i32,  // 0=first, 1=mid, 2=last
+    pub status: i32,  // 0=首段, 1=中段, 2=末段
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -205,7 +205,7 @@ pub struct SparkUsageText {
     pub total_tokens: u32,
 }
 
-/// Spark client. 持有 3 件套 + model + version。
+/// Spark 客户端。持有 3 件套 + model + version。
 pub struct SparkClient {
     pub app_id: String,
     pub api_key: String,
@@ -258,7 +258,7 @@ impl SparkClient {
         build_spark_url(&self.app_id, &self.api_key, self.version)
     }
 
-    /// Build request body for a `CallRequest`.
+    /// 为 `CallRequest` 构建 request body。
     pub fn build_request_body(&self, req: &CallRequest) -> SparkRequest {
         SparkRequest::from_call_request(&self.app_id, req, self.version)
     }
@@ -335,7 +335,7 @@ mod tests {
     fn from_secret_rejects_wrong_part_count() {
         assert!(SparkClient::from_secret("only-one", "m").is_err());
         assert!(SparkClient::from_secret("a:b", "m").is_err());
-        // splitn(3, ':') — secret with extra colons: a:b:c:d → 3 parts
+        // splitn(3, ':') — secret 含额外冒号: a:b:c:d → 3 parts
         let c = SparkClient::from_secret("a:b:c:d", "m").unwrap();
         assert_eq!(c.app_id, "a");
         assert_eq!(c.api_key, "b");
@@ -359,17 +359,17 @@ mod tests {
 
     #[test]
     fn build_request_body_domain_matches_version() {
-        // v1.1 → "general"
+        // v1.1 → "general"（domain 取值）
         let c1 = SparkClient::new("a", "k", "s", "general");
         let r1 = c1.build_request_body(&CallRequest::new("general"));
         assert_eq!(r1.parameter.chat.domain, "general");
 
-        // v3.0 → "generalv3"
+        // v3.0 → "generalv3"（domain 取值）
         let c3 = SparkClient::new("a", "k", "s", "generalv3");
         let r3 = c3.build_request_body(&CallRequest::new("generalv3"));
         assert_eq!(r3.parameter.chat.domain, "generalv3");
 
-        // v3.5 → "generalv3.5"
+        // v3.5 → "generalv3.5"（domain 取值）
         let c35 = SparkClient::new("a", "k", "s", "generalv3.5");
         let r35 = c35.build_request_body(&CallRequest::new("generalv3.5"));
         assert_eq!(r35.parameter.chat.domain, "generalv3.5");

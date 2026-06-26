@@ -1,4 +1,4 @@
-//! DeepSeek — OpenAI-compatible wire (<https://api.deepseek.com/v1>).
+//! DeepSeek — OpenAI 兼容 wire (<https://api.deepseek.com/v1>)。
 
 use crate::domain::llm::{CallError, CallRequest, CostRate, LlmClient, ProviderKind};
 use crate::domain::llm::common;
@@ -11,6 +11,7 @@ use crate::domain::llm::openai::OpenAIClient;
 ///   - ProviderKind 区分（`dispatch` 按 kind 选 client）
 ///   - 未来 DeepSeek 走自有协议时（已有传闻）不破坏接口
 pub struct DeepSeekClient {
+    /// 底层复用的 OpenAI 客户端。
     inner: OpenAIClient,
 }
 
@@ -35,8 +36,8 @@ impl LlmClient for DeepSeekClient {
         req: &CallRequest,
         cost: CostRate,
     ) -> Result<crate::domain::llm::CallOutcome, CallError> {
-        // DeepSeek reasons before answering (R1) — bump max_tokens default
-        // if caller didn't set it, to avoid truncation on chain-of-thought.
+        // DeepSeek 在回答前会思考(R1) — 如果调用方没设置 max_tokens 默认值,
+        // 提高它以避免思维链被截断。
         let mut req = req.clone();
         if req.max_tokens < 2048 {
             req.max_tokens = 2048;

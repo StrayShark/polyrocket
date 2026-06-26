@@ -1,72 +1,67 @@
-//! L3 — Progress event payloads for the `train_job` IPC.
+//! L3 — `train_job` IPC（进程间通信）的进度事件载荷。
 //!
-//! v0.17a — `commands::sidecar::train_job` emits these events
-//! via `AppHandle::emit` so the L1 ModelLab page can show
-//! a training-in-progress indicator + the final result.
+//! v0.17a — `commands::sidecar::train_job` 通过 `AppHandle::emit`
+//! 发出这些事件，让 L1（前端）的 ModelLab 页面可以显示
+//! 训练进行中的指示器以及最终结果。
 //!
-//! Event names (all on the global Tauri event bus):
-//!   - `train_job:started`   — IPC dispatched, training begins
-//!   - `train_job:finished`  — training completed or failed
+//! 事件名称（全部位于全局 Tauri 事件总线）：
+//!   - `train_job:started`   — IPC 已派发，训练开始
+//!   - `train_job:finished`  — 训练完成或失败
 //!
-//! Unlike `llm_analyze` (which had N parallel providers and
-//! emitted per-provider events), `train_job` is a sequential
-//! 4-trial sweep inside a single Python call. We don't get
-//! per-trial events from the Python sidecar because the
-//! stdio protocol is one-request-one-response. The L1 shows
-//! a generic "Training…" pill during the run, then displays
-//! the full result (per-trial stats + best Brier + params)
-//! when the finished event arrives.
+//! 与 `llm_analyze`（有 N 个并行 provider，并按 provider 发出事件）不同，
+//! `train_job` 是单次 Python 调用内部的顺序 4-trial 扫描。
+//! 由于 stdio 协议是一请求一响应，Python 端不会发出按 trial 的事件。
+//! L1 在运行期间显示通用的"Training…"指示药丸，
+//! 收到 finished 事件后再显示完整结果（每 trial 统计 + 最佳 Brier + 参数）。
 //!
-//! The `job_id` is the UUID we pass to the Python sidecar;
-//! it's used to correlate the started/finished pair.
+//! `job_id` 是我们传递给 Python 端进程的 UUID；
+//! 用于关联 started/finished 一对事件。
 
 use serde::{Deserialize, Serialize};
 
-/// Payload for `train_job:started`.
+/// `train_job:started` 的载荷。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrainStartedEvent {
     pub job_id: String,
-    /// Total number of trials the Python sidecar will run
-    /// (1-4). The L1 uses this to render a "N trials" hint
-    /// in the progress pill.
+    /// Python 端进程将运行的 trial 总数（1-4）。
+    /// L1 用它在进度药丸上渲染"N trials"提示。
     pub n_trials: u32,
-    /// Per-trial training epochs. v0.17a default is 80.
+    /// 每个 trial 的训练轮数。v0.17a 默认 80。
     pub epochs: u32,
-    /// Wall-clock start time in milliseconds.
+    /// 以毫秒为单位的墙钟起始时间。
     pub started_at: i64,
 }
 
-/// Payload for `train_job:finished`.
+/// `train_job:finished` 的载荷。
 ///
-/// `status` is one of:
-///   - `"completed"` — all trials finished, best model persisted
-///   - `"failed"`    — sweep or persistence errored; see `message`
+/// `status` 取值之一：
+///   - `"completed"` — 全部 trial 完成，最佳模型已落盘
+///   - `"failed"`    — 扫描或持久化出错；见 `message`
 ///
-/// `best_brier` is `None` on failure. `trials` is empty on
-/// failure (we couldn't record any trial stats before the
-/// error).
+/// 失败时 `best_brier` 为 `None`。失败时 `trials` 为空
+/// （我们在错误发生前没能记录任何 trial 统计）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrainFinishedEvent {
     pub job_id: String,
     pub status: String,
-    /// Lower is better. `None` on failure.
+    /// 越低越好。失败时为 `None`。
     pub best_brier: Option<f64>,
-    /// Best trial's weights as `{"w0", "w1", "w2"}`. `None` on failure.
+    /// 最佳 trial 的权重，形如 `{"w0", "w1", "w2"}`。失败时为 `None`。
     pub best_params: Option<serde_json::Value>,
-    /// Per-trial stats (empty on failure).
+    /// 每 trial 的统计（失败时为空）。
     pub trials: Vec<TrainTrialDto>,
     pub duration_ms: i64,
-    /// Absolute path of the candidate JSON the sidecar wrote.
-    /// `None` on failure.
+    /// 端进程写入的候选 JSON 的绝对路径。
+    /// 失败时为 `None`。
     pub candidate_path: Option<String>,
-    /// Human-readable error message. `None` on success.
+    /// 人类可读的错误消息。成功时为 `None`。
     pub message: Option<String>,
     pub finished_at: i64,
 }
 
-/// One trial's stats in the finished event. Mirrors
-/// `domain::lab::sidecar::TrainTrial` but lives here
-/// to keep the progress module self-contained.
+/// finished 事件中单个 trial 的统计。与
+/// `domain::lab::sidecar::TrainTrial` 镜像对应，但
+/// 放在此处以保持进度模块自包含。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrainTrialDto {
     pub lr: f64,

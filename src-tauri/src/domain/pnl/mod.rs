@@ -1,11 +1,11 @@
-//! L3 — PnL / dashboard KPIs.
+//! L3 — PnL（盈亏） / dashboard KPI。
 //!
-//! Aggregates `bets`, `model_performance`, and `signals` rows into
-//! dashboard tiles: total equity, open PnL, 30d win rate, Brier score.
+//! 将 `bets`、`model_performance` 和 `signals` 行聚合为 dashboard 卡片：
+//! 总权益、未结算 PnL、30 天胜率、Brier 分数。
 //!
-//! **Status (v0.3c): stub.** Real implementation lives in
-//! `commands::pnl::dashboard_kpis` (thin SQL). v0.3+ will lift it
-//! here as part of the M8 "PnL dashboard" milestone.
+//! **状态（v0.3c）：存根。** 真实实现位于
+//! `commands::pnl::dashboard_kpis`（薄 SQL 层）。v0.3+ 会作为
+//! M8「PnL dashboard」里程碑的一部分迁移到本模块。
 
 use serde::{Deserialize, Serialize};
 
@@ -32,10 +32,10 @@ pub struct DashboardKpis {
 }
 
 // ============================================================
-// ============== Pure aggregations ===========================
+// ============== Pure aggregations 纯聚合函数 ===========================
 // ============================================================
 
-/// Win rate = won / (won + lost). Returns 0.0 if no resolved bets.
+/// Win rate = won / (won + lost)。若没有已结算 bet 则返回 0.0。
 pub fn win_rate(won: usize, lost: usize) -> f64 {
     let total = won + lost;
     if total == 0 {
@@ -45,9 +45,9 @@ pub fn win_rate(won: usize, lost: usize) -> f64 {
     }
 }
 
-/// Brier score = mean over (predicted - actual)^2.
-/// `actuals` are 0.0 or 1.0; `predicted` ∈ [0, 1].
-/// Returns None if lists are empty or lengths differ.
+/// Brier 分数 = (predicted - actual)^2 的平均值。
+/// `actuals` 取 0.0 或 1.0；`predicted` ∈ [0, 1]。
+/// 若列表为空或长度不一致则返回 None。
 pub fn brier_score(predicted: &[f64], actuals: &[f64]) -> Option<f64> {
     if predicted.is_empty() || predicted.len() != actuals.len() {
         return None;
@@ -60,14 +60,14 @@ pub fn brier_score(predicted: &[f64], actuals: &[f64]) -> Option<f64> {
     Some(sum / predicted.len() as f64)
 }
 
-/// Realized PnL: sum of all pnl values. Strings parsed as f64, None → 0.
+/// 已实现 PnL：所有 pnl 值的总和。字符串按 f64 解析，None 视为 0。
 pub fn realized_pnl(pnls: &[Option<String>]) -> f64 {
     pnls.iter()
         .map(|p| p.as_deref().and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.0))
         .sum()
 }
 
-/// Categorize a bet's PnL into win / loss / open.
+/// 将一笔注单的 PnL 归类为 win / loss / open。
 pub fn categorize(pnl: Option<&str>, status: &str) -> BetCategory {
     if status == "open" {
         return BetCategory::Open;
@@ -75,7 +75,7 @@ pub fn categorize(pnl: Option<&str>, status: &str) -> BetCategory {
     match pnl.and_then(|s| s.parse::<f64>().ok()) {
         Some(n) if n > 0.0 => BetCategory::Win,
         Some(_) => BetCategory::Loss,
-        None => BetCategory::Other, // cancelled, etc.
+        None => BetCategory::Other, // 取消等
     }
 }
 
@@ -98,7 +98,7 @@ impl BetCategory {
     }
 }
 
-/// Aggregate stats: win_rate, total_pnl, brier (if data given).
+/// 聚合统计:win_rate、total_pnl,以及在提供数据时的 brier。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PnLSummary {
     pub n_total: usize,

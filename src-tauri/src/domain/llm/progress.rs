@@ -1,23 +1,21 @@
-//! L3 — Progress event payloads for `llm_analyze`.
+//! L3 — `llm_analyze` 的进度事件 payload。
 //!
-//! v0.15a — `commands::llm::llm_analyze` emits these events via
-//! `AppHandle::emit` so the L1 Analysis page can show per-provider
-//! status as each LLM call completes (rather than blocking on
-//! the entire fan-out).
+//! v0.15a — `commands::llm::llm_analyze` 通过
+//! `AppHandle::emit` 发送这些事件,这样 L1 Analysis 页面能在每次
+//! LLM call 完成时显示每个 provider 的状态(而不是阻塞整个 fan-out)。
 //!
-//! Event names (all on the global Tauri event bus, no namespace):
-//!   - `llm_analyze:started`         — analysis row created, fan-out begins
-//!   - `llm_analyze:provider_done`   — one provider call finished (ok or failed)
-//!   - `llm_analyze:consensus_done`  — consensus computed (after last provider)
-//!   - `llm_analyze:finished`        — full analyze completed (success / partial / failed)
+//! 事件名称 (都在全局 Tauri event bus 上,无 namespace):
+//!   - `llm_analyze:started`         — analysis row 已创建,fan-out 开始
+//!   - `llm_analyze:provider_done`   — 一个 provider call 完成 (成功或失败)
+//!   - `llm_analyze:consensus_done`  — consensus 计算完成 (最后一个 provider 之后)
+//!   - `llm_analyze:finished`        — 完整 analyze 完成 (success / partial / failed)
 //!
-//! The `analysis_id` is the UUID string from `llm_analyses.id`,
-//! so the L1 can correlate by that field (multiple analyzes can
-//! be in-flight from different UI panels in the future).
+//! `analysis_id` 是 `llm_analyses.id` 的 UUID 字符串,
+//! L1 可以按该字段关联(未来多个 analyze 可以从不同 UI 面板并发)。
 
 use serde::{Deserialize, Serialize};
 
-/// Payload for `llm_analyze:started`.
+/// `llm_analyze:started` 的 Payload。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnalyzeStartedEvent {
     pub analysis_id: String,
@@ -27,12 +25,12 @@ pub struct AnalyzeStartedEvent {
     pub started_at: i64,
 }
 
-/// Payload for `llm_analyze:provider_done`.
+/// `llm_analyze:provider_done` 的 Payload。
 ///
-/// Emitted once per provider, whether the call succeeded or failed.
-/// `error_kind` is one of: `none`, `auth`, `rate_limit`, `timeout`,
-/// `network`, `parse`, `model_not_found`, `internal` (mirrors the
-/// `CallErrorKind` enum in `domain::llm::dispatch`).
+/// 每个 provider 触发一次,无论 call 成功或失败。
+/// `error_kind` 是以下之一: `none`, `auth`, `rate_limit`, `timeout`,
+/// `network`, `parse`, `model_not_found`, `internal`(对应
+/// `domain::llm::dispatch` 中的 `CallErrorKind` enum)。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderDoneEvent {
     pub analysis_id: String,
@@ -47,11 +45,11 @@ pub struct ProviderDoneEvent {
     pub finished_at: i64,
 }
 
-/// Payload for `llm_analyze:consensus_done`.
+/// `llm_analyze:consensus_done` 的 Payload。
 ///
-/// Emitted once per analyze, after all providers have finished and
-/// the consensus is computed. `status` is one of: `completed`,
-/// `partial`, `failed` (matches the existing `llm_analyses.status`).
+/// 每个 analyze 触发一次,在所有 provider 完成且 consensus
+/// 计算后。`status` 是以下之一: `completed`,
+/// `partial`, `failed`(匹配现有的 `llm_analyses.status`)。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConsensusDoneEvent {
     pub analysis_id: String,
@@ -63,11 +61,11 @@ pub struct ConsensusDoneEvent {
     pub consensus_conf: Option<f64>,
 }
 
-/// Payload for `llm_analyze:finished`.
+/// `llm_analyze:finished` 的 Payload。
 ///
-/// Emitted at the very end (after consensus_done). This is the
-/// event the L1 typically `await`s before mutating the final state.
-/// Carries totals so the L1 can show "analyze took 4.2s, cost $0.12".
+/// 在最后触发 (在 consensus_done 之后)。这是
+/// L1 通常 `await` 的事件,用于在变更最终状态前等待。
+/// 携带 totals 让 L1 可以显示 "analyze 用时 4.2s,花费 $0.12"。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnalyzeFinishedEvent {
     pub analysis_id: String,

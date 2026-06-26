@@ -1,13 +1,13 @@
-//! L2 — LLM analysis (M10).
+//! L2 —— LLM 分析（M10）。
 //!
-//! IPCs (12 total):
-//! - CRUD: `list_llm_providers`, `upsert_llm_provider`
-//! - Analysis: `llm_analyze` (fan-out to N providers, build consensus),
-//!   `llm_list_analyses`, `llm_get_recommendation`
-//! - Stats: `llm_performance`, `llm_stats_heatmap`, `llm_stats_scatter`,
-//!   `llm_stats_timeseries`, `llm_stats_decision`
-//! - Logging: `record_llm_decision`
-//! Depends on L3 `domain::llm` (5 clients + dispatch) and L5 `platform::keyring`.
+//! IPC（共 12 个）：
+//! - CRUD:list_llm_providers、upsert_llm_provider
+//! - 分析:llm_analyze（fan-out 到 N 个 provider,构建共识）、
+//!   llm_list_analyses、llm_get_recommendation
+//! - 统计:llm_performance、llm_stats_heatmap、llm_stats_scatter、
+//!   llm_stats_timeseries、llm_stats_decision
+//! - 日志:record_llm_decision
+//! 依赖 L3 `domain::llm`（5 个 client + dispatch）和 L5 `platform::keyring`。
 
 use crate::AppResult;
 use crate::domain::llm::{
@@ -28,7 +28,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
 
-// ---------- DTOs ----------
+// ---------- DTO ----------
 
 /// LLM provider metadata DTO。L1 「Settings → LLM Providers」表格用。
 ///
@@ -88,7 +88,7 @@ pub struct AnalyzeArgs {
     pub market_id: String,
     pub signal_id: Option<i64>,
     pub prompt_version: Option<String>,
-    pub provider_ids: Option<Vec<String>>, // override which providers to call
+    pub provider_ids: Option<Vec<String>>, // 覆盖要调用的 provider
     pub triggered_by: Option<String>,        // 'user:<id>' | 'auto:signal_refresh'
 }
 
@@ -97,14 +97,14 @@ pub struct LlmPerformanceRow {
     pub provider_id: String,
     pub provider_name: String,
     pub n_recommendations: i64,
-    pub n_evaluated: i64, // where outcome known
+    pub n_evaluated: i64, // 已知晓结果的样本数
     pub win_rate: f64,
     pub brier: f64,
     pub avg_confidence: f64,
     pub total_cost_cents: f64,
 }
 
-// ---------- Commands ----------
+// ---------- 命令 ----------
 
 /// IPC: `list_llm_providers` —— 拉所有 provider 配置。
 ///
@@ -160,7 +160,6 @@ pub async fn upsert_llm_provider(
 }
 
 
-/// Aggregate per-provider performance (win rate / Brier / cost).
 /// IPC: `llm_performance` —— 按 provider 聚合 performance 指标。
 ///
 /// **JOIN**：`llm_recommendations` ↔ `bets`（看推荐方向 vs 实际市场结果）。
@@ -175,8 +174,8 @@ pub async fn llm_performance(
     let window = window_days.unwrap_or(30);
     let cutoff = chrono::Utc::now().timestamp_millis() - window * 24 * 3600 * 1000;
 
-    // For each provider, count its recommendations linked to settled bets
-    // and compute win rate + Brier score.
+    // 对每个 provider,统计其与已结算 bets 关联的推荐数,
+    // 并计算胜率与 Brier 分数。
     let rows = sqlx::query_as::<_, (String, String, i64, i64, Option<f64>, Option<f64>, Option<f64>, Option<f64>)>(
         "SELECT
             p.id,
@@ -214,7 +213,7 @@ pub async fn llm_performance(
     Ok(out)
 }
 
-/// Record a user decision (follow / override / skip) on an analysis.
+/// 记录用户对某次分析的决策（follow / override / skip）。
 #[derive(Debug, Deserialize)]
 pub struct RecordDecisionArgs {
     pub analysis_id: String,
@@ -228,7 +227,7 @@ pub struct RecordDecisionArgs {
 /// IPC: `record_llm_decision` —— 用户接受/拒绝一条 LLM 推荐时调用。
 ///
 /// **业务流程**：
-///   1. UPSERT `llm_recommendations.user_decision` (accepted/rejected)
+///   1. 插入或更新 `llm_recommendations.user_decision`（accepted/rejected）
 ///   2. 如果 accepted → 写一条 `bets` 行（占位 + 关联到 recommendation）
 ///   3. audit_log 写 `llm.decision.recorded` 事件
 ///
@@ -253,10 +252,10 @@ pub async fn record_llm_decision(
     Ok(result.last_insert_rowid())
 }
 
-// helper trait so the line above compiles
-// (removed — no longer needed after refactor)
+// 帮助 trait,使上一行代码可以编译
+// （已移除 —— 重构后不再需要）
 
-// ---------- v0.2 — LLM Stats (per-LLM × per-category, etc.) ----------
+// ---------- v0.2 —— LLM 统计（per-LLM × per-category 等）----------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmStatsCell {
@@ -265,7 +264,7 @@ pub struct LlmStatsCell {
     pub category: String,
     pub n_recommendations: i64,
     pub n_evaluated: i64,
-    pub win_rate: Option<f64>, // null when n_evaluated < 5 (insufficient data)
+    pub win_rate: Option<f64>, // n_evaluated < 5 时为 null(数据不足)
     pub avg_pnl: Option<f64>,
     pub brier: Option<f64>,
 }
@@ -289,7 +288,7 @@ pub async fn llm_stats_heatmap(
     let window = args.window_days.unwrap_or(30);
     let cutoff = chrono::Utc::now().timestamp_millis() - window * 24 * 3600 * 1000;
 
-    // per (provider, category) win rate + avg P&L
+    // 按 (provider, category) 维度计算胜率 + 平均 P&L
     let mut q = String::from(
         "SELECT r.provider_id, p.display_name, m.category,
                 COUNT(r.id) as n_recommendations,
@@ -317,7 +316,7 @@ pub async fn llm_stats_heatmap(
     let rows = query.fetch_all(&state.db).await?;
 
     let out: Vec<LlmStatsCell> = rows.into_iter().map(|(pid, pname, cat, n_rec, n_ev, wr, pnl, brier)| {
-        // hide win rate if insufficient data
+        // 数据不足时隐藏胜率
         let win_rate = if n_ev < 5 { None } else { wr };
         LlmStatsCell {
             provider_id: pid,
@@ -389,7 +388,7 @@ pub async fn llm_stats_scatter(
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmStatsTimeseriesPoint {
     pub provider_id: String,
-    pub bucket: String, // ISO date 'YYYY-MM-DD'
+    pub bucket: String, // ISO 日期 'YYYY-MM-DD'
     pub n_evaluated: i64,
     pub win_rate: f64,
     pub brier: f64,
@@ -447,7 +446,7 @@ pub struct LlmDecisionStats {
 
 /// IPC: `llm_stats_decision` —— 用户接受/拒绝率统计。
 ///
-/// **`n_recommendations`** / **`n_accepted`** / **`n_rejected`** / **`n_pending`**。
+/// **`n_recommendations`** / **`n_accepted`** / **`n_rejected`** / **`n_pending`**（推荐总数/已接受/已拒绝/待定）。
 /// **`avg_acceptance_latency_ms`**：用户从看到推荐到 accept 的平均时间。
 #[tauri::command]
 pub async fn llm_stats_decision(
@@ -457,7 +456,7 @@ pub async fn llm_stats_decision(
     let window = window_days.unwrap_or(30);
     let cutoff = chrono::Utc::now().timestamp_millis() - window * 24 * 3600 * 1000;
 
-    // per decision_type (joined with followed LLM provider if any) win rate
+    // 按 decision_type(若有关联则 join LLM provider)的胜率
     let rows = sqlx::query_as::<_, (String, String, i64, Option<f64>, Option<f64>)>(
         "SELECT
             CASE
@@ -493,24 +492,22 @@ pub async fn llm_stats_decision(
  }
 
 // =================================================================
-// ============= v0.2 — Real LLM fan-out ==========================
+// ============= v0.2 —— 真实 LLM fan-out ==========================
 // =================================================================
 
-// Process-wide shared HTTP client (connection pool reused across calls).
+// 进程级共享 HTTP client(连接池在多次调用间复用)。
 //
-// v0.60a — was OnceCell<reqwest::Client>; changed
-// to ArcSwap<reqwest::Client> so we can hot-swap
-// the client when the user changes the network
-// proxy (v0.56 set_proxy_config IPC). The
-// `http_client()` helper returns a clonable
-// Arc on every call; the swap is atomic.
+// v0.60a —— 原本是 OnceCell<reqwest::Client>;改为
+// ArcSwap<reqwest::Client>,以便在用户更改
+// 网络代理(v0.56 set_proxy_config IPC)时
+// 热替换 client。`http_client()` 辅助函数
+// 每次返回可克隆的 Arc;替换是原子的。
 //
-// Why not a Mutex<Option<reqwest::Client>>?
-// Holding a Mutex across an async await would
-// block other clients waiting on the swap. We
-// use arc-swap's `load()` which is a relaxed
-// atomic load (no lock contention on the hot
-// path) and `store()` for the swap.
+// 为什么不直接用 Mutex<Option<reqwest::Client>>?
+// 在 async await 期间持有 Mutex 会阻塞
+// 其它等待替换的 client。我们使用 arc-swap 的
+// `load()`(relaxed atomic load,hot-path 上
+// 无锁竞争)和 `store()` 完成替换。
 use arc_swap::ArcSwap;
 static HTTP: OnceCell<ArcSwap<reqwest::Client>> = OnceCell::new();
 
@@ -526,17 +523,15 @@ fn http_client() -> std::sync::Arc<reqwest::Client> {
     cell.load().clone()
 }
 
-/// v0.60a — replace the inner HTTP client with
-/// a freshly-built one. Used by the proxy
-/// hot-swap path: when the user changes
-/// `network.proxy.url`, we rebuild the client
-/// with the new proxy and atomically swap.
+/// v0.60a —— 用新建的 client 替换内部 HTTP client。
+/// 供 proxy 热替换路径使用:当用户更改
+/// `network.proxy.url` 时,我们用新 proxy 重建
+/// client 并原子替换。
 ///
-/// After this call, all subsequent calls to
-/// `http_client()` return a client with the
-/// new proxy settings. The old client's
-/// connection pool is dropped (Rust auto-cleanup
-/// on the old Arc when refcount → 0).
+/// 调用后,后续所有 `http_client()` 调用都会返回
+/// 应用了新 proxy 的 client。旧 client 的连接池
+/// 在引用计数降为 0 时被 drop(Rust 自动清理)。
+///
 /// 重建并原子替换全局 `ArcSwap<reqwest::Client>`。v0.60a proxy hot-swap 入口。
 ///
 /// **调用方**：`commands/network.rs::set_proxy_config`：
@@ -554,7 +549,7 @@ pub fn replace_http_client() {
     cell.store(new_client);
 }
 
-/// Pick a client implementation for a provider_kind.
+/// 为 provider_kind 选择 client 实现。
 fn client_for(kind: ProviderKind, api_base: Option<&str>, model: &str) -> Arc<dyn crate::domain::llm::LlmClient> {
     match kind {
         ProviderKind::Openai => Arc::new(OpenAIClient::new(
@@ -581,18 +576,18 @@ fn client_for(kind: ProviderKind, api_base: Option<&str>, model: &str) -> Arc<dy
         // 这里先返回占位 client,实际 dispatch 路径会改用
         // `ErnieNativeClient::from_secret`。
         ProviderKind::ErnieNative => {
-            // Placeholder — 实际 v0.111.1 dispatch 走 special path,这个 arm 不会
-            // 触达 (dispatch caller should match on ErnieNative before reaching here).
+            // 占位符 —— 实际 v0.111.1 dispatch 走特殊路径，这个分支不会
+            // 触达（dispatch 调用方应在到达此处之前先匹配 ErnieNative）。
             Arc::new(OpenAIClient::new("https://api.openai.com/v1"))  // fallback
         }
-        // v0.113 / v0.114 — Hunyuan / Spark stub (deferred to dedicated rounds).
+        // v0.113 / v0.114 —— Hunyuan / Spark 占位实现（推迟到专门的轮次处理）。
         ProviderKind::Hunyuan | ProviderKind::Spark => {
             Arc::new(OpenAIClient::new("https://api.openai.com/v1"))  // fallback
         }
     }
 }
 
-/// Fetch a market row + last orderbook + last 3 active signals.
+/// 拉取 market 行 + 最近一次订单簿 + 最近 3 条 active signal。
 async fn build_market_context(
     state: &AppState,
     market_id: &str,
@@ -659,7 +654,7 @@ async fn build_market_context(
     })
 }
 
-/// Pick enabled keys for a provider ordered by priority ASC.
+/// 为 provider 按 priority ASC 选取已启用的 key。
 async fn pick_keys(state: &AppState, provider_id: &str) -> AppResult<Vec<crate::domain::llm::KeyHandle>> {
     let rows: Vec<(String, String, String)> = sqlx::query_as(
         "SELECT id, alias, keyring_alias
@@ -781,7 +776,7 @@ fn consensus_from(recs: &[(String, f64, f64, String)]) -> (f64, String, f64) {
     (median.clamp(0.0, 1.0), side.into(), avg_conf.clamp(0.0, 1.0))
 }
 
-/// Resolve provider_kind for a known provider id, including aliases.
+/// 根据已知的 provider id 解析 provider_kind,包含别名。
 fn kind_for_provider_id(id: &str) -> ProviderKind {
     match id {
         "openai" => ProviderKind::Openai,
@@ -790,8 +785,8 @@ fn kind_for_provider_id(id: &str) -> ProviderKind {
         "deepseek" => ProviderKind::Deepseek,
         // v0.110 — 国产 OpenAI 兼容大模型 (5 个)
         "qwen" | "doubao" | "kimi" | "glm" | "MiniMax" => ProviderKind::OpenaiCompat,
-        // v0.111 — ERNIE 百度千帆 (走 OpenAI 兼容 v2 endpoint,
-        //   `qianfan.baidubce.com/v2/...` with `bce-v3/ALTAK-...` API key)
+        // v0.111 —— ERNIE 百度千帆（走 OpenAI 兼容 v2 endpoint,
+        //   使用 `qianfan.baidubce.com/v2/...` 与 `bce-v3/ALTAK-...` 形式的 API key）
         "ernie" => ProviderKind::OpenaiCompat,
         // v0.111.1 — ERNIE 百度千帆 native AK/SK 协议 (老 `wenxinworkshop/chat/{model}`)
         "ernie_native" => ProviderKind::ErnieNative,
@@ -801,11 +796,11 @@ fn kind_for_provider_id(id: &str) -> ProviderKind {
         "spark" => ProviderKind::Spark,
         "custom" | "openai_compat" => ProviderKind::OpenaiCompat,
         "anthropic_compat" => ProviderKind::AnthropicCompat,
-        _ => ProviderKind::Openai, // safe default
+        _ => ProviderKind::Openai, // 安全默认值
     }
 }
 
-// ---------- the real llm_analyze (v0.2) ----------
+// ---------- 真实的 llm_analyze(v0.2)----------
 
 #[tauri::command]
 /// IPC: `llm_analyze` —— fan-out 分析一个 market 到 N 个 LLM provider。
@@ -828,15 +823,15 @@ pub async fn llm_analyze(
 ) -> AppResult<LlmAnalysisDto> {
     let analysis_id = Uuid::new_v4().to_string();
     let requested_at = chrono::Utc::now().timestamp_millis();
-    // v0.118 — football markets route to football.v1.0 prompt; everything
-    // else keeps market.v1.0. Caller can still override via args.prompt_version.
+    // v0.118 —— football 类市场走 football.v1.0 prompt;其它保留
+    // market.v1.0。调用方仍可通过 args.prompt_version 覆盖。
     let prompt_version = args.prompt_version.clone().unwrap_or_else(|| PROMPT_VERSION_MARKET_ANALYSIS.to_string());
     let triggered_by = args.triggered_by.clone().unwrap_or_else(|| "user:anonymous".to_string());
     let market_id = args.market_id.clone();
     let signal_id = args.signal_id;
     let provider_filter = args.provider_ids.clone();
 
-    // 1. Pull enabled providers
+    // 1. 拉取已启用的 providers
     let providers: Vec<LlmProviderDto> = if let Some(ids) = &provider_filter {
         if ids.is_empty() {
             return Err(crate::AppError::Invalid("provider_ids is empty".into()));
@@ -861,7 +856,7 @@ pub async fn llm_analyze(
         return Err(crate::AppError::Invalid("no enabled providers".into()));
     }
 
-    // 2. Insert analysis row (status: pending)
+    // 2. 插入 analysis 行（status: pending）
     sqlx::query(
         "INSERT INTO llm_analyses (id, market_id, signal_id, prompt_version, requested_at, status, triggered_by)
          VALUES (?, ?, ?, ?, ?, 'pending', ?)",
@@ -875,10 +870,9 @@ pub async fn llm_analyze(
     .execute(&state.db)
     .await?;
 
-    // v0.15a — emit `llm_analyze:started` so the L1 can show a
-    // per-provider status grid. Emit BEFORE the fan-out so the
-    // L1 can immediately render "running" badges for each
-    // provider.
+    // v0.15a —— emit `llm_analyze:started`,使 L1 能显示
+    // 每个 provider 的状态网格。在 fan-out 之前 emit,
+    // 让 L1 立即为每个 provider 渲染「running」徽章。
     let _ = app.emit(
         "llm_analyze:started",
         AnalyzeStartedEvent {
@@ -890,11 +884,11 @@ pub async fn llm_analyze(
         },
     );
 
-    // 3. Build context + pick keys (BEFORE the join — needs &state.db)
+    // 3. 构建上下文 + 选取 key（在 join 之前 —— 需要 &state.db）
     let ctx = build_market_context(&state, &market_id).await?;
-    // v0.118 — football markets use football.v1.0 (Dixon-Coles + Elo + xG + CLV).
-    // Build the football context once here so it can be cloned into every
-    // provider's spawn task. Other categories fall through to market.v1.0.
+    // v0.118 —— football 类市场使用 football.v1.0（Dixon-Coles + Elo + xG + CLV）。
+    // 在此处一次性构建 football 上下文,以便克隆到每个
+    // provider 的 spawn 任务中。其它类别回落至 market.v1.0。
     let is_football = ctx.category == "football";
     let football_ctx = if is_football {
         Some(FootballMatchContext::from_market_context(ctx.clone()))
@@ -902,8 +896,8 @@ pub async fn llm_analyze(
         None
     };
     let effective_prompt_version = if is_football && prompt_version == PROMPT_VERSION_MARKET_ANALYSIS {
-        // Caller didn't pin a version → upgrade to football-specific version.
-        // If caller explicitly asked for market.v1.0 or another, respect that.
+        // 调用方未指定版本 → 升级到 football 专用版本。
+        // 如果调用方明确要求 market.v1.0 或其它版本,则尊重其选择。
         PROMPT_VERSION_FOOTBALL_MATCH.to_string()
     } else {
         prompt_version.clone()
@@ -924,10 +918,10 @@ pub async fn llm_analyze(
                 per_1k_out_cents: p_clone.cost_per_1k_out.unwrap_or(0.0),
             };
             let policy = crate::domain::llm::RetryPolicy::from_provider_row(2);
-            // v0.118 — route football markets to the football-specific prompt.
-            // Output shape extends market.v1.0 with framework_breakdown; the
-            // generic parse_recommendation still works (just drops the extra
-            // field), so consensus aggregation is unchanged.
+            // v0.118 —— 将 football 类市场路由到 football 专用 prompt。
+            // 输出结构以 framework_breakdown 扩展 market.v1.0;
+            // 通用 parse_recommendation 仍可工作（只是丢掉额外字段）,
+            // 所以共识聚合逻辑保持不变。
             let req = if let Some(ref fc) = football_ctx_clone {
                 build_football_match_request(&p_clone.default_model, fc)
             } else {
@@ -947,7 +941,7 @@ pub async fn llm_analyze(
         }));
     }
 
-    // 4. Await all in parallel — they're already running, just collect
+    // 4. 并发等待所有任务 —— 它们已经在运行,只需收集
     let mut recommendations: Vec<LlmRecommendationDto> = Vec::new();
     let mut total_latency: i64 = 0;
     let mut total_cost: f64 = 0.0;
@@ -963,17 +957,16 @@ pub async fn llm_analyze(
             }
         };
 
-        let call_log_with_ts = outcome.log; // already-built; ts is now()
+        let call_log_with_ts = outcome.log; // 已构建;时间戳为 now()
         let now_ms = chrono::Utc::now().timestamp_millis();
-        // Persist call log
+        // 持久化 call log
         let _ = insert_call_log(&state, &call_log_with_ts, now_ms).await?;
-        // Update health
+        // 更新健康状态
         let _ = update_provider_health_from_log(&state, &call_log_with_ts).await?;
 
-        // v0.15a — emit per-provider progress. L1 can show
-        // "anthropic: ok 1.2s", "openai: failed (rate_limit)" etc.
-        // regardless of whether the recommendation row ends up
-        // being parse_ok or not.
+        // v0.15a —— emit 每个 provider 的进度。L1 可显示
+        // "anthropic: ok 1.2s"、"openai: failed (rate_limit)" 等,
+        // 与 recommendation 行最终是否 parse_ok 无关。
         let prov_ok = matches!(outcome.outcome, Ok(ref oc) if oc.parse_ok);
         let prov_err_kind = match &outcome.outcome {
             Ok(oc) if !oc.parse_ok => crate::domain::llm::err::PARSE.to_string(),
@@ -1043,7 +1036,7 @@ pub async fn llm_analyze(
                 });
             }
             Err(_e) => {
-                // still record a stub row so the UI can show the failure
+                // 仍写入一条占位行,让 UI 能展示失败
                 let rec_id = insert_recommendation(
                     &state, &analysis_id, &p.id,
                     None, None, None, None,
@@ -1070,7 +1063,7 @@ pub async fn llm_analyze(
         }
     }
 
-    // 5. Compute consensus + finalize analysis row
+    // 5. 计算 consensus + 完成 analysis 行
     let (consensus_pred, consensus_side, consensus_conf) = consensus_from(&consensus_inputs);
     let (status_label, final_consensus) = if !any_success {
         ("failed".to_string(), (None, None, None))
@@ -1098,10 +1091,9 @@ pub async fn llm_analyze(
     .execute(&state.db)
     .await?;
 
-    // v0.15a — emit the two terminal events: consensus (with
-    // per-provider counts) and the final "finished" totals. The
-    // L1 awaits `llm_analyze:finished` to know the analyze is
-    // done; the consensus event is informational.
+    // v0.15a —— emit 两个终止事件：consensus（含每个 provider 的计数）
+    // 以及最终的 "finished" 汇总。L1 等待 `llm_analyze:finished`
+    // 以确认分析完成；consensus 事件仅作信息通知。
     let n_success = recommendations.iter().filter(|r| r.parse_ok).count();
     let n_failed = recommendations.len() - n_success;
     let _ = app.emit(
@@ -1129,7 +1121,7 @@ pub async fn llm_analyze(
         },
     );
 
-    // 6. audit
+    // 6. 审计
     sqlx::query(
         "INSERT INTO audit_log (actor, action, target, payload, result) VALUES ('user', 'llm.analyze', ?, ?, ?)",
     )
@@ -1163,13 +1155,14 @@ pub async fn llm_analyze(
     })
 }
 
-// ---------- new IPC: get one recommendation by id ----------
+// ---------- 新 IPC:按 id 拉取单条 recommendation ----------
 
 #[tauri::command]
 /// IPC: `llm_get_recommendation` —— 拉单条 recommendation 详情。
 ///
 /// **返回**：`LlmRecommendationDto`（provider name / predicted_prob / side /
-/// confidence / latency / tokens / cost / parse_ok / parse_error）。
+/// confidence / latency / tokens / cost / parse_ok / parse_error，即
+/// provider 名 / 预测概率 / 方向 / 置信度 / 延迟 / token 数 / 成本 / 是否解析成功 / 解析错误）。
 ///
 /// **用途**：L1 「Analysis Result」卡片点击展开时调用。
 pub async fn llm_get_recommendation(
@@ -1197,7 +1190,7 @@ pub async fn llm_get_recommendation(
     }))
 }
 
-// ---------- new IPC: list recent analyses (per market or all) ----------
+// ---------- 新 IPC:列出最近的 analysis（按 market 或全部）----------
 
 #[derive(Debug, Deserialize)]
 pub struct ListAnalysesArgs {
@@ -1252,7 +1245,7 @@ pub async fn llm_list_analyses(
             total_latency_ms: r.10,
             cost_cents: r.11,
             triggered_by: r.12,
-            recommendations: vec![], // detail load on click
+            recommendations: vec![], // 详情在点击时按需加载
         });
     }
     Ok(out)
@@ -1263,11 +1256,10 @@ mod http_client_tests {
 
     #[test]
     fn http_client_returns_arc_with_valid_client() {
-        // v0.60a — http_client() returns an Arc
-        // wrapping a valid reqwest::Client.
-        // Two consecutive calls should return
-        // Arcs that point to the same inner
-        // client (Arc::ptr_eq).
+        // v0.60a —— http_client() 返回一个
+        // 包装了有效 reqwest::Client 的 Arc。
+        // 连续两次调用应返回指向同一
+        // 内部 client 的 Arc(Arc::ptr_eq)。
         let a = http_client();
         let b = http_client();
         assert!(std::sync::Arc::ptr_eq(&a, &b));
@@ -1275,16 +1267,15 @@ mod http_client_tests {
 
     #[test]
     fn replace_http_client_swaps_inner() {
-        // v0.60a — after replace_http_client(),
-        // the next http_client() call returns
-        // a different Arc (the swap is
-        // observable).
+        // v0.60a —— 调用 replace_http_client() 后,
+        // 下一次 http_client() 调用会返回
+        // 不同的 Arc(替换可观测)。
         let before = http_client();
         replace_http_client();
         let after = http_client();
         assert!(!std::sync::Arc::ptr_eq(&before, &after));
-        // The Arc refcount drops to 0 here,
-        // dropping the old client. Rust
-        // auto-cleanup.
+        // 此时 Arc 引用计数降为 0,
+        // 旧 client 被 drop,由 Rust
+        // 自动清理。
     }
 }

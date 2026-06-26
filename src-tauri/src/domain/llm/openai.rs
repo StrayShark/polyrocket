@@ -1,8 +1,8 @@
-//! OpenAI client — native (api.openai.com) and identical wire format.
+//! OpenAI 客户端 —— 原生（api.openai.com）使用相同的 wire 格式。
 //!
 //! OpenAI 官方 API + OpenAI 兼容协议 baseline（DeepSeek / OpenRouter / Azure / 自部署）。
 //! 协议同 chat/completions —— 鉴权 `Authorization: Bearer <key>` + body 走
-//! `domain::llm::common::build_body`。
+//! `domain::llm::common::build_body`（共享请求体构建函数）。
 
 use crate::domain::llm::{CallError, CallRequest, CostRate, LlmClient, ProviderKind, err};
 use crate::domain::llm::common;
@@ -12,7 +12,7 @@ use crate::domain::llm::common;
 /// **`api_base`**：默认 `https://api.openai.com/v1`。可指向任何 OpenAI 兼容 endpoint
 /// （如 OpenRouter / Azure OpenAI / 本地 llama-server）—— 协议同 chat/completions。
 pub struct OpenAIClient {
-    pub api_base: String, // e.g. "https://api.openai.com/v1"
+    pub api_base: String, // 例如 "https://api.openai.com/v1"
 }
 
 impl OpenAIClient {
@@ -66,7 +66,7 @@ impl LlmClient for OpenAIClient {
     }
 }
 
-/// Transport-level error 分类。**两种 stable code**：
+/// 传输层 error 分类。**两种 stable code**：
 ///   - `err::TIMEOUT` — `is_timeout()` 或 connect 失败且 elapsed > 5s
 ///   - `err::NETWORK` — 其他 transport error（DNS / TLS / connection refused）
 ///

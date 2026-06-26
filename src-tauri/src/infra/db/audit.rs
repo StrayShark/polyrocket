@@ -1,25 +1,24 @@
-//! L4 — Audit log retention applier (DB-bound).
+//! L4 —— 审计日志保留策略执行器（绑定数据库）。
 //!
-//! Wraps `domain::audit::plan_purge` with the SQL needed to actually
-//! delete rows. Designed to be cheap enough to run on a daily
-//! scheduler tick.
+//! 将 `domain::audit::plan_purge` 与实际删除行所需的 SQL 包装在一起。
+//! 设计得足够轻量,可在每日调度器节拍上运行。
 
 use crate::domain::audit::{plan_purge, AuditRow, RetentionPolicy};
 use crate::infra::error::AppResult;
 use sqlx::SqlitePool;
 
-/// Apply the retention policy: delete rows that are both older than
-/// the cutoff AND past the safety floor. Returns the number of rows
-/// deleted (0 if the DB is already within policy).
+/// 应用保留策略:删除同时满足“早于截止时间”且
+/// “超出安全下限”的行。返回被删除的行数（若 DB
+/// 已满足策略则返回 0）。
 ///
-/// The `now_ms` parameter is exposed for tests; in production pass
-/// `chrono::Utc::now().timestamp_millis()`.
+/// `now_ms` 参数暴露给测试使用;在生产环境中传入
+/// `chrono::Utc::now().timestamp_millis()`。
 pub async fn purge_old(
     pool: &SqlitePool,
     policy: &RetentionPolicy,
     now_ms: i64,
 ) -> AppResult<usize> {
-    // SELECT only the (id, at) we need; never SELECT * here.
+    // 仅 SELECT 我们需要的 (id, at);这里绝不使用 SELECT *。
     let rows: Vec<AuditRow> = sqlx::query_as(
         "SELECT id, at FROM audit_log ORDER BY at DESC",
     )
@@ -32,8 +31,8 @@ pub async fn purge_old(
     }
     let n = to_delete.len();
 
-    // Build a parameterised DELETE: "DELETE FROM audit_log WHERE id IN (?, ?, ?)"
-    // SQLite has a default SQLITE_MAX_VARIABLE_NUMBER of 999; chunk to be safe.
+    // 构造参数化 DELETE："DELETE FROM audit_log WHERE id IN (?, ?, ?)"
+    // SQLite 默认 SQLITE_MAX_VARIABLE_NUMBER 为 999;为安全起见进行分块。
     for chunk in to_delete.chunks(500) {
         let placeholders = std::iter::repeat("?")
             .take(chunk.len())
@@ -117,15 +116,15 @@ mod tests {
         let pool = empty_pool().await;
         let now = 1_000_000_000_000;
         let old = now - 365 * 86_400_000;
-        // 5 recent + 5 old
+        // 5 条最近 + 5 条旧记录
         for i in 0..5 {
             insert(&pool, now - i * 3_600_000, "recent").await;
         }
         for i in 0..5 {
             insert(&pool, old + i, "old").await;
         }
-        // Floor (1000) is way above 10, so the 5 recent stay and the
-        // 5 old also stay (within floor).
+        // 下限 (1000) 远大于 10,所以 5 条最近的保留,
+        // 5 条旧的也保留(未超出下限)。
         let n = purge_old(&pool, &RetentionPolicy::default(), now).await.unwrap();
         assert_eq!(n, 0);
         assert_eq!(count(&pool).await, 10);
@@ -136,7 +135,7 @@ mod tests {
         let pool = empty_pool().await;
         let now = 1_000_000_000_000;
         let old = now - 365 * 86_400_000;
-        // 1500 total: 1000 recent + 500 old
+        // 共 1500 条:1000 条最近 + 500 条旧
         for i in 0..1000 {
             insert(&pool, now - i * 3_600_000, "recent").await;
         }
@@ -151,7 +150,7 @@ mod tests {
 
     #[tokio::test]
     async fn purge_old_handles_chunks() {
-        // > 500 row purge exercises the chunking path
+        // 超过 500 行的清理测试分块路径
         let pool = empty_pool().await;
         let now = 1_000_000_000_000;
         let old = now - 365 * 86_400_000;

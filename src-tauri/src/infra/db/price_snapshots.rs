@@ -1,31 +1,27 @@
-//! L4 — price_snapshots table access.
+//! L4 —— price_snapshots 表访问。
 //!
-//! v0.47a — adds the price_snapshots table for
-//! recording best-bid / best-ask (and derived
-//! mid_price) over time. The data is sourced from
-//! `sync_markets` (which currently doesn't have a
-//! real order-book feed, so the values are placeholders
-//! for v0.47; future v0.50+ can wire in a real
-//! book feed and the schema is ready).
+//! v0.47a —— 新增 price_snapshots 表,用于
+//! 随时间记录 best-bid / best-ask（以及派生的
+//! mid_price）。数据来源是 `sync_markets`
+//!（目前没有真实订单簿数据源,这些值在 v0.47
+//! 是占位符;未来 v0.50+ 可接入真实 book feed,
+//! schema 已就绪）。
 //!
-//! Key design points:
-//!   - One row per (market_id, captured_at). The
-//!     unique-by-time semantics come from the
-//!     autoincrement `id` column; we don't bother
-//!     with a real UNIQUE constraint because
-//!     captured_at granularity is per-second and
-//!     duplicates are tolerable.
-//!   - Old snapshots are pruned by the v0.47
-//!     retention sweep. Default retention: 30 days.
-//!   - Reads are cheap because of the
-//!     `price_snapshots_market_recent_idx` index.
+//! 关键设计点:
+//!   - 每个 (market_id, captured_at) 对应一行。
+//!     时间的唯一性由自增 `id` 列保证;我们
+//!     不需要真正的 UNIQUE 约束,因为 captured_at
+//!     粒度是秒级,重复可容忍。
+//!   - 旧快照由 v0.47 的 retention 扫描清理。
+//!     默认保留期:30 天。
+//!   - 读取很快,因为有 `price_snapshots_market_recent_idx`
+//!     索引。
 
 use sqlx::SqlitePool;
 
-/// v0.47a — record a single price snapshot. The
-/// caller (typically `sync_markets`) supplies the
-/// market_id, captured_at, and the four price
-/// fields. Returns the rowid of the inserted row.
+/// v0.47a —— 记录一条价格快照。调用方
+///（通常是 `sync_markets`）提供 market_id、
+/// captured_at 以及四个价格字段。返回插入行的 rowid。
 pub async fn record_snapshot(
     pool: &SqlitePool,
     market_id: &str,
@@ -51,10 +47,9 @@ pub async fn record_snapshot(
     Ok(res.last_insert_rowid())
 }
 
-/// v0.47a — query the most recent snapshot for a
-/// market, if any. Returns `None` if the market has
-/// no snapshots in the table (typical for markets
-/// that haven't been synced since v0.47).
+/// v0.47a —— 查询某 market 的最新快照（若有）。
+/// 若该 market 在表中无快照（典型场景:v0.47 之后
+/// 从未 sync 的 market），返回 `None`。
 pub async fn latest_snapshot(
     pool: &SqlitePool,
     market_id: &str,
@@ -72,9 +67,8 @@ pub async fn latest_snapshot(
     Ok(row)
 }
 
-/// v0.47a — purge snapshots older than the
-/// retention window. Default 30 days. Returns the
-/// number of rows purged.
+/// v0.47a —— 清理早于保留窗口的快照。默认 30 天。
+/// 返回被清理的行数。
 pub async fn purge_old(pool: &SqlitePool, retention_ms: i64) -> sqlx::Result<u64> {
     let cutoff = chrono::Utc::now().timestamp_millis() - retention_ms;
     let res = sqlx::query("DELETE FROM price_snapshots WHERE captured_at < ?")

@@ -1,12 +1,13 @@
-//! L4 — Application-wide error type.
+//! L4 —— 全应用错误类型。
 //!
-//! Single error enum that all layers below return. Serializes to a
-//! human-readable string for IPC (frontend gets `err.message`).
+//! 单一错误 enum,所有下层都返回这个。序列化为
+//! 可读字符串用于 IPC(前端拿到 `err.message`)。
 //!
-//! 8 stable error codes are handled at L3 (LLM clients) by mapping
-//! HTTP/SDK errors into a string. This enum does NOT model those
-//! categories — it only cares about the transport layer (Db, Http,
-//! Io, Serde, Keyring, plus Invalid/NotFound/Internal for app logic).
+//! 8 种稳定错误码在 L3(LLM 客户端)处理,把
+//! HTTP/SDK 错误映射为字符串。本 enum **不**建模
+//! 这些类别 —— 只关心传输层(Db、Http、
+//! Io、Serde、Keyring,加 Invalid/NotFound/Internal
+//! 用于应用层逻辑)。
 
 use serde::Serialize;
 use specta::Type;
@@ -80,11 +81,10 @@ impl Serialize for AppError {
 }
 
 impl specta::Type for AppError {
-    // v0.81 — Map AppError to TS `string` for codegen.
-    // The runtime wire format is already a string (see `Serialize`
-    // impl above), so this is consistent. `Primitive::str` is the
-    // specta 2.0.0-rc.25 representation that maps to `string` in
-    // the TS exporter.
+    // v0.81 —— 将 AppError 映射到 TS 的 `string` 用于 codegen。
+    // 运行时 wire 格式已经是字符串(见上方的 `Serialize`
+    // 实现),所以这里保持一致。`Primitive::str` 是
+    // specta 2.0.0-rc.25 中映射到 TS `string` 的表示。
     fn definition(_: &mut specta::Types) -> specta::datatype::DataType {
         specta::datatype::DataType::Primitive(specta::datatype::Primitive::str)
     }

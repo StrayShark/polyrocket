@@ -1,11 +1,11 @@
-//! v0.121 — Direct multi-market e2e.
+//! v0.121 — 直接多市场 e2e。
 //!
-//! Skips webview eval entirely (avoids the NaN-in-JSON crash that
-//! the eval-based flow hits on the post-analyze step). Calls
-//! `llm_analyze` IPC handler directly from Rust for each of the
-//! 4 football seed markets.
+//! 完全跳过 webview eval（避免 eval 流程在分析后步骤
+//! 触发的 JSON 中 NaN 导致崩溃）。从 Rust 中
+//! 为 4 个足球种子市场中的每一个直接调用
+//! `llm_analyze` IPC handler。
 //!
-//! Used by `POLYROCKET_E2E_ALL_FOOTBALL=1` in lib.rs's setup().
+//! 由 lib.rs 的 setup() 中 `POLYROCKET_E2E_ALL_FOOTBALL=1` 调用。
 
 use crate::commands::bet::place_signed_order;
 use crate::commands::bet::PlaceSignedArgs;
@@ -15,7 +15,7 @@ use serde_json::{json, Value};
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
 
-/// v0.121 — the 4 football seed markets. Run in this order.
+/// v0.121 — 4 个足球种子市场。按此顺序运行。
 const FOOTBALL_MARKETS: &[&str] = &[
     "mkt-football-eu-final-2026",
     "mkt-football-la-liga",
@@ -29,10 +29,10 @@ pub async fn run_all_football(app: AppHandle) {
         FOOTBALL_MARKETS.len()
     );
 
-    // v0.121 — bootstrap LLM provider + key first (same as
-    // e2e_football::run() does). Without this the LLM client
-    // has no enabled key and `llm_analyze` errors out
-    // immediately with "no enabled keys".
+    // v0.121 — 首先引导 LLM provider + key（与
+    // e2e_football::run() 所做的相同）。否则 LLM 客户端
+    // 没有启用的 key，`llm_analyze` 会立即因
+    // "no enabled keys" 报错。
     if let Err(e) = super::e2e_football::bootstrap_providers(&app).await {
         tracing::error!("[e2e-all-football] bootstrap_providers failed: {e}");
     } else {
@@ -49,7 +49,7 @@ pub async fn run_all_football(app: AppHandle) {
             market_id
         );
 
-        // Reset state for this market
+        // 重置该市场的状态
         if let Some(state) = app.try_state::<AppState>() {
             let pool = state.db.clone();
             let _ = sqlx::query("DELETE FROM signals WHERE market_id = ?")
@@ -70,7 +70,7 @@ pub async fn run_all_football(app: AppHandle) {
                 .await;
         }
 
-        // Call llm_analyze IPC directly.
+        // 直接调用 llm_analyze IPC。
         let args = json!({
             "market_id": market_id,
             "prompt_version": "football.v1.0",
@@ -93,12 +93,11 @@ pub async fn run_all_football(app: AppHandle) {
                 let consensus_conf = r.consensus_conf.unwrap_or(0.0);
                 let consensus_side = r.consensus_side.clone().unwrap_or_else(|| "skip".to_string());
 
-                // v0.121 — insert a synthetic signal row for this
-                // market so the MarketDetail page renders the
-                // prediction. We use the synthetic orderbook mid
-                // (0.30 — same as the original e2e_football) for
-                // market_mid. This is the same data flow as
-                // e2e_football::run()'s step 7.5.
+                // v0.121 — 为该市场插入一个合成的 signal 行，
+                // 使 MarketDetail 页面渲染出
+                // 预测。market_mid 使用合成订单簿中间价
+                // （0.30 —— 与原始 e2e_football 相同）。
+                // 这与 e2e_football::run() 的 7.5 步数据流相同。
                 let market_mid = 0.30_f64;
                 let edge = predicted_prob - market_mid;
                 let now_ms = chrono::Utc::now().timestamp_millis();
@@ -140,9 +139,9 @@ pub async fn run_all_football(app: AppHandle) {
                     "analysis_id": r.id,
                 }));
 
-                // v0.121 — paper trade if |edge| >= 0.05.
-                // Use a synthetic 0.30 market_mid. Edge is the
-                // model's predicted probability vs market mid.
+                // v0.121 — 如果 |edge| >= 0.05 则进行 paper 交易。
+                // 使用合成的 0.30 作为 market_mid。
+                // Edge 即模型预测概率与市场中间价之差。
                 let market_mid = 0.30_f64;
                 let edge = predicted_prob - market_mid;
                 if edge.abs() >= 0.05 {
@@ -155,7 +154,7 @@ pub async fn run_all_football(app: AppHandle) {
                         "skip"
                     };
                     if trade_side != "skip" {
-                        // Look up a real wallet + key from DB.
+                        // 从 DB 中查找真实的钱包 + key。
                         let wallet_row: Option<(String, String)> = sqlx::query_as(
                             "SELECT id, default_key_alias FROM wallets LIMIT 1"
                         )
@@ -227,11 +226,11 @@ pub async fn run_all_football(app: AppHandle) {
                 }));
             }
         }
-        // small pause between markets
+        // 在每个市场间短暂暂停
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
 
-    // Write combined result file
+    // 写入汇总结果文件
     let combined_path = "/tmp/polyrocket-e2e-all-football.json";
     let pretty = serde_json::to_string_pretty(&json!({
         "ok": all_results.iter().all(|r| r.get("ok").and_then(|b| b.as_bool()).unwrap_or(false)),
@@ -241,11 +240,11 @@ pub async fn run_all_football(app: AppHandle) {
     let _ = std::fs::write(combined_path, pretty);
     tracing::info!("[e2e-all-football] wrote combined result to {combined_path}");
 
-    // v0.121 — navigate the webview to /signals so the L1
-    // shows the 4 new football signals. The Dashboard page
-    // has its own SQL bug (a column type mismatch in some
-    // other component) that we don't have time to fix
-    // tonight. The Signals page renders the same data.
+    // v0.121 — 将 webview 导航到 /signals，使 L1
+    // 展示 4 个新的足球 signal。Dashboard 页面
+    // 自身有一个 SQL bug（其他组件中的列类型
+    // 不匹配），我们今晚没时间修复。
+    // Signals 页面渲染同样的数据。
     if let Some(window) = app.get_webview_window("main") {
         let nav_js = "window.history.pushState({}, '', '/signals'); \
                       window.dispatchEvent(new PopStateEvent('popstate'));";
@@ -253,7 +252,7 @@ pub async fn run_all_football(app: AppHandle) {
     }
     tokio::time::sleep(Duration::from_secs(3)).await;
 
-    // KEEP_RUNNING if requested
+    // 如果请求则 KEEP_RUNNING
     let keep_running = std::env::var("POLYROCKET_E2E_KEEP_RUNNING")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);

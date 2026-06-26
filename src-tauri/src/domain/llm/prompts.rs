@@ -1,25 +1,24 @@
-//! Prompt template system — v1 of the polyrocket market-analysis prompt.
+//! Prompt 模板系统 —— polyrocket 市场分析 prompt 的 v1 版本。
 //!
-//! All prompts ask the model to return a **strict JSON** shape so the
-//! parser in [`crate::domain::llm::parse_recommendation`]
-//! can extract a clean `(probability, side, confidence, reasoning)` tuple.
+//! 所有 prompt 都要求模型返回 **strict JSON** 格式,以便
+//! [`crate::domain::llm::parse_recommendation`] 中的解析器
+//! 抽取干净的 `(probability, side, confidence, reasoning)` 元组。
 //!
-//! JSON shape returned by every prompt:
+//! 每个 prompt 返回的 JSON 形状：
 //! ```json
 //! {
 //!   "probability": 0.68,            // 0..1
 //!   "side": "YES",                  // "YES" | "NO" | "skip"
 //!   "confidence": 0.72,             // 0..1
-//!   "reasoning": "string",          // ≤ 800 chars
-//!   "key_factors": ["...", "..."]   // ≤ 5 strings
+//!   "reasoning": "string",          // ≤ 800 字符
+//!   "key_factors": ["...", "..."]   // ≤ 5 个字符串
 //! }
 //! ```
 
 use crate::domain::llm::{CallRequest, ChatMessage};
 use serde::{Deserialize, Serialize};
 
-/// Bump this when the prompt text or shape changes — used to track
-/// win-rate per prompt version (F13 stats).
+/// 当 prompt 文本或 shape 变化时 bump — 用于按 prompt 版本追踪胜率 (F13 stats)。
 pub const PROMPT_VERSION_MARKET_ANALYSIS: &str = "market.v1.0";
 pub const PROMPT_VERSION_QUICK_THESIS: &str = "thesis.v1.0";
 pub const PROMPT_VERSION_CONSENSUS_VOTE: &str = "consensus.v1.0";
@@ -115,7 +114,7 @@ pub fn build_consensus_request(model: &str, ctx: &MarketContext, peers: &[PeerVi
         .user(user)
 }
 
-// ---- parse a recommendation from a model that returned JSON ----
+// ---- 解析返回 JSON 的模型推荐 ----
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct LlmRecommendationPayload {
@@ -126,7 +125,7 @@ pub struct LlmRecommendationPayload {
 }
 
 pub fn parse_recommendation(text: &str) -> Result<(f64, String, f64, String), String> {
-    // 1) try direct parse
+    // 1) 尝试直接解析
     if let Ok(p) = serde_json::from_str::<LlmRecommendationPayload>(text) {
         return Ok((
             p.probability.unwrap_or(0.5).clamp(0.0, 1.0),
@@ -135,7 +134,7 @@ pub fn parse_recommendation(text: &str) -> Result<(f64, String, f64, String), St
             p.reasoning.unwrap_or_default().chars().take(800).collect(),
         ));
     }
-    // 2) try to find first {...} block (model may have wrapped JSON in code fences)
+    // 2) 尝试查找第一个 {...} block(模型可能把 JSON 包裹在代码围栏中)
     if let Some(start) = text.find('{') {
         if let Some(end) = text.rfind('}') {
             if end > start {
@@ -170,21 +169,22 @@ fn chrono_format(unix_ms: i64) -> String {
 }
 
 // ============================================================================
-// v0.118 — Football-specific prompt module
+// v0.118 —— 足球专用 prompt 模块
 //
-// 行业权威 framework 知识库 (调研 2026-06-22):
-//   • Dixon-Coles (1997)        — 学术金标准, 双 Poisson + 低分调整
-//   • Elo (Arpad Elo)           — 球队相对实力
-//   • xG (Sam Green 2012)       — 射门质量 + form 评估
-//   • CLV (Pinnacle)            — Polymarket implied prob vs model prob = edge
+// 行业权威 framework 知识库（调研 2026-06-22）：
+//   • Dixon-Coles (1997)        —— 学术金标准，双 Poisson + 低分调整
+//   • Elo (Arpad Elo)           —— 球队相对实力
+//   • xG (Sam Green 2012)       —— 射门质量 + form 评估
+//   • CLV (Pinnacle)            —— Polymarket implied prob vs model prob = edge
+//                                          （Polymarket 隐含概率 vs 模型概率 = edge）
 //
-// 与 market.v1.0 的区别:
+// 与 market.v1.0 的区别：
 //   - System prompt 显式要求 LLM 综合 4 个 framework 给出中间值
-//   - 输出 JSON 多一个 `framework_breakdown` 对象 (含 elo/poisson/xg/clv)
-//   - FootballMarketType 路由 (HomeWin / AwayWin / Draw / OverUnder / AsianHandicap)
-//   - `probability` 字段语义根据 market_type 切换 (home 胜/away 胜/平/over/covers)
+//   - 输出 JSON 多一个 `framework_breakdown` 对象（含 elo/poisson/xg/clv）
+//   - FootballMarketType 路由（HomeWin / AwayWin / Draw / OverUnder / AsianHandicap）
+//   - `probability` 字段语义根据 market_type 切换（home 胜/away 胜/平/over/covers）
 //
-// 配套 docs/football-frameworks.md (v0.118 new) 详述 framework 选型理由。
+// 配套 docs/football-frameworks.md（v0.118 new）详述 framework 选型理由。
 // ============================================================================
 
 /// Polymarket 上的足球市场类型。决定 `probability` 字段的语义。
@@ -203,11 +203,11 @@ pub enum FootballMarketType {
     TeamWin,
     /// "Will Argentina vs. Austria end in a draw?" → probability = P(平局)
     Draw,
-    /// "Argentina vs. Austria: O/U 2.5" → probability = P(total goals > line)
+    /// "Argentina vs. Austria: O/U 2.5" → probability = P(总进球数 > 盘口)
     OverUnder,
-    /// "Spread: France (-2.5)" → probability = P(France covers handicap)
+    /// "Spread: France (-2.5)" → probability = P(法国队让球胜出)
     AsianHandicap,
-    /// "Will Arsenal finish Premier League top 4?" → probability = P(event by season end)
+    /// "Will Arsenal finish Premier League top 4?" → probability = P(赛季结束前事件发生)
     Outright,
     /// 无法识别 — 退化为通用 market.v1.0 prompt
     Unknown,
@@ -260,55 +260,56 @@ impl FootballMarketType {
     }
 }
 
-/// v0.118 — Football-specific market context. Extends `MarketContext` with
-/// 足球比赛级别的数据 (Elo, xG, Dixon-Coles 参数)。所有字段 optional,
-/// 让 LLM 在缺失时回退到 domain knowledge (内置的世界足球知识)。
+/// v0.118 — Football-specific market context。扩展 `MarketContext`,
+/// 加入足球比赛级别的数据 (Elo、xG、Dixon-Coles 参数)。
+/// 所有字段 optional,让 LLM 在缺失时回退到 domain knowledge
+/// (内置的世界足球知识)。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FootballMatchContext {
-    /// Base Polymarket context (question, prices, vol, signals 等)
+    /// 基础 Polymarket context (question, prices, vol, signals 等)
     pub market: MarketContext,
 
-    /// Polymarket market type — 决定 probability 字段语义
+    /// Polymarket 市场类型 — 决定 probability 字段语义
     pub market_type: FootballMarketType,
 
-    /// Match identification (LLM-readable, parsed from question if not provided)
-    pub home_team: Option<String>,         // e.g. "Argentina"
-    pub away_team: Option<String>,         // e.g. "Austria"
-    pub competition: Option<String>,       // e.g. "FIFA World Cup 2026"
+    /// 比赛识别信息 (LLM-readable,如果未提供则从 question 解析)
+    pub home_team: Option<String>,         // 例如 "Argentina"
+    pub away_team: Option<String>,         // 例如 "Austria"
+    pub competition: Option<String>,       // 例如 "FIFA World Cup 2026"
     pub kickoff_unix_ms: Option<i64>,      // 若与 closes_at 不同
 
-    /// Team strength indicators (optional — LLM fills gaps with domain knowledge)
-    // Elo (international football typically 1500-2200)
+    /// 球队实力指标 (optional — LLM 用 domain knowledge 填补缺失)
+    // Elo (国际足球通常 1500-2200)
     pub home_elo: Option<f64>,
     pub away_elo: Option<f64>,
     pub home_field_advantage_elo: Option<f64>, // ~ +100 (国际足球)
 
-    // xG (Sam Green 2012, per-90 over recent matches)
+    // xG (Sam Green 2012,最近比赛的 per-90)
     pub home_xg_per90_last5: Option<f64>,
     pub away_xg_per90_last5: Option<f64>,
 
-    // Dixon-Coles base rates (Maher 1982)
+    // Dixon-Coles 基础率 (Maher 1982)
     pub home_goals_per_game_season: Option<f64>,
     pub away_goals_per_game_season: Option<f64>,
     pub home_goals_conceded_per_game_season: Option<f64>,
     pub away_goals_conceded_per_game_season: Option<f64>,
 
-    // Head-to-head (last 10 encounters)
+    // 历史交锋 (最近 10 次)
     pub h2h_home_wins_last10: Option<u32>,
     pub h2h_draws_last10: Option<u32>,
     pub h2h_away_wins_last10: Option<u32>,
 
-    /// Asian handicap line (only meaningful when market_type == AsianHandicap)
-    /// e.g. Some(-2.5) for "Spread: France (-2.5)"
+    /// 亚洲让球盘口线 (仅在 market_type == AsianHandicap 时有意义)
+    /// 例如 "Spread: France (-2.5)" 时为 Some(-2.5)
     pub handicap_line: Option<f64>,
-    /// O/U line (only meaningful when market_type == OverUnder)
-    /// e.g. Some(2.5) for "Argentina vs Austria O/U 2.5"
+    /// 大小球盘口线 (仅在 market_type == OverUnder 时有意义)
+    /// 例如 "Argentina vs Austria O/U 2.5" 时为 Some(2.5)
     pub over_under_line: Option<f64>,
 }
 
 impl FootballMatchContext {
-    /// Convenience: try to parse team names + market type from `MarketContext`.
-    /// Returns a context with everything populated that we can infer from text.
+    /// 便捷方法: 尝试从 `MarketContext` 解析队名 + 市场类型。
+    /// 返回一个 context,其中能从文本推断的所有字段都填充好。
     pub fn from_market_context(market: MarketContext) -> Self {
         let market_type = FootballMarketType::from_question(&market.question);
         let (home_team, away_team, handicap_line, over_under_line) = parse_question_extras(&market.question, market_type);
@@ -337,8 +338,8 @@ impl FootballMatchContext {
     }
 }
 
-/// Try to extract team names + handicap / O/U line from the Polymarket question text.
-/// Best-effort — returns None when can't parse cleanly.
+/// 尝试从 Polymarket question 文本中抽取队名 + handicap / O/U line。
+/// 尽力而为 — 无法干净解析时返回 None。
 fn parse_question_extras(
     question: &str,
     market_type: FootballMarketType,
@@ -348,9 +349,9 @@ fn parse_question_extras(
     let mut handicap = None;
     let mut over_under = None;
 
-    // "Will Argentina win on 2026-06-22?" — single team, no vs.
-    // "Argentina vs. Austria: O/U 2.5" — two teams separated by vs.
-    // "Spread: France (-2.5)" — single team + handicap line in parens.
+    // "Will Argentina win on 2026-06-22?" — 单队,无 vs.
+    // "Argentina vs. Austria: O/U 2.5" — 两队用 vs 分隔。
+    // "Spread: France (-2.5)" — 单队 + 括号中的 handicap line。
     let lower = question.to_lowercase();
 
     // Polymarket 的真实格式: "Argentina vs. Austria: O/U 2.5" / "Argentina vs Austria"
@@ -361,32 +362,31 @@ fn parse_question_extras(
         // (4) 跟 " vs " 一样, 所以 idx 在 normalized 和 lower 里一致。
         let before = &question[..idx];
         let after = &question[idx + 4..];
-        // Strip "Will " prefix from before
+        // 从 before 剥离 "Will " 前缀
         let home_raw = before.trim_start_matches("Will ").trim();
-        // Strip trailing punctuation
+        // 剥离尾部标点
         let home_clean = home_raw.trim_end_matches(|c: char| !c.is_alphanumeric() && c != ' ');
-        // Strip " on YYYY-MM-DD" from after
+        // 从 after 剥离 " on YYYY-MM-DD"
         let away_raw = if let Some(date_idx) = after.find(" on ") {
             &after[..date_idx]
         } else {
             after
         };
-        // Strip trailing punctuation
+        // 剥离尾部标点
         let away_clean = away_raw.trim_end_matches(|c: char| !c.is_alphanumeric() && c != ' ');
-        // Strip common prefixes from away
+        // 从 away 剥离常见前缀
         let away_clean = away_clean.trim_start_matches("Will ").trim();
-        // Strip O/U suffix
+        // 剥离 O/U 后缀
         let away_clean = away_clean.split(':').next().unwrap_or(away_clean).trim();
         home = Some(home_clean.to_string());
         away = Some(away_clean.to_string());
     } else if let Some(start) = lower.find("will ") {
         if let Some(win_idx) = lower[start..].find(" win") {
-            // v0.121 — safe char-boundary slice. The question
-            // may contain UTF-8 multi-byte chars (e.g. "La Liga"
-            // with í). `start + win_idx` is a byte offset and
-            // might fall inside a multi-byte char, which would
-            // panic. `floor_char_boundary` snaps to the nearest
-            // valid char boundary (Rust 1.81+).
+            // v0.121 — 安全的 char-boundary 切片。question
+            // 可能包含 UTF-8 多字节字符(例如 "La Liga"
+            // 含 í)。`start + win_idx` 是字节偏移,
+            // 可能落在多字节字符内部,这会导致 panic。
+            // `floor_char_boundary` 取最近的有效 char boundary (Rust 1.81+)。
             let abs_start = start + 5;
             let abs_end = start + win_idx;
             let safe_end = question.floor_char_boundary(abs_end);
@@ -401,7 +401,7 @@ fn parse_question_extras(
         }
     }
 
-    // Parse handicap from parens like "(-2.5)" or "(+1.5)"
+    // 从括号解析 handicap,例如 "(-2.5)" 或 "(+1.5)"
     if market_type == FootballMarketType::AsianHandicap {
         if let Some(open) = question.find('(') {
             if let Some(close) = question.find(')') {
@@ -413,7 +413,7 @@ fn parse_question_extras(
         }
     }
 
-    // Parse O/U line e.g. "O/U 2.5"
+    // 解析 O/U line,例如 "O/U 2.5"
     if market_type == FootballMarketType::OverUnder {
         let after_ou = if let Some(idx) = lower.find("o/u") {
             &question[idx + 3..]
@@ -430,13 +430,12 @@ fn parse_question_extras(
     (home, away, handicap, over_under)
 }
 
-/// Bump this when the football prompt text or shape changes — used to track
-/// win-rate per prompt version (F13 stats).
+/// 当 football prompt 文本或 shape 变化时 bump — 用于按 prompt 版本追踪胜率 (F13 stats)。
 pub const PROMPT_VERSION_FOOTBALL_MATCH: &str = "football.v1.0";
 
-/// v0.118 — Football-specific system prompt. Codifies the four industry
-/// frameworks (Dixon-Coles / Elo / xG / CLV) and demands intermediate
-/// framework_breakdown values in the output JSON.
+/// v0.118 — Football-specific system prompt。规范四个行业
+/// frameworks (Dixon-Coles / Elo / xG / CLV) 并要求在输出 JSON 中
+/// 提供中间 framework_breakdown 值。
 ///
 /// 设计原则:
 ///   - 不假设 LLM 懂所有 framework — 在 system prompt 里给完整定义
@@ -510,8 +509,8 @@ RULES:\n\
 - If critical data is missing (e.g. no Elo), say 'fallback to LLM estimate' and lower confidence by ≥0.2.\n\
 - Reasoning must be in English (the JSON keys are English; reasoning language matches).";
 
-/// Build a football-specific CallRequest. Use this instead of
-/// `build_market_analysis_request` when `MarketContext.category == "football"`.
+/// 构建足球专用的 CallRequest。当 `MarketContext.category == "football"` 时
+/// 用它替代 `build_market_analysis_request`。
 ///
 /// 模型输出仍是 strict JSON, 但 shape 扩展了 `framework_breakdown`。
 /// `parse_football_recommendation` 处理这个 shape;
@@ -534,10 +533,10 @@ pub fn build_football_match_request(
         .user(user)
 }
 
-// ---- parse a football-specific recommendation ----
+// ---- 解析足球专用推荐 ----
 
-/// v0.118 — Football-specific output payload. Extends the generic
-/// `LlmRecommendationPayload` with the `framework_breakdown` object.
+/// v0.118 —— Football-specific output payload。扩展泛型
+/// `LlmRecommendationPayload`,加入 `framework_breakdown` 对象。
 #[derive(Debug, Clone, Deserialize)]
 pub struct FootballRecommendationPayload {
     pub probability: Option<f64>,
@@ -550,8 +549,8 @@ pub struct FootballRecommendationPayload {
     pub framework_breakdown: Option<FrameworkBreakdown>,
 }
 
-/// v0.118 — Structured breakdown of the four frameworks.
-/// Used by downstream audit + future model-comparison tooling.
+/// v0.118 —— 四个 frameworks 的结构化拆解。
+/// 供下游 audit + 未来模型对比工具使用。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FrameworkBreakdown {
     pub elo_home: Option<f64>,
@@ -570,15 +569,15 @@ pub struct FrameworkBreakdown {
     pub asian_handicap_recommendation: Option<String>,
 }
 
-/// Parse a football-specific recommendation. Falls back to the generic
-/// `parse_recommendation` if the football shape is missing framework_breakdown
-/// (e.g. older models or generic fallbacks).
+/// 解析 football-specific recommendation。如果 football shape 缺少
+/// framework_breakdown(例如旧模型或通用 fallback),则退回到泛型
+/// `parse_recommendation`（通用推荐解析）。
 pub fn parse_football_recommendation(text: &str) -> Result<FootballRecommendationPayload, String> {
-    // 1) Try direct parse
+    // 1) 尝试直接解析
     if let Ok(p) = serde_json::from_str::<FootballRecommendationPayload>(text) {
         return Ok(p);
     }
-    // 2) Try to find first {...} block (model may have wrapped JSON in code fences)
+    // 2) 尝试查找第一个 {...} block(模型可能把 JSON 包裹在代码围栏中)
     if let Some(start) = text.find('{') {
         if let Some(end) = text.rfind('}') {
             if end > start {
@@ -623,7 +622,7 @@ mod tests {
         assert_eq!(normalize_side("maybe"), "skip");
     }
 
-    // ---- v0.118 football-specific tests ----
+    // ---- v0.118 football-specific tests ----（保留版本标识作为注释标题）
 
     fn sample_football_ctx(q: &str) -> FootballMatchContext {
         let market = MarketContext {
@@ -729,8 +728,8 @@ mod tests {
 
     #[test]
     fn football_prompt_version_constant() {
-        // F13 stats: this constant is read by llm_call_logs to attribute
-        // win-rate per prompt version. Bump when the prompt text changes.
+        // F13 stats: llm_call_logs 读取这个常量来按 prompt 版本
+        // 归属胜率。prompt 文本变更时需 bump。
         assert_eq!(PROMPT_VERSION_FOOTBALL_MATCH, "football.v1.0");
         assert_ne!(PROMPT_VERSION_FOOTBALL_MATCH, PROMPT_VERSION_MARKET_ANALYSIS);
     }
@@ -739,12 +738,12 @@ mod tests {
     fn build_football_request_serializes_context() {
         let ctx = sample_football_ctx("Argentina vs. Austria: O/U 2.5");
         let req = build_football_match_request("doubao-seed-2-0-pro", &ctx);
-        // Verify the prompt contains the 4 framework names (sanity check on system prompt).
+        // 验证 prompt 包含 4 个 framework 名称(对 system prompt 的健全性检查)。
         assert!(FOOTBALL_SYSTEM.contains("DIXON-COLES"));
         assert!(FOOTBALL_SYSTEM.contains("ELO"));
         assert!(FOOTBALL_SYSTEM.contains("xG"));
         assert!(FOOTBALL_SYSTEM.contains("CLV"));
-        // User message includes the market type label.
+        // User message 包含 market type 标签。
         let user = match &req.messages[1] {
             ChatMessage { role, content } if role == "user" => content.as_str(),
             _ => panic!("expected user message at index 1"),
@@ -801,8 +800,8 @@ mod tests {
 
     #[test]
     fn parses_football_recommendation_handles_missing_breakdown() {
-        // Older models or fallbacks may not produce framework_breakdown.
-        // The parser must still succeed (returning None for breakdown).
+        // 旧模型或 fallback 可能不产生 framework_breakdown。
+        // 解析器仍必须成功(对 breakdown 返回 None)。
         let txt = r#"{"probability":0.5,"side":"skip","confidence":0.3,"reasoning":"uncertain"}"#;
         let p = parse_football_recommendation(txt).expect("should parse even without breakdown");
         assert_eq!(p.probability, Some(0.5));
@@ -826,7 +825,7 @@ mod tests {
             FootballMarketType::Outright,
             FootballMarketType::Unknown,
         ] {
-            // as_str is stable + non-empty (used in prompt + downstream labels).
+            // as_str 是 stable 且非空的(用于 prompt + 下游标签)。
             assert!(!mt.as_str().is_empty());
         }
     }

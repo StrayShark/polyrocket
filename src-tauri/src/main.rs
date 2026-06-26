@@ -1,6 +1,6 @@
-//! polyrocket — Tauri main entry
+//! polyrocket — Tauri 主入口
 //!
-//! Spec: polyradar-blueprint-v2-client.md §3 (IPC commands)
+//! 规范：polyradar-blueprint-v2-client.md §3（IPC 命令）
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 

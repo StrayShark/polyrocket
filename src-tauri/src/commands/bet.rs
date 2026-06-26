@@ -1,9 +1,9 @@
-//! L2 — Bet placement (M6).
+//! L2 —— 投注下发（M6）。
 //!
-//! IPCs: `place_jump_link` (mode A, zero compliance risk), `place_signed_order`
-//! (mode B, keyring-signed, stub), `list_bets`.
-//! Depends on L3 `domain::polymarket` for jump URL + signed-order stub,
-//! L4 `infra::state::AppState` for the SQLite pool.
+//! IPC:`place_jump_link`（模式 A,零合规风险）、`place_signed_order`
+//! （模式 B,keyring 签名,stub）、`list_bets`。
+//! 依赖 L3 `domain::polymarket` 提供 jump URL 和 signed-order stub,
+//! 依赖 L4 `infra::state::AppState` 提供 SQLite 连接池。
 
 use crate::domain::bet::{self, sign_order, BetSide, OrderType, PlaceArgs};
 use crate::domain::polymarket;
@@ -31,8 +31,7 @@ pub struct BetDto {
     pub status: String,
     pub tx_hash: Option<String>,
     pub notes: Option<String>,
-    /// v0.50a — order type. Pre-v0.50 rows are treated
-    /// as "market" (the migration's default).
+    /// v0.50a —— 订单类型。v0.50 之前的行视为 "market"（迁移默认值）。
     #[serde(default = "default_order_type")]
     pub order_type: String,
     #[serde(default)]
@@ -41,25 +40,22 @@ pub struct BetDto {
     pub stop_price: Option<f64>,
     #[serde(default)]
     pub post_only: bool,
-    /// v0.51b — when the order was actually filled
-    /// (vs `placed_at` which is when the user submitted).
-    /// For the v0.5d deterministic stub and pre-v0.51b
-    /// rows, this is `None` and slippage is reported as
-    /// 0 by the analytics IPC. v0.51+ populates this
-    /// from the real CLOB response.
+    /// v0.51b —— 订单实际成交的时间
+    /// (与 `placed_at` 不同,后者是用户提交的时间)。
+    /// 对于 v0.5d 的确定性 stub 以及 v0.51b 之前的行,
+    /// 此字段为 `None`,analytics IPC 将滑点（slippage）报告为 0。
+    /// v0.51+ 从真实 CLOB 响应中填充该字段。
     #[serde(default)]
     pub filled_at: Option<i64>,
-    /// v0.51b — actual fill price. May differ from
-    /// `price` (the user's expectation) — that's
-    /// slippage. None pre-v0.51b.
+    /// v0.51b —— 实际成交价。可能与 `price`（用户的预期价）不同,
+    /// 这就是滑点（slippage）。v0.51b 之前为 None。
     #[serde(default)]
     pub fill_price: Option<f64>,
-    /// v0.51b — actual fill size in shares. May
-    /// differ from `shares` (the desired fill) when
-    /// the order was partial. None pre-v0.51b.
+    /// v0.51b —— 实际成交的份额数。当订单被部分成交时,
+    /// 可能与 `shares`（期望成交额）不同。v0.51b 之前为 None。
     #[serde(default)]
     pub fill_size: Option<String>,
-    /// v0.51b — true when fill_size < shares.
+    /// v0.51b —— 当 fill_size < shares 时为 true。
     #[serde(default)]
     pub partial: bool,
 }
@@ -79,8 +75,8 @@ pub struct PlaceJumpArgs {
     pub signal_id: Option<i64>,
 }
 
-/// Mode A: returns the jump URL — user clicks it, signs on Polymarket UI.
-/// Zero compliance risk: polyrocket never holds the key.
+/// 模式 A:返回 jump URL —— 用户点击后,在 Polymarket UI 中签名。
+/// 零合规风险:polyrocket 从不持有私钥。
 #[tauri::command]
 pub async fn place_jump_link(args: PlaceJumpArgs) -> AppResult<String> {
     Ok(polymarket::build_jump_url(&args.market_slug, &args.side, args.price))
@@ -94,55 +90,54 @@ pub struct PlaceSignedArgs {
     pub price: f64,
     pub size: String,
     pub signal_id: Option<i64>,
-    /// Alias of the key stored in OS keyring (e.g. "primary", "trade-1")
+    /// 存储在操作系统 keyring 中的密钥别名（例如 "primary"、"trade-1"）
     pub key_alias: String,
-    /// v0.50a — order type. Defaults to "market" when
-    /// omitted (back-compat for pre-v0.50 L1 call sites).
+    /// v0.50a —— 订单类型。未提供时默认为 "market"
+    /// (为 v0.50 之前的 L1 调用点保留向后兼容)。
     #[serde(default)]
     pub order_type: Option<String>,
-    /// v0.50a — limit price (Limit / StopLoss orders only).
+    /// v0.50a —— 限价（仅用于 Limit / StopLoss 订单）。
     #[serde(default)]
     pub limit_price: Option<f64>,
-    /// v0.50a — stop price (StopLoss orders only).
+    /// v0.50a —— 触发价（仅用于 StopLoss 订单）。
     #[serde(default)]
     pub stop_price: Option<f64>,
-    /// v0.50b — post-only flag (Limit orders only).
+    /// v0.50b —— 仅挂单（post-only）标志（仅用于 Limit 订单）。
     #[serde(default)]
     pub post_only: bool,
-    /// v0.120 — bet mode. "live" (default) calls the real PM
-    /// CLOB endpoint and persists the CLOB tx_hash.
-    /// "paper" bypasses the CLOB HTTP call (useful for e2e /
-    /// demo flows with synthetic markets) and writes the bet
-    /// with a deterministic `paper-{uuid}` tx_hash, mode="paper".
+    /// v0.120 —— 投注模式。"live"（默认）调用真实的 PM CLOB 接口
+    /// 并持久化 CLOB 的 tx_hash。
+    /// "paper" 跳过 CLOB HTTP 调用（用于 e2e / demo 流程中的
+    /// 合成市场）,以确定性 `paper-{uuid}` 作为 tx_hash 写入投注,
+    /// 且 mode="paper"。
     #[serde(default)]
     pub mode: Option<String>,
 }
 
-/// Mode B: signed order via OS keyring.
+/// 模式 B:通过操作系统 keyring 签名的订单。
 ///
-/// v0.5d: Uses `domain::bet::sign_order()` which validates the args,
-/// derives a deterministic pseudo `tx_hash`, and computes shares.
-/// When `rs-clob-client` lands, replace the body of `sign_order`.
+/// v0.5d:使用 `domain::bet::sign_order()` 校验参数、
+/// 派生确定性的伪 `tx_hash`,并计算份额。
+/// 当 `rs-clob-client` 接入后,只需替换 `sign_order` 函数体即可。
 ///
-/// v0.50a: Extended to accept `order_type`, `limit_price`,
-/// `stop_price`, `post_only`. The pure validation is in
-/// `validate_order_type_specifics`. The new fields are
-/// persisted to `bets` (order_type, limit_price, stop_price,
-/// post_only columns). For Limit orders, the recorded
-/// `bets.price` stays as the user's "reference" price
-/// (kept for analytics), with `limit_price` recording
-/// the actual limit level.
+/// v0.50a:扩展支持 `order_type`、`limit_price`、
+/// `stop_price`、`post_only`。纯函数校验位于
+/// `validate_order_type_specifics`。这些新字段
+/// 持久化到 `bets`（order_type、limit_price、stop_price、
+/// post_only 列）。对于 Limit 订单,记录的
+/// `bets.price` 仍为用户的「参考」价格
+/// （保留用于 analytics）,真正的限价水平记录在 `limit_price`。
 #[tauri::command]
 pub async fn place_signed_order(
     state: State<'_, AppState>,
     args: PlaceSignedArgs,
 ) -> AppResult<BetDto> {
-    // Domain: validate + sign (deterministic stub for v0.5)
+    // Domain:校验 + 签名(v0.5 的确定性 stub)
     let side = BetSide::parse(&args.side).map_err(|e| {
         crate::AppError::Invalid(format!("invalid side: {e}"))
     })?;
-    // v0.50a — parse order_type (default Market for
-    // back-compat with pre-v0.50 L1 callers).
+    // v0.50a —— 解析 order_type(为 v0.50 之前的 L1 调用者
+    // 默认为 Market,以保持向后兼容)。
     let order_type = match &args.order_type {
         Some(s) => bet::OrderType::parse(s).map_err(|e| {
             crate::AppError::Invalid(format!("invalid order_type: {e}"))
@@ -163,11 +158,10 @@ pub async fn place_signed_order(
     let now = chrono::Utc::now().timestamp_millis();
     let signed = sign_order(&place, now)?;
 
-    // v0.50b — post-only enforcement. For Limit orders
-    // flagged post_only, look up the latest snapshot
-    // (v0.47a) and reject if the limit would cross the
-    // book. When no snapshot exists, post-only is a
-    // silent pass (see domain::bet module docs).
+    // v0.50b —— post-only 强制检查。对于被标记为 post_only 的
+    // Limit 订单,查找最近的快照(v0.47a),若限价会
+    // 越过当前盘口则拒绝。当无快照时,post-only 静默放行
+    // (见 domain::bet 模块文档)。
     if order_type == OrderType::Limit && args.post_only {
         if let Some(lp) = args.limit_price {
             let snap =
@@ -184,28 +178,22 @@ pub async fn place_signed_order(
         }
     }
 
-    // v0.51c — CLOB submit. Replaces the v0.5d
-    // deterministic-only path. When CLOB creds are
-    // present (POLYROCKET_CLOB_API_KEY + SECRET +
-    // PASSPHRASE), attempts a real HTTP POST to the
-    // CLOB /order endpoint. When creds are absent,
-    // returns the stub shape (ok=true, slippage=0,
-    // partial=false) — the deterministic path the
-    // app has used since v0.5d.
+    // v0.51c —— CLOB 提交。替代了 v0.5d 仅确定性的路径。
+    // 当存在 CLOB 凭据时(POLYROCKET_CLOB_API_KEY + SECRET +
+    // PASSPHRASE),会真实地通过 HTTP POST 调 CLOB /order 接口;
+    // 凭据缺失时,返回 stub 形态(ok=true, slippage=0,
+    // partial=false)——自 v0.5d 以来应用一直使用的确定性路径。
     //
-    // Errors are surfaced as AppError::Invalid (not
-    // Internal) so the L1 can show them inline. The
-    // CLOB's tx_hash (or the deterministic stub's
-    // hash) is what we persist to bets.tx_hash.
+    // 错误以 AppError::Invalid(而非 Internal)抛出,
+    // 以便 L1 可直接内联展示。我们将 CLOB 的 tx_hash
+    // (或确定性 stub 的 hash)持久化到 bets.tx_hash。
     //
-    // v0.120 — paper mode. When `args.mode == "paper"`,
-    // skip the CLOB HTTP call entirely. Use a deterministic
-    // tx_hash `paper-{uuid}` and treat the order as
-    // immediately filled at the user's price (slippage = 0).
-    // Paper mode is used by the e2e demo flow where the
-    // market isn't a real PM market and the CLOB endpoint
-    // would 400. The bet still lands in `bets` with
-    // mode="paper" so the UI can surface it as a paper trade.
+    // v0.120 —— paper 模式。当 `args.mode == "paper"` 时,
+    // 完全跳过 CLOB HTTP 调用。使用确定性 tx_hash
+    // `paper-{uuid}` 并视订单立即以用户报价成交(slippage = 0)。
+    // paper 模式用于 e2e demo 流程:此时市场并非真实 PM 市场,
+    // CLOB 端点会返回 400。该投注仍以 mode="paper"
+    // 落入 `bets`,以便 UI 能将其展示为模拟交易。
     let paper_mode = args.mode.as_deref() == Some("paper");
     let (clob, fill_price_at_insert, fill_size_at_insert, partial_at_insert, filled_at_at_insert) = if paper_mode {
         let paper_id = format!("paper-{}", Uuid::new_v4());
@@ -248,32 +236,29 @@ pub async fn place_signed_order(
         let fa = clob.filled_at_ms;
         (clob, fp, fs, pa, fa)
     };
-    let _ = clob.via_http; // recorded via clob.tx_hash below; field
-                           // surfaces in audit_log payload.
+    let _ = clob.via_http; // 通过下方的 clob.tx_hash 记录;该字段
+                           // 会出现在 audit_log 的 payload 中。
 
     let id = Uuid::new_v4().to_string();
     let shares = signed.shares;
 
-    // v0.51b — fill columns. In the v0.5d deterministic
-    // stub we treat the order as filled immediately at
-    // the user's price (slippage = 0). v0.51c: when
-    // the CLOB submit returns a real response (creds
-    // present + reachable), we record the actual
-    // fill_price / fill_size / partial / filled_at
-    // from the CLOB. v0.120: paper mode uses the
-    // synthetic values (no CLOB call).
+    // v0.51b —— 成交字段。在 v0.5d 确定性 stub 中,
+    // 我们视订单立即以用户报价成交(slippage = 0)。
+    // v0.51c:当 CLOB 提交返回真实响应(凭据存在且可访问)
+    // 时,我们从 CLOB 记录真实的
+    // fill_price / fill_size / partial / filled_at（成交价/成交数量/是否部分成交/成交时间）。
+    // v0.120:paper 模式使用合成值(无 CLOB 调用)。
     let filled_at = Some(filled_at_at_insert);
     let fill_price = Some(fill_price_at_insert);
     let fill_size = Some(fill_size_at_insert);
     let partial = partial_at_insert;
 
-    // v0.50a + v0.51b — INSERT now includes the
-    // order-type AND fill columns. The idempotent
-    // ALTER TABLE in infra::db::bets_columns has
-    // already added them by the time we get here.
-    // v0.120 — paper mode: bet mode column = "paper"
-    // (was hardcoded to "B_signed"; now: live → "B_signed",
-    // paper → "paper" so the UI can distinguish them).
+    // v0.50a + v0.51b —— INSERT 现已包含 order-type 和
+    // fill 列。infra::db::bets_columns 中的幂等
+    // ALTER TABLE 已在执行到此处前添加好这些列。
+    // v0.120 —— paper 模式:bet mode 列 = "paper"
+    // (原本硬编码为 "B_signed";现为:live → "B_signed",
+    // paper → "paper",以供 UI 区分)。
     let bet_mode = if paper_mode { "paper" } else { "B_signed" };
     sqlx::query(
         "INSERT INTO bets (
@@ -362,11 +347,10 @@ pub async fn list_bets(
     args: ListBetsArgs,
 ) -> AppResult<Vec<BetDto>> {
     let limit = args.limit.unwrap_or(100);
-    // v0.50a + v0.51b — include the order-type AND fill
-    // columns. Pre-v0.50 / pre-v0.51b rows will have NULL
-    // for limit_price / stop_price / filled_at / fill_price
-    // / fill_size and 0 for post_only / partial; sqlx
-    // deserializes them via #[serde(default)].
+    // v0.50a + v0.51b —— 包含 order-type 和 fill 列。
+    // v0.50 / v0.51b 之前的行,其 limit_price / stop_price / filled_at /
+    // fill_price / fill_size 为 NULL,post_only / partial 为 0;
+    // sqlx 通过 #[serde(default)] 反序列化这些字段。
     let rows = sqlx::query_as::<_, BetDto>(
         "SELECT id, wallet_id, market_id, signal_id, mode, side, size, price, shares, placed_at, settled_at, pnl, status, tx_hash, notes,
                 order_type, limit_price, stop_price, post_only,
@@ -380,7 +364,7 @@ pub async fn list_bets(
 }
 
 // =================================================================
-// ============== v0.50a — order args validation IPC =============
+// ============== v0.50a —— 订单参数校验 IPC =============
 // =================================================================
 
 #[derive(Debug, Deserialize)]
@@ -395,15 +379,13 @@ pub struct ValidateOrderArgsArgs {
     pub post_only: bool,
 }
 
-/// v0.50a — pure validation IPC. The L1 calls this
-/// before invoking `placeSignedOrder` so the user
-/// gets instant feedback (e.g. "limit orders
-/// require limit_price") without a round-trip
-/// to the DB.
+/// v0.50a —— 纯校验 IPC。L1 在调用 `placeSignedOrder`
+/// 之前调用本接口,以让用户即时获得反馈
+/// (例如「limit 订单需要 limit_price」),
+/// 避免与数据库之间的一次往返。
 ///
-/// Returns the parsed size on success; returns
-/// `AppError::Invalid` (which serializes to a
-/// string) on failure.
+/// 成功时返回解析后的 size;失败时返回
+/// `AppError::Invalid`(会被序列化为字符串)。
 #[tauri::command]
 pub fn validate_order_args(args: ValidateOrderArgsArgs) -> AppResult<f64> {
     let side = BetSide::parse(&args.side).map_err(|e| {
@@ -420,7 +402,7 @@ pub fn validate_order_args(args: ValidateOrderArgsArgs) -> AppResult<f64> {
         side,
         size_usdc: args.size,
         price: args.price,
-        key_alias: Some("validate_only".into()), // dummy for the validator
+        key_alias: Some("validate_only".into()), // 校验器的占位值
         order_type,
         limit_price: args.limit_price,
         stop_price: args.stop_price,

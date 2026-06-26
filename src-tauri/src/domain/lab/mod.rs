@@ -1,10 +1,9 @@
-//! L3 — Lab (model experiments / backtest).
+//! L3 —— Lab（模型实验 / 回测）。
 //!
-//! Hosts the offline model lab — a separate Python sidecar invoked via
-//! `tauri-plugin-shell` to score signal accuracy on historical data.
-//! Stores experiment configs and results in `lab_runs`.
+//! 承载离线模型 lab —— 通过 `tauri-plugin-shell` 调起的独立 Python sidecar，
+//! 用于对历史数据打分以评估 signal 准确率。实验配置与结果存储在 `lab_runs`。
 //!
-//! **Status (v0.3c): stub.** M5.2 "Lab / backtest" milestone.
+//! **状态（v0.3c）：存根。** M5.2「Lab / 回测」里程碑。
 
 use serde::{Deserialize, Serialize};
 
@@ -24,7 +23,7 @@ pub struct LabRun {
 }
 
 // ============================================================
-// ============== Run state machine ===========================
+// ============== 运行状态机 ===========================
 // ============================================================
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -53,8 +52,8 @@ impl RunStatus {
             _ => None,
         }
     }
-    /// Legal transitions: Queued→Running, Running→Done|Error.
-    /// Done and Error are terminal.
+    /// 合法的状态转移：Queued → Running，Running → Done|Error。
+    /// Done 与 Error 为终态。
     pub fn can_transition_to(self, next: RunStatus) -> bool {
         match (self, next) {
             (RunStatus::Queued, RunStatus::Running) => true,
@@ -66,11 +65,11 @@ impl RunStatus {
 }
 
 // ============================================================
-// ============== Model version naming =======================
+// ============== 模型版本命名 =======================
 // ============================================================
 
-/// Validate a semantic-version-ish model name: vMAJOR.MINOR.PATCH[-tag]
-/// Returns Err if not parseable.
+/// 校验类似语义化版本的模型名：vMAJOR.MINOR.PATCH[-tag]。
+/// 无法解析时返回 Err。
 pub fn validate_version(v: &str) -> Result<(), String> {
     if !v.starts_with('v') {
         return Err(format!("version must start with 'v': {v}"));
@@ -86,7 +85,7 @@ pub fn validate_version(v: &str) -> Result<(), String> {
         }
     }
     let last = parts[parts.len() - 1];
-    // last may be a number OR "NUMBER-tag" (e.g. "1-beta")
+    // 末段可以是数字，也可以是「数字-标签」（例如 "1-beta"）
     let (num, tag) = match last.find('-') {
         Some(i) => (&last[..i], Some(&last[i + 1..])),
         None => (last, None),
@@ -102,8 +101,8 @@ pub fn validate_version(v: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Sort versions: v0.1.0 < v0.1.1 < v0.2.0 < v1.0.0
-/// Returns true if `a` is older than `b`.
+/// 对版本排序：v0.1.0 < v0.1.1 < v0.2.0 < v1.0.0
+/// 若 `a` 旧于 `b` 则返回 true。
 pub fn is_older(a: &str, b: &str) -> bool {
     let av = parse_version_tuple(a);
     let bv = parse_version_tuple(b);
@@ -123,8 +122,8 @@ fn parse_version_tuple(v: &str) -> (u32, u32, u32) {
     (maj, min, pat)
 }
 
-/// Compare two model performance snapshots; the better one wins.
-/// Comparison order: lower brier → higher win rate → higher n.
+/// 比较两个模型性能快照，更优者胜出。
+/// 比较顺序：brier 更低 → 胜率更高 → n 更大。
 pub fn is_better(candidate: &ModelPerf, incumbent: &ModelPerf) -> bool {
     if (candidate.brier_score - incumbent.brier_score).abs() > 1e-9 {
         return candidate.brier_score < incumbent.brier_score;
@@ -177,7 +176,7 @@ mod tests {
         assert!(RunStatus::Queued.can_transition_to(RunStatus::Running));
         assert!(RunStatus::Running.can_transition_to(RunStatus::Done));
         assert!(RunStatus::Running.can_transition_to(RunStatus::Error));
-        // illegal
+        // 非法
         assert!(!RunStatus::Done.can_transition_to(RunStatus::Running));
         assert!(!RunStatus::Error.can_transition_to(RunStatus::Done));
         assert!(!RunStatus::Queued.can_transition_to(RunStatus::Done));

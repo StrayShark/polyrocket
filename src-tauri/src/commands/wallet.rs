@@ -1,8 +1,8 @@
-//! L2 — Wallet management (M3).
+//! L2 —— 钱包管理（M3）。
 //!
-//! IPCs: `list_wallets`, `add_wallet`. Wallet metadata lives in
-//! SQLite (`wallets` table); the private key is **never** stored
-//! here — it lives in the OS keyring via L5 `platform::keyring`.
+//! IPC:list_wallets、add_wallet。钱包元数据存于
+//! SQLite（`wallets` 表）；私钥**绝不**入库 —— 由
+//! L5 `platform::keyring` 存放在系统 keyring 中。
 
 use crate::AppResult;
 use crate::infra::state::AppState;
@@ -46,7 +46,7 @@ pub async fn list_wallets(state: State<'_, AppState>) -> AppResult<Vec<WalletDto
 
 /// IPC: `add_wallet` —— 添加一个 wallet 元数据。
 ///
-/// **chain_id 默认 137**（Polygon mainnet），L1 不传就用默认。
+/// **chain_id 默认 137**（Polygon 主网），L1 不传就用默认。
 /// **wallet_type 默认 "eoa"**（普通 EOA 账户）。
 ///
 /// **本 IPC 只写 metadata**（address, label, chain_id, wallet_type）——
@@ -57,7 +57,7 @@ pub async fn add_wallet(
     args: AddWalletArgs,
 ) -> AppResult<WalletDto> {
     let id = Uuid::new_v4().to_string();
-    let chain_id = args.chain_id.unwrap_or(137); // Polygon mainnet
+    let chain_id = args.chain_id.unwrap_or(137); // Polygon 主网
     let wallet_type = args.wallet_type.unwrap_or_else(|| "eoa".to_string());
 
     sqlx::query(

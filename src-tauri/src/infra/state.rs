@@ -1,25 +1,25 @@
-//! L4 — Shared application state passed to every Tauri command.
+//! L4 —— 传递给每个 Tauri command 的共享应用状态。
 //!
-//! Currently holds the SQLite pool and the auto-promote config
-//! (in-memory, set via the L1 `setAutoPromoteConfig` IPC and
-//! read by `train_job` to decide whether to spawn an
-//! auto-promote worker after the sidecar returns).
+//! 当前持有 SQLite 连接池和 auto-promote 配置
+//!（内存态，通过 L1 `setAutoPromoteConfig` IPC 写入，
+//! 由 `train_job` 读取以决定在侧车返回后是否 spawn
+//! 一个 auto-promote worker）。
 //!
-//! The pool is `Clone` (internally an `Arc`) so commands that
-//! take `State<AppState>` can also clone it out for worker
-//! tasks. The `SchedulerHandle` is managed separately (in
-//! `setup`) because not every command needs it.
+//! 连接池实现了 `Clone`（内部是 `Arc`），因此
+//! 接受 `State<AppState>` 的 command 也能 clone 出来
+//! 给 worker 任务用。`SchedulerHandle` 单独管理（在
+//! `setup` 里），因为并非每个 command 都需要它。
 //!
-//! v0.28a — added `auto_promote` for the background
-//! auto-promote-after-train feature. The L1 pushes the user's
-//! settings (enabled flag + brier margin) into this state
-//! from `Settings.tsx`; the Rust side reads it in `train_job`
-//! to decide whether to spawn the auto-promote worker.
+//! v0.28a —— 新增 `auto_promote`，用于后台
+//! 「训练后自动提升」特性。L1 在 `Settings.tsx`
+//! 把用户的设置（enabled 标志 + brier margin）推到
+//! 该状态；Rust 端在 `train_job` 里读它以决定
+//! 是否 spawn auto-promote worker。
 
 use sqlx::SqlitePool;
 use std::sync::{Arc, Mutex};
 
-/// v0.28a — runtime config for "auto-promote after train"。
+/// v0.28a —— "训练后自动提升" 的运行时配置。
 ///
 /// **存储位置**：放在 `AppState`（内存），通过 `setAutoPromoteConfig` IPC 写入。
 /// **默认值**：`enabled = false`，`brier_margin = 0.005`。

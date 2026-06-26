@@ -1,18 +1,16 @@
-//! LLM HTTP clients — one module per provider, all implement [`LlmClient`].
+//! LLM HTTP 客户端 — 每个 provider 一个 module,所有都实现 [`LlmClient`]。
 //!
-//! Design notes
+//! 设计说明
 //! ------------
-//! - Every client returns the same [`CallOutcome`] so the upper layer
-//!   (fan-out / scoring / persistence) doesn't need to special-case
-//!   per-provider quirks.
-//! - The wire format is OpenAI-compatible (chat_completions) for the
-//!   majority of providers — OpenAI itself, DeepSeek, OpenRouter, etc.
-//!   Anthropic uses Messages API, Google uses generateContent. We keep
-//!   the diff small and explicit.
-//! - All clients use `reqwest::Client` with rustls. No native TLS dep.
-//! - The HTTP client is created once at startup and shared (see
-//!   [`new_http_client`]) — connection pool reuses sockets across
-//!   providers.
+//! - 每个 client 返回相同的 [`CallOutcome`],这样上层
+//!   (fan-out / 评分 / 持久化) 不需要按 provider 的怪癖特殊处理。
+//! - 大多数 provider 使用 OpenAI 兼容的 wire 格式 (chat_completions)
+//!   — OpenAI 自身、DeepSeek、OpenRouter 等。
+//!   Anthropic 用 Messages API,Google 用 generateContent。我们保持
+//!   差异小且显式。
+//! - 所有 client 使用 `reqwest::Client` + rustls,无原生 TLS dep。
+//! - HTTP client 在启动时创建一次并共享 (见 [`new_http_client`])
+//!   — 连接池跨 provider 复用 socket。
 
 use serde::{Deserialize, Serialize};
 
@@ -52,7 +50,7 @@ pub use prompts::{
     parse_recommendation, parse_football_recommendation,
 };
 
-// ---------- public types ----------
+// ---------- 对外类型 ----------
 
 /// Provider 类型枚举。镜像 SQLite `llm_providers.provider_kind` 列的字符串值
 /// （`"openai"` / `"anthropic"` / ...）。
@@ -72,7 +70,7 @@ pub enum ProviderKind {
     OpenaiCompat,
     AnthropicCompat,
     /// v0.111.1 — ERNIE 百度千帆 native AK/SK 协议
-    /// (`wenxinworkshop/chat/{model}` + OAuth2 access_token)
+    /// （`wenxinworkshop/chat/{model}` + OAuth2 access_token 鉴权）
     ErnieNative,
     /// v0.113 — Hunyuan 混元 TC3-HMAC-SHA256 协议
     Hunyuan,
@@ -111,7 +109,7 @@ impl ProviderKind {
     }
 }
 
-/// A single message in the prompt. Mirrors OpenAI/Anthropic semantics.
+/// 提示词中的单条消息。镜像 OpenAI/Anthropic 语义。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
     pub role: String, // "system" | "user" | "assistant"
@@ -137,8 +135,8 @@ pub struct CallRequest {
     pub messages: Vec<ChatMessage>,
     pub max_tokens: u32,
     pub temperature: f32,
-    /// Optional response format hint, e.g. JSON mode for OpenAI / Gemini.
-    /// `None` means the default (text).
+    /// 可选响应格式提示，例如 OpenAI / Gemini 的 JSON mode。
+    /// `None` 表示默认值 (text)。
     pub response_format_json: bool,
 }
 
@@ -214,14 +212,14 @@ pub struct CallOutcome {
     pub tokens_in: u32,
     pub tokens_out: u32,
     pub cost_cents: f64,
-    /// Provider's natural-language reply (text or `content[0].text`).
+    /// Provider 的自然语言回复 (text 或 `content[0].text`)。
     pub text: String,
-    /// If the prompt asked for JSON, this is the parsed value. May be
-    /// `None` even when `text` is non-empty if the JSON was malformed.
+    /// 如果 prompt 请求 JSON,这是解析后的值。即使 `text` 非空但 JSON 格式错误时
+    /// 也可能为 `None`。
     pub parsed: Option<serde_json::Value>,
-    /// Did the parser succeed? Always `true` for text-mode prompts.
+    /// 解析器是否成功? text-mode prompt 始终为 `true`。
     pub parse_ok: bool,
-    /// Set when `parse_ok=false`. Explains why the parse failed.
+    /// 当 `parse_ok=false` 时设置,说明解析失败的原因。
     pub parse_error: Option<String>,
 }
 
@@ -256,11 +254,11 @@ pub type CallResult = Result<CallOutcome, CallError>;
 pub trait LlmClient: Send + Sync {
     fn kind(&self) -> ProviderKind;
 
-    /// Provider-specific call. Implementations should:
-    /// - set a per-request timeout
-    /// - classify HTTP errors into the stable `err::*` codes
-    /// - return parsed tokens + text on 2xx
-    /// - never panic
+    /// Provider 特定的 call。实现应该：
+    /// - 设置每次请求的超时
+    /// - 把 HTTP 错误归类到 stable `err::*` codes
+    /// - 在 2xx 时返回解析后的 tokens + text
+    /// - 永不 panic
     async fn call(
         &self,
         http: &reqwest::Client,
@@ -270,10 +268,9 @@ pub trait LlmClient: Send + Sync {
     ) -> CallResult;
 }
 
-// ---------- shared helpers ----------
+// ---------- 共享辅助 ----------
 
-/// Re-export the shared HTTP client factory from L4 infra.
-/// Single source of truth lives in [`crate::infra::http::new_http_client`].
-/// This re-export keeps the L3 API surface stable for callers that
-/// import `llm::new_http_client`.
+/// 从 L4 infra 重新导出共享的 HTTP client 工厂。
+/// 唯一真实来源在 [`crate::infra::http::new_http_client`]。
+/// 这个重新导出保持 L3 API 表面稳定,供导入 `llm::new_http_client` 的调用方使用。
 pub use crate::infra::http::new_http_client;

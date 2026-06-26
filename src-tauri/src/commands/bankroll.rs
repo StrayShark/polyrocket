@@ -1,14 +1,14 @@
-//! L2 — Bankroll allocation IPC commands (M11, v0.78).
+//! L2 —— 资金分配 IPC 命令（M11，v0.78）。
 //!
-//! v0.78b/d/e delivers the IPC surface for the bankroll allocator.
-//! The pure-function algorithm lives in `crate::domain::bankroll`.
-//! This file is the **thin IPC adapter** — no business logic.
+//! v0.78b/d/e 提供资金分配器的 IPC 接口。
+//! 纯函数算法位于 `crate::domain::bankroll`。
+//! 本文件是**精简的 IPC 适配层**——不含业务逻辑。
 //!
-//! v0.78b:  compute_allocation_preview (pure) + validate_config
-//! v0.78d:  get_bankroll_config, set_bankroll_config (per-wallet)
-//! v0.78e:  apply_allocation (writes to allocation_batches + bets)
+//! v0.78b:  compute_allocation_preview（纯函数）+ validate_config
+//! v0.78d:  get_bankroll_config、set_bankroll_config（按 wallet）
+//! v0.78e:  apply_allocation（写入 allocation_batches + bets）
 //!
-//! Spec: docs/bankroll-allocation-design.md §2.2.
+//! 设计文档:docs/bankroll-allocation-design.md §2.2。
 
 use crate::AppResult;
 use crate::domain::bankroll::{
@@ -21,25 +21,25 @@ use specta::Type;
 use std::collections::HashMap;
 use tauri::State;
 
-/// IPC request shape for `compute_allocation_preview`.
+/// `compute_allocation_preview` 的 IPC 请求结构。
 ///
-/// Mirrors `AllocationInput` but with owned data (the IPC layer can't
-/// take references — Tauri deserializes into owned types).
+/// 与 `AllocationInput` 形状一致,但使用拥有所有权的字段（IPC 层
+/// 不能持有引用——Tauri 会反序列化为 owned 类型）。
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct ComputeAllocationArgs {
-    /// Total available USDC (string for DB TEXT compatibility).
+    /// 可用 USDC 总数（字符串以兼容 DB TEXT）。
     pub bankroll_usdc: String,
-    /// Per-wallet config (or use default if None).
+    /// 每个 wallet 的配置（若为 None 则使用默认值）。
     pub config: Option<BankrollConfigDto>,
-    /// Signals to consider.
+    /// 待评估的信号列表。
     pub signals: Vec<Signal>,
-    /// Optional market_id → max USDC allocatable (liquidity cap).
+    /// 可选 —— market_id → 该市场最大可分配 USDC（流动性上限）。
     pub market_liquidity: Option<HashMap<String, String>>,
 }
 
-/// IPC-friendly DTO for `BankrollConfig`. Same shape, separate type
-/// so the L1↔L2 boundary stays clean (domain::BankrollConfig has no
-/// `specta::Type` derive to keep it free of IPC-layer types).
+/// `BankrollConfig` 的 IPC 友好 DTO。形状相同但类型分开,以保持
+/// L1↔L2 边界的清晰（domain::BankrollConfig 不含 `specta::Type` derive,
+/// 以避免依赖 IPC 层类型）。
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct BankrollConfigDto {
     pub kelly_multiplier: f64,
@@ -63,9 +63,8 @@ impl From<&BankrollConfigDto> for BankrollConfig {
     }
 }
 
-/// Validate a `BankrollConfig`. Returns Err if any field is out of
-/// range. Used by `set_bankroll_config` IPC to reject bad input
-/// before persisting.
+/// 校验 `BankrollConfig`。若任何字段越界则返回 Err。
+/// 由 `set_bankroll_config` IPC 在持久化前拒绝非法输入使用。
 pub fn validate_config(config: &BankrollConfigDto) -> AppResult<()> {
     use crate::infra::error::AppError;
     let r = |lo, hi, name, v: f64| -> AppResult<()> {
@@ -84,7 +83,7 @@ pub fn validate_config(config: &BankrollConfigDto) -> AppResult<()> {
     r(0.0, 1.0, "min_edge_pct", config.min_edge_pct)?;
     r(0.0, 1.0, "max_total_exposure_pct", config.max_total_exposure_pct)?;
     r(0.0, 1.0, "min_confidence", config.min_confidence)?;
-    // Cross-field: reserve + max_total <= 1.0
+    // 跨字段校验:reserve + max_total <= 1.0
     if config.reserve_pct + config.max_total_exposure_pct > 1.0 {
         return Err(AppError::Invalid(format!(
             "reserve_pct ({}) + max_total_exposure_pct ({}) > 1.0",
@@ -94,7 +93,7 @@ pub fn validate_config(config: &BankrollConfigDto) -> AppResult<()> {
     Ok(())
 }
 
-/// IPC: compute allocation preview (no DB writes).
+/// IPC:计算分配预览(不写 DB)。
 #[tauri::command]
 #[specta::specta]
 pub fn compute_allocation_preview(
@@ -116,7 +115,7 @@ pub fn compute_allocation_preview(
     Ok(compute(&input))
 }
 
-/// v0.78d — get per-wallet config (DB-backed). Returns default if not set.
+/// v0.78d —— 获取按 wallet 的配置（DB 持久化）。未设置时返回默认值。
 #[tauri::command]
 #[specta::specta]
 pub async fn get_bankroll_config(
@@ -136,7 +135,7 @@ pub async fn get_bankroll_config(
     })
 }
 
-/// v0.78d — set per-wallet config. Validates first.
+/// v0.78d —— 设置按 wallet 的配置。先校验。
 #[tauri::command]
 #[specta::specta]
 pub async fn set_bankroll_config(
@@ -150,10 +149,10 @@ pub async fn set_bankroll_config(
     Ok(())
 }
 
-/// v0.78e — apply an allocation result. Writes to `allocation_batches`.
-/// v0.79a — also writes N `bets` rows (one per AllocationItem),
-/// each with `mode = 'C_allocated'` and `allocation_id = <batch_id>`.
-/// Returns the batch id (UUID).
+/// v0.78e —— 应用一次分配结果。写入 `allocation_batches`。
+/// v0.79a —— 同时写入 N 条 `bets` 行（每个 AllocationItem 一条）,
+/// 每条 `mode = 'C_allocated'` 且 `allocation_id = <batch_id>`。
+/// 返回批次 id（UUID）。
 #[tauri::command]
 #[specta::specta]
 pub async fn apply_allocation(
@@ -177,19 +176,17 @@ pub async fn apply_allocation(
     };
     crate::infra::db::bankroll::insert_batch(&state.db, &batch).await?;
 
-    // v0.79a — write one `bets` row per AllocationItem, linked
-    // back to the batch via `allocation_id`. This is the "press
-    // apply and bets land in the DB" path. The actual order
-    // execution (signed_tx → CLOB) is still a separate step
-    // (v0.51+ executor); the bankroll path pre-creates the
-    // bet rows with `status = 'open'` so the dashboard
-    // immediately reflects the allocation.
+    // v0.79a —— 为每个 AllocationItem 写一条 `bets` 行,
+    // 通过 `allocation_id` 关联回批次。这就是「点击 apply,
+    // 投注就落入 DB」的路径。真正的订单执行(signed_tx → CLOB)
+    // 仍是单独的步骤(v0.51+ executor);资金分配路径预先以
+    // `status = 'open'` 创建投注行,这样仪表盘能立刻
+    // 反映此次分配。
     let now_ms = chrono::Utc::now().timestamp_millis();
     for item in &result.per_market {
         let bet_id = uuid::Uuid::new_v4().to_string();
-        // `size` is in USDC; we use 0.5 as a placeholder price
-        // (the real price comes from the executor's market
-        // snapshot at fill time — v0.51b+)
+        // `size` 单位为 USDC;此处以 0.5 作为占位价格
+        // (真实价格由执行器在成交时从市场快照中读取 —— v0.51b+)
         let side_str = match item.side {
             crate::domain::bankroll::BetSide::Yes => "YES",
             crate::domain::bankroll::BetSide::No => "NO",

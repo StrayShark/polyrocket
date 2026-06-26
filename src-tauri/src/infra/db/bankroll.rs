@@ -1,19 +1,19 @@
-//! L4 — Bankroll allocation DB layer (v0.78).
+//! L4 —— 资金分配数据库层（v0.78）。
 //!
-//! Two tables:
-//!   - `bankroll_config` (per-wallet) — the 6-field `BankrollConfig`
-//!   - `allocation_batches` — one row per `apply_allocation` call
+//! 两张表:
+//!   - `bankroll_config`（按钱包）—— 6 字段的 `BankrollConfig`
+//!   - `allocation_batches` —— 每次 `apply_allocation` 调用对应一行
 //!
-//! Plus an extension to `bets` (handled in a separate migration in
-//! v0.78e; v0.78d stops at the bankroll-specific tables).
+//! 另含对 `bets` 表的扩展（在 v0.78e 的独立迁移中处理;
+//! v0.78d 仅停留在资金分配相关表）。
 //!
-//! Spec: docs/bankroll-allocation-design.md §3.
+//! 规格:docs/bankroll-allocation-design.md §3。
 
 use crate::domain::bankroll::BankrollConfig;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
-/// v0.78 — create the bankroll tables. **Idempotent** (IF NOT EXISTS).
+/// v0.78 —— 创建 bankroll 表。**幂等**（IF NOT EXISTS）。
 pub async fn ensure_tables(pool: &SqlitePool) -> sqlx::Result<()> {
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS bankroll_config (
@@ -44,8 +44,8 @@ pub async fn ensure_tables(pool: &SqlitePool) -> sqlx::Result<()> {
     Ok(())
 }
 
-/// Per-batch allocation audit record. Stored as JSON in the
-/// `config_json` column + a flat row for query convenience.
+/// 每批分配的审计记录。以 JSON 存储于 `config_json` 列,
+/// 外加一行扁平化记录以便查询。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllocationBatch {
     pub id: String,
@@ -56,8 +56,8 @@ pub struct AllocationBatch {
     pub applied_at: i64,
 }
 
-/// Get the bankroll config for a wallet. Returns `None` if not set
-/// (caller should fall back to `BankrollConfig::default()`).
+/// 获取某钱包的资金配置。若未设置则返回 `None`
+///（调用方应回退到 `BankrollConfig::default()`）。
 pub async fn get_config(
     pool: &SqlitePool,
     wallet_id: &str,
@@ -81,7 +81,7 @@ pub async fn get_config(
     }))
 }
 
-/// Upsert a per-wallet bankroll config. Always touches `updated_at`.
+/// 写入或更新某钱包的资金配置。总会更新 `updated_at`。
 pub async fn set_config(
     pool: &SqlitePool,
     wallet_id: &str,
@@ -113,8 +113,8 @@ pub async fn set_config(
     Ok(())
 }
 
-/// Record an applied allocation batch. The `id` is a UUID generated
-/// by the caller. Returns the inserted `AllocationBatch`.
+/// 记录一笔已应用的分配批次。`id` 是由调用方
+/// 生成的 UUID。返回插入的 `AllocationBatch`。
 pub async fn insert_batch(
     pool: &SqlitePool,
     batch: &AllocationBatch,
@@ -139,8 +139,8 @@ pub async fn insert_batch(
     })
 }
 
-/// List all batches for a wallet, newest first. Used for the
-/// "history" view of applied allocations.
+/// 列出某钱包的所有批次,按时间倒序。用于已应用分配的
+/// "历史" 视图。
 pub async fn list_batches(
     pool: &SqlitePool,
     wallet_id: &str,

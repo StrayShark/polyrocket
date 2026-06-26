@@ -1,40 +1,31 @@
-// v0.56 — network proxy configuration.
+// v0.56 —— 网络代理配置。
 //
-// The user can route polyrocket's outbound HTTP
-// (LLM clients, Polymarket CLOB, sidecar HTTP if
-// any) through a proxy. The two supported
-// schemes:
+// 用户可以将 polyrocket 的出站 HTTP
+//（LLM 客户端、Polymarket CLOB、sidecar HTTP 等）
+// 通过代理路由。支持的两种 scheme：
 //
-//   - "http"   — http://host:port  (HTTP CONNECT)
-//   - "socks5" — socks5://host:port (e.g. Tor
-//                SOCKS5 on 127.0.0.1:9050)
+//   - "http"   —— http://host:port  （HTTP CONNECT）
+//   - "socks5" —— socks5://host:port （例如 Tor
+//                SOCKS5 在 127.0.0.1:9050）
 //
-// The proxy config is stored in OS keyring under
-// the alias "network.proxy". The URL itself is
-// not a secret (the host:port is informational)
-// but the password (for authenticated proxies)
-// would be — we keep the URL only for now; if
-// the user needs auth, they can pre-configure the
-// proxy in their env (HTTP_PROXY etc) and we'll
-// pick that up as a fallback.
+// 代理配置存储在 OS keyring 中,别名为
+// "network.proxy"。URL 本身不是秘密（host:port 仅是信息）,
+// 但密码（用于需要认证的代理）是秘密 —— 目前仅保留 URL;
+// 如果用户需要认证,可以预先在环境变量中配置代理
+//（HTTP_PROXY 等）,我们将作为回退读取。
 //
-// ## Restart semantics
+// ## 重启语义
 //
-// The shared reqwest::Client is built ONCE at
-// startup. Changing the proxy after launch
-// requires rebuilding the client. v0.56 takes
-// the pragmatic approach: set_proxy updates the
-// keyring + a JSON file, and the user sees a
-// "Restart required" banner (mirroring the v0.53
-// storage path flow). The active session's HTTP
-// traffic continues to use the old proxy until
-// restart.
+// 共享的 reqwest::Client 在启动时仅构建一次。
+// 启动后修改代理需要重建 client。v0.56 采取务实方案：
+// set_proxy 更新 keyring + JSON 文件,用户看到
+// 「需要重启」横幅（与 v0.53 storage path 流程一致）。
+// 当前会话的 HTTP 流量在重启前继续使用旧代理。
 //
-// v0.56+ candidate: hot-swap the client. We
-// already use `OnceLock<HttpClient>` in
-// commands/llm.rs; we'd add a `set` setter that
-// atomically swaps. Skipped for v0.56 to keep
-// the change small.
+// v0.56+ 候选方案：热替换 client。我们已经在
+// commands/llm.rs 中使用 `OnceLock<HttpClient>`;
+// 可增加一个 `set` setter,原子地替换。
+// v0.56 暂不实现以保持改动最小。
 
 use crate::AppResult;
 use crate::infra::state::AppState;
@@ -43,36 +34,29 @@ use tauri::{AppHandle, State};
 
 const PROXY_SETTING_KEY: &str = "network.proxy.url";
 
-/// v0.56 — proxy configuration as the user sees
-/// it. `enabled` is a separate boolean so the
-/// user can disable the proxy without clearing
-/// the URL (faster toggle on/off).
+/// v0.56 —— 用户视角下的代理配置。`enabled` 是一个独立的布尔值,
+/// 用户可以在不清空 URL 的情况下停用代理（更快的开关切换）。
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProxyConfig {
-    /// True when the proxy is currently in use.
-    /// When false, the URL is still stored but
-    /// ignored.
+    /// 当前代理启用时为 true。当为 false 时,
+    /// URL 仍会存储但被忽略。
     pub enabled: bool,
-    /// The proxy URL, e.g. "socks5://127.0.0.1:9050"
-    /// or "http://proxy.example.com:8080". `None`
-    /// when no proxy is configured.
+    /// 代理 URL,例如 "socks5://127.0.0.1:9050"
+    /// 或 "http://proxy.example.com:8080"。未配置
+    /// 代理时为 `None`。
     pub url: Option<String>,
-    /// "http" or "socks5". Derived from the URL
-    /// scheme; surfaced for the L1 so the user
-    /// can see what type they're using.
+    /// "http" 或 "socks5"。由 URL scheme 推导;
+    /// 暴露给 L1,使用户看到正在使用的类型。
     pub scheme: Option<String>,
-    /// True when the active session's HTTP
-    /// client was built with this config (i.e.
-    /// the user just restarted). False when the
-    /// user changed the config but hasn't
-    /// restarted yet. Mirrors the
-    /// `storage.restart_required` pattern.
+    /// 当当前会话的 HTTP 客户端是用此配置构建（即用户
+    /// 刚刚重启）时为 true。当用户修改了配置但
+    /// 尚未重启时为 false。与 `storage.restart_required`
+    /// 模式一致。
     pub restart_required: bool,
 }
 
-/// v0.56 — return the current proxy
-/// configuration. The L1 uses this to render
-/// the Settings → Network card.
+/// v0.56 —— 返回当前代理配置。L1 用它渲染
+/// Settings → Network 卡片。
 #[tauri::command]
 pub async fn get_proxy_config(
     state: State<'_, AppState>,
@@ -102,33 +86,28 @@ pub async fn get_proxy_config(
 
 #[derive(Debug, Deserialize)]
 pub struct SetProxyConfigArgs {
-    /// True to enable the proxy; false to
-    /// disable (URL is kept in storage for
-    /// quick re-enable).
+    /// true 启用代理,false 停用（URL 仍保留在存储中,
+    /// 便于快速重新启用）。
     pub enabled: bool,
-    /// The proxy URL. Pass `null` (or an empty
-    /// string) to clear the URL entirely.
+    /// 代理 URL。传 `null`（或空字符串）
+    /// 完全清空 URL。
     pub url: Option<String>,
 }
 
-/// v0.56 — write the proxy configuration. The
-/// change takes effect on next launch (active
-/// session's HTTP client is already built).
-/// The L1 surfaces a "Restart required" banner
-/// after this returns.
+/// v0.56 —— 写入代理配置。改动在下次启动时生效
+///（当前会话的 HTTP 客户端已构建）。
+/// 返回后 L1 会显示「需要重启」横幅。
 ///
-/// v0.60a — no longer requires a restart. The
-/// HTTP client is rebuilt atomically via
-/// `commands::llm::replace_http_client()`. We
-/// still write the JSON file (for the next
-/// launch's pre-pool read), but the in-memory
-/// client picks up the new proxy immediately.
+/// v0.60a —— 不再需要重启。HTTP 客户端通过
+/// `commands::llm::replace_http_client()` 原子重建。
+/// 仍会写入 JSON 文件（供下次启动的预 pool 读取）,
+/// 但内存中的客户端会立即使用新代理。
 #[tauri::command]
 pub async fn set_proxy_config(
     state: State<'_, AppState>,
     args: SetProxyConfigArgs,
 ) -> AppResult<ProxyConfig> {
-    // Validate the URL when one is provided.
+    // 当提供了 URL 时进行校验。
     let url = args.url.as_deref().map(str::trim).filter(|s| !s.is_empty());
     if let Some(u) = url {
         let scheme = derive_scheme(u).ok_or_else(|| {
@@ -137,7 +116,7 @@ pub async fn set_proxy_config(
             ))
         })?;
         if scheme == "http" || scheme == "socks5" {
-            // OK
+            // 合法
         } else {
             return Err(crate::AppError::Invalid(format!(
                 "unsupported proxy scheme: {scheme}"
@@ -158,12 +137,11 @@ pub async fn set_proxy_config(
     )
     .await
     .map_err(|e| crate::AppError::Internal(format!("settings.set: {e}")))?;
-    // v0.56 — also write the JSON config file.
-    // Same pattern as the storage_path.json
-    // v0.53a flow. The file is read at startup
-    // BEFORE the SQLite pool opens; the DB row
-    // is for the L1 surface. We write the
-    // active config (or clear it when disabled).
+    // v0.56 —— 同时写入 JSON 配置文件。
+    // 与 storage_path.json 的 v0.53a 流程一致。
+    // 文件在 SQLite pool 打开之前启动时读取;
+    // DB 行用于 L1 展示。这里写入
+    // 当前配置（disable 时清空）。
     let app = crate::infra::scheduler::TAURI_APP
         .get()
         .ok_or_else(|| {
@@ -179,7 +157,7 @@ pub async fn set_proxy_config(
     } else {
         write_proxy_config_file(&app, None)?;
     }
-    // Audit log.
+    // 审计 log。
     let _ = sqlx::query(
         "INSERT INTO audit_log (actor, action, target, payload, result)
          VALUES ('user', 'network.proxy.set', 'network.proxy',
@@ -192,26 +170,20 @@ pub async fn set_proxy_config(
     ))
     .execute(&state.db)
     .await;
-    // v0.60a — hot-swap the shared HTTP client
-    // so the new proxy takes effect
-    // immediately. We set POLYROCKET_PROXY
-    // first (so the factory reads the new
-    // value), then rebuild.
+    // v0.60a —— 热替换共享的 HTTP 客户端,使新代理
+    // 立即生效。先设置 POLYROCKET_PROXY
+    //（让工厂读取新值）,然后重建。
     //
-    // SAFETY: setting an env var is
-    // thread-safe; the concurrent read in
-    // `new_http_client` is rare (we only
-    // call it on init + on hot-swap). The
-    // worst case is a brief window where
-    // a parallel `http_client()` could read
-    // the new env var before we call
-    // `replace_http_client()`, but the read
-    // only happens at the first call (the
-    // OnceCell was already populated in
-    // lib.rs::run()).
+    // SAFETY：设置环境变量是线程安全的；
+    // `new_http_client` 中的并发读很少（仅在 init
+    // 与热替换时调用）。最坏情况是存在短暂窗口,
+    // 并行的 `http_client()` 可能在调用
+    // `replace_http_client()` 之前读到新 env var,
+    // 但读仅在首次调用时发生（OnceCell 已在
+    // lib.rs::run() 中填充）。
     if args.enabled {
         if let Some(u) = url {
-            // SAFETY: see above.
+            // SAFETY：见上。
             std::env::set_var("POLYROCKET_PROXY", u);
         } else {
             std::env::remove_var("POLYROCKET_PROXY");
@@ -220,7 +192,7 @@ pub async fn set_proxy_config(
         std::env::remove_var("POLYROCKET_PROXY");
     }
     crate::commands::llm::replace_http_client();
-    // No longer requires a restart.
+    // 不再需要重启。
     Ok(ProxyConfig {
         enabled: args.enabled,
         url: url.map(String::from),
@@ -229,9 +201,8 @@ pub async fn set_proxy_config(
     })
 }
 
-/// v0.56 — clear the proxy entirely (URL +
-/// enabled flag). Next launch uses direct
-/// outbound HTTP.
+/// v0.56 —— 完全清空代理（URL +
+/// enabled 标志）。下次启动使用直接出站 HTTP。
 #[tauri::command]
 pub async fn clear_proxy_config(
     state: State<'_, AppState>,
@@ -246,7 +217,7 @@ pub async fn clear_proxy_config(
         .map_err(|e| {
             crate::AppError::Internal(format!("settings.delete: {e}"))
         })?;
-    // Also clear the JSON config file.
+    // 同时清空 JSON 配置文件。
     let app = crate::infra::scheduler::TAURI_APP
         .get()
         .ok_or_else(|| {
@@ -265,10 +236,10 @@ pub async fn clear_proxy_config(
     Ok(())
 }
 
-/// v0.56 — write the `network_proxy.json` config
-/// file. Shape: `{"url": <string|null>}` — a
-/// single key so users who hand-edit the file
-/// can't break the app by adding unknown keys.
+/// v0.56 —— 写入 `network_proxy.json` 配置文件。
+/// 形式：`{"url": <string|null>}` —— 仅一个键,
+/// 这样手动编辑文件的用户无法通过添加未知键
+/// 而破坏应用。
 fn write_proxy_config_file(
     app: &AppHandle,
     url: Option<&str>,
@@ -292,13 +263,11 @@ fn write_proxy_config_file(
     Ok(())
 }
 
-/// v0.56 — return the proxy URL from
-/// `network_proxy.json`, or None. This is the
-/// startup-time lookup that `infra::http` uses
-/// to build the shared `reqwest::Client`. We
-/// expose it here so the L1 can also ask "what
-/// does Rust see right now?" for the Network
-/// card.
+/// v0.56 —— 从 `network_proxy.json` 中返回代理 URL,
+/// 或 None。这是 `infra::http` 在启动时用来构建
+/// 共享 `reqwest::Client` 的查询点。我们把它暴露在
+/// 这里,让 L1 也能询问「Rust 当前看到的是什么？」
+///（用于 Network 卡片）。
 #[tauri::command]
 pub async fn read_proxy_config_file(
     app: AppHandle,
@@ -320,10 +289,9 @@ pub async fn read_proxy_config_file(
         .and_then(|u| u.as_str())
         .map(String::from))
 }
-/// proxy URL. Returns None when the URL doesn't
-/// start with a recognised scheme. We don't
-/// validate the full URL here (host:port etc) —
-/// reqwest will do that at client-build time.
+/// 推导代理 URL 的 scheme。URL 没有以可识别的 scheme
+/// 开头时返回 None。此处不校验完整 URL（host:port 等）——
+/// reqwest 在构建客户端时会做这一步。
 fn derive_scheme(url: &str) -> Option<String> {
     if let Some(rest) = url.strip_prefix("socks5://") {
         if rest.contains(':') {
@@ -362,7 +330,7 @@ mod tests {
     fn derive_scheme_unknown_returns_none() {
         assert_eq!(derive_scheme("ftp://x:1"), None);
         assert_eq!(derive_scheme("not-a-url"), None);
-        // scheme without port
+        // scheme 但无端口
         assert_eq!(derive_scheme("socks5://localhost"), None);
     }
 

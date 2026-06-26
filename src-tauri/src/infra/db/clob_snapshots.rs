@@ -1,52 +1,46 @@
-//! L4 — clob_snapshots table access (v0.51a).
+//! L4 —— clob_snapshots 表访问（v0.51a）。
 //!
-//! The `price_snapshots` table from v0.47a stores a
-//! single (best_bid, best_ask) pair per market — useful
-//! for backtest joins and the v0.50b post-only check,
-//! but not for "real" order-book reasoning (depth, full
-//! ladder, partial fills).
+//! v0.47a 的 `price_snapshots` 表按 market 存储单条
+//!（best_bid, best_ask）对 —— 足以支撑回测 join 与
+//! v0.50b 的 post-only 检查，但无法满足"真实"的
+//! 订单簿推理（深度、完整档位、部分成交）。
 //!
-//! v0.51a introduces `clob_snapshots`, which records the
-//! FULL order book per market per timestamp:
+//! v0.51a 引入 `clob_snapshots`，按 market 与时间戳
+//! 记录完整的订单簿：
 //!
 //!   id, market_id, captured_at, side ('bid'|'ask'),
 //!   price, size
 //!
-//! A single "snapshot" is the set of rows that share
-//! a `captured_at` value for a given market. Typical
-//! snapshot sizes: 5-30 price levels per side.
+//! 单个"快照"是同一 `captured_at` 下、属于同一 market 的
+//! 全部行。典型快照规模：单边 5-30 个价格档位。
 //!
-//! Today (v0.51a) we don't yet have a real CLOB feed —
-//! that requires Polymarket WebSocket credentials. The
-//! table + helpers are ready for when those land. In
-//! the meantime the L1 can populate via the
-//! `record_clob_snapshot_now` IPC for testing.
+//! 当前（v0.51a）还没有真实 CLOB 数据源 —— 这需要
+//! Polymarket WebSocket 凭证。表与辅助函数已就绪，
+//! 等待凭证上线。在此之前 L1 可通过
+//! `record_clob_snapshot_now` IPC 写入测试数据。
 
 use sqlx::SqlitePool;
 
-/// One row in `clob_snapshots`. The `(captured_at,
-/// side, price)` triple is unique per snapshot
-/// (no formal UNIQUE constraint; sqlx-side dedup
-/// is the caller's responsibility).
+/// `clob_snapshots` 中的一行。`(captured_at, side, price)`
+/// 三元组在同一快照内唯一（未声明形式化 UNIQUE 约束；
+/// 去重由调用方在 sqlx 侧负责）。
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
 pub struct ClobLevel {
     pub id: i64,
     pub market_id: String,
     pub captured_at: i64,
-    /// "bid" or "ask".
+    /// "bid" 或 "ask"。
     pub side: String,
     pub price: f64,
     pub size: f64,
 }
 
-/// Insert a single snapshot — a batch of bids and
-/// asks all sharing the same `captured_at`. Returns
-/// the number of rows inserted. Trivial helper for
-/// the L1 to record test data.
+/// 写入单次快照 —— 一批共享同一 `captured_at` 的
+/// bids 与 asks。返回插入的行数。供 L1 记录测试数据
+/// 使用的轻量辅助函数。
 ///
-/// Production usage (v0.51+) will replace this with
-/// a WebSocket listener that calls a bulk INSERT
-/// from the feed side.
+/// 生产环境（v0.51+）会用 WebSocket 监听器替换此函数，
+/// 由行情侧调用批量 INSERT。
 pub async fn record_clob_snapshot(
     pool: &SqlitePool,
     market_id: &str,
@@ -88,12 +82,11 @@ pub async fn record_clob_snapshot(
     Ok(inserted)
 }
 
-/// Return the most recent snapshot for a market as
-/// (bids, asks, captured_at). Bids are sorted by
-/// price DESC (best bid first); asks by price ASC
-/// (best ask first). Returns None when no snapshots
-/// exist.
-/// 拉某个 market 的最新一次 CLOB 快照（一个 `captured_at` 下的所有 bid+ask rows）。
+/// 返回指定 market 的最近一次快照，形式为
+/// (bids, asks, captured_at)。bids 按价格降序排列
+///（最优 bid 在前）；asks 按价格升序（最优 ask 在前）。
+/// 不存在任何快照时返回 None。
+/// 拉某个 market 的最新一次 CLOB 快照（一个 `captured_at` 下的所有 bid+ask 行）。
 ///
 /// **返回**：`Vec<ClobLevel>` —— bid/ask 都按 price 排序。空 Vec 表示该 market
 /// 从未记录过快照。
@@ -132,7 +125,7 @@ pub async fn latest_clob_snapshot(
             _ => {}
         }
     }
-    // Re-sort: best bid = highest price; best ask = lowest.
+    // 重新排序：最优 bid = 最高价；最优 ask = 最低价。
     bids.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
     asks.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
     Ok(Some(ClobSnapshot {
@@ -143,22 +136,21 @@ pub async fn latest_clob_snapshot(
     }))
 }
 
-/// One full snapshot (all bids + all asks at one
-/// timestamp). Returned by `latest_clob_snapshot`.
+/// 一次完整的快照（同一时间戳下的全部 bids 与 asks）。
+/// 由 `latest_clob_snapshot` 返回。
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ClobSnapshot {
     pub market_id: String,
     pub captured_at: i64,
-    /// (price, size) pairs. Sorted DESC by price.
+    /// (price, size) 对。按 price 降序排列。
     pub bids: Vec<(f64, f64)>,
-    /// (price, size) pairs. Sorted ASC by price.
+    /// (price, size) 对。按 price 升序排列。
     pub asks: Vec<(f64, f64)>,
 }
 
-/// Number of distinct snapshots per market (most
-/// recent first). Used by the L1 to show "we have
-/// N snapshots for market X".
-/// 统计某个 market 的 CLOB 快照总条数（rows 数量，不是 distinct `captured_at` 数）。
+/// 统计每个 market 的不同快照数（最近优先）。
+/// 供 L1 展示 "我们为 market X 记录了 N 条快照"。
+/// 统计某个 market 的 CLOB 快照总条数（行数量,不是 distinct `captured_at` 数）。
 ///
 /// **用途**：L1 「History → Order Book」展示 + retention 决策。
 pub async fn snapshot_count(
@@ -175,10 +167,10 @@ pub async fn snapshot_count(
     Ok(n)
 }
 
-/// Purge snapshots older than `retention_ms`.
-/// Default retention is 7 days (vs 30 for
-/// `price_snapshots`) — clob_snapshots are much
-/// larger per row (10-30 vs 1 per market).
+/// 清理早于 `retention_ms` 的快照。
+/// 默认保留 7 天（`price_snapshots` 为 30 天）——
+/// clob_snapshots 单行体量远大于后者（每 market 10-30 行
+/// 对比 1 行）。
 /// 删除某个 market 超过 `keep` 条数的历史快照。返回删除行数。
 ///
 /// **策略**：保留最近 `keep` 条（按 `captured_at` DESC 排序），删剩下的。
@@ -253,9 +245,9 @@ mod tests {
         let snap = latest_clob_snapshot(&pool, "m1").await.unwrap().unwrap();
         assert_eq!(snap.bids.len(), 3);
         assert_eq!(snap.asks.len(), 3);
-        // bids sorted DESC: 0.49 first.
+        // bids 按 price 降序：0.49 在前。
         assert!((snap.bids[0].0 - 0.49).abs() < 1e-9);
-        // asks sorted ASC: 0.51 first.
+        // asks 按 price 升序：0.51 在前。
         assert!((snap.asks[0].0 - 0.51).abs() < 1e-9);
         assert_eq!(snap.captured_at, now);
     }
@@ -263,7 +255,7 @@ mod tests {
     #[tokio::test]
     async fn latest_returns_most_recent() {
         let pool = make_pool().await;
-        // Two snapshots, 1 second apart.
+        // 两次快照，相隔 1 秒。
         record_clob_snapshot(
             &pool, "m1", 1_000,
             &[(0.40, 10.0)], &[(0.50, 10.0)],
@@ -280,7 +272,7 @@ mod tests {
     #[tokio::test]
     async fn snapshot_count_distinct_timestamps() {
         let pool = make_pool().await;
-        // 3 snapshots, 2 markets.
+        // 3 条快照，分布在 2 个 market。
         record_clob_snapshot(&pool, "m1", 1_000, &[(0.4, 1.0)], &[]).await.unwrap();
         record_clob_snapshot(&pool, "m1", 2_000, &[(0.4, 1.0)], &[]).await.unwrap();
         record_clob_snapshot(&pool, "m2", 1_000, &[(0.4, 1.0)], &[]).await.unwrap();
@@ -292,7 +284,7 @@ mod tests {
     async fn purge_old_removes_only_old_rows() {
         let pool = make_pool().await;
         let now_ms = chrono::Utc::now().timestamp_millis();
-        // Old: 8 days ago. Recent: 1 day ago.
+        // 旧：8 天前。新：1 天前。
         record_clob_snapshot(
             &pool, "m1", now_ms - 8 * 86_400 * 1000,
             &[(0.4, 1.0)], &[],
@@ -301,7 +293,7 @@ mod tests {
             &pool, "m1", now_ms - 1 * 86_400 * 1000,
             &[(0.4, 1.0)], &[],
         ).await.unwrap();
-        // Retention: 7 days. Old should be purged.
+        // 保留期：7 天。旧数据应被清理。
         let purged = purge_old(&pool, 7 * 86_400 * 1000).await.unwrap();
         assert_eq!(purged, 1);
         let remaining = snapshot_count(&pool, "m1").await.unwrap();

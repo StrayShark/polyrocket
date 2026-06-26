@@ -1,8 +1,8 @@
-//! L2 — Audit log read-side (M9 + X1).
+//! L2 —— 审计日志读侧（M9 + X1）。
 //!
-//! Writes already happen in every other L2 command (see infra/error.rs
-//! and the audit_log INSERTs scattered across the codebase). This module
-//! is the read-side: list entries for the Audit page.
+//! 写入逻辑已存在于其它每个 L2 命令中（见 infra/error.rs
+//! 以及散布于代码库中的 audit_log INSERT）。本模块提供读侧:
+//! 为 Audit 页面列出条目。
 
 use crate::AppError;
 use crate::AppResult;
@@ -79,10 +79,9 @@ pub async fn audit_count_for_actor(
     Ok(n)
 }
 
-/// v0.8c — Run a single audit-log retention purge. Returns the number
-/// of rows deleted. Idempotent: a second call with the same clock
-/// returns 0. The scheduler also runs this daily at 03:00 UTC.
-/// IPC: `purge_audit_log_now` —— 手动触发一次 audit log retention sweep。
+/// v0.8c —— 执行一次审计日志保留期清理。返回已删除的行数。
+/// 幂等:同一时钟下的第二次调用返回 0。调度器也会在每天 03:00 UTC 触发此任务。
+/// IPC:`purge_audit_log_now` —— 手动触发一次 audit log retention sweep。
 ///
 /// **调用方**：L1 「Settings → Audit → Purge now」按钮（v0.42b+ 暴露）。
 /// **走 `infra/scheduler::run_audit_purge_now`**：逻辑跟 scheduler 24h cron 一致，
@@ -109,7 +108,7 @@ pub async fn get_audit_retention(state: State<'_, AppState>) -> AppResult<AuditR
 ///
 /// **3 个字段的默认**：
 ///   - `retain_recent_ms` = 90 天
-///   - `max_rows` = 50,000
+///   - `max_rows` = 50,000 行
 ///   - `min_keep_rows` = 1,000（safety floor：无论多激进，DB 至少留 1000 行）
 ///
 /// **立即 purge**：写完立刻 `run_audit_purge_now` 跑一次，让用户看到效果
@@ -125,7 +124,7 @@ pub async fn set_audit_retention(
         min_keep_rows: args.min_keep_rows.unwrap_or(1_000),
     };
     crate::infra::scheduler::write_user_retention(&state.db, &policy).await?;
-    // Apply immediately so the user sees the effect
+    // 立即应用,让用户看到效果
     let n = crate::infra::scheduler::run_audit_purge_now(&state.db)
         .await
         .map_err(crate::AppError::Db)?;
@@ -151,11 +150,11 @@ impl From<&crate::domain::audit::RetentionPolicy> for AuditRetentionView {
 
 #[derive(Debug, serde::Deserialize)]
 pub struct SetAuditRetentionArgs {
-    /// Defaults to 90 days.
+    /// 默认为 90 天。
     pub retain_recent_ms: Option<i64>,
-    /// Defaults to 50,000.
+    /// 默认为 50,000。
     pub max_rows: Option<i64>,
-    /// Defaults to 1,000.
+    /// 默认为 1,000。
     pub min_keep_rows: Option<i64>,
 }
 
@@ -183,7 +182,7 @@ pub async fn recent_for_action(
     Ok(rows)
 }
 
-/// Filter helper used by both IPC and tests.
+/// 过滤助手,IPC 与测试共用。
 /// L1 filter 入口的应用层版本。`list_audit_log_impl` SQL 没做 filter，filter
 /// 在应用层做（方便 IPC 流式 + 减少 SQL 复杂度）。
 ///

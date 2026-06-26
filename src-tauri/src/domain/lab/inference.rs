@@ -1,54 +1,47 @@
-//! v0.122b — Rust port of the Python sidecar's `predict` logic.
+//! v0.122b —— Python sidecar `predict` 逻辑的 Rust 移植。
 //!
-//! **Source of truth (until v0.122g)**: [`sidecar/polyrocket_sidecar/predict.py`](../../../../sidecar/polyrocket_sidecar/predict.py)
-//! at git SHA `e5a2496` (last commit before the v0.122 migration).
-//! After v0.122g this file becomes the only implementation; the
-//! Python sidecar is deleted.
+//! **唯一真相（直到 v0.122g）**：[`sidecar/polyrocket_sidecar/predict.py`](../../../../sidecar/polyrocket_sidecar/predict.py)
+//! git SHA `e5a2496`（v0.122 迁移前的最后一次提交）。
+//! v0.122g 之后，本文件成为唯一实现；Python sidecar 将被删除。
 //!
-//! **What this is**: the logistic-regression scoring path used by
-//! every signal compute. Inputs are (price, market_age_hours);
-//! output is a probability in (0, 1) plus a per-prediction
-//! confidence in [0, 1] and a human-readable rationale string.
+//! **本文件是什么**：每次 signal compute 都会用到的逻辑回归打分路径。
+//! 输入是 (price, market_age_hours)；输出是 (0, 1) 区间内的概率，
+//! 以及每个预测的 [0, 1] 置信度和人类可读的 rationale 字符串。
 //!
-//! **What this isn't**: the train / promote / backtest / SHAP
-//! algorithms. Those land in v0.122c-f.
+//! **本文件不是什么**：train / promote / backtest / SHAP
+//! 算法，那些将在 v0.122c-f 中落地。
 //!
-//! ## Parity guarantee
+//! ## 一致性保证
 //!
-//! The functions here are bit-for-bit compatible with the Python
-//! implementation. Tests in `mod tests` compute the same inputs
-//! and assert the outputs match Python's recorded values to
-//! 1e-9 (sigmoid) and 1e-4 (after `round(prob, 4)`).
+//! 这里的函数与 Python 实现逐位兼容。`mod tests` 中的测试
+//! 使用相同的输入，断言输出与 Python 记录的值匹配，
+//! 误差 1e-9（sigmoid）和 1e-4（`round(prob, 4)` 之后）。
 //!
-//! ## Semantics for v0.122b
+//! ## v0.122b 语义
 //!
-//! - `POLYROCKET_DISABLE_SIDECAR` unset (default) → callers should
-//!   use the new Rust path. The kill switch introduced in v0.122a
-//!   no longer short-circuits for the ported methods (predict +
-//!   predict_async); they route to this module directly.
-//! - `POLYROCKET_DISABLE_SIDECAR=1` → callers fall back to the
-//!   Python sidecar for any unported method. For `predict` /
-//!   `predict_async` (ported in v0.122b) the flag is honoured as
-//!   a safety hatch: it routes back to the Python subprocess
-//!   path. This lets the user roll back instantly if the new
-//!   Rust path produces wrong results.
+//! - `POLYROCKET_DISABLE_SIDECAR` 未设置（默认）→ 调用方应使用
+//!   新的 Rust 路径。v0.122a 引入的 kill switch 不再对已移植方法
+//!  （predict + predict_async）短路；它们直接路由到本模块。
+//! - `POLYROCKET_DISABLE_SIDECAR=1` → 调用方对任何未移植方法回退
+//!   到 Python sidecar。对于 v0.122b 已移植的 `predict` /
+//!   `predict_async`，该标志作为安全开关被尊重：路由回 Python
+//!   子进程路径。这让用户在新的 Rust 路径产生错误结果时可以
+//!   立即回滚。
 
 use serde::{Deserialize, Serialize};
 
-/// v0.122b — weights for the 3-feature logistic regression.
+/// v0.122b —— 3 特征逻辑回归的权重。
 ///
-/// Loaded from `active.json` (see [`crate::commands::active_model::read_active_model_from_disk`])
-/// or constructed via [`InferenceWeights::fallback`] when no model
-/// has been promoted yet.
+/// 从 `active.json` 加载（参见 [`crate::commands::active_model::read_active_model_from_disk`]），
+/// 或者在没有已 promote 模型时通过 [`InferenceWeights::fallback`] 构造。
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub struct InferenceWeights {
     pub w0: f64,
     pub w1: f64,
     pub w2: f64,
-    /// v0.122b — horizon normalisation, in hours. Always
-    /// 168.0 (1 week) for the v0.121-era logistic model. Kept
-    /// on the struct so a future model file could override it
-    /// without changing the inference code.
+    /// v0.122b —— horizon 归一化值，单位小时。对 v0.121 时代的
+    /// 逻辑回归模型始终为 168.0（一周）。保留在结构体上以便未来
+    /// 模型文件可在不修改推理代码的前提下覆盖它。
     pub horizon_norm_hours: f64,
 }
 
@@ -59,11 +52,10 @@ impl Default for InferenceWeights {
 }
 
 impl InferenceWeights {
-    /// Inline fallback weights. **MUST** mirror
-    /// `_FALLBACK_W0` / `_FALLBACK_W1` / `_FALLBACK_W2` in
-    /// `sidecar/polyrocket_sidecar/predict.py`. The
-    /// `fallback_predict_matches_python_baseline` test in
-    /// `infra::scheduler` verifies parity.
+    /// 内联的回退权重。**必须** 与 `sidecar/polyrocket_sidecar/predict.py`
+    /// 中的 `_FALLBACK_W0` / `_FALLBACK_W1` / `_FALLBACK_W2` 保持镜像。
+    /// `infra::scheduler` 中的 `fallback_predict_matches_python_baseline`
+    /// 测试会校验一致性。
     pub const fn fallback() -> Self {
         Self {
             w0: -0.5,
@@ -73,9 +65,8 @@ impl InferenceWeights {
         }
     }
 
-    /// Parse weights from an `active.json` `best` block. Falls
-    /// back to [`Self::fallback`] for missing fields, matching
-    /// the Python `active.py` behaviour.
+    /// 从 `active.json` 的 `best` 块解析权重。缺失字段时回退到
+    /// [`Self::fallback`]，以匹配 Python `active.py` 的行为。
     pub fn from_active_json_best(best: &serde_json::Value) -> Self {
         let f = Self::fallback();
         Self {
@@ -90,13 +81,13 @@ impl InferenceWeights {
     }
 }
 
-/// v0.122b — numerically stable sigmoid. Mirrors Python:
+/// v0.122b —— 数值稳定的 sigmoid。镜像 Python：
 /// ```text
 /// if z >= 0: 1 / (1 + exp(-z))
 /// else:      exp(z) / (1 + exp(z))
 /// ```
-/// The `if z >= 0` branch prevents `exp(-z)` from overflowing
-/// for large positive `z` (would NaN to inf).
+/// `if z >= 0` 分支用于避免当 `z` 较大正数时 `exp(-z)` 溢出
+///（否则会 NaN 到 inf）。
 #[inline]
 pub fn sigmoid(z: f64) -> f64 {
     if z >= 0.0 {
@@ -107,24 +98,24 @@ pub fn sigmoid(z: f64) -> f64 {
     }
 }
 
-/// v0.122b — single-sample prediction. Mirrors Python
-/// `predict_logic` and `predict_with_active_model` exactly.
+/// v0.122b —— 单样本预测。精确镜像 Python 的 `predict_logic`
+/// 和 `predict_with_active_model`。
 ///
-/// `price` is NOT clamped here — callers are expected to pass a
-/// valid value (the Python side also doesn't clamp for the
-/// `predict_logic` path; the `predict_from_markets` loop clamps
-/// the per-market price to [0, 1] before scoring).
+/// 此处**不**对 `price` 做裁剪 —— 调用方应传入合法值
+///（Python 端在 `predict_logic` 路径上同样不裁剪；
+/// `predict_from_markets` 循环会在打分前把每个 market 的
+/// price 裁剪到 [0, 1]）。
 pub fn predict_one(weights: &InferenceWeights, price: f64, market_age_hours: f64) -> f64 {
     let inv_horizon = 1.0 / weights.horizon_norm_hours;
     let z = weights.w0 + weights.w1 * (1.0 - price) + weights.w2 * (market_age_hours * inv_horizon);
     sigmoid(z)
 }
 
-/// v0.122b — single-market input for [`predict_from_markets`].
+/// v0.122b —— [`predict_from_markets`] 的单市场输入。
 ///
-/// Lifted out of `Vec<(String, f64)>` (the current IPC shape) so
-/// the inference layer doesn't care about the wire format. The
-/// `sidecar_predict` IPC adapts the wire tuple into this struct.
+/// 从 `Vec<(String, f64)>`（当前 IPC 形状）抽离出来，以便推理层
+/// 不必关心 wire 格式。`sidecar_predict` IPC 负责把 wire 元组
+/// 适配到本结构体。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MarketInput<'a> {
     pub market_id: &'a str,
@@ -132,8 +123,8 @@ pub struct MarketInput<'a> {
     pub market_age_hours: f64,
 }
 
-/// v0.122b — per-market prediction. Mirrors the per-iteration
-/// shape produced by `predict_from_markets` in Python:
+/// v0.122b —— 单市场预测。镜像 Python 中 `predict_from_markets`
+/// 每个迭代产生的结构：
 ///   { "market_id": str, "prob": float, "confidence": float, "rationale": str }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct InferencePrediction {
@@ -143,8 +134,8 @@ pub struct InferencePrediction {
     pub rationale: String,
 }
 
-/// v0.122b — full result shape. Mirrors the JSON-RPC response
-/// object in the Python sidecar's `predict` method:
+/// v0.122b —— 完整的结果结构。镜像 Python sidecar `predict` 方法
+/// 的 JSON-RPC 响应对象：
 ///   { "predictions": [...], "model_version": str, "brier_score": float|null }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PredictResult {
@@ -153,18 +144,18 @@ pub struct PredictResult {
     pub brier_score: Option<f64>,
 }
 
-/// v0.122b — batch prediction. Mirrors `predict_from_markets`
-/// in Python. Returns [`PredictResult`] with one
-/// [`InferencePrediction`] per non-empty `market_id`.
+/// v0.122b —— 批量预测。镜像 Python 中的 `predict_from_markets`。
+/// 返回 [`PredictResult`]，每个非空 `market_id` 对应一个
+/// [`InferencePrediction`]（单条推理预测）。
 ///
-/// **Behavioural parity** (with the Python `predict_from_markets`):
-///   - empty / missing `market_id` rows are skipped
-///   - `price` is clamped to [0, 1] before scoring
-///   - `market_age_hours` is clamped to >= 0 before scoring
-///   - `prob` is rounded to 4 decimal places
-///   - `confidence` = `|price - 0.5| * 2.0`, clamped to [0, 1],
-///     rounded to 4 decimal places
-///   - `rationale` is the same string template
+/// **行为一致性**（与 Python `predict_from_markets` 对齐）：
+///   - 跳过 `market_id` 为空 / 缺失的行
+///   - 打分前将 `price` 裁剪到 [0, 1]
+///   - 打分前将 `market_age_hours` 裁剪到 >= 0
+///   - `prob` 四舍五入到 4 位小数
+///   - `confidence` = `|price - 0.5| * 2.0`，裁剪到 [0, 1]，
+///     四舍五入到 4 位小数
+///   - `rationale` 使用同样的字符串模板
 pub fn predict_from_markets(
     weights: &InferenceWeights,
     model_version: &str,
@@ -186,14 +177,12 @@ pub fn predict_from_markets(
                 + weights.w1 * (1.0 - price)
                 + weights.w2 * (age * inv_horizon);
             let prob = sigmoid(z);
-            // Confidence: 0 at price=0.5, 1 at price=0 or 1.
-            // The Python side uses `abs(price - 0.5) * 2.0`; we
-            // do the same. The `.min(1.0)` is defensive: if
-            // callers pass price=1.5 the result would be 2.0,
-            // which the Python side would also produce (it
-            // clamps price to [0,1] first, so the math never
-            // exceeds 1.0 in practice). We mirror the clamp
-            // for symmetry.
+            // 置信度：price=0.5 时为 0，price=0 或 1 时为 1。
+            // Python 端使用 `abs(price - 0.5) * 2.0`；这里保持一致。
+            // `.min(1.0)` 是防御性的：若调用方传入 price=1.5，
+            // 结果会是 2.0；Python 端也会产生同样的结果
+            //（它先把 price 裁剪到 [0,1]，
+            // 因此实际运算不会超过 1.0）。我们同步保留裁剪以保持对称。
             let confidence = ((price - 0.5).abs() * 2.0).min(1.0);
             let prob_rounded = (prob * 10_000.0).round() / 10_000.0;
             let conf_rounded = (confidence * 10_000.0).round() / 10_000.0;
@@ -215,24 +204,24 @@ pub fn predict_from_markets(
 }
 
 // =====================================================================
-// Tests
+// 测试
 // =====================================================================
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// Helper: round to 4 decimal places (matches Python `round(x, 4)`).
+    /// 辅助函数：四舍五入到 4 位小数（与 Python `round(x, 4)` 对齐）。
     fn round4(x: f64) -> f64 {
         (x * 10_000.0).round() / 10_000.0
     }
 
     #[test]
     fn sigmoid_matches_python_branches() {
-        // Python `_sigmoid`:
-        //   if z >= 0: 1 / (1 + exp(-z))
-        //   else:      exp(z) / (1 + exp(z))
-        // Verify both branches + boundary at z=0.
+        // Python `_sigmoid`（两分支 sigmoid，数值稳定）：
+        //   if z >= 0: 1 / (1 + exp(-z))    （正分支）
+        //   else:      exp(z) / (1 + exp(z))（负分支）
+        // 验证两个分支以及 z=0 边界。
         for &z in &[-100.0_f64, -10.0, -1.0, -0.5, -0.001, 0.0, 0.001, 0.5, 1.0, 10.0, 100.0] {
             let r = sigmoid(z);
             let expected = if z >= 0.0 {
@@ -250,14 +239,14 @@ mod tests {
 
     #[test]
     fn predict_one_matches_python_baseline() {
-        // Recorded from sidecar/polyrocket_sidecar/predict.py at
-        // git SHA e5a2496. Hand-computed via:
+        // 从 sidecar/polyrocket_sidecar/predict.py（git SHA e5a2496）记录。
+        // 手工计算公式：
         //   z = -0.5 + 2.0 * (1 - price) + 0.4 * (age / 168)
-        //   p = sigmoid(z)
-        // Tolerance: 1e-9 (full f64 precision).
+        //   p = sigmoid(z)（线性加权 + sigmoid）
+        // 容差：1e-9（完整 f64 精度）。
         let w = InferenceWeights::fallback();
         let cases: &[(f64, f64, f64)] = &[
-            // (price, market_age_hours, expected_prob)
+            // (价格, 市场年龄小时数, 期望概率)
             (0.5, 24.0,  0.6355),  // z = 0.5571, p ≈ 0.6357
             (0.7, 12.0,  0.5321),  // z = 0.1286, p ≈ 0.5321
             (0.3, 168.0, 0.7858),  // z = 1.3000, p ≈ 0.7858
@@ -276,10 +265,10 @@ mod tests {
 
     #[test]
     fn predict_one_extreme_values_dont_overflow() {
-        // Regression: the Python `if z >= 0` branch exists to
-        // avoid `exp(-z)` overflowing for large positive z.
-        // For z = 1000, exp(-1000) = 0, so 1/(1+0) = 1 — no
-        // overflow. Verify we don't get NaN or inf.
+        // 回归测试：Python 的 `if z >= 0` 分支存在，
+        // 是为了避免当 z 较大正数时 `exp(-z)` 溢出。
+        // 对于 z = 1000，exp(-1000) = 0，故 1/(1+0) = 1 —— 无溢出。
+        // 验证我们不会得到 NaN 或 inf。
         let w = InferenceWeights::fallback();
         let p = predict_one(&w, 0.0, 1_000_000.0);
         assert!(p.is_finite(), "got {p}");
@@ -288,7 +277,7 @@ mod tests {
 
     #[test]
     fn from_active_json_best_uses_fallback_for_missing_fields() {
-        // active.json is "best": { "w0": -0.3, "w1": 1.8 } (no w2, no horizon)
+        // active.json 是 "best": { "w0": -0.3, "w1": 1.8 }（无 w2、无 horizon）
         let v = serde_json::json!({ "w0": -0.3, "w1": 1.8 });
         let w = InferenceWeights::from_active_json_best(&v);
         assert_eq!(w.w0, -0.3);
@@ -311,9 +300,9 @@ mod tests {
 
     #[test]
     fn predict_from_markets_matches_python_shape() {
-        // Mirror a Python `predict_from_markets` call recorded at
-        // git SHA e5a2496. Active weights = fallback (no promote
-        // has happened yet). Model version = "logistic-0.1.0".
+        // 镜像 Python 中记录在 git SHA e5a2496 的 `predict_from_markets` 调用。
+        // 活跃权重 = fallback（尚未发生 promote）。
+        // 模型版本 = "logistic-0.1.0"。
         let w = InferenceWeights::fallback();
         let inputs = vec![
             MarketInput { market_id: "m1", price: 0.5, market_age_hours: 24.0 },
@@ -325,12 +314,12 @@ mod tests {
         assert_eq!(r.model_version, "logistic-0.1.0");
         assert_eq!(r.brier_score, None);
         assert_eq!(r.predictions.len(), 3, "empty market_id is filtered");
-        // m1: predict(0.5, 24) → 0.6357 → round to 0.6357
+        // m1: predict(0.5, 24) → 0.6357 → 四舍五入到 0.6357
         assert!((r.predictions[0].prob - 0.6357).abs() < 1e-3);
         assert_eq!(r.predictions[0].market_id, "m1");
-        // m2: predict(0.7, 12) → 0.5321 → round to 0.5321
+        // m2: predict(0.7, 12) → 0.5321 → 四舍五入到 0.5321
         assert!((r.predictions[1].prob - 0.5321).abs() < 1e-3);
-        // m3: predict(0.3, 168) → 0.7858 → round to 0.7858
+        // m3: predict(0.3, 168) → 0.7858 → 四舍五入到 0.7858
         assert!((r.predictions[2].prob - 0.7858).abs() < 1e-3);
     }
 
@@ -342,9 +331,9 @@ mod tests {
             MarketInput { market_id: "hi", price:  1.5, market_age_hours: 0.0 },
         ];
         let r = predict_from_markets(&w, "logistic", None, &inputs);
-        // -0.5 clamps to 0.0; same z as predict_one(0.0, 0.0) → 0.8176
+        // -0.5 裁剪到 0.0；与 predict_one(0.0, 0.0) 同 z → 0.8176
         assert!((r.predictions[0].prob - 0.8176).abs() < 1e-3);
-        //  1.5 clamps to 1.0; same z as predict_one(1.0, 0.0) → 0.3775
+        //  1.5 裁剪到 1.0；与 predict_one(1.0, 0.0) 同 z → 0.3775
         assert!((r.predictions[1].prob - 0.3775).abs() < 1e-3);
     }
 
@@ -357,13 +346,13 @@ mod tests {
             market_age_hours: -10.0,
         }];
         let r = predict_from_markets(&w, "logistic", None, &inputs);
-        // age=0 → z = -0.5 + 1.0 + 0 = 0.5 → 0.6225
+        // age=0 → z = -0.5 + 1.0 + 0 = 0.5 → 0.6225（age 被裁剪为 0）
         assert!((r.predictions[0].prob - 0.6225).abs() < 1e-3);
     }
 
     #[test]
     fn predict_from_markets_confidence_formula() {
-        // Confidence = |price - 0.5| * 2.0, clamped to [0, 1].
+        // 置信度 = |price - 0.5| * 2.0，裁剪到 [0, 1]。
         let w = InferenceWeights::fallback();
         let inputs = vec![
             MarketInput { market_id: "p5",   price: 0.5,  market_age_hours: 0.0 }, // conf=0
@@ -382,7 +371,7 @@ mod tests {
 
     #[test]
     fn predict_from_markets_rationale_format() {
-        // Rationale is the exact Python template.
+        // rationale 是 Python 中的同一字符串模板。
         let w = InferenceWeights::fallback();
         let inputs = vec![MarketInput {
             market_id: "fmt",
@@ -419,14 +408,11 @@ mod tests {
 
     #[test]
     fn fallback_matches_existing_infra_scheduler() {
-        // Regression: the existing `fallback_predict` in
-        // `infra::scheduler` mirrors Python. Make sure our
-        // `predict_one` returns the same value for the same
-        // inputs (the constant triple is the same; this is a
-        // sanity check that we didn't drift).
+        // 回归测试：`infra::scheduler` 中已有的 `fallback_predict` 与 Python 对齐。
+        // 确保我们的 `predict_one` 对相同输入返回相同值
+        //（常量三元组相同；这是一项防止漂移的健全性检查）。
         let w = InferenceWeights::fallback();
-        // (price=0.5, age=24) → recorded as 0.6357 in both
-        // the scheduler test and our test above.
+        // (price=0.5, age=24) → 在 scheduler 测试与上面的测试中均记录为 0.6357。
         let p = predict_one(&w, 0.5, 24.0);
         let expected_z = -0.5_f64 + 2.0 * 0.5 + 0.4 * (24.0 / 168.0);
         let expected = 1.0 / (1.0 + (-expected_z).exp());
@@ -435,9 +421,8 @@ mod tests {
 
     #[test]
     fn round4_helper_correctness() {
-        // Sanity: the rounding used inside predict_from_markets
-        // matches Python's round-half-to-even for the test
-        // inputs we care about.
+        // 健全性检查：predict_from_markets 内部使用的四舍五入，
+        // 对我们关心的测试输入与 Python 的 round-half-to-even 一致。
         assert_eq!(round4(0.63574), 0.6357);
         assert_eq!(round4(0.53207), 0.5321);
         assert_eq!(round4(0.78585), 0.7859);

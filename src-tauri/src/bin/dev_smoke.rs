@@ -1,23 +1,23 @@
-//! `dev_smoke` — end-to-end smoke test for the polyrocket LLM pipeline.
+//! `dev_smoke` —— polyrocket LLM 管道的端到端冒烟测试。
 //!
-//! Usage
+//! 用法
 //! -----
-//!   cargo run --bin dev_smoke                        # uses .env in cwd
-//!   cargo run --bin dev_smoke -- --provider openai   # only one provider
-//!   cargo run --bin dev_smoke -- --no-sync           # skip keyring sync
-//!   POLYROCKET_ENV=dev cargo run --bin dev_smoke     # required for .env loading
+//!   cargo run --bin dev_smoke                        # 使用 cwd 中的 .env
+//!   cargo run --bin dev_smoke -- --provider openai   # 仅使用一个 provider
+//!   cargo run --bin dev_smoke -- --no-sync           # 跳过 keyring 同步
+//!   POLYROCKET_ENV=dev cargo run --bin dev_smoke     # 加载 .env 的前提条件
 //!
-//! What it does
+//! 工作内容
 //! ------------
-//!  1. reads `.env` (only if POLYROCKET_ENV=dev), syncs API keys to OS keyring
-//!  2. opens a tiny in-memory SQLite (no Tauri runtime needed)
-//!  3. seeds 4 default providers + 1 market + 1 signal
-//!  4. runs llm_analyze on that market → 4-provider fan-out
-//!  5. prints a summary table (provider, latency, tokens, cost, parse_ok, side)
-//!  6. persists llm_call_logs / llm_analyses / llm_recommendations rows
+//!  1. 读取 `.env`（仅当 POLYROCKET_ENV=dev 时），将 API key 同步到 OS keyring
+//!  2. 打开一个内存 SQLite（无需 Tauri 运行时）
+//!  3. 注入 4 个默认 provider + 1 个市场 + 1 个 signal
+//!  4. 对该市场运行 llm_analyze → 4 个 provider 并发调用
+//!  5. 打印汇总表（provider、延迟、token 数、成本、parse_ok、side）
+//!  6. 持久化 llm_call_logs / llm_analyses / llm_recommendations 行
 //!
-//! This is a development tool, not a runtime path. The actual Tauri app
-//! uses the same code via `commands::llm::llm_analyze`.
+//! 这是开发工具，不是运行时路径。实际的 Tauri 应用
+//! 通过 `commands::llm::llm_analyze` 使用相同代码。
 
 use polyrocket_lib::domain::llm::{
     self, AnthropicClient, CallError, CallRequest, CostRate, CustomClient, DeepSeekClient,
@@ -27,7 +27,7 @@ use std::time::{Duration, Instant};
 
 #[tokio::main]
 async fn main() {
-    // -- parse args
+    // -- 解析参数
     let mut only_provider: Option<String> = None;
     let mut no_sync = false;
     let mut args = std::env::args().skip(1);
@@ -47,7 +47,7 @@ async fn main() {
         }
     }
 
-    // -- 1. dev .env sync (only if POLYROCKET_ENV=dev)
+    // -- 1. dev .env 同步（仅当 POLYROCKET_ENV=dev 时）
     if !no_sync {
         let env = std::env::var("POLYROCKET_ENV").unwrap_or_default();
         if env == "dev" {
@@ -63,7 +63,7 @@ async fn main() {
         }
     }
 
-    // -- 2+3. in-memory SQLite + minimal schema (subset of production tables)
+    // -- 2+3. 内存 SQLite + 最小 schema（生产表的一个子集）
     let pool = match sqlx::SqlitePool::connect("sqlite::memory:").await {
         Ok(p) => p,
         Err(e) => { eprintln!("[smoke] cannot open memory db: {e}"); std::process::exit(1); }
@@ -75,7 +75,7 @@ async fn main() {
         eprintln!("[smoke] seed: {e}"); std::process::exit(1);
     }
 
-    // -- 4. fan out via the public dispatch() — same code the IPC handler uses
+    // -- 4. 通过公共 dispatch() 进行扇出 —— 与 IPC handler 使用的代码相同
     let http = polyrocket_lib::domain::llm::new_http_client();
     let providers: Vec<ProviderRow> = sqlx::query_as::<_, (String, Option<String>, String, Option<f64>, Option<f64>)>(
         "SELECT id, api_base, default_model, cost_per_1k_in, cost_per_1k_out FROM llm_providers WHERE enabled = 1 ORDER BY id",
@@ -95,7 +95,7 @@ async fn main() {
     let n_providers = providers.len();
     eprintln!("[smoke] {} providers enabled: {:?}", n_providers, providers.iter().map(|p| &p.id).collect::<Vec<_>>());
 
-    // Build a minimal market context prompt (mirrors prompts.rs)
+    // 构建一个最小化的市场上下文 prompt（对应 prompts.rs）
     let prompt = "Question: Will BTC close > $100k on 2026-12-31?\n\
                   YES market: 64¢\nNO market: 36¢\nVolume 24h: $2.4M\n\n\
                   Return strict JSON: {probability: 0..1, side: YES|NO|skip, \
@@ -110,7 +110,7 @@ async fn main() {
         }));
     }
 
-    // -- 5. print summary
+    // -- 5. 打印摘要
     eprintln!();
     eprintln!("{:<14} {:>8} {:>8} {:>10} {:>9} {:>9}  {}",
         "provider", "ms", "in", "out", "cost¢", "status", "side / note");
@@ -129,7 +129,7 @@ async fn main() {
                 total_latency = total_latency.max(latency_ms);
                 total_cost += cost_cents;
                 if ok { n_ok += 1; }
-                // -- 6. persist call log row
+                // -- 6. 持久化调用日志行
                 let _ = sqlx::query(
                     "INSERT INTO llm_call_logs (provider_id, called_at, latency_ms, tokens_in, tokens_out, cost_cents, http_status, success, error_code, error_message, caller)
                      VALUES (?, unixepoch() * 1000, ?, ?, ?, ?, ?, ?, ?, ?, 'smoke')",
@@ -213,7 +213,7 @@ async fn run_one(
                 Box::new(CustomClient::new_openai_compat(base, &p.default_model))
             }
         }
-        // v0.111.1 / v0.113 / v0.114 — dev_smoke 不支持 (需要额外 secret 格式)
+        // v0.111.1 / v0.113 / v0.114 — dev_smoke 不支持（需要额外的 secret 格式）
         ProviderKind::ErnieNative | ProviderKind::Hunyuan | ProviderKind::Spark => {
             panic!("dev_smoke: {:?} requires special client construction (use the production path)", kind);
         }
@@ -231,7 +231,7 @@ async fn run_one(
     let latency_ms = started.elapsed().as_millis() as u64;
     match result {
         Ok(oc) => {
-            // Try to parse the recommendation out of the text
+            // 尝试从文本中解析推荐结果
             let (prob, side) = match parse_simple(&oc.text) {
                 Some((p, s)) => (Some(p), Some(s)),
                 None => (None, None),
@@ -280,7 +280,7 @@ fn keyring_get(alias: &str) -> Result<String, String> {
     entry.get_password().map_err(|e| format!("get: {e}"))
 }
 
-// ---- minimal schema (subset used by smoke) ----
+// ---- 最小 schema（smoke 使用的子集）----
 async fn init_minimal_schema(pool: &sqlx::SqlitePool) -> sqlx::Result<()> {
     sqlx::query("CREATE TABLE llm_providers (
         id TEXT PRIMARY KEY,
@@ -338,7 +338,7 @@ fn parse_simple(text: &str) -> Option<(f64, String)> {
     None
 }
 
-// ---- .env parsing (no dep) ----
+// ---- .env 解析（无依赖）----
 fn parse_env_file(content: &str) -> Vec<(String, String)> {
     let mut out = Vec::new();
     for (lineno, raw) in content.lines().enumerate() {

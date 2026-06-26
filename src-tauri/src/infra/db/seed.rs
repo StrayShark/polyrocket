@@ -1,18 +1,18 @@
-//! L4 — Database seeder (idempotent).
+//! L4 —— 数据库种子填充器（幂等）。
 //!
-//! Reads `domain::seed::SeedBundle::demo()` and applies each row to the
-//! SQLite pool. Idempotent: each row uses a fixed primary key, so calling
-//! `apply_seed` twice produces the same DB state (INSERT OR REPLACE).
+//! 读取 `domain::seed::SeedBundle::demo()` 并把每条 row 应用到
+//! SQLite pool。幂等：每条 row 都使用固定主键,因此连续调用两次
+//! `apply_seed` 会产生相同的 DB 状态（INSERT OR REPLACE）。
 //!
-//! Trigger: called from `init_pool` on first launch (auto), and from
-//! `commands::seed::seed_demo_data(force=true)` for explicit re-seed.
+//! 触发方式：首次启动时由 `init_pool` 自动调用,也可由
+//! `commands::seed::seed_demo_data(force=true)` 显式重新填充。
 
 use crate::domain::seed::{SeedBundle, SEED_AUDIT_ACTION, SEED_NOW_MS};
 use crate::infra::error::AppResult;
 use sqlx::SqlitePool;
 
-/// Returns true if the DB already has demo data (>=1 wallet, >=1 market,
-/// >=1 bet). Used to skip the auto-seed on subsequent boots.
+/// 若 DB 已有 demo 数据（>=1 个 wallet、>=1 个 market、
+/// >=1 个 bet）则返回 true。用于在后续启动时跳过自动 seed。
 pub async fn is_seeded(pool: &SqlitePool) -> AppResult<bool> {
     let wallets: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM wallets")
         .fetch_one(pool)
@@ -26,11 +26,11 @@ pub async fn is_seeded(pool: &SqlitePool) -> AppResult<bool> {
     Ok(wallets > 0 && markets > 0 && bets > 0)
 }
 
-/// Apply the canonical demo bundle to the DB. Returns the number of rows
-/// inserted/replaced across all tables.
+/// 将标准 demo bundle 写入 DB。返回所有表中
+/// 插入/替换的 row 总数。
 ///
-/// `force=true` always re-applies (useful for the dev "reset demo data"
-/// button); `force=false` is a no-op if the DB is already seeded.
+/// `force=true` 总是重新写入（用于开发用的 "reset demo data" 按钮）;
+/// `force=false` 时,若 DB 已被 seed 则为 no-op。
 pub async fn apply_seed(pool: &SqlitePool, force: bool) -> AppResult<usize> {
     if !force && is_seeded(pool).await? {
         return Ok(0);
@@ -86,9 +86,9 @@ pub async fn apply_seed(pool: &SqlitePool, force: bool) -> AppResult<usize> {
     }
 
     // 3. Signals
-    // We need to recover the auto-increment IDs since bets reference them.
-    // Strategy: wipe and re-insert signals so the IDs are deterministic
-    // (they don't appear in any bet.signal_id in the demo).
+    // 我们需要恢复自增 ID，因为 bets 引用了它们。
+    // 策略：清空并重新插入 signals，让 ID 变得确定
+    //（在 demo 中这些 ID 不会出现在任何 bet.signal_id）。
     sqlx::query("DELETE FROM signals").execute(pool).await?;
     for s in &bundle.signals {
         sqlx::query(
@@ -181,7 +181,7 @@ pub async fn apply_seed(pool: &SqlitePool, force: bool) -> AppResult<usize> {
         total += 1;
     }
 
-    // 7. Audit marker so the seeder is observable in the Audit page.
+    // 7. 写入 audit 标记,使 seeder 行为在 Audit 页可见。
     sqlx::query(
         "INSERT INTO audit_log (at, actor, action, target, payload, result)
          VALUES (?, 'system', ?, 'demo_data', ?, 'ok')",
@@ -207,9 +207,9 @@ mod tests {
             .connect("sqlite::memory:")
             .await
             .expect("in-memory sqlite");
-        // Apply the full schema (the same one Drizzle would create).
-        // We inline the most important tables; tests will only touch
-        // these, so it's fine to skip the rest.
+        // 应用完整 schema（与 Drizzle 创建的一致）。
+        // 我们内联了最关键的表；测试只会用到它们,
+        // 因此其余的跳过即可。
         for stmt in TEST_SCHEMA {
             sqlx::query(stmt).execute(&pool).await.expect(stmt);
         }
@@ -276,25 +276,23 @@ mod tests {
             tx_hash TEXT,
             notes TEXT
         )",
-        // v0.44 — paper_fills table. Mirror of `bets` minus
-        // the `tx_hash` (paper doesn't sign anything). The
-        // executor writes here when
-        // `ExecutorConfig.paper_mode = true`. The schema is
-        // a strict superset of the bet fields used for
-        // audit, with an explicit `mirror_id` link so the
-        // L1 can show "this fill would have come from this
-        // copy_target event".
+        // v0.44 —— paper_fills 表。`bets` 的镜像,
+        // 去掉 `tx_hash`（paper 模式不签名）。
+        // 当 `ExecutorConfig.paper_mode = true` 时,
+        // executor 会写入这里。Schema 是 bet
+        // 字段的严格超集,用于审计,并显式
+        // 带有 `mirror_id` 关联,方便 L1 展示
+        // "该 fill 来自某条 copy_target 事件"。
         //
-        // v0.45a — added settlement columns:
-        //   settled_at    — when we reconciled against
-        //                   markets.resolved
+        // v0.45a —— 新增结算列:
+        //   settled_at    — 我们对账 markets.resolved 的时间
         //   resolved_outcome — 'YES' | 'NO' | NULL
-        //   won           — 1 if side matched outcome, 0
-        //                   otherwise, NULL if not settled
-        //   pnl_usdc      — settled PnL in USDC (NULL if
-        //                   not settled)
-        // The reconciler (v0.45a) updates these fields when
-        // a market becomes resolved.
+        //   won           — side 与 outcome 匹配为 1,
+        //                   否则为 0,未结算时为 NULL
+        //   pnl_usdc      — 结算后的 PnL（USDC;
+        //                   未结算时为 NULL）
+        // v0.45a 的对账器在 market 变为 resolved
+        // 时更新这些字段。
         "CREATE TABLE IF NOT EXISTS paper_fills (
             id TEXT PRIMARY KEY,
             mirror_id TEXT NOT NULL,
@@ -309,24 +307,20 @@ mod tests {
             won INTEGER,
             pnl_usdc TEXT
         )",
-        // v0.47a — price_snapshots table. Records the
-        // current best-bid / best-ask (and derived
-        // mid_price) for each market every time
-        // `sync_markets` runs. Pre-v0.46, the v0.46
-        // backtest engine had to fall back to a
-        // degenerate proxy (price=0.5) because we
-        // had no historical price snapshots. v0.47
-        // makes the backtest real: the
+        // v0.47a —— price_snapshots 表。每次
+        // `sync_markets` 运行都记录每个 market 的
+        // 当前 best-bid / best-ask（以及派生的
+        // mid_price）。pre-v0.46 时,v0.46 回测引擎
+        // 只能用退化的代理值（price=0.5）,因为
+        // 我们没有历史价格快照。v0.47 让回测变真:
         // `list_resolved_markets_for_backtest` IPC
-        // now joins price_snapshots to surface the
-        // most recent price observed before the
-        // market's resolution.
+        // 现在能 join price_snapshots,以给出
+        // market 解决前观察到的最新价格。
         //
-        // One row per (market_id, captured_at).
-        // captured_at is unix-ms; we index it for
-        // the "most recent snapshot per market"
-        // query. Old snapshots are pruned by the
-        // v0.47 retention sweep (default 30 days).
+        // 每个 (market_id, captured_at) 对应一行。
+        // captured_at 是 unix 毫秒;为 "每个 market
+        // 的最新快照" 查询建立索引。旧快照由
+        // v0.47 retention 扫描清理（默认 30 天）。
         "CREATE TABLE IF NOT EXISTS price_snapshots (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             market_id TEXT NOT NULL,
@@ -390,12 +384,12 @@ mod tests {
         let pool = empty_pool().await;
         let first = apply_seed(&pool, false).await.expect("first seed");
         let second = apply_seed(&pool, false).await.expect("second seed");
-        // Second call with force=false should be a no-op.
+        // 第二次调用 force=false 应为 no-op。
         assert_eq!(second, 0, "second seed should be a no-op");
         assert!(first > 0, "first seed should insert rows");
         let bet_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bets")
             .fetch_one(&pool).await.unwrap();
-        // Row count must be unchanged.
+        // 行数必须保持不变。
         assert!(bet_count >= 15, "expected >=15 bets after idempotent re-seed, got {bet_count}");
     }
 
@@ -403,7 +397,7 @@ mod tests {
     async fn apply_seed_force_replaces_rows() {
         let pool = empty_pool().await;
         apply_seed(&pool, false).await.expect("first");
-        // Wipe one table by hand; force=true should re-insert.
+        // 手工清空一张表;force=true 应能重新插入。
         sqlx::query("DELETE FROM copy_events").execute(&pool).await.unwrap();
         let forced = apply_seed(&pool, true).await.expect("force seed");
         assert!(forced > 0);

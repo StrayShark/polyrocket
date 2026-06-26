@@ -1,13 +1,12 @@
-//! Provider dispatch — key rotation + retry/backoff + per-call log.
+//! Provider dispatch —— key 轮转 + 重试/退避 + 每次调用日志。
 //!
-//! Public surface
+//! 对外接口
 //! --------------
-//! - [`dispatch`] — given a list of eligible keys (alias + id) for a
-//!   provider, pick the highest-priority enabled one, try the call,
-//!   on retryable error advance to the next key. 429/5xx/timeout are
-//!   retryable; 401/403/parse/model_not_found stop immediately.
-//! - [`RetryPolicy`] — max attempts, base delay, max delay, jitter.
-//! - [`CallLog`] — shape of one row written to `llm_call_logs`.
+//! - [`dispatch`] —— 给定某 provider 的可用 key 列表（alias + id），
+//!   选取优先级最高的已启用 key 进行调用；遇到可重试错误时切换下一个 key。
+//!   429/5xx/timeout 为可重试；401/403/parse/model_not_found 立即停止。
+//! - [`RetryPolicy`] —— 最大尝试次数、基础延迟、最大延迟、抖动。
+//! - [`CallLog`] —— 写入 `llm_call_logs` 的一行结构。
 
 use crate::platform::keyring;
 use crate::domain::llm::{CallError, CallRequest, CostRate, LlmClient, err};
@@ -27,7 +26,7 @@ pub struct KeyHandle {
 }
 
 /// 重试策略。`max_attempts` 是**总尝试次数**（跨 key 轮转也算 attempt），不是
-/// per-key。
+/// per-key（每次 key 轮转算一次 attempt）。
 ///
 /// **`base_delay` 800ms / `max_delay` 8s 是默认值**：适合大多数 LLM call。
 /// 长分析（kernel SHAP 解释）可以由 provider 配置覆盖。
@@ -56,7 +55,7 @@ impl RetryPolicy {
         }
     }
 
-    /// Exponential backoff with full jitter (AWS pattern).
+    /// 指数退避 + full jitter (AWS 模式)。
     pub fn delay_for(&self, attempt: u32) -> Duration {
         let exp = 2u64.saturating_pow(attempt.saturating_sub(1));
         let raw = self.base_delay.saturating_mul(exp as u32);
@@ -129,7 +128,7 @@ pub struct DispatchOutcome {
     pub log: CallLog,
 }
 
-/// Try a call against the given key list, rotating on retryable errors.
+/// 对给定的 key 列表尝试调用,在可重试错误时轮换下一个 key。
 pub async fn dispatch(
     client: &dyn LlmClient,
     http: &reqwest::Client,
@@ -249,7 +248,7 @@ pub async fn dispatch(
         }
     }
 
-    // All attempts failed.
+    // 所有 attempt 均失败（落到此处的「全部失败」分支）。
     let final_err = last_err.unwrap_or_else(|| CallError {
         http_status: None,
         code: err::UNKNOWN,

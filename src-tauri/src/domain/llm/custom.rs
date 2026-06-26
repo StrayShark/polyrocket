@@ -1,5 +1,5 @@
-//! Custom OpenAI-compat proxy (OpenRouter, Azure OpenAI, self-hosted).
-//! `provider_kind` = `openai_compat` or `anthropic_compat`.
+//! 自定义 OpenAI 兼容 proxy (OpenRouter、Azure OpenAI、自部署)。
+//! `provider_kind` = `openai_compat` 或 `anthropic_compat`。
 //!
 //! 一个 client 走两种协议（chat/completions 或 messages），按 `provider_kind`
 //! 字段 dispatch 到 `call_openai` / `call_anthropic` 私有方法。
@@ -16,7 +16,7 @@ use serde_json::Value;
 ///
 /// **`api_base`** 必须以 `https://` 开头 + 不带尾 `/`。
 pub struct CustomClient {
-    pub provider_kind: ProviderKind, // OpenaiCompat or AnthropicCompat
+    pub provider_kind: ProviderKind, // OpenaiCompat 或 AnthropicCompat
     pub api_base: String,
     pub model: String,
 }
@@ -112,7 +112,7 @@ impl CustomClient {
         req: &CallRequest,
         cost: CostRate,
     ) -> Result<crate::domain::llm::CallOutcome, CallError> {
-        // Same wire as native Anthropic, just different base URL.
+        // 与原生 Anthropic 同一 wire 格式，仅 base URL 不同。
         let url = format!("{}/v1/messages", self.api_base.trim_end_matches('/'));
         let (system, messages) = split_system(&req.messages);
         let mut body = serde_json::json!({

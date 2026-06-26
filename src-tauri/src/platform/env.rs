@@ -1,36 +1,36 @@
-//! L5 — Environment + dev .env sync.
+//! L5 —— 环境与开发态 .env 同步。
 //!
-//! Two responsibilities, separated by purpose:
-//!   1. `parse_env_file` — pure parser, no IO side effects, no env access.
-//!      Used at startup (dev only) and by tests.
-//!   2. `maybe_load_dev_env` + `sync_env_to_keyring` — read the
-//!      `POLYROCKET_ENV` / `POLYROCKET_KEYRING_ONLY` gates, then
-//!      optionally seed the OS keyring from `.env`.
+//! 两项职责,按用途分离:
+//!   1. `parse_env_file` —— 纯解析器,无 IO 副作用,无环境访问。
+//!      在启动时(仅开发态)以及测试中使用。
+//!   2. `maybe_load_dev_env` + `sync_env_to_keyring` —— 读取
+//!      `POLYROCKET_ENV` / `POLYROCKET_KEYRING_ONLY` 开关,然后
+//!      可选地从 `.env` 向 OS 钥匙串播种。
 //!
-//! Gate rules (governance §11)
+//! 开关规则(治理规范 §11)
 //! -------------------------
-//! - `POLYROCKET_ENV=dev` AND `POLYROCKET_KEYRING_ONLY=0` → read `.env`,
-//!   write every recognised `*_API_KEY` to the keyring under its
-//!   canonical alias **only if that alias is currently empty**.
-//! - In any other combination → no-op. The client-paste path
-//!   (Settings → LLM Management → Add key) is the only source of truth.
+//! - `POLYROCKET_ENV=dev` 且 `POLYROCKET_KEYRING_ONLY=0` → 读取 `.env`,
+//!   把每个识别到的 `*_API_KEY` 写入钥匙串的规范别名,
+//!   **仅在该别名当前为空时**。
+//! - 其他任何组合 → 无操作。客户端粘贴路径
+//!   (Settings → LLM Management → Add key) 是唯一的可信源。
 
 use std::time::Duration;
 use std::env;
 use crate::platform::keyring;
 
 // ============================================================
-// 1. Pure .env parser (no IO side effects, no env access)
+// 1. 纯 .env 解析器(无 IO 副作用,无环境访问)
 // ============================================================
 
-/// Parse a `.env` file into `(key, value)` pairs.
+/// 将 `.env` 文件解析为 `(key, value)` 对。
 ///
-/// Rules:
-/// - empty lines and `# comments` are skipped
-/// - `export FOO=bar` is accepted (leading `export ` stripped)
-/// - surrounding `"` or `'` quotes are stripped
-/// - empty values are skipped
-/// - lines without `=` are skipped with a tracing::warn
+/// 规则:
+/// - 空行和 `# 注释` 被跳过
+/// - 接受 `export FOO=bar`(剥离前缀 `export `)
+/// - 剥离首尾的 `"` 或 `'` 引号
+/// - 空值被跳过
+/// - 不含 `=` 的行被跳过,并打印 `tracing::warn`
 pub fn parse_env_file(path: &std::path::Path) -> Vec<(String, String)> {
     let Ok(content) = std::fs::read_to_string(path) else {
         return vec![];
@@ -64,20 +64,20 @@ pub fn parse_env_file(path: &std::path::Path) -> Vec<(String, String)> {
 }
 
 // ============================================================
-// 2. Dev-mode .env → keyring sync (gated)
+// 2. 开发态 .env → 钥匙串同步(受开关控制)
 // ============================================================
 
-/// Read the gate env vars. Returns true when one of:
-///   - `POLYROCKET_ENV == "dev"` AND `POLYROCKET_KEYRING_ONLY != "1"` (legacy)
-///   - keyring is disabled (`POLYROCKET_USE_KEYRING != "1"`) — env-only mode
-///     is now the v0.119 default, and `.env` is the source of truth for
-///     ALL secrets including LLM API keys.
+/// 读取开关环境变量。满足以下任一条件时返回 true:
+///   - `POLYROCKET_ENV == "dev"` 且 `POLYROCKET_KEYRING_ONLY != "1"`(旧逻辑)
+///   - 钥匙串被禁用(`POLYROCKET_USE_KEYRING != "1"`)—— env-only 模式
+///     现在是 v0.119 的默认,`.env` 是所有密钥(包括 LLM API key)
+///     的唯一可信源。
 ///
-/// v0.119 — second branch added because the env-only mode is the new
-/// default: when keyring is bypassed, `.env` MUST be read into process
-/// env so downstream `std::env::var` lookups (LLM dispatch, PM CLOB,
-/// proxy endpoints) can find them. Without this, `MINIMAX_API_KEY`
-/// stays unset and the LLM call fails with "env unset".
+/// v0.119 —— 新增第二条分支,因为 env-only 模式已成为新默认:
+/// 当绕过钥匙串时,必须把 `.env` 读入进程环境,
+/// 以便下游的 `std::env::var` 查询(LLM 分发、PM CLOB、
+/// 代理端点)能够找到它们。否则 `MINIMAX_API_KEY`
+/// 会保持未设置,LLM 调用将以 "env unset" 失败。
 fn is_dev_sync_enabled() -> bool {
     let env_name = env::var("POLYROCKET_ENV").unwrap_or_default();
     let keyring_only = env::var("POLYROCKET_KEYRING_ONLY")
@@ -87,38 +87,35 @@ fn is_dev_sync_enabled() -> bool {
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
     if env_name == "dev" && !keyring_only { return true; }
-    if !use_keyring { return true; } // env-only mode is the v0.119 default
+    if !use_keyring { return true; } // env-only 模式是 v0.119 的默认
     false
 }
 
 // ============================================================
-// v0.122a — kill switch for the Python sidecar migration.
+// v0.122a —— Python sidecar 迁移的紧急停止开关。
 //
-// `POLYROCKET_DISABLE_SIDECAR=1` short-circuits every sidecar
-// Tauri command (predict / train_job / promote_model / etc.)
-// with a clear "disabled" error. Used as the rollback hatch
-// during the v0.122b-f incremental port; after v0.122g the
-// flag is dead and the sidecar process is gone entirely.
+// `POLYROCKET_DISABLE_SIDECAR=1` 会短路每个 sidecar Tauri 命令
+// (predict / train_job / promote_model 等),返回清晰的 "disabled" 错误。
+// 用作 v0.122b-f 增量迁移期间的回退出口;v0.122g 之后
+// 该标志失效,sidecar 进程完全消失。
 //
-// Semantics timeline:
-//   v0.122a (now)    : flag unset → Python sidecar (current).
-//                      flag set   → "sidecar disabled" error.
-//   v0.122b-v0.122f  : flag unset → new Rust impl (per port).
-//                      flag set   → fall back to Python for
-//                                   any unported method.
-//   v0.122g+         : flag is no longer read (Python gone).
+// 语义时间线:
+//   v0.122a(当前)    : 标志未设 → Python sidecar(当前)。
+//                      标志已设   → "sidecar disabled" 错误。
+//   v0.122b-v0.122f  : 标志未设 → 新的 Rust 实现(按迁移方法)。
+//                      标志已设   → 任何未迁移的方法回退到 Python。
+//   v0.122g+         : 不再读取该标志(Python 已消失)。
 //
-// True values: "1", "true", "yes" (case-insensitive).
+// 真值: "1"、"true"、"yes"(大小写不敏感)。
 // ============================================================
 
-/// Returns true when the user has explicitly set
-/// `POLYROCKET_DISABLE_SIDECAR=1` to opt out of the Python sidecar.
+/// 当用户显式设置 `POLYROCKET_DISABLE_SIDECAR=1`
+/// 以退出 Python sidecar 时返回 true。
 ///
-/// **v0.122a**: default = false. The Python sidecar remains the
-/// authoritative path for all 11 sidecar methods.
-/// **v0.122b+**: default = true (after the migration lands).
-/// Until then, callers see "sidecar disabled" and can unset the
-/// flag to fall back to Python for the unported methods.
+/// **v0.122a**: 默认 = false。Python sidecar 仍是所有 11 个 sidecar 方法的权威路径。
+/// **v0.122b+**: 默认 = true(迁移完成后生效)。
+/// 在此之前,调用方看到 "sidecar disabled",可通过取消该标志
+/// 回退到 Python 处理尚未迁移的方法。
 pub fn is_sidecar_disabled() -> bool {
     env::var("POLYROCKET_DISABLE_SIDECAR")
         .map(|v| {
@@ -128,27 +125,26 @@ pub fn is_sidecar_disabled() -> bool {
         .unwrap_or(false)
 }
 
-/// Canonical error string returned by every sidecar IPC entry point
-/// when [`is_sidecar_disabled`] returns true. The phrasing is
-/// frozen — the v0.122 integration test matches it.
+/// 当 [`is_sidecar_disabled`] 返回 true 时,
+/// 每个 sidecar IPC 入口点返回的标准错误字符串。该措辞已冻结
+/// —— v0.122 集成测试匹配此字符串。
 pub const SIDECAR_DISABLED_MSG: &str =
     "sidecar disabled (POLYROCKET_DISABLE_SIDECAR=1; v0.122+ migration in progress)";
 
-/// Entry point: called from `lib.rs::run()` setup hook.
-/// Reads `.env` (if it exists), then:
-///   1. **v0.119** — exports loaded keys into the process env via
-///      `std::env::set_var` so downstream code (LLM dispatch, PM CLOB
-///      status, etc.) can `std::env::var` them directly. Previously
-///      `.env` was only used to seed the keyring; the keyring was then
-///      bypassed in v0.119 env-only mode — so the process env stayed
-///      empty and everything failed. This fixes that regression.
-///   2. Mirrors recognised keys to the OS keyring for backwards
-///      compat with the v0.117 client-paste path. PM creds always
-///      synced; LLM keys gated by `POLYROCKET_ENV=dev`.
+/// 入口函数:从 `lib.rs::run()` 的 setup 钩子调用。
+/// 读取 `.env`(若存在),然后:
+///   1. **v0.119** —— 通过 `std::env::set_var` 将加载的键
+///      导出到进程环境,以便下游代码(LLM 分发、PM CLOB
+///      状态等)可以直接 `std::env::var`。之前 `.env` 仅用于
+///      向钥匙串播种;而在 v0.119 env-only 模式下钥匙串被绕过
+///      —— 导致进程环境一直为空,所有操作失败。本函数修复了该回归。
+///   2. 将识别到的键镜像到 OS 钥匙串,以向后兼容
+///      v0.117 客户端粘贴路径。PM 凭据始终同步;
+///      LLM 键受 `POLYROCKET_ENV=dev` 开关控制。
 ///
-/// v0.119 — walks up from CWD to find `.env`. When `cargo run` is invoked
-/// from `src-tauri/`, CWD is `src-tauri/` but the project `.env` lives
-/// one level up. Also honors `POLYROCKET_ENV_FILE` if set.
+/// v0.119 —— 从 CWD 向上查找 `.env`。当从 `src-tauri/` 调用
+/// `cargo run` 时,CWD 是 `src-tauri/`,但项目 `.env` 在上一级。
+/// 同时支持环境变量 `POLYROCKET_ENV_FILE`(若已设置)。
 pub fn maybe_load_dev_env() {
     let env_path = find_env_file();
     let Some(env_path) = env_path else {
@@ -160,29 +156,28 @@ pub fn maybe_load_dev_env() {
     };
     let pairs = parse_env_file(&env_path);
 
-    // v0.119 — Layer 1.5: export loaded keys into process env.
-    // PM keys are always injected. LLM keys only injected when the dev
-    // sync gate is open (POLYROCKET_ENV=dev AND POLYROCKET_KEYRING_ONLY!=1)
-    // — same gating as the legacy keyring-sync path so prod never
-    // accidentally reads dev creds.
+    // v0.119 —— Layer 1.5: 把加载的键导出到进程环境。
+    // PM 键始终注入。LLM 键仅在 dev 同步开关打开时注入
+    // (POLYROCKET_ENV=dev 且 POLYROCKET_KEYRING_ONLY!=1)
+    // —— 与旧版钥匙串同步路径使用相同的开关,确保生产环境
+    // 绝不会意外读取开发态凭据。
     let dev_mode = is_dev_sync_enabled();
     let mut injected = 0usize;
     for (k, v) in &pairs {
         let is_pm = k.starts_with("POLYMARKET_") || k.starts_with("POLYROCKET_CLOB_");
         let is_llm = k.ends_with("_API_KEY") || k.ends_with("_API_SECRET") || k.ends_with("_BASE_URL");
-        // v0.124 — also forward the proxy URL. The HTTP client
-        // factory reads `POLYROCKET_PROXY` to route through the
-        // user's local proxy (needed for gamma-api.polymarket.com
-        // + clob.polymarket.com from networks that block direct
-        // outbound to those hosts). Always inject so the sync
-        // IPC and the wallet balance IPC both work without the
-        // user having to remember to export it in their shell.
+        // v0.124 —— 同时转发代理 URL。HTTP 客户端工厂
+        // 读取 `POLYROCKET_PROXY` 以通过用户的本地代理路由
+        // (从屏蔽直接出站到那些主机的网络访问
+        // gamma-api.polymarket.com + clob.polymarket.com 时需要)。
+        // 始终注入,使 sync IPC 和 wallet balance IPC
+        // 都无需用户在 shell 中手动 export 即可工作。
         let is_proxy = k == "POLYROCKET_PROXY";
         if is_pm || is_proxy {
-            // Always inject — env-only is the default mode.
+            // 始终注入 —— env-only 是默认模式。
             if env::var(k).is_err() {
-                // env::set_var is unsafe in newer Rust; guard with explicit unsafe block
-                // (or use #[allow] since this is single-threaded startup).
+                // env::set_var 在新版 Rust 中是 unsafe;用显式 unsafe 块保护
+                // (或使用 #[allow],因为这是单线程启动)。
                 #[allow(unused_unsafe)]
                 unsafe { env::set_var(k, v); }
                 injected += 1;
@@ -202,10 +197,10 @@ pub fn maybe_load_dev_env() {
         dev_mode
     );
 
-    // Layer 1: PM credentials — always sync (not gated).
+    // Layer 1: PM 凭据 —— 始终同步(不受开关控制)。
     sync_pm_to_keyring(&pairs);
 
-    // Layer 2: LLM API keys — gated by dev mode.
+    // Layer 2: LLM API 键 —— 受 dev 模式开关控制。
     if !dev_mode {
         tracing::info!(
             "startup: LLM .env sync disabled (POLYROCKET_ENV / POLYROCKET_KEYRING_ONLY)"
@@ -220,21 +215,19 @@ pub fn maybe_load_dev_env() {
     sync_llm_to_keyring(&pairs);
 }
 
-/// Find the project's `.env` file. Search order:
-///   1. `POLYROCKET_ENV_FILE` env var (if set + exists)
+/// 查找项目的 `.env` 文件。搜索顺序:
+///   1. `POLYROCKET_ENV_FILE` 环境变量(若已设置且文件存在)
 ///   2. CWD/.env
-///   3. Walk up parent directories from CWD, looking for `.env` at each
-///      level — stop at filesystem root or after 8 levels.
-///   4. `~/global_env/.env` (cross-project shared credentials)
-///   5. give up.
+///   3. 从 CWD 向上逐层查找父目录中的 `.env` —— 在文件系统根或 8 层后停止
+///   4. `~/global_env/.env`(跨项目共享凭据)
+///   5. 放弃。
 ///
-/// Once a path is found, merge with `~/global_env/.env` so PM credentials
-/// (and any other keys missing locally) come from the global source.
-/// The merged result is written to a per-process temp file and returned;
-/// `parse_env_file` reads from that.
+/// 一旦找到路径,会与 `~/global_env/.env` 合并,以使 PM 凭据
+///(以及其他本地缺失的键)来自全局源。合并结果写入
+/// 一个 per-process 临时文件并返回;`parse_env_file` 从该文件读取。
 fn find_env_file() -> Option<std::path::PathBuf> {
     let mut local: Option<std::path::PathBuf> = None;
-    // 1. explicit override
+    // 1. 显式覆盖
     if let Ok(p) = env::var("POLYROCKET_ENV_FILE") {
         let path = std::path::PathBuf::from(p);
         if path.exists() { local = Some(path); }
@@ -246,7 +239,7 @@ fn find_env_file() -> Option<std::path::PathBuf> {
             if cand.exists() { local = Some(cand); }
         }
     }
-    // 3. walk up
+    // 3. 向上遍历
     if local.is_none() {
         if let Ok(cwd) = env::current_dir() {
             let mut dir = cwd.as_path();
@@ -260,7 +253,7 @@ fn find_env_file() -> Option<std::path::PathBuf> {
             }
         }
     }
-    // 4. global fallback (cross-project shared creds)
+    // 4. 全局回退(跨项目共享凭据)
     let global = env::var("HOME").ok()
         .map(|h| std::path::PathBuf::from(h).join("global_env").join(".env"))
         .filter(|p| p.exists());
@@ -270,16 +263,16 @@ fn find_env_file() -> Option<std::path::PathBuf> {
         (Some(l), None) => Some(l.clone()),
         (None, Some(g)) => Some(g.clone()),
         (Some(l), Some(g)) => {
-            // Merge: local wins on conflict, but PM keys + LLM keys that are
-            // missing locally come from global. Writes to a temp file so
-            // parse_env_file doesn't need a merge API.
+            // 合并:本地在冲突时胜出,但本地缺失的 PM 键和 LLM 键
+            // 来自全局。写入临时文件,以使 parse_env_file
+            // 不需要合并 API。
             merge_env_files(l, g)
         }
     }
 }
 
-/// Merge local .env with global .env, writing to a temp file. Local wins on
-/// conflicts; missing keys come from global. Returns the temp file path.
+/// 将本地 .env 与全局 .env 合并,写入临时文件。本地键在冲突时胜出;
+/// 全局键用于填补缺失。返回临时文件路径。
 fn merge_env_files(local: &std::path::Path, global: &std::path::Path) -> Option<std::path::PathBuf> {
     let local_pairs = parse_env_file(local);
     let global_pairs = parse_env_file(global);
@@ -326,15 +319,15 @@ fn merge_env_files(local: &std::path::Path, global: &std::path::Path) -> Option<
     }
 }
 
-/// Mirror Polymarket CLOB credentials from `.env` to keychain.
-/// Runs on every boot regardless of dev-mode gate — users explicitly
-/// author PM keys in `.env` and expect them to flow into the keychain
-/// automatically. Skips any alias already populated (never overwrites).
+/// 将 Polymarket CLOB 凭据从 `.env` 镜像到钥匙串。
+/// 每次启动都会执行,不受 dev 模式开关影响 —— 用户显式
+/// 在 `.env` 中编写 PM 密钥,并期望它们自动流入钥匙串。
+/// 跳过任何已经填充的别名(永不覆盖)。
 ///
-/// v0.119 — when `is_disabled()` (default), this is a no-op. The
-    /// secrets live in `.env` only, read directly via `keyring::get_key`'s
-    /// env fallback. Saves the macOS Keychain ACL prompt that would
-    /// otherwise block headless tests + dev workflow.
+/// v0.119 —— 当 `is_disabled()`(默认)时,本函数为空操作。密钥
+/// 仅存在于 `.env`,通过 `keyring::get_key` 的环境变量回退
+/// 直接读取。避免 macOS 钥匙串的 ACL 提示阻塞无头测试
+/// 和开发工作流。
     fn sync_pm_to_keyring(pairs: &[(String, String)]) {
         use std::collections::HashMap;
         let map: HashMap<String, String> = pairs.iter().cloned().collect();
@@ -377,18 +370,18 @@ fn merge_env_files(local: &std::path::Path, global: &std::path::Path) -> Option<
     }
 }
 
-/// Mirror LLM API keys + wallet key from `.env` to keychain.
-/// Gated by `POLYROCKET_ENV=dev` (dev convenience). Production uses
-/// Settings → LLM Management → Add key path.
-/// - Skips any alias already populated (never overwrites).
-/// - Never logs the secret.
+/// 将 LLM API 密钥和钱包密钥从 `.env` 镜像到钥匙串。
+/// 受 `POLYROCKET_ENV=dev` 开关控制(开发态便利功能)。生产环境
+/// 使用 Settings → LLM Management → Add key 路径。
+/// - 跳过任何已经填充的别名(永不覆盖)。
+/// - 永不记录密钥本身。
 fn sync_llm_to_keyring(pairs: &[(String, String)]) {
     use std::collections::HashMap;
     let map: HashMap<String, String> = pairs.iter().cloned().collect();
     let mut written = 0usize;
     let mut skipped = 0usize;
 
-    // LLM providers — env var name → (provider_id, key_alias)
+    // LLM 提供商 —— 环境变量名 → (provider_id, key_alias)
     let llm_map: &[(&str, &str, &str)] = &[
         ("OPENAI_API_KEY",       "openai",    "openai-prod-1"),
         ("OPENAI_BACKUP_KEY",    "openai",    "openai-backup"),
@@ -414,7 +407,7 @@ fn sync_llm_to_keyring(pairs: &[(String, String)]) {
         }
     }
 
-    // Wallet — also gated by dev mode (production uses onboarding flow)
+    // 钱包 —— 同样受 dev 模式开关控制(生产环境使用 onboarding 流程)
     if let Some(v) = map.get("POLYROCKET_WALLET_PRIVATE_KEY") {
         let alias = env::var("POLYROCKET_WALLET_ALIAS").unwrap_or_else(|_| "primary".to_string());
         let a = keyring::wallet_alias(&alias);
@@ -425,7 +418,7 @@ fn sync_llm_to_keyring(pairs: &[(String, String)]) {
 }
 
 // ============================================================
-// 3. Typed env helpers (used by infra/scheduler.rs)
+// 3. 类型化环境变量助手(由 infra/scheduler.rs 使用)
 // ============================================================
 
 /// 读 env var → u64。**缺失或解析失败** → 返回 `default`。
@@ -446,18 +439,17 @@ pub fn env_i32(name: &str, default: i32) -> i32 {
 pub fn env_duration_secs(name: &str, default_secs: u64) -> Duration {
     Duration::from_secs(env_u64(name, default_secs))
 }
-/// v0.42a — string env var. Returns `None` if unset OR
-/// set-but-empty. The other typed helpers also use
-/// `var().ok().and_then(parse)` and silently treat
-/// unparseable as "use default"; for telemetry we
-/// need the raw "1" / "true" string match, so this
-/// returns the raw `Option<String>`.
+/// v0.42a —— 字符串型环境变量。未设置或设置为空时返回 `None`。
+/// 其他类型化助手也使用 `var().ok().and_then(parse)`,
+/// 并静默地将不可解析值视为 "使用默认值";
+/// 而遥测需要原始的 "1" / "true" 字符串匹配,
+/// 因此本函数返回原始的 `Option<String>`。
 pub fn env_str(name: &str) -> Option<String> {
     env::var(name).ok().filter(|s| !s.is_empty())
 }
 
 // ============================================================
-// Tests
+// 测试
 // ============================================================
 
 #[cfg(test)]
@@ -468,7 +460,7 @@ mod tests {
     fn parses_basic_kv() {
         let p = std::path::Path::new("/tmp/_nope_env");
         let pairs = parse_env_file(p);
-        assert!(pairs.is_empty()); // missing file → []
+        assert!(pairs.is_empty()); // 文件缺失 → []
     }
 
     #[test]
@@ -490,17 +482,17 @@ mod tests {
         let pairs = parse_env_file(&path);
         let get = |k: &str| pairs.iter().find(|(kk, _)| kk == k).map(|(_, v)| v.clone());
         assert_eq!(get("OPENAI_API_KEY").as_deref(), Some("sk-test-123"));
-        assert_eq!(get("EMPTY_VAR"), None);  // empty value skipped
+        assert_eq!(get("EMPTY_VAR"), None);  // 空值被跳过
         assert_eq!(get("QUOTED").as_deref(), Some("value with spaces"));
         assert_eq!(get("SINGLE").as_deref(), Some("single quoted"));
         assert_eq!(get("PRE").as_deref(), Some("exported-value"));
-        assert_eq!(get("NOEQUALS"), None);  // no '=' → skipped
+        assert_eq!(get("NOEQUALS"), None);  // 没有 '=' → 跳过
         let _ = std::fs::remove_file(&path);
     }
 
     #[test]
     fn env_helpers_default_when_unset() {
-        // Use a name we never set in this test process.
+        // 使用一个在本测试进程中从未设置过的变量名。
         let v = env_u64("POLYROCKET_TEST_NONEXISTENT_U64", 42);
         assert_eq!(v, 42);
         let v = env_u32("POLYROCKET_TEST_NONEXISTENT_U32", 7);
@@ -509,12 +501,12 @@ mod tests {
         assert_eq!(v, -3);
     }
 
-    // ----- v0.122a: POLYROCKET_DISABLE_SIDECAR flag tests -----
+    // ----- v0.122a: POLYROCKET_DISABLE_SIDECAR 标志测试 -----
 
-    /// Helper: clear the env var so we test the default branch.
+    /// 助手:清除环境变量以便测试默认分支。
     fn clear_sidecar_flag() {
-        // SAFETY: serialised through the same `env_helpers` test
-        // module. No concurrent test sets this var.
+        // SAFETY: 通过同一个 `env_helpers` 测试模块串行化。
+        // 没有并发测试设置此变量。
         unsafe { env::remove_var("POLYROCKET_DISABLE_SIDECAR") };
     }
 
@@ -524,7 +516,7 @@ mod tests {
         clear_sidecar_flag();
         assert!(
             !is_sidecar_disabled(),
-            "default (var unset) must be false — Python sidecar stays the path until v0.122b"
+            "默认(变量未设置)必须为 false —— 在 v0.122b 之前 Python sidecar 仍是路径"
         );
     }
 
@@ -532,11 +524,11 @@ mod tests {
     #[serial_test::serial]
     fn sidecar_disabled_recognises_truthy_values() {
         for truthy in ["1", "true", "TRUE", "True", "yes", "YES"] {
-            // SAFETY: see clear_sidecar_flag.
+            // SAFETY: 参见 clear_sidecar_flag。
             unsafe { env::set_var("POLYROCKET_DISABLE_SIDECAR", truthy) };
             assert!(
                 is_sidecar_disabled(),
-                "POLYROCKET_DISABLE_SIDECAR={truthy:?} must be honoured"
+                "POLYROCKET_DISABLE_SIDECAR={truthy:?} 必须被识别"
             );
         }
         clear_sidecar_flag();
@@ -546,11 +538,11 @@ mod tests {
     #[serial_test::serial]
     fn sidecar_disabled_rejects_falsy_values() {
         for falsy in ["0", "false", "no", "off", "anything-else"] {
-            // SAFETY: see clear_sidecar_flag.
+            // SAFETY: 参见 clear_sidecar_flag。
             unsafe { env::set_var("POLYROCKET_DISABLE_SIDECAR", falsy) };
             assert!(
                 !is_sidecar_disabled(),
-                "POLYROCKET_DISABLE_SIDECAR={falsy:?} must NOT disable the sidecar"
+                "POLYROCKET_DISABLE_SIDECAR={falsy:?} 必须禁用 sidecar"
             );
         }
         clear_sidecar_flag();
@@ -559,19 +551,19 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn sidecar_disabled_trims_whitespace() {
-        // SAFETY: see clear_sidecar_flag.
+        // SAFETY: 参见 clear_sidecar_flag。
         unsafe { env::set_var("POLYROCKET_DISABLE_SIDECAR", "  1  ") };
         assert!(
             is_sidecar_disabled(),
-            "surrounding whitespace must not change truthy semantics"
+            "首尾空白不能改变真值语义"
         );
         clear_sidecar_flag();
     }
 
     #[test]
     fn sidecar_disabled_msg_is_stable() {
-        // v0.122 integration tests match this exact string. If you
-        // rephrase the error, update them too.
+        // v0.122 集成测试匹配此确切字符串。
+        // 若改写错误信息,需同步更新测试。
         assert_eq!(
             SIDECAR_DISABLED_MSG,
             "sidecar disabled (POLYROCKET_DISABLE_SIDECAR=1; v0.122+ migration in progress)"

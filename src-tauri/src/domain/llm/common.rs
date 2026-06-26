@@ -1,5 +1,5 @@
-//! Shared wire format for OpenAI-compatible providers
-//! (OpenAI, DeepSeek, OpenRouter, Azure, any `openai_compat` proxy).
+//! OpenAI 兼容 provider 的共享 wire 格式
+//! (OpenAI, DeepSeek, OpenRouter、Azure、任何 `openai_compat` proxy)。
 
 use crate::domain::llm::{CallError, CallOutcome, CallRequest, CostRate, err};
 use serde_json::{Value, json};
@@ -24,8 +24,8 @@ pub fn build_body(req: &CallRequest) -> Value {
     body
 }
 
-/// Parse a non-streaming chat/completions response.
-/// `cost` is applied if usage data is present.
+/// 解析非流式 chat/completions 响应。
+/// 如果有 usage 数据则应用 `cost`。
 /// 从 chat/completions 响应 JSON 抽 `text` / `tokens_in` / `tokens_out`。
 ///
 /// **返回**：`CallOutcome` 即使 Ok 也可能 `parse_ok = false`（JSON 字段缺失
@@ -64,17 +64,17 @@ pub fn parse_response(
         .unwrap_or(0) as u32;
     let cost_cents = cost.compute(tokens_in, tokens_out);
 
-    // Optional JSON mode parsing. v0.122c — handle LLM outputs that
-    // wrap JSON in a chain-of-thought block (e.g. MiniMax-M2.7 returns
-    // `<think>...</think>\n```json\n{...}\n````). Fall back to the
-    // first {...} block the same way `parse_recommendation` does, so
-    // the CallLog flags `success=true` and downstream consumers see
-    // a real prediction.
+    // 可选的 JSON mode 解析。v0.122c — 处理 LLM 将 JSON 包裹在
+    // 思维链 block 中的输出(例如 MiniMax-M2.7 返回
+    // `think.../think\n```json\n{...}\n````)（模型思维链包裹 JSON）。
+    // 退回到第一个 {...} block,跟 `parse_recommendation` 一样,
+    // 这样 CallLog 标志 `success=true`,下游消费者看到的是真实的预测。
+    //（可解释性：保留 JSON 字面量,避免翻译后污染模板。）
     let (parse_ok, parsed, parse_error) = if json_mode {
         match serde_json::from_str::<Value>(&text) {
             Ok(v) => (true, Some(v), None),
             Err(_) => {
-                // Strip <think>...</think> if present (some models emit it).
+                // 剥离 think.../think block(部分模型会输出)。
                 let cleaned = strip_think_block(&text);
                 if let Ok(v) = serde_json::from_str::<Value>(&cleaned) {
                     (true, Some(v), None)
@@ -115,7 +115,7 @@ pub fn parse_response(
 
     Ok(CallOutcome {
         http_status: status,
-        latency_ms: 0, // set by caller
+        latency_ms: 0, // 由调用方设置
         tokens_in,
         tokens_out,
         cost_cents,
@@ -126,8 +126,7 @@ pub fn parse_response(
     })
 }
 
-/// Classify an HTTP status (or transport error) into a stable `err::*` code.
-/// 把 HTTP status + body 提示归类到 8 个 stable error codes 之一。
+/// 把 HTTP status (或 transport error) 归类到 8 个 stable error codes 之一。
 ///
 /// **`body_hint` 用于辨识**：
 ///   - 401 with `{"error": {"code": "invalid_api_key"}}` → `AUTH`
@@ -137,7 +136,7 @@ pub fn parse_response(
 /// **为什么不只看 status**：401 跟 403 都在 4xx，但一个是 key 错一个是权限不够；
 /// 401 with key 错也是 `AUTH`（不是 `INVALID_INPUT`）。
 pub fn classify_status(status: u16, body_hint: &str) -> &'static str {
-    // First, status-based classification
+    // 首先,基于 status 分类
     let from_status = match status {
         401 | 403 => err::AUTH,
         404 if body_hint.to_lowercase().contains("model") => err::MODEL_NOT_FOUND,
@@ -145,11 +144,11 @@ pub fn classify_status(status: u16, body_hint: &str) -> &'static str {
         408 => err::TIMEOUT,
         429 => err::RATE_LIMIT,
         s if (500..600).contains(&s) => err::NETWORK,
-        s if (200..300).contains(&s) => return err::UNKNOWN, // success; should not be classified
+        s if (200..300).contains(&s) => return err::UNKNOWN, // 成功;不应该被分类
         _ => err::UNKNOWN,
     };
-    // Body-based override: 4xx with auth-like wording → auth.
-    // Some providers (e.g. Google) return 400 "API key not valid" instead of 401.
+    // 基于 body 的覆盖: 4xx 含鉴权相关措辞 → auth。
+    // 部分 provider(如 Google)返回 400 "API key not valid" 而不是 401。
     if (400..500).contains(&status) {
         let lower = body_hint.to_lowercase();
         if lower.contains("api key")
@@ -167,17 +166,15 @@ fn truncate(s: &str, max: usize) -> &str {
     if s.len() <= max { s } else { &s[..max] }
 }
 
-/// v0.122c — strip a leading `<think>...</think>` block from the LLM
-/// response. Some models (MiniMax-M2.7, DeepSeek R1, Qwen QwQ) wrap
-/// their JSON output in a chain-of-thought block before the actual
-/// prediction. The block is optional, multi-line, and may contain
-/// nested `<think>` (rare). Returns the text after the LAST `</think>`
-/// if present, else the original text.
+/// v0.122c — 从 LLM 响应中剥离前导 `think.../think` block。
+/// 部分模型 (MiniMax-M2.7、DeepSeek R1、Qwen QwQ) 会将
+/// 它们的 JSON 输出包裹在 chain-of-thought block 中,然后才是
+/// 实际预测。block 是可选的、多行的,且可能包含嵌套的 `think`（罕见）。
+/// 如果存在,返回最后一个 `think` 之后的文本;否则返回原文本。
 fn strip_think_block(text: &str) -> String {
-    // Find the LAST occurrence of `</think>` and take everything after it.
-    // Most models emit exactly one block; using `rfind` handles the rare
-    // case where the model writes `<think>` mid-response (treating it
-    // as plain text).
+    // 查找最后一个 `think` 并取其后的所有内容。
+    // 大多数模型只输出一个 block;使用 `rfind` 处理罕见的
+    // 模型在响应中间再次写入 `think` 的情况(视为纯文本)。
     if let Some(end) = text.rfind("</think>") {
         let after = &text[end + "</think>".len()..];
         return after.trim().to_string();
@@ -202,17 +199,17 @@ mod tests {
 
     #[test]
     fn strip_think_block_last_of_multiple() {
-        // Some models re-enter <think> mid-response; take the last one.
+        // 部分模型会在响应中间重新进入 think;取最后一个。
         let input = "<think>first</think>middle<think>second</think>{json}";
         assert_eq!(strip_think_block(input), "{json}");
     }
 
     #[test]
     fn parse_response_with_think_block_succeeds() {
-        // v0.122c — json_mode parse must succeed on <think>...</think> + json
+        // v0.122c — json_mode 解析必须在 think.../think + json 上成功
         let body = r#"{"choices":[{"message":{"content":"<think>\nI think this is hard.\n</think>\n```json\n{\"x\":42}\n```"}}],"usage":{"prompt_tokens":10,"completion_tokens":5}}"#;
         let out = parse_response(200, body, CostRate { per_1k_in_cents: 0.4, per_1k_out_cents: 1.2 }, true).unwrap();
-        assert!(out.parse_ok, "should parse despite <think> prefix: {:?}", out.parse_error);
+        assert!(out.parse_ok, "应该在 think 前缀下成功解析: {:?}", out.parse_error);
         assert_eq!(out.parsed.unwrap()["x"], 42);
     }
 }

@@ -1,8 +1,8 @@
-//! L2 — LLM Management (M11).
+//! L2 —— LLM 管理（M11）。
 //!
-//! Spec: polyrocket-llm-management.md
-//! Provides provider CRUD, key rotation, connectivity test, traffic
-//! aggregation, and stats queries.
+//! 设计文档:polyrocket-llm-management.md
+//! 提供 provider CRUD、key 轮换、连通性测试、
+//! 流量聚合与统计查询。
 
 use crate::AppResult;
 use crate::infra::state::AppState;
@@ -11,7 +11,7 @@ use sqlx::FromRow;
 use tauri::State;
 use uuid::Uuid;
 
-// ---------- DTOs ----------
+// ---------- DTO ----------
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct LlmProviderDto {
@@ -116,7 +116,7 @@ pub struct LlmStatsCostEfficiency {
     pub provider_id: String,
     pub total_cost_cents: f64,
     pub total_pnl: f64,
-    pub efficiency: f64, // pnl per cent
+    pub efficiency: f64, // 每分钱 pnl
     pub win_rate: f64,
 }
 
@@ -255,8 +255,8 @@ pub async fn llm_provider_delete(state: State<'_, AppState>, provider_id: String
             "Provider in use by {} recommendations, delete refused", usages
         )));
     }
-    // Pull all keyring_aliases for this provider BEFORE deleting the rows,
-    // so we can clean the OS keyring too.
+    // 在删除行之前先拉取该 provider 的全部 keyring_alias,
+    // 以便也能清理 OS keyring。
     let keyring_aliases: Vec<String> = sqlx::query_scalar(
         "SELECT keyring_alias FROM llm_provider_keys WHERE provider_id = ?",
     )
@@ -317,9 +317,9 @@ pub async fn llm_key_list(
 #[derive(Debug, Deserialize)]
 pub struct KeyUpsertArgs {
     pub key: LlmProviderKeyDto,
-    /// Optional plaintext secret. When provided, also written to OS keyring
-    /// (overwriting any prior value at the same keyring_alias).
-    /// When `None`, only the metadata row is upserted.
+    /// 可选的明文 secret。若提供,会一并写入 OS keyring
+    /// （覆盖该 keyring_alias 下的旧值）。
+    /// 为 None 时,只 upsert metadata 行。
     pub secret: Option<String>,
 }
 
@@ -341,8 +341,8 @@ pub async fn llm_key_upsert(
     let key = args.key;
     let secret = args.secret;
 
-    // Write to OS keyring first (if a secret was provided).
-    // keyring_alias is the canonical entry name; we use it verbatim.
+    // 先写 OS keyring（若提供了 secret）。
+    // keyring_alias 是规范条目名,我们原样使用。
     if let Some(s) = secret.as_deref() {
         if !s.is_empty() {
             crate::platform::keyring::set_key(&key.keyring_alias, s)?;
@@ -450,8 +450,8 @@ pub async fn llm_key_set_secret(
 /// 则拒绝（防误删）。引用 0 才真删。
 #[tauri::command]
 pub async fn llm_key_delete(state: State<'_, AppState>, key_id: String) -> AppResult<()> {
-    // Look up the keyring_alias before deleting the row, so we can also
-    // wipe the secret from the OS keyring (best-effort — ignore error).
+    // 删除行之前先查出 keyring_alias,以便一并清除
+    // OS keyring 中的 secret（尽力而为 —— 忽略错误）。
     let row: Option<(String, String)> = sqlx::query_as(
         "SELECT provider_id, keyring_alias FROM llm_provider_keys WHERE id = ?",
     )
@@ -478,7 +478,7 @@ pub async fn llm_key_delete(state: State<'_, AppState>, key_id: String) -> AppRe
     Ok(())
 }
 
-// ---------- Connectivity test ----------
+// ---------- Connectivity test（连通性测试）----------
 
 #[derive(Debug, Deserialize)]
 pub struct TestConnectivityArgs {
@@ -526,7 +526,7 @@ pub async fn llm_test_connectivity(
         provider.key_alias.clone()
     };
 
-    // Fetch the actual key from keyring
+    // 从 keyring 取真实密钥
     let secret = match crate::platform::keyring::get_key(&key_alias) {
         Ok(s) => s,
         Err(e) => {
@@ -545,7 +545,7 @@ pub async fn llm_test_connectivity(
         }
     };
 
-    // Pick client based on provider_kind
+    // 根据 provider_kind 选择 client
     let url = build_test_url(&provider);
     let body = build_test_body(&provider);
     let started = std::time::Instant::now();
@@ -613,7 +613,7 @@ pub async fn llm_test_connectivity(
         checked_at: chrono::Utc::now().timestamp_millis(),
     };
 
-    // persist to health_checks + update provider health
+    // 持久化到 health_checks + 更新 provider health
     log_health_check(&state, &provider, &args.key_id, ok, Some(latency), Some(status), err_code.clone(), err_msg.clone()).await?;
     update_provider_health(&state, &provider, ok, latency).await?;
 
@@ -702,7 +702,7 @@ async fn update_provider_health(
     Ok(())
 }
 
-// ---------- Traffic aggregation ----------
+// ---------- 流量聚合 ----------
 
 #[derive(Debug, Deserialize)]
 pub struct TrafficArgs {
@@ -765,7 +765,7 @@ pub async fn llm_traffic_summary(
         .map(|(pid, total, success, failed, avg_lat, total_cost, tok_in, tok_out, rl_hits)| {
             let success_rate = if total > 0 { success as f64 / total as f64 } else { 0.0 };
             let avg_lat = avg_lat.unwrap_or(0.0);
-            // p95 is a coarse approximation from avg (v0.3: real percentile via window function)
+            // p95 由平均值粗略估算（v0.3 通过窗口函数计算真正的百分位）
             let p95 = avg_lat * 1.6;
             let prev_entry = prev_map.get(&pid).cloned().unwrap_or((0, 0.0));
             LlmTrafficSummary {
@@ -811,7 +811,7 @@ fn previous_window_cutoff(window: &str) -> i64 {
     now - ms
 }
 
-// ---------- Health history ----------
+// ---------- 健康历史 ----------
 
 /// IPC: `llm_health_history` —— 拉 health probe 历史。
 ///
@@ -835,7 +835,7 @@ pub async fn llm_health_history(
     Ok(rows)
 }
 
-// ---------- Stats extensions (M11) ----------
+// ---------- 统计扩展（M11）----------
 
 #[derive(Debug, Deserialize)]
 pub struct StatsByConfidenceArgs {
@@ -878,7 +878,7 @@ pub async fn llm_stats_by_confidence(
         .into_iter()
         .filter_map(|(pid, conf, n, wr, pnl)| {
             let band = confidence_band(conf);
-            if n < 3 { return None; } // require min sample
+            if n < 3 { return None; } // 要求最小样本量
             Some(LlmStatsConfidenceBand {
                 provider_id: pid,
                 band,
@@ -1019,8 +1019,8 @@ pub struct ExportStatsArgs {
     pub window_days: Option<i64>,
 }
 
-/// Export LLM recommendation data joined with bet outcomes.
-/// Returns a string the frontend saves via tauri-plugin-fs.
+/// 导出关联了 bet 结果的 LLM 推荐数据。
+/// 返回字符串,由前端通过 tauri-plugin-fs 保存。
 /// IPC: `llm_stats_export` —— 导出 LLM call logs 到 CSV。
 ///
 /// **用途**：用户做外部分析（pandas / Excel）。

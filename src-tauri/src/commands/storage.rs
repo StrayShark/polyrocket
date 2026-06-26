@@ -1,25 +1,22 @@
-//! L2 — Storage path IPC commands (v0.53a).
+//! L2 —— 存储路径 IPC 命令（v0.53a）。
 //!
-//! Three IPCs today:
-//! - `get_storage_info` — return the default path,
-//!   the current effective path, and disk health
-//!   metrics (writable, free_bytes).
-//! - `set_storage_path` — write a custom path to
-//!   `_polyrocket_settings: storage_path`. The
-//!   change takes effect on NEXT launch (the
-//!   current process's DB is already open).
-//! - `reset_storage_path` — clear the custom path;
-//!   next launch falls back to the OS default.
+//! 当前提供 3 个 IPC：
+//! - `get_storage_info` —— 返回默认路径、当前生效路径，
+//!   以及磁盘健康指标（是否可写、可用字节数）。
+//! - `set_storage_path` —— 把自定义路径写入
+//!   `_polyrocket_settings: storage_path`。修改
+//!   在下次启动后生效（当前进程的 DB 已经打开）。
+//! - `reset_storage_path` —— 清除自定义路径，
+//!   下次启动回退到系统默认。
 //!
-//! ## Restart-required contract
+//! ## 需重启的契约
 //!
-//! polyrocket is a long-running desktop process.
-//! The DB pool is opened in `lib.rs::run` before
-//! any IPC handler runs. Changing `storage_path`
-//! mid-flight would mean migrating an open SQLite
-//! connection — out of scope for v0.53. The L1
-//! surfaces a "Restart now" button on the success
-//! path; the Rust side also logs the requirement.
+//! polyrocket 是一个长期运行的桌面进程。
+//! DB 连接池在 `lib.rs::run` 中、任何 IPC handler
+//! 运行之前就已打开。在运行时修改 `storage_path`
+//! 等价于迁移一个已打开的 SQLite 连接 —— 这超出
+//! v0.53 的范围。L1 在成功路径上展示「立即重启」按钮；
+//! Rust 端也会记录这一要求。
 
 use crate::AppResult;
 use crate::infra::state::AppState;
@@ -29,45 +26,39 @@ use tauri::{AppHandle, Manager, State};
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct StorageInfo {
-    /// OS-recommended path (Tauri's
-    /// `app_data_dir`). macOS: `~/Library/Application
-    /// Support/com.polyrocket.app/`. Win: `%APPDATA%`.
-    /// Linux: `~/.local/share/com.polyrocket.app/`.
+    /// 系统推荐的路径（Tauri 的 `app_data_dir`）。
+    /// macOS：`~/Library/Application Support/com.polyrocket.app/`。
+    /// Win：`%APPDATA%`。
+    /// Linux：`~/.local/share/com.polyrocket.app/`。
     pub default_path: String,
-    /// The path polyrocket will use on the next
-    /// launch. Equals `default_path` when the user
-    /// hasn't picked a custom one.
+    /// polyrocket 下次启动将使用的路径。
+    /// 当用户没有指定自定义路径时，等于 `default_path`。
     pub current_path: String,
-    /// True when current_path != default_path.
+    /// 当 current_path != default_path 时为 true。
     pub is_custom: bool,
-    /// True when the current_path exists on disk.
-    /// (For the default path, this is created on
-    /// first call; for a custom path, it must
-    /// already exist.)
+    /// 当 current_path 在磁盘上存在时为 true。
+    /// （默认路径会在首次访问时创建；自定义路径
+    /// 则必须已经存在。）
     pub exists: bool,
-    /// True when the current user can write to
-    /// current_path. When false, setStoragePath
-    /// would fail — the L1 must show the user a
-    /// "permission denied" error and a hint to pick
-    /// a writable location.
+    /// 当前用户能写入 current_path 时为 true。
+    /// 若为 false，setStoragePath 会失败 —— L1 必须
+    /// 向用户显示「权限不足」错误，并提示换一个
+    /// 可写的位置。
     pub writable: bool,
-    /// Free space in bytes. `None` when the OS query
-    /// fails (rare; some sandboxed filesystems).
+    /// 可用空间（字节）。操作系统查询失败时为 None
+    /// （极少发生；通常是某些沙箱文件系统）。
     pub free_bytes: Option<u64>,
-    /// True when the active session's db is at the
-    /// default path even though `storage_path` is
-    /// set. This happens when the user picked a
-    /// custom path but hasn't restarted yet.
-    /// The L1 surfaces a "Restart required" banner
-    /// when this is true.
+    /// 即便已经设置了 `storage_path`，本会话的活动 db
+    /// 仍位于默认路径下时为 true。这发生在用户选择了
+    /// 自定义路径但尚未重启时。
+    /// L1 在此为 true 时显示「需要重启」横幅。
     pub restart_required: bool,
 }
 
-/// v0.53a — return the current storage path
-/// information. Cheap: just `std::fs` metadata +
-/// `statvfs` (or platform equivalent). No DB read
-/// happens here — the "active" path is computed by
-/// walking the `storage_path` settings key.
+/// v0.53a —— 返回当前存储路径信息。
+/// 开销很低：仅 `std::fs` 元数据 + `statvfs`
+/// （或平台等价调用）。此处不读 DB —— 「活动」路径
+/// 是通过遍历 `storage_path` 设置项推导出的。
 #[tauri::command]
 pub async fn get_storage_info(
     app: AppHandle,
@@ -108,15 +99,13 @@ pub async fn get_storage_info(
 
 #[derive(Debug, Deserialize)]
 pub struct SetStoragePathArgs {
-    /// Absolute path to the directory where
-    /// polyrocket.db should live on next launch.
-    /// The directory must already exist.
+    /// 下次启动时 `polyrocket.db` 应所在目录的绝对路径。
+    /// 目录必须已存在。
     pub path: String,
 }
 
-/// v0.53a — write a custom storage path. The change
-/// takes effect on next launch. We don't migrate
-/// the existing DB — that's a v0.54+ feature.
+/// v0.53a —— 写入自定义存储路径。该改动在下一次启动时生效。
+/// 我们不会迁移已有 DB —— 那是 v0.54+ 的特性。
 #[tauri::command]
 pub async fn set_storage_path(
     state: State<'_, AppState>,
@@ -146,8 +135,7 @@ pub async fn set_storage_path(
             path.display()
         )));
     }
-    // Make sure the logs/ subdir exists (or can be
-    // created) under the chosen path.
+    // 确保所选路径下的 logs/ 子目录存在（或可创建）。
     let logs_dir = path.join("logs");
     std::fs::create_dir_all(&logs_dir).map_err(|e| {
         crate::AppError::Internal(format!(
@@ -155,7 +143,7 @@ pub async fn set_storage_path(
             logs_dir.display()
         ))
     })?;
-    // Persist to _polyrocket_settings.
+    // 持久化到 _polyrocket_settings。
     crate::infra::db::settings::set(
         &state.db,
         "storage_path",
@@ -165,19 +153,18 @@ pub async fn set_storage_path(
     .map_err(|e| {
         crate::AppError::Internal(format!("settings.set: {e}"))
     })?;
-    // v0.53a — also write the JSON config file.
-    // This is the source of truth at startup
-    // (read BEFORE the pool opens). The DB row is
-    // for the L1 surface; the JSON file is for
-    // path resolution on next launch.
+    // v0.53a —— 同样写入 JSON 配置文件。
+    // 这是启动时的真值来源（在连接池打开之前读取）。
+    // DB 中的行供 L1 表面展示；JSON 文件供下次启动
+    // 做路径解析。
     let app = crate::infra::scheduler::TAURI_APP
         .get()
         .ok_or_else(|| crate::AppError::Internal(
-            "TAURI_APP not initialized (storage.path.set)".into(),
+            "TAURI_APP 未初始化（storage.path.set）".into(),
         ))?
         .clone();
     write_storage_config_file(&app, Some(&path))?;
-    // Audit-log it (no secret; path is OK to log).
+    // 写一条审计日志（无敏感内容，路径可以记录）。
     sqlx::query(
         "INSERT INTO audit_log (actor, action, target, payload, result)
          VALUES ('user', 'storage.path.set', ?, ?, 'ok')",
@@ -189,12 +176,11 @@ pub async fn set_storage_path(
     ))
     .execute(&state.db)
     .await
-    .ok(); // best-effort
+    .ok(); // 尽力而为
     Ok(())
 }
 
-/// v0.53a — clear the custom storage path. Next
-/// launch falls back to the OS default.
+/// v0.53a —— 清除自定义存储路径。下次启动回退到系统默认。
 #[tauri::command]
 pub async fn reset_storage_path(
     state: State<'_, AppState>,
@@ -204,7 +190,7 @@ pub async fn reset_storage_path(
         .map_err(|e| {
             crate::AppError::Internal(format!("settings.delete: {e}"))
         })?;
-    // v0.53a — also clear the JSON config.
+    // v0.53a —— 同时清空 JSON 配置。
     let app = crate::infra::scheduler::TAURI_APP
         .get()
         .ok_or_else(|| crate::AppError::Internal(
@@ -223,13 +209,11 @@ pub async fn reset_storage_path(
 }
 
 // ----------------------------------------------------------------
-// helpers
+// 辅助函数
 // ----------------------------------------------------------------
 
-/// Probe whether the current process can create a
-/// new file in `dir`. We try to create a tempfile
-/// and immediately remove it. Returns true on
-/// success.
+/// 探测当前进程能否在 `dir` 下创建新文件。
+/// 尝试创建一个临时文件并立即删除。成功返回 true。
 fn probe_writable(dir: &std::path::Path) -> bool {
     let probe = dir.join(".polyrocket-write-probe");
     let result = std::fs::OpenOptions::new()
@@ -244,10 +228,10 @@ fn probe_writable(dir: &std::path::Path) -> bool {
     ok
 }
 
-/// v0.53a — write the `storage_path.json` config
-/// file. The shape is `{"path": <string|null>}`
-/// — a single key so users who hand-edit the file
-/// can't break the app by adding unknown keys.
+/// v0.53a —— 写入 `storage_path.json` 配置文件。
+/// 形态为 `{"path": <string|null>}`，仅有一个键，
+/// 这样即便用户手动编辑该文件，添加未知键也不会让
+/// 应用崩溃。
 fn write_storage_config_file(
     app: &AppHandle,
     path: Option<&std::path::Path>,
@@ -267,18 +251,18 @@ fn write_storage_config_file(
     Ok(())
 }
 
-/// Best-effort free-space query. Returns None when
-/// the OS call fails (sandbox, exotic fs).
+/// 尽力查询可用空间。当操作系统调用失败（沙箱、
+/// 特殊文件系统）时返回 None。
 ///
-/// v0.53a: returns None on all platforms. The L1
-/// hides the "free space" metric when this is None.
-/// v0.54+ could pull in `nix` and use `statvfs`.
+/// v0.53a：在所有平台上都返回 None。L1 在值为 None
+/// 时隐藏「可用空间」指标。v0.54+ 可以引入 `nix` crate
+/// 并调用 `statvfs`。
 fn free_space_bytes(_path: &std::path::Path) -> Option<u64> {
     None
 }
 
 // ----------------------------------------------------------------
-// tests
+// 测试
 // ----------------------------------------------------------------
 
 #[cfg(test)]
@@ -299,8 +283,8 @@ mod tests {
 
     #[test]
     fn free_space_bytes_returns_none_in_v53a() {
-        // Documented behavior: we don't pull in `nix`
-        // for statvfs in v0.53a. v0.54+ candidate.
+        // 记录在案的行为：v0.53a 阶段不引入 `nix`
+        // 调用 statvfs。v0.54+ 候选。
         assert_eq!(free_space_bytes(std::path::Path::new("/")), None);
     }
 }

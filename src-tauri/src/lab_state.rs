@@ -1,6 +1,6 @@
-//! L4 — Shared sidecar state (singleton across Tauri commands).
+//! L4 — 共享侧车（sidecar）状态（Tauri 命令间的单例）。
 //!
-//! Held as a Tauri-managed state so any `#[tauri::command]` can
-//! access the running sidecar process via `State<'_, SidecarState>`.
+//! 作为 Tauri 管理的状态持有，以便任意 `#[tauri::command]` 都可通过
+//! `State<'_, SidecarState>` 访问正在运行的侧车（sidecar）进程。
 
 pub use crate::commands::sidecar::{SidecarState, SidecarStatus};

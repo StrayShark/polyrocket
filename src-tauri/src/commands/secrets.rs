@@ -1,15 +1,13 @@
-//! L2 — Secret persistence (M11, client-paste path).
+//! L2 —— 密钥持久化（M11，客户端粘贴路径）。
 //!
-//! Subset of M11: stores Polymarket CLOB credentials and the
-//! polyrocket wallet private key. The full M11 spec also covers
-//! LLM provider keys (see `llm_mgmt.rs`).
+//! M11 子集：保存 Polymarket CLOB 凭据与 polyrocket 钱包私钥。
+//! M11 完整规范还覆盖 LLM provider key（见 `llm_mgmt.rs`）。
 //!
-//! These commands are the *client-paste* path. The user enters the secret
-//! in the Settings UI; the secret is written straight to the OS keyring
-//! by these handlers and **never** stored in SQLite, in JSON files, or
-//! in the .env file. Audit-log entries are written without the secret.
+//! 这些命令属于「客户端粘贴」路径。用户在设置页输入密钥，
+//! 密钥由这些 handler 直接写入系统 keyring，**绝不**写入
+//! SQLite、JSON 文件或 .env 文件。audit_log 条目也不含密钥本身。
 //!
-//! See `keyring.rs` for the alias conventions.
+//! alias 命名规范见 `keyring.rs`。
 
 use crate::AppResult;
 use crate::infra::state::AppState;
@@ -57,8 +55,8 @@ pub async fn llm_pm_set_credentials(
         args.api_passphrase.trim(),
     )?;
 
-    // Persist host / chain_id in the wallets row (key 0) for convenience;
-    // the secrets themselves stay in keyring.
+    // 出于便利把 host / chain_id 持久化到 wallets 行的 (key 0)；
+    // 密钥本身始终留在 keyring 中。
     if let Some(host) = args.host.as_deref() {
         if !host.is_empty() {
             sqlx::query("INSERT OR REPLACE INTO _polyrocket_settings (k, v) VALUES ('pm_host', ?)")
@@ -94,7 +92,7 @@ pub async fn llm_pm_set_credentials(
 /// IPC: `llm_pm_clear_credentials` —— 删 Polymarket CLOB 三件套。
 ///
 /// **业务流程**：
-///   1. `keyring::delete_key` 删 3 个 entry（best-effort，删除失败不报错）
+///   1. `keyring::delete_key` 删 3 个 entry（尽力而为，删除失败不报错）
 ///   2. SQLite `_polyrocket_settings` 删 `pm_host` / `pm_chain_id`
 ///   3. audit_log 写 `pm.credentials.clear`
 ///
@@ -119,7 +117,7 @@ pub async fn llm_pm_clear_credentials(state: State<'_, AppState>) -> AppResult<(
     Ok(())
 }
 
-// ---------- Wallet (mode B signed betting) ----------
+// ---------- Wallet（mode B 签单下注） ----------
 
 #[derive(Debug, Deserialize)]
 pub struct WalletSetPkArgs {
@@ -149,7 +147,7 @@ pub async fn polyrocket_wallet_set_pk(
     if pk.is_empty() {
         return Err(crate::AppError::Invalid("private_key is empty".into()));
     }
-    // light validation: 64 hex chars, optionally prefixed 0x
+    // 轻量校验：64 个十六进制字符，可带 0x 前缀
     let stripped = pk.strip_prefix("0x").unwrap_or(pk);
     if stripped.len() != 64 || !stripped.chars().all(|c| c.is_ascii_hexdigit()) {
         return Err(crate::AppError::Invalid(
@@ -163,7 +161,7 @@ pub async fn polyrocket_wallet_set_pk(
     let keyring_alias = crate::platform::keyring::wallet_alias(&alias);
     crate::platform::keyring::set_key(&keyring_alias, pk)?;
 
-    // Update wallets row (create if absent) — only non-secret fields
+    // 更新 wallets 行（不存在则创建）—— 仅写入非敏感字段
     let now = chrono::Utc::now().timestamp_millis();
     sqlx::query(
         "INSERT INTO wallets (id, address, label, chain, keyring_alias, created_at, updated_at)
@@ -220,14 +218,14 @@ pub async fn polyrocket_wallet_clear_pk(
     Ok(())
 }
 
-// ---------- Status (no secrets leaked) ----------
+// ---------- Status（不泄露密钥） ----------
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct SecretStatus {
     pub kind: String,    // "llm_key" | "pm_api" | "pm_secret" | "pm_passphrase" | "wallet_pk"
     pub alias: String,   // keyring alias
     pub configured: bool,
-    pub label: Option<String>, // human-friendly label for UI
+    pub label: Option<String>, // 人类可读的 UI 标签
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -248,7 +246,7 @@ pub struct SecretsStatus {
 ///   - `wallets` — 从 `wallets` 表 JOIN keyring 状态
 #[tauri::command]
 pub async fn secrets_status(state: State<'_, AppState>) -> AppResult<SecretsStatus> {
-    // LLM keys — decode as Strings, compute `configured` from keyring.
+    // LLM key —— 解析为 String 后,根据 keyring 计算 `configured`。
     let llm_keys_db: Vec<(String, String, String, String)> = sqlx::query_as(
         "SELECT k.id, k.provider_id, k.alias, k.keyring_alias
          FROM llm_provider_keys k ORDER BY k.provider_id, k.priority",
@@ -266,7 +264,7 @@ pub async fn secrets_status(state: State<'_, AppState>) -> AppResult<SecretsStat
         })
         .collect();
 
-    // Polymarket
+    // Polymarket 凭据
     let polymarket = vec![
         SecretStatus {
             kind: "pm_api".into(),
@@ -288,7 +286,7 @@ pub async fn secrets_status(state: State<'_, AppState>) -> AppResult<SecretsStat
         },
     ];
 
-    // Wallets
+    // 钱包
     let wallets_db: Vec<(String, String, Option<String>)> = sqlx::query_as(
         "SELECT address, COALESCE(label, address), keyring_alias FROM wallets ORDER BY created_at",
     )

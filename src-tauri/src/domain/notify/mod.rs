@@ -1,10 +1,10 @@
-//! L3 — Notification domain (X2 governance).
+//! L3 — 通知域（X2 governance）。
 //!
-//! Pure helpers for shaping the system-notification payload.
-//! The actual OS send is done by L2 commands (commands::notify) which
-//! wraps tauri_plugin_notification.
+//! 用于构造系统通知负载的纯辅助函数。
+//! 实际的 OS 发送由 L2 命令（`commands::notify`）完成，
+//! 它包装了 tauri_plugin_notification。
 //!
-//! Spec: docs/polyrocket-modules.md §3.X2
+//! 规范：docs/polyrocket-modules.md §3.X2
 
 use serde::{Deserialize, Serialize};
 
@@ -22,27 +22,26 @@ use serde::{Deserialize, Serialize};
 /// 默认开。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NotificationKind {
-    /// New actionable signal appeared
+    /// 出现新的可执行信号
     NewSignal,
-    /// An order was filled
+    /// 订单已成交
     OrderFill,
-    /// Keyring access succeeded
+    /// Keyring 访问成功
     KeyringOk,
-    /// Keyring access denied / errored
+    /// Keyring 访问被拒绝/出错
     KeyringError,
-    /// Provider auto-disabled after 3 consecutive failures
+    /// 连续失败 3 次后 Provider 被自动禁用
     ProviderAutoDisabled,
-    /// Daily brief refreshed
+    /// 每日简报已刷新
     DailyBrief,
-    /// Mirror decided (whale filled, we considered copying)
+    /// 镜像决策（巨鲸成交,考虑了是否跟单）
     MirrorDecision,
-    /// v0.39a — background auto-promote after train
-    /// completed. The L1 calls this when
-    /// `auto_promote:finished` event fires and the
-    /// promote succeeded. Distinct from `Info` so
-    /// the OS notification badge can be customized.
+    /// v0.39a —— train 完成后的后台自动 promote。
+    /// L1 在 `auto_promote:finished` 事件触发且 promote
+    /// 成功时调用。与 `Info` 区分是为了支持自定义
+    /// OS 通知徽章。
     AutoPromote,
-    /// Generic info
+    /// 通用信息
     Info,
 }
 
@@ -61,7 +60,7 @@ impl NotificationKind {
         }
     }
 
-    /// Stable default title (English). L1 may override via ipc arg.
+    /// 稳定的默认标题（英文）。L1 可以通过 IPC 参数覆盖。
     pub fn default_title(self) -> &'static str {
         match self {
             NotificationKind::NewSignal => "New signal",
@@ -77,7 +76,7 @@ impl NotificationKind {
     }
 }
 
-/// Payload shape for one notification request.
+/// 单条通知请求的负载结构。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NotificationPayload {
     pub kind: NotificationKind,
@@ -85,7 +84,7 @@ pub struct NotificationPayload {
     pub body: String,
 }
 
-/// Build a payload for "new signal" with edge + market info.
+/// 为「新信号」构建负载，包含 edge + 市场信息。
 pub fn new_signal_payload(market_id: &str, edge: f64, market_question: Option<&str>) -> NotificationPayload {
     let pct = edge * 100.0;
     let sign = if edge > 0.0 { "↑" } else { "↓" };
@@ -101,7 +100,7 @@ pub fn new_signal_payload(market_id: &str, edge: f64, market_question: Option<&s
     }
 }
 
-/// Build a payload for "order filled" with side + size.
+/// 为「订单成交」构建负载，包含 side + size。
 pub fn order_fill_payload(market_id: &str, side: &str, size: &str, price: f64) -> NotificationPayload {
     NotificationPayload {
         kind: NotificationKind::OrderFill,
@@ -110,7 +109,7 @@ pub fn order_fill_payload(market_id: &str, side: &str, size: &str, price: f64) -
     }
 }
 
-/// Build a payload for "keyring access denied".
+/// 构建“keyring access denied”通知负载。
 pub fn keyring_error_payload(alias: &str, message: &str) -> NotificationPayload {
     NotificationPayload {
         kind: NotificationKind::KeyringError,
@@ -119,7 +118,7 @@ pub fn keyring_error_payload(alias: &str, message: &str) -> NotificationPayload 
     }
 }
 
-/// Build a payload for "provider auto-disabled".
+/// 为「provider 自动禁用」构建负载。
 pub fn provider_disabled_payload(provider_id: &str, streak: i64) -> NotificationPayload {
     NotificationPayload {
         kind: NotificationKind::ProviderAutoDisabled,
@@ -128,7 +127,7 @@ pub fn provider_disabled_payload(provider_id: &str, streak: i64) -> Notification
     }
 }
 
-/// Build a payload for "mirror decision".
+/// 为「mirror 决策」构建负载。
 pub fn mirror_decision_payload(
     market_id: &str,
     side: &str,
@@ -143,11 +142,11 @@ pub fn mirror_decision_payload(
     }
 }
 
-/// Decide whether a notification should be sent given user prefs.
-/// `prefs_enabled` is the user's global toggle; `kind_enabled` is the
-/// per-kind toggle (caller resolves from the settings store).
+/// 根据用户偏好判断是否应发送通知。
+/// `prefs_enabled` 是用户的全局开关；`kind_enabled` 是
+/// 按类型划分的开关（由调用方从设置存储中解析）。
 ///
-/// Returns true if the notification should be emitted.
+/// 当通知应被发出时返回 true。
 pub fn should_send(prefs_enabled: bool, kind_enabled: bool) -> bool {
     prefs_enabled && kind_enabled
 }

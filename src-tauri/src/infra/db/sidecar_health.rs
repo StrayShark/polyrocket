@@ -1,18 +1,18 @@
-//! L4 — Sidecar health probe DB (v0.10d).
+//! L4 —— 侧车健康探测数据库（v0.10d）。
 //!
-//! Stores each probe result in a small ring-buffer table. The
-//! scheduler pings every 30s, writes one row, and a periodic
-//! GC keeps only the last 24h of rows.
+//! 把每次探测结果存入一个小型 ring-buffer 表。
+//! 调度器每 30s 探测一次,写入一行,周期
+//! GC 仅保留最近 24h 的行。
 //!
-//! Pure SQL helpers + the `record_probe` + `recent` + `purge_old`
-//! wrapper functions. L3 pure snapshot lives in
-//! `domain::sidecar_health`.
+//! 纯 SQL 辅助函数 + `record_probe` + `recent` + `purge_old`
+//! 包装函数。L3 纯快照位于
+//! `domain::sidecar_health`。
 
 use crate::domain::sidecar_health::{SidecarHealthKind, SidecarHealthRow, SidecarHealthSnapshot};
 use crate::infra::error::AppResult;
 use sqlx::SqlitePool;
 
-/// 24h in ms — how long we keep probe rows.
+/// 24h 对应的毫秒数 —— 探测记录的保留时长。
 const RETAIN_MS: i64 = 24 * 3_600_000;
 
 /// v0.10d — 创建 `sidecar_health` 表 + 索引。**幂等**（IF NOT EXISTS）。
@@ -118,7 +118,7 @@ mod tests {
     #[tokio::test]
     async fn ensure_table_idempotent() {
         let pool = empty_pool().await;
-        // Run twice — should not error
+        // 跑两次 —— 不应报错
         ensure_table(&pool).await.unwrap();
     }
 
@@ -139,13 +139,13 @@ mod tests {
     async fn purge_old_removes_only_old_rows() {
         let pool = empty_pool().await;
         let now = 1_000_000_000_000i64;
-        // 1 fresh + 2 old (older than 24h)
+        // 1 条新的 + 2 条旧的（超过 24h）
         record_probe(&pool, now, SidecarHealthKind::Ok, Some(5), None).await.unwrap();
         record_probe(&pool, now - 25 * 3_600_000, SidecarHealthKind::Ok, Some(5), None).await.unwrap();
         record_probe(&pool, now - 30 * 3_600_000, SidecarHealthKind::Failed, None, Some("oops")).await.unwrap();
         let n = purge_old(&pool, now).await.unwrap();
         assert_eq!(n, 2);
-        // The fresh one survives
+        // 新记录保留下来
         let snap = recent(&pool).await.unwrap();
         assert_eq!(snap.success_count, 1);
         assert_eq!(snap.failure_count, 0);

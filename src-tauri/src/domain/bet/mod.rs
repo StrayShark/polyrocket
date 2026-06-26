@@ -1,13 +1,11 @@
-//! L3 — Bet lifecycle.
+//! L3 — 投注生命周期。
 //!
-//! Owns the state machine for `bets` rows: `open` → `won` / `lost` /
-//! `cancelled`. Provides a single `place()` entry that the L2 command
-//! layer can call; signed order placement (mode B) and jump-link
-//! construction (mode A) live here.
+//! 负责 `bets` 表的状态机：`open` → `won` / `lost` / `cancelled`。
+//! 提供一个 L2 命令层可调用的 `place()` 入口；签单下单（Mode B）
+//! 和 jump-link 构建（Mode A）都在此模块中。
 //!
-//! **Status (v0.3c): stub.** The current `commands::bet` module has
-//! the working SQL — it will be migrated into the helpers below as
-//! M6 "Bet placement" milestone progresses.
+//! **状态（v0.3c）：存根。** 当前 `commands::bet` 模块含有可用 SQL，
+//! 后续 M6「Bet placement」里程碑会迁移到本模块的辅助函数中。
 
 use crate::AppError;
 use crate::AppResult;
@@ -24,9 +22,9 @@ use serde::{Deserialize, Serialize};
 /// 阶段用户没有 wallet 或不想给 polyrocket 私钥，jump-link 是过渡方案。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BetMode {
-    /// Mode A: jump-link only. User signs on Polymarket UI.
+    /// Mode A：仅 jump-link。用户前往 Polymarket UI 签单。
     AJump,
-    /// Mode B: signed order via OS keyring.
+    /// Mode B：通过 OS keyring 签单下单。
     BSigned,
 }
 
@@ -111,16 +109,13 @@ impl BetSide {
 // ============== v0.50a — Order type ==========================
 // ============================================================
 //
-// Polymarket supports Market (immediate execution
-// at best available price) and Limit (only fill at
-// `limit_price` or better). For v0.50 we also add
-// StopLoss (trigger when market crosses `stop_price`)
-// as a UX primitive — the underlying CLOB call is
-// still a Limit order placed when the trigger fires.
+// Polymarket 支持 Market（按最优可成交价立即执行）和
+// Limit（仅以 `limit_price` 或更优价格成交）。v0.50 还新增
+// StopLoss（市价穿越 `stop_price` 时触发）作为 UX 原语 ——
+// 底层 CLOB 调用仍是触发后下达的 Limit 订单。
 //
-// PostOnly (v0.50b) is a flag, not a type, on Limit
-// orders: the order must rest on the book, never
-// take liquidity.
+// PostOnly（v0.50b）是一个 flag 而非 type，挂在 Limit
+// 订单上：订单必须挂单在簿上，绝不立即吃单。
 
 /// 订单类型。Market 立即成交（best available price），Limit 必须挂在 book 上等撮合，
 /// StopLoss 是「触发后转 Limit」的模式。
@@ -132,15 +127,15 @@ impl BetSide {
 /// 检测价格穿越）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum OrderType {
-    /// Fill at best available price. `limit_price` is ignored.
+    /// 按最优可成交价立即成交。忽略 `limit_price`。
     #[default]
     Market,
-    /// Rest on the book; only fill at `limit_price` or better.
+    /// 挂单在簿上；仅以 `limit_price` 或更优价格成交。
     Limit,
-    /// Trigger when market crosses `stop_price`, then submit
-    /// as a Limit at `limit_price` (default = stop_price).
-    /// Today this is captured in the order record but the
-    /// actual trigger is v0.51+ (requires real CLOB feed).
+    /// 市价穿越 `stop_price` 时触发，然后按下 Limit 单
+    /// （`limit_price`，默认 = `stop_price`）。
+    /// 当前该类型会被记录到订单中，但实际触发逻辑
+    /// 待 v0.51+ 实现（需要真实 CLOB feed）。
     StopLoss,
 }
 
@@ -163,11 +158,11 @@ impl OrderType {
 }
 
 // ============================================================
-// ============== PnL math (pure) ==============================
+// ============== PnL 数学（纯函数） ==============================
 // ============================================================
 
-/// Number of shares bought = USDC size / price.
-/// Returns 0 if size or price is non-positive or unparseable.
+/// 买入的份额数 = USDC 金额 / 价格。
+/// 当 size 或 price 非正或无法解析时返回 0。
 pub fn shares_for_size(size_usdc: &str, price: f64) -> String {
     match size_usdc.parse::<f64>() {
         Ok(s) if s > 0.0 && price > 0.0 => (s / price).to_string(),
@@ -175,10 +170,9 @@ pub fn shares_for_size(size_usdc: &str, price: f64) -> String {
     }
 }
 
-/// PnL when the market resolves YES.
-/// For a YES bet: pnl = shares * (1 - price)  (you bought at `price`,
-/// the share pays $1 on YES).
-/// For a NO bet: pnl = -size  (NO share worthless).
+/// 市场以 YES 结算时的 PnL。
+/// 对于 YES 投注：pnl = shares * (1 - price)（以 `price` 买入，YES 结算时获得 $1）。
+/// 对于 NO 投注：pnl = -size（NO 份额归零）。
 pub fn pnl_on_yes(side: BetSide, shares: f64, price: f64, size_usdc: f64) -> f64 {
     match side {
         BetSide::Yes => shares * (1.0 - price),
@@ -186,9 +180,9 @@ pub fn pnl_on_yes(side: BetSide, shares: f64, price: f64, size_usdc: f64) -> f64
     }
 }
 
-/// PnL when the market resolves NO.
-/// For a YES bet: pnl = -size.
-/// For a NO bet: pnl = shares * price  (NO share pays $1).
+/// 市场以 NO 结算时的 PnL。
+/// 对于 YES 投注：pnl = -size。
+/// 对于 NO 投注：pnl = shares * price（NO 份额付 $1）。
 pub fn pnl_on_no(side: BetSide, shares: f64, price: f64, size_usdc: f64) -> f64 {
     match side {
         BetSide::Yes => -size_usdc,
@@ -196,7 +190,7 @@ pub fn pnl_on_no(side: BetSide, shares: f64, price: f64, size_usdc: f64) -> f64 
     }
 }
 
-/// Compute PnL given the resolved outcome.
+/// 根据结算结果计算 PnL。
 pub fn pnl(outcome: BetSide, side: BetSide, shares: f64, price: f64, size_usdc: f64) -> f64 {
     match outcome {
         BetSide::Yes => pnl_on_yes(side, shares, price, size_usdc),
@@ -204,7 +198,7 @@ pub fn pnl(outcome: BetSide, side: BetSide, shares: f64, price: f64, size_usdc: 
     }
 }
 
-/// Whether a bet in this status is still "active" (excluded from PnL).
+/// 该状态下的投注是否仍处于「进行中」（不计入 PnL）。
 pub fn is_open(s: BetStatus) -> bool {
     matches!(s, BetStatus::Open)
 }
@@ -213,11 +207,9 @@ pub fn is_open(s: BetStatus) -> bool {
 // ============== Args validation ==============================
 // ============================================================
 
-/// Maximum size in USDC (defensive cap to prevent typos like
-/// "10000" instead of "100").
+/// USDC 金额上限（防御性上限，避免将 "100" 误输为 "10000"）。
 pub const MAX_BET_SIZE_USDC: f64 = 10_000.0;
-/// Minimum price (1¢) and maximum (99¢) — anything outside is invalid
-/// for a real CLOB market.
+/// 最低价（1¢）和最高价（99¢）—— 真实 CLOB 市场中，区间外的价格无效。
 pub const MIN_PRICE: f64 = 0.01;
 pub const MAX_PRICE: f64 = 0.99;
 
@@ -226,33 +218,31 @@ pub struct PlaceArgs {
     pub market_id: String,
     pub side: BetSide,
     pub size_usdc: String,
-    /// The "reference" price — what the user thinks the share
-    /// is worth right now. For Market orders this is unused;
-    /// for Limit orders it must equal `limit_price` (we store
-    /// the user's "expectation" in `price` for analytics); for
-    /// StopLoss it is the entry price the user wants.
+    /// 「参考」价格 —— 用户认为该份额当前的价值。
+    /// 对 Market 订单忽略；对 Limit 订单必须等于 `limit_price`
+    /// （在 `price` 中存储用户「预期」用于分析）；对 StopLoss
+    /// 则是用户希望的入场价。
     pub price: f64,
     pub key_alias: Option<String>,
-    /// v0.50a — order type. Default = Market (back-compat).
+    /// v0.50a —— 订单类型。默认 = Market（向后兼容）。
     #[serde(default)]
     pub order_type: OrderType,
-    /// v0.50a — for Limit orders: only fill at this price or
-    /// better. Required when `order_type = Limit`. Optional
-    /// for StopLoss (defaults to `stop_price`).
+    /// v0.50a —— 对 Limit 订单：仅以该价格或更优价格成交。
+    /// 当 `order_type = Limit` 时必填。对 StopLoss 可选
+    ///（默认等于 `stop_price`）。
     #[serde(default)]
     pub limit_price: Option<f64>,
-    /// v0.50a — for StopLoss orders: trigger when market
-    /// crosses this price (in the direction opposite to the
-    /// desired position). Required when `order_type = StopLoss`.
+    /// v0.50a —— 对 StopLoss 订单：当市价穿越该价格时触发
+    ///（方向与目标持仓相反）。当 `order_type = StopLoss` 时必填。
     #[serde(default)]
     pub stop_price: Option<f64>,
-    /// v0.50b — for Limit orders: must rest on book, never
-    /// take liquidity. Ignored for Market and StopLoss.
+    /// v0.50b —— 对 Limit 订单：必须挂单在簿上，绝不立即吃单。
+    /// 对 Market 和 StopLoss 忽略。
     #[serde(default)]
     pub post_only: bool,
 }
 
-/// Validate a `place_*` args payload. Returns parsed size on success.
+/// 校验 `place_*` args 负载。成功时返回已解析的 size。
 pub fn validate_place_args(args: &PlaceArgs) -> AppResult<f64> {
     if args.market_id.trim().is_empty() {
         return Err(AppError::Invalid("market_id is empty".into()));
@@ -277,14 +267,13 @@ pub fn validate_place_args(args: &PlaceArgs) -> AppResult<f64> {
             "size_usdc {size} > max {MAX_BET_SIZE_USDC}"
         )));
     }
-    // v0.50a — order-type-specific validation.
+    // v0.50a —— 订单类型相关的校验。
     validate_order_type_specifics(args)?;
     Ok(size)
 }
 
-/// v0.50a — additional validation that depends only on the
-/// order type fields. Split out so the L1 can call it
-/// independently for "preflight" checks before submitting.
+/// v0.50a —— 额外的校验，仅依赖订单类型相关字段。
+/// 独立拆分出来，便于 L1 在提交前单独执行「预检」调用。
 pub fn validate_order_type_specifics(args: &PlaceArgs) -> AppResult<()> {
     match args.order_type {
         OrderType::Market => {
@@ -320,15 +309,13 @@ pub fn validate_order_type_specifics(args: &PlaceArgs) -> AppResult<()> {
                     sp, MIN_PRICE, MAX_PRICE
                 )));
             }
-            // StopLoss trigger direction:
-            //   YES bet → trigger when price RISES to stop_price
-            //     (you want to cap loss if market moves against you,
-            //     so stop_price should be > price)
-            //   NO bet  → trigger when price FALLS to stop_price
-            //     (stop_price should be < price)
-            // We don't ENFORCE the relationship (v0.50a is just
-            // capturing intent) but we record it.
-            let _ = args.limit_price.unwrap_or(sp); // default = stop_price
+            // StopLoss 触发方向：
+            //   YES 投注 → 当价格上升至 stop_price 时触发
+            //     （当行情反向运动时希望限制亏损，因此 stop_price 应 > price）
+            //   NO 投注  → 当价格下跌至 stop_price 时触发
+            //     （stop_price 应 < price）
+            // v0.50a 不强制此关系（仅记录意图），但会保存该信息。
+            let _ = args.limit_price.unwrap_or(sp); // 默认 = stop_price
         }
     }
     if args.post_only && args.order_type != OrderType::Limit {
@@ -340,34 +327,28 @@ pub fn validate_order_type_specifics(args: &PlaceArgs) -> AppResult<()> {
 }
 
 // ============================================================
-// ============== v0.50b — post-only enforcement ==============
+// ============== v0.50b — post-only 强制实施 ==============
 // ============================================================
 //
-// Polymarket CLOB has the standard "post-only" semantics:
-// the order must rest on the book, never take liquidity.
-// We implement the check using the latest price_snapshots
-// row (v0.47a) for the market.
+// Polymarket CLOB 沿用标准的「post-only」语义：
+// 订单必须挂单在簿上，绝不立即吃单。
+// 我们使用该市场最新的 price_snapshots（v0.47a）行来实现校验。
 //
-// Until v0.51+ brings a real order-book feed, the
-// snapshot is a placeholder (best_bid = best_ask = 0.5).
-// In that case `would_cross_book` returns false (it
-// always rests), so post-only is effectively a no-op
-// for new installs. This is acceptable: v0.50b is
-// about getting the validation plumbing right so the
-// moment a real feed lands, enforcement is automatic.
+// 在 v0.51+ 引入真实订单簿 feed 之前，快照仅是占位
+//（best_bid = best_ask = 0.5）。此时 `would_cross_book`
+// 返回 false（总是挂单），对新装用户来说 post-only 实际
+// 是 no-op。这可以接受：v0.50b 的重点是先把校验管道打通，
+// 等真实 feed 接入时即可自动生效。
 //
-// The book snapshot here is the YES-token view; for
-// NO bets we compute the implied YES price as
-// `1 - limit_price` and compare against `best_bid`.
+// 这里的 book 快照对应 YES token 视角；对 NO 投注
+// 我们以 `1 - limit_price` 计算隐含 YES 价格并与 `best_bid` 比较。
 
-/// v0.50b — pure helper. Given the side, the limit
-/// price, and the latest book snapshot, returns
-/// `true` when the order would take liquidity
-/// (and thus must be rejected under post-only).
+/// v0.50b —— 纯辅助函数。给定 side、limit_price 和最新
+/// book 快照，当订单会立即吃单时返回 `true`
+///（在 post-only 下应被拒绝）。
 ///
-/// The snapshot represents the YES token's order
-/// book: `best_bid` and `best_ask` are YES-token
-/// prices in [0.01, 0.99].
+/// 快照对应 YES token 的订单簿：`best_bid` 和 `best_ask`
+/// 为 YES token 价格，范围 [0.01, 0.99]。
 pub fn would_cross_book(
     side: BetSide,
     limit_price: f64,
@@ -375,35 +356,31 @@ pub fn would_cross_book(
     best_ask: f64,
 ) -> bool {
     match side {
-        // Buying YES at limit P: takes liquidity when
-        // P >= best_ask (you'd match the ask).
+        // 以限价 P 买入 YES：当 P >= best_ask 时会吃单（撮合卖单）。
         BetSide::Yes => limit_price >= best_ask,
-        // Buying NO at limit P: NO token price = 1 - YES_price.
-        // Equivalent: takes liquidity when
-        // (1 - P) <= best_bid
-        // i.e. P >= 1 - best_bid
+        // 以限价 P 买入 NO：NO token 价格 = 1 - YES 价格。
+        // 等价地，当 (1 - P) <= best_bid 时吃单，
+        // 即 P >= 1 - best_bid。
         BetSide::No => limit_price >= 1.0 - best_bid,
     }
 }
 
-/// v0.50b — outcome of the post-only enforcement
-/// check. We return a typed result so callers can
-/// distinguish "would cross" from "snapshot missing"
-/// (which is currently a silent pass — see the
-/// module docs).
+/// v0.50b —— post-only 强制检查的结果。
+/// 返回类型化结果，让调用方能够区分「会穿越」
+/// 与「快照缺失」（后者当前静默通过 —— 参见模块文档）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PostOnlyCheck {
-    /// No snapshot for this market yet; post-only
-    /// is a no-op (real enforcement defers to v0.51+).
+    /// 该市场暂无快照；post-only 当前为 no-op
+    ///（真实强制逻辑延后到 v0.51+）。
     NoSnapshot,
-    /// Snapshot exists; order rests on book. OK.
+    /// 存在快照；订单将挂单。OK。
     Rests,
-    /// Snapshot exists; order would cross. REJECT.
+    /// 存在快照；订单会穿越。拒绝。
     WouldCross,
 }
 
-/// v0.50b — given a snapshot (or None) and the
-/// post-only flag, return the enforcement outcome.
+/// v0.50b —— 给定一个快照（可为 None）和 post-only 标志，
+/// 返回强制检查结果。
 pub fn check_post_only(
     side: BetSide,
     limit_price: f64,
@@ -420,30 +397,30 @@ pub fn check_post_only(
 }
 
 // ============================================================
-// ============== Mode B signed-order simulation =================
+// ============== Mode B signed-order simulation Mode B 签名订单模拟 =================
 // ============================================================
 
-/// Outcome of the mode B signing path. Even without a real CLOB SDK,
-/// we deterministically derive a fake `tx_hash` from the args so the
-/// audit log and `bets.tx_hash` column are populated.
+/// Mode B 签单路径的返回结果。即便没有真实 CLOB SDK，
+/// 我们也从 args 派生出确定的伪 `tx_hash`，以便填充
+/// 审计日志和 `bets.tx_hash` 列。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SignedOrderResult {
     pub tx_hash: String,
     pub signed_at_ms: i64,
     pub shares: String,
-    /// Always "submitted" — we never get on-chain confirmation in v0.5.
+    /// 始终为 "submitted" —— v0.5 中我们拿不到链上确认。
     pub status: &'static str,
 }
 
-/// "Sign" a mode B order. Deterministic stub for v0.5 — when
-/// `rs-clob-client` lands, replace the body of this function.
+/// 「签」Mode B 订单。v0.5 中的确定性存根 —— `rs-clob-client`
+/// 接入后，将替换本函数主体。
 pub fn sign_order(args: &PlaceArgs, now_ms: i64) -> AppResult<SignedOrderResult> {
     let size = validate_place_args(args)?;
     if args.key_alias.as_deref().unwrap_or("").is_empty() {
         return Err(AppError::Invalid("key_alias required for mode B".into()));
     }
-    // Deterministic pseudo-tx-hash from a hash of the canonical args.
-    // We use a simple djb2 hash → hex. (Not cryptographic; just stable.)
+    // 从规范化 args 哈希得到确定性伪 tx-hash。
+    // 使用简单的 djb2 哈希 → 十六进制。（非密码学安全；仅要求稳定。）
     let canonical = format!(
         "{}|{}|{}|{}|{}",
         args.market_id,
@@ -514,21 +491,21 @@ mod tests {
 
     #[test]
     fn pnl_yes_bet_wins() {
-        // Buy 100 YES at 0.40 → if resolves YES: pnl = (1-0.40) * 250 = 150
+        // 以 0.40 买入 100 USDC 的 YES → 若结算为 YES：pnl = (1-0.40) * 250 = 150
         let p = pnl_on_yes(BetSide::Yes, 250.0, 0.40, 100.0);
         assert!((p - 150.0).abs() < 1e-6);
     }
 
     #[test]
     fn pnl_yes_bet_loses() {
-        // If YES resolves NO, full size is lost
+        // 若 YES 结算为 NO，则损失全部 size
         let p = pnl_on_no(BetSide::Yes, 250.0, 0.40, 100.0);
         assert!((p - -100.0).abs() < 1e-6);
     }
 
     #[test]
     fn pnl_no_bet_wins() {
-        // Buy 100 NO at 0.60 → if resolves NO: pnl = 100/0.60 * 0.60 = 100
+        // 以 0.60 买入 100 USDC 的 NO → 若结算为 NO：pnl = 100/0.60 * 0.60 = 100
         let shares = 100.0 / 0.60;
         let p = pnl_on_no(BetSide::No, shares, 0.60, 100.0);
         assert!((p - 100.0).abs() < 1e-6);
@@ -616,7 +593,7 @@ mod tests {
         assert_eq!(r.shares, "250");
     }
 
-    // ----- v0.50a — OrderType -----
+    // ----- v0.50a —— OrderType 订单类型 -----
 
     fn order_args(
         market: &str,
@@ -743,19 +720,19 @@ mod tests {
 
     #[test]
     fn post_only_only_valid_for_limit() {
-        // post_only on Market -> error
+        // post_only + Market -> 错误
         let r = validate_place_args(&order_args(
             "m", "100", 0.5,
             OrderType::Market, None, None, true,
         ));
         assert!(r.is_err(), "post_only + market should be invalid");
-        // post_only on StopLoss -> error
+        // post_only + StopLoss -> 错误
         let r = validate_place_args(&order_args(
             "m", "100", 0.5,
             OrderType::StopLoss, None, Some(0.6), true,
         ));
         assert!(r.is_err(), "post_only + stop_loss should be invalid");
-        // post_only on Limit -> ok
+        // post_only + Limit -> 正确
         let r = validate_place_args(&order_args(
             "m", "100", 0.5,
             OrderType::Limit, Some(0.45), None, true,
@@ -765,55 +742,54 @@ mod tests {
 
     #[test]
     fn validate_order_type_specifics_is_pure_helper() {
-        // The split-out helper should reject the same
-        // things as the integrated validate_place_args
-        // for order-type-specific fields.
+        // 拆分出的纯辅助函数对订单类型相关字段的
+        // 拒绝逻辑应与内联在 validate_place_args 中时一致。
         let a = order_args("m", "100", 0.5, OrderType::Limit, None, None, false);
         assert!(validate_order_type_specifics(&a).is_err());
         let b = order_args("m", "100", 0.5, OrderType::Limit, Some(0.4), None, false);
         assert!(validate_order_type_specifics(&b).is_ok());
     }
 
-    // ----- v0.50b — post-only -----
+    // ----- v0.50b —— post-only 仅挂单 -----
 
-    /// YES buy at limit equal to best_ask crosses.
+    /// YES 以等于 best_ask 的限价买入时会穿越。
     #[test]
     fn would_cross_yes_at_ask() {
         assert!(would_cross_book(BetSide::Yes, 0.50, 0.49, 0.50));
     }
 
-    /// YES buy at limit one tick below best_ask rests.
+    /// YES 以 best_ask 下方一档的限价买入时挂单。
     #[test]
     fn would_not_cross_yes_below_ask() {
         assert!(!would_cross_book(BetSide::Yes, 0.49, 0.49, 0.50));
     }
 
-    /// NO buy at limit equal to (1 - best_bid) crosses.
-    /// best_bid=0.40 → 1 - best_bid = 0.60 → limit at 0.60 crosses.
+    /// NO 以等于 (1 - best_bid) 的限价买入时会穿越。
+    /// best_bid=0.40 → 1 - best_bid = 0.60 → 限价 0.60 时穿越。
     #[test]
     fn would_cross_no_at_implied_ask() {
         assert!(would_cross_book(BetSide::No, 0.60, 0.40, 0.50));
     }
 
-    /// NO buy at limit well above implied ask rests.
-    /// NO limit at 0.55 < 0.60 = 1 - best_bid → rests.
+    /// NO 以远高于隐含卖单的限价买入时挂单。
+    /// NO 限价 0.55 < 0.60 = 1 - best_bid → 挂单。
     #[test]
     fn would_not_cross_no_above_implied_ask() {
-        // wait — NO limit >= 1-best_bid crosses. So limit 0.55 with
-        // best_bid=0.40 → 1-0.40=0.60; 0.55 < 0.60 → does NOT cross.
+        // 注意 —— NO 限价 >= 1-best_bid 时穿越。所以限价 0.55 且
+        // best_bid=0.40 → 1-0.40=0.60；0.55 < 0.60 → 不会穿越。
         assert!(!would_cross_book(BetSide::No, 0.55, 0.40, 0.50));
     }
 
     #[test]
     fn check_post_only_no_snapshot_is_silent_pass() {
-        // Today: missing snapshot = no enforcement.
+        // 当前：缺失快照 = 不强制。
         let r = check_post_only(BetSide::Yes, 0.99, None);
         assert_eq!(r, PostOnlyCheck::NoSnapshot);
     }
 
     #[test]
     fn check_post_only_yes_rests_below_ask() {
-        // bid=0.40, ask=0.50; YES limit 0.45 < 0.50 → rests.
+        // bid=0.40, ask=0.50；YES 限价 0.45 < 0.50 → 挂单。
         let r = check_post_only(BetSide::Yes, 0.45, Some((0.40, 0.50)));
         assert_eq!(r, PostOnlyCheck::Rests);
     }
@@ -826,25 +802,24 @@ mod tests {
 
     #[test]
     fn check_post_only_no_crosses_at_implied_ask() {
-        // bid=0.40, ask=0.50; NO limit 0.60 >= 1-0.40 = 0.60 → crosses.
+        // bid=0.40, ask=0.50；NO 限价 0.60 >= 1-0.40 = 0.60 → 穿越。
         let r = check_post_only(BetSide::No, 0.60, Some((0.40, 0.50)));
         assert_eq!(r, PostOnlyCheck::WouldCross);
     }
 
     #[test]
     fn check_post_only_no_rests_above_implied_ask() {
-        // NO limit 0.50 < 1-0.40 = 0.60 → rests.
+        // NO 限价 0.50 < 1-0.40 = 0.60 → 挂单。
         let r = check_post_only(BetSide::No, 0.50, Some((0.40, 0.50)));
         assert_eq!(r, PostOnlyCheck::Rests);
     }
 
     #[test]
     fn validate_place_args_with_post_only_and_limit_accepts_syntax() {
-        // v0.50b — post_only is a SYNTAX-valid flag for limit
-        // orders. The actual book-cross check happens in
-        // place_signed_order after looking up the snapshot.
-        // Here we only assert that the validator doesn't
-        // reject the combination on syntactic grounds.
+        // v0.50b —— post_only 是 Limit 订单的合法 SYNTAX 标志。
+        // 实际的 book-cross 检查在 place_signed_order 中
+        // 查快照后进行。本测试仅断言校验器不会因
+        // 组合语法原因拒绝。
         let r = order_args("m", "100", 0.5, OrderType::Limit, Some(0.45), None, true);
         assert!(validate_place_args(&r).is_ok());
     }

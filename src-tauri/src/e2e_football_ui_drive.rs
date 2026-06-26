@@ -1,32 +1,33 @@
-// v0.121 — UI-driven e2e. Replaces the `pushState` + direct
-// `invoke` pattern from e2e_football.rs with REAL DOM clicks
-// (the same path a user takes with a mouse / trackpad):
+// v0.121 — UI 驱动的 e2e。用真实的 DOM 点击
+//（与用户使用鼠标/触控板所走的路径相同）替代
+// e2e_football.rs 中的 `pushState` + 直接
+// `invoke` 模式：
 //
-//   1. Webview loads, app navigates to /dashboard
-//   2. We click the "Markets" sidebar item
-//      (NavLink to /markets — React Router useNavigate)
-//   3. For each football market:
-//        a. click the market card (Link to /markets/{id})
-//        b. wait for the MarketDetail page to render
-//        c. click the new "Run analysis" button
-//           (data-testid="run-analysis-btn")
-//        d. wait for the LLM analyze mutation to complete
-//           (toast success — surfaced via the Mutation state)
-//        e. screenshot the rendered prediction
+//   1. Webview 加载，应用导航到 /dashboard
+//   2. 点击侧边栏的 "Markets" 项
+//      （NavLink 至 /markets —— React Router useNavigate）
+//   3. 对每个足球市场：
+//        a. 点击市场卡片（链接至 /markets/{id}）
+//        b. 等待 MarketDetail 页面渲染
+//        c. 点击新增的 "Run analysis" 按钮
+//           （data-testid="run-analysis-btn"）
+//        d. 等待 LLM analyze mutation 完成
+//           （toast 成功 —— 通过 Mutation 状态呈现）
+//        e. 截屏已渲染的预测
 //
-// This is the "全程用app操作" mode the user asked for: every
-// action is a real DOM event → real React handler → real IPC
-// → real LLM call → real DB write → real UI update. The only
-// script involvement is dispatching the synthetic click().
+// 这是用户要求的"全程用 app 操作"模式：每个
+// 操作都是真实的 DOM 事件 → 真实的 React handler → 真实的 IPC
+// → 真实的 LLM 调用 → 真实的 DB 写入 → 真实的 UI 更新。
+// 脚本唯一参与的是派发合成的 click()。
 //
-// Run with:
+// 运行方式：
 //   POLYROCKET_E2E_UI_DRIVE=1 POLYROCKET_E2E_KEEP_RUNNING=1 \
 //     cargo run --bin polyrocket -- --e2e-football
 //
-// Markets iterated: all 4 football seed markets in
-// markets ORDER BY id (deterministic).
+// 迭代的市场：markets 表 ORDER BY id 中
+// 全部 4 个足球种子市场（确定性）。
 //
-// Screenshot dir: /tmp/polyrocket-screens/
+// 截屏目录：/tmp/polyrocket-screens/
 
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -47,7 +48,7 @@ pub async fn run(app: AppHandle) {
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
     if !ui_drive {
-        // Not the UI drive mode — let the regular e2e_football run.
+        // 不是 UI drive 模式 —— 让常规的 e2e_football 运行。
         return;
     }
 
@@ -64,16 +65,16 @@ pub async fn run(app: AppHandle) {
         }
     };
 
-    // Ensure screenshot dir exists.
+    // 确保截屏目录存在。
     let _ = std::fs::create_dir_all(SCREENSHOT_DIR);
 
-    // Take "0-start" screenshot (whatever page is loaded initially).
+    // 截取 "0-start" 截屏（任何初始加载的页面）。
     let _ = screenshot_window(&window, &format!("{SCREENSHOT_DIR}/ui-0-start.png")).await;
 
-    // -- 1. click "Markets" in the sidebar
-    //   Use the React fiber's onClick directly to bypass
-    //   React's synthetic event system (MouseEvent dispatch
-    //   doesn't work for React 17+ root-delegated handlers).
+    // -- 1. 点击侧边栏的 "Markets"
+    //   直接使用 React fiber 的 onClick 以绕过
+    //   React 的合成事件系统（MouseEvent 派发
+    //   对 React 17+ 根委托的 handler 不生效）。
     tracing::info!("[ui-drive] step 1: click Markets sidebar");
     let nav_markets_js = r#"
         (() => {
@@ -104,15 +105,15 @@ pub async fn run(app: AppHandle) {
     tokio::time::sleep(Duration::from_secs(2)).await;
     let _ = screenshot_window(&window, &format!("{SCREENSHOT_DIR}/ui-1-markets.png")).await;
 
-    // -- 2. for each football market: click card → click "Run analysis" → wait → screenshot
+    // -- 2. 对每个足球市场：点击卡片 → 点击 "Run analysis" → 等待 → 截屏
     for (i, market_id) in FOOTBALL_MARKETS.iter().enumerate() {
         tracing::info!(
             "[ui-drive] step 2.{i}: click market card for {market_id}"
         );
 
-        // First, navigate back to /markets (after the first iteration
-        // we're on the MarketDetail page; we need the list page to
-        // find the next market's link).
+        // 首先，导航回 /markets（第一次迭代后，
+        // 我们停留在 MarketDetail 页面上；我们需要列表页才能
+        // 找到下一个市场的链接）。
         if i > 0 {
             let nav_back_js = r#"
                 (() => {
@@ -133,7 +134,7 @@ pub async fn run(app: AppHandle) {
             tokio::time::sleep(Duration::from_secs(2)).await;
         }
 
-        // click the market card via React fiber onClick.
+        // 通过 React fiber 的 onClick 点击市场卡片。
         let click_card_js = format!(
             r#"
             (() => {{
@@ -154,20 +155,20 @@ pub async fn run(app: AppHandle) {
         tracing::info!("[ui-drive] click card {market_id}: {}", r);
         tokio::time::sleep(Duration::from_secs(2)).await;
 
-        // -- 2.b. click "Run analysis" button (data-testid)
-        //   React 17+ uses root event delegation. A simple
-        //   .click() or MouseEvent dispatch may NOT fire the
-        //   React onClick handler because React's synthetic
-        //   event system listens at the root and re-creates
-        //   events from a different path. The reliable way
-        //   is to grab the `__reactProps$<id>` fiber property
-        //   and call `onClick` directly. This bypasses the
-        //   event system entirely and just runs the handler.
+        // -- 2.b. 点击 "Run analysis" 按钮（data-testid）
+        //   React 17+ 使用根事件委托。简单的
+        //   .click() 或 MouseEvent 派发可能不会触发
+        //   React onClick handler，因为 React 的
+        //   合成事件系统在根节点监听，并从不同的路径
+        //   重建事件。可靠的方式是获取
+        //   `__reactProps$<id>` fiber 属性，并直接
+        //   调用 `onClick`。这完全绕过事件系统，
+        //   直接运行 handler。
         let click_analyze_js = r#"
             (() => {
                 const btn = document.querySelector('[data-testid="run-analysis-btn"]');
                 if (!btn) return { ok: false, error: 'no [data-testid="run-analysis-btn"]' };
-                // Find the React fiber's props
+                // 查找 React fiber 的 props
                 const reactKey = Object.keys(btn).find(k => k.startsWith('__reactProps$'));
                 if (!reactKey) return {
                     ok: false,
@@ -180,7 +181,7 @@ pub async fn run(app: AppHandle) {
                     error: 'no onClick handler in props',
                     prop_keys: Object.keys(props || {})
                 };
-                // Call the React onClick handler directly
+                // 直接调用 React 的 onClick handler
                 try {
                     props.onClick({ preventDefault: () => {}, stopPropagation: () => {} });
                     return {
@@ -196,9 +197,9 @@ pub async fn run(app: AppHandle) {
         let r = eval_obj(&window, click_analyze_js).await;
         tracing::info!("[ui-drive] click Run analysis: {}", r);
 
-        // -- 2.b.5. confirm button flipped to "Analyzing…" (the
-        //   React handler should now have started the mutation).
-        //   If not, the click was lost and we abort this market.
+        // -- 2.b.5. 确认按钮已变为 "Analyzing…"（React handler
+        //   此时应该已经启动了 mutation）。如果没有，
+        //   点击已丢失，我们中止该市场。
         let mut analyze_started = false;
         for _ in 0..15 {
             tokio::time::sleep(Duration::from_millis(500)).await;
@@ -230,30 +231,29 @@ pub async fn run(app: AppHandle) {
             );
         }
 
-        // screenshot mid-analysis
+        // 分析中的截屏
         let path = format!("{SCREENSHOT_DIR}/ui-2-{}-analyzing.png", i + 1);
         let _ = screenshot_window(&window, &path).await;
 
-        // -- 2.c. wait for the LLM analyze to complete.
+        // -- 2.c. 等待 LLM analyze 完成。
         //
-        //   Detection: poll the signals table for a new row for
-        //   this market_id. The Rust LLM analyze path writes
-        //   `signals` after the LLM call completes, so a fresh
-        //   row means the analysis finished. We also check the
-        //   e2e_football UI drive flow's expectation that a
-        //   signal is created — if not, the analysis is in
-        //   flight or failed.
+        //   检测方式：轮询 signals 表，查找该 market_id
+        //   的新行。Rust LLM analyze 路径在 LLM 调用
+        //   完成后写入 `signals`，因此新行意味着
+        //   分析已完成。我们还检查 e2e_football UI drive
+        //   流程对创建 signal 的预期 —— 若未创建，
+        //   表示分析正在进行或已失败。
         //
-        //   Polling DB is more reliable than DOM (which has React
-        //   Query cache lag). Timeout: 90s (LLM calls can take
-        //   5-30s; we allow headroom for retries).
+        //   轮询 DB 比 DOM 更可靠（DOM 存在 React Query
+        //   缓存滞后）。超时：90 秒（LLM 调用可能需要
+        //   5-30 秒；我们为重试预留余量）。
         let start = std::time::Instant::now();
         let mut signal_found = false;
         let mut elapsed = Duration::from_secs(0);
         for attempt in 0..90 {
             tokio::time::sleep(Duration::from_secs(1)).await;
             elapsed = start.elapsed();
-            // query DB for a signal for this market
+            // 查询 DB 查找该市场的 signal
             if let Some(state) = app.try_state::<AppState>() {
                 let pool = state.db.clone();
                 let row: Option<(i64,)> = sqlx::query_as(
@@ -281,15 +281,15 @@ pub async fn run(app: AppHandle) {
                 elapsed.as_secs()
             );
         }
-        // give the React Query 2-3s to refetch + render
+        // 给 React Query 2-3 秒重新获取 + 渲染
         tokio::time::sleep(Duration::from_secs(3)).await;
 
-        // -- 2.e. screenshot
+        // -- 2.e. 截屏
         let path = format!("{SCREENSHOT_DIR}/ui-2-{}-after.png", i + 1);
         let _ = screenshot_window(&window, &path).await;
     }
 
-    // -- 3. final dashboard / markets screenshot showing all 4 predictions
+    // -- 3. 最终 dashboard / markets 截屏，展示全部 4 个预测
     let _ = eval_obj(&window, r#"
         (() => {
             const link = Array.from(document.querySelectorAll('a'))
@@ -331,7 +331,7 @@ pub async fn run(app: AppHandle) {
 
     tracing::info!("[ui-drive] done. screenshots in {SCREENSHOT_DIR}");
 
-    // KEEP_RUNNING for visual inspection
+    // 用于视觉检查的 KEEP_RUNNING
     let keep_running = std::env::var("POLYROCKET_E2E_KEEP_RUNNING")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
@@ -344,10 +344,10 @@ pub async fn run(app: AppHandle) {
     app.exit(0);
 }
 
-/// Run a JS expression in the webview and return the JSON string.
-/// Re-uses e2e_football's `eval_with_callback` plumbing via
-/// `window.eval` with a callback. Async expressions are NOT
-/// awaited — return synchronously when possible.
+/// 在 webview 中运行 JS 表达式并返回 JSON 字符串。
+/// 通过 `window.eval` 加回调的方式复用
+/// e2e_football 的 `eval_with_callback` 机制。
+/// 不会 await 异步表达式 —— 尽可能同步返回。
 async fn eval_obj(window: &tauri::WebviewWindow, js: &str) -> String {
     use std::sync::mpsc;
     let (tx, rx) = mpsc::channel::<String>();
@@ -368,12 +368,12 @@ async fn eval_obj(window: &tauri::WebviewWindow, js: &str) -> String {
     .unwrap_or_else(|e| format!("__join_error__: {}", e))
 }
 
-/// Take a screenshot of JUST the polyrocket window. Uses
-/// CGWindowListCopyWindowInfo to find the window id by owner +
-/// title, then `screencapture -l <windowId>`. This is the most
-/// reliable way to get a clean polyrocket-only screenshot
-/// regardless of z-order (per the earlier finding that other
-/// apps can be on top of polyrocket on multi-monitor setups).
+/// 仅截取 polyrocket 窗口的截图。使用
+/// CGWindowListCopyWindowInfo 按 owner + 标题
+/// 查找窗口 id，然后执行 `screencapture -l <windowId>`。
+/// 这是获得干净的 polyrocket 专属截图最可靠的
+/// 方法，与 z-order 无关（基于此前发现：多显示器
+/// 配置下其他应用可能位于 polyrocket 之上）。
 async fn screenshot_window(_window: &tauri::WebviewWindow, path: &str) -> Result<(), String> {
     let wid_script = r#"
 import CoreGraphics

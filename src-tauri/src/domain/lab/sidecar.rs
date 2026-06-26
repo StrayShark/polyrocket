@@ -1,32 +1,34 @@
-//! L3 — Python sidecar protocol (M7).
+//! L3 —— Python sidecar 协议（M7）。
 //!
-//! Defines the JSON-line protocol that polyrocket uses to talk to
-//! the optional Python ML sidecar (a separate process spawned via
-//! `std::process::Command`). All pure helpers — no IO here.
+//! 定义 polyrocket 与可选 Python ML sidecar（通过 `std::process::Command`
+//! 启动的独立进程）通信所用的 JSON-line 协议。本模块为纯辅助函数 —— 不含 IO。
 //!
-//! Spec: docs/polyrocket-modules.md §2.M7
+//! 规范：docs/polyrocket-modules.md §2.M7
 //!
-//! Protocol (one JSON object per line, both directions):
+//! 协议（每个方向均为每行一个 JSON 对象）：
 //!
 //! request:  { "id": "uuid", "method": "name", "params": {...} }
+//!           （请求：{ "id": "uuid", "method": "name", "params": {...} }）
 //! response: { "id": "uuid", "ok": true, "result": {...} }
+//!           （成功响应：{ "id": "uuid", "ok": true, "result": {...} }）
 //!            | { "id": "uuid", "ok": false, "error": "msg" }
+//!           （失败响应：{ "id": "uuid", "ok": false, "error": "msg" }）
 //!
-//! Methods (polyrocket → python):
-//!   - "ping"            → { "pong": true }
-//!   - "predict"         → { "predictions": [{ market_id, prob, confidence }] }
-//!   - "train_job"       → { "job_id": "..." }
-//!   - "promote_model"   → { "promoted": true }
+//! 方法（polyrocket → python）：
+//!   - "ping"            → { "pong": true } （存活探活）
+//!   - "predict"         → { "predictions": [{ market_id, prob, confidence }] } （预测）
+//!   - "train_job"       → { "job_id": "..." } （训练任务）
+//!   - "promote_model"   → { "promoted": true } （晋升模型）
 //!
-//! Methods (python → polyrocket, for callbacks):
-//!   - "log"             → append to sidecar log
-//!   - "metric"          → live metric update
+//! 方法（python → polyrocket，用于回调）：
+//!   - "log"             → 追加到 sidecar 日志
+//!   - "metric"          → 实时指标更新
 
 use crate::infra::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// One JSON-line request from polyrocket → python.
+/// polyrocket → python 的一条 JSON-line 请求。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SidecarRequest {
     pub id: String,
@@ -35,7 +37,7 @@ pub struct SidecarRequest {
     pub params: Value,
 }
 
-/// One JSON-line response from python → polyrocket.
+/// python → polyrocket 的一条 JSON-line 响应。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SidecarResponse {
     pub id: String,
@@ -55,7 +57,7 @@ impl SidecarResponse {
     }
 }
 
-/// One prediction row returned by the `predict` method.
+/// `predict` 方法返回的单条预测记录。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Prediction {
     pub market_id: String,
@@ -66,79 +68,63 @@ pub struct Prediction {
     pub rationale: Option<String>,
 }
 
-/// v0.12a — full predict response (the result block + each row).
-/// The `predictions` field mirrors the per-row data; `model_version`
-/// is hoisted to the top level so the L1 ModelLab page can show
-/// "scoring with logistic-train-..." without iterating rows.
-/// v0.13b — also carries `brier_score` from the active model so
-/// the L1 ModelVersionPill can show calibration in the tooltip.
+/// v0.12a —— 完整的 predict 响应（result 块 + 每条记录）。
+/// `predictions` 字段镜像每行数据；`model_version` 提升到顶层，
+/// 这样 L1 ModelLab 页面无需遍历行即可展示「scoring with logistic-train-...」。
+/// v0.13b —— 同时携带活跃模型的 `brier_score`，便于 L1 ModelVersionPill
+/// 在 tooltip 中显示 calibration（校准度）。
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PredictResult {
     pub predictions: Vec<Prediction>,
-    /// `logistic-0.1.0` (inline fallback) or
-    /// `logistic-train-441c352b` (active promoted model).
-    /// `None` if the sidecar didn't include it (back-compat).
+    /// `logistic-0.1.0`（内联回退）或 `logistic-train-441c352b`
+    ///（已 promote 的活跃模型）。若 sidecar 未提供则为 `None`（向后兼容）。
     pub model_version: Option<String>,
-    /// Brier score from the most recent train run (the score of
-    /// the "best" trial that was promoted to active.json). `None`
-    /// if no model has been promoted (using inline fallback) or
-    /// the sidecar didn't include it.
+    /// 最近一次 train 运行的 Brier 分数（被 promote 到 active.json 的
+    ///「最佳」试验分数）。若尚无 promote 模型（使用内联回退）或 sidecar
+    /// 未提供则为 `None`。
     pub brier_score: Option<f64>,
 }
 
-/// Methods enum for type-safe dispatch.
+/// 用于类型安全分发的 Methods 枚举。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SidecarMethod {
     Ping,
     Predict,
     TrainJob,
     PromoteModel,
-    /// v0.19a — read-only audit of past promotions. Returns
-    /// the `promotion_history` array from active.json (capped
-    /// at 20 most-recent entries).
+    /// v0.19a —— 对历史 promote 的只读审计。返回 active.json 中的
+    /// `promotion_history` 数组（最多 20 条最新条目）。
     ListPromoteHistory,
-    /// v0.20a — roll the active model back to a previous
-    /// version. Looks up the entry in promotion_history by
-    /// `model_version` and restores its `weights` as the
-    /// new active model. The entry must include weights
-    /// (v0.20a+); older v0.19 entries without weights are
-    /// refused with a clear error.
+    /// v0.20a —— 将活跃模型回滚到先前的某个版本。按 `model_version`
+    /// 在 promotion_history 中查找对应条目，并将其 `weights`
+    /// 恢复为新的活跃模型。该条目必须包含 weights（v0.20a+）；
+    /// 不含 weights 的 v0.19 旧条目会被拒绝并返回清晰错误。
     RollbackModel,
-    /// v0.23a — auto-promote guard. Promotes the candidate
-    /// only if it's meaningfully better than the active
-    /// model (Brier margin). If not, no-op + clear "skipped"
-    /// reason. One-click action triggered by the user.
+    /// v0.23a —— auto-promote 保护。只有当候选模型明显优于活跃模型
+    ///（按 Brier margin 衡量）时才执行 promote。否则 no-op，并返回
+    /// 清晰的「skipped」原因。由用户一键触发。
     AutoPromoteIfBetter,
-    /// v0.25a — bulk-promote all 4 trials. Loops over
-    /// `candidate.all_trials[]` and promotes each one.
-    /// For A/B comparison: the user can see all 4 in
-    /// the history and pick the winner via Rollback.
+    /// v0.25a —— 一次性 promote 全部 4 个 trial。遍历
+    /// `candidate.all_trials[]` 并依次 promote。
+    /// 用于 A/B 对比：用户可在 history 中看到全部 4 个 trial，
+    /// 再通过 Rollback 挑选胜出者。
     PromoteAllTrials,
-    /// v0.43a — replay a saved model against a list of
-    /// (price, market_age_hours, outcome) samples and
-    /// return Brier + calibration + per-sample
-    /// predictions. Closes the v0.17-v0.41 lifecycle
-    /// gap: there's no way to ask "how would this
-    /// model have done on real resolutions" without
-    /// this. Pure (no IO beyond reading the model
-    /// file); the L1 is expected to pull resolved
-    /// markets from the markets DB.
+    /// v0.43a —— 用一组 (price, market_age_hours, outcome) 样本对
+    /// 已保存的模型进行回放，并返回 Brier + calibration + 每条样本的
+    /// 预测。补齐 v0.17-v0.41 生命周期中缺失的环节：在该功能出现之前，
+    /// 没办法回答「这个模型在真实结算上表现如何」。
+    /// 纯函数（除读取模型文件外无 IO）；由 L1 负责从 markets DB
+    /// 拉取已结算市场。
     BacktestModel,
-    /// v0.55 — per-feature contribution for one sample.
-    /// For the 3-feature logistic model this is an
-    /// exact decomposition (not a SHAP approximation):
-    /// `contribution_i = w_i * x_i * p(1-p)` — the
-    /// actual derivative of the probability w.r.t. the
-    /// feature. The L1 renders this as a horizontal
-    /// bar chart. For tree-based models, a real SHAP
-    /// library would be needed; v0.55+ candidate.
+    /// v0.55 —— 单个样本的逐特征贡献。对 3 特征逻辑回归模型，
+    /// 这是精确分解（非 SHAP 近似）：`contribution_i = w_i * x_i * p(1-p)`，
+    /// 即概率对特征的导数。L1 将其渲染为水平条形图。
+    /// 对树模型，则需要真正的 SHAP 库；列为 v0.55+ 候选。
     ExplainModel,
-    /// v0.59 — true SHAP values via KernelExplainer.
-    /// Satisfies the SHAP efficiency axiom:
-    /// `Σφ_i = f(x) - E[f(x)]`. For the 3-feature
-    /// polyrocket model the cost is 8 coalition
-    /// evaluations; for tree-based models with M > 5
-    /// we'd need TreeSHAP. v0.59 candidate.
+    /// v0.59 —— 通过 KernelExplainer 计算真正的 SHAP 值。
+    /// 满足 SHAP efficiency 公理：`Σφ_i = f(x) - E[f(x)]`。
+    /// 对 polyrocket 的 3 特征模型，开销为 8 次 coalition 评估；
+    /// 对 M > 5 的树模型，则需要 TreeSHAP。v0.59 候选。
     ShapExplain,
 }
 
@@ -176,12 +162,12 @@ impl SidecarMethod {
     }
 }
 
-/// Try to parse one JSON line as either a request or response.
-/// Returns Ok(parsed) or Err with the raw line for inspection.
+/// 尝试把一行 JSON 解析为 request 或 response。
+/// 成功返回 `Ok(parsed)`,失败则返回带原始行的 `Err` 供检查。
 pub fn parse_line(line: &str) -> Result<ParseResult, String> {
     let v: Value = serde_json::from_str(line.trim())
         .map_err(|e| format!("invalid JSON: {e}"))?;
-    // Response has `ok`; request has `method`.
+    // Response 含 `ok`；request 含 `method`。
     if v.get("ok").is_some() {
         let r: SidecarResponse = serde_json::from_value(v)
             .map_err(|e| format!("response parse: {e}"))?;
@@ -209,8 +195,8 @@ impl std::fmt::Debug for ParseResult {
     }
 }
 
-/// Build a `predict` request from market ids + market context.
-/// Pure function: serializes to JSON-line string.
+/// 从 market id 与市场上下文构建 `predict` 请求。
+/// 纯函数：序列化为 JSON-line 字符串。
 pub fn build_predict_request(
     id: impl Into<String>,
     markets: &[(String, f64)], // (market_id, current_price)
@@ -228,14 +214,13 @@ pub fn build_predict_request(
     serde_json::to_string(&req).unwrap_or_default()
 }
 
-/// Parse a `predict` response into a `PredictResult`.
-/// Returns Err if the response is `ok=false`.
+/// 将 `predict` 响应解析为 `PredictResult`。
+/// 若响应为 `ok=false` 则返回 Err。
 ///
-/// v0.12a — now returns the full `PredictResult` (predictions +
-/// model_version) instead of just `Vec<Prediction>`. The model
-/// version is hoisted from the response's top-level `model_version`
-/// field, falling back to `None` if the sidecar didn't send it
-/// (back-compat with v0.11c and earlier).
+/// v0.12a —— 现在返回完整的 `PredictResult`（predictions + model_version），
+/// 而不仅仅是 `Vec<Prediction>`。model version 从响应的顶层
+/// `model_version` 字段提升；若 sidecar 未提供则回退为 `None`
+///（与 v0.11c 及更早版本兼容）。
 pub fn parse_predict_response(
     resp: &SidecarResponse,
 ) -> Result<PredictResult, String> {
@@ -260,19 +245,18 @@ pub fn parse_predict_response(
 }
 
 // =================================================================
-// ============== v0.17a — train_job wire format ====================
+// ============== v0.17a —— train_job wire 格式 ====================
 // =================================================================
 
-/// Build a `train_job` request. Pure function: serializes to a
-/// JSON-line string. The Python sidecar accepts these params
-/// (see `sidecar/polyrocket_sidecar/dispatch.py::train_job`):
+/// 构建 `train_job` 请求。纯函数：序列化为 JSON-line 字符串。
+/// Python sidecar 接受以下参数（参见 `sidecar/polyrocket_sidecar/dispatch.py::train_job`）：
 ///
-///   - n_trials: int (default 4, max 4)
-///   - epochs:   int (default 80)
-///   - job_id:   str (server-generated; client-side is ignored)
+///   - n_trials: int（默认 4，上限 4）
+///   - epochs:   int（默认 80）
+///   - job_id:   str（由服务端生成；客户端传入会被忽略）
 ///
-/// The Rust side generates a fresh `job_id` and passes it back
-/// in the started event so the L1 can correlate.
+/// Rust 端会生成全新的 `job_id`，并在 started 事件中回传，
+/// 以便 L1 进行关联。
 pub fn build_train_request(
     id: impl Into<String>,
     n_trials: Option<u32>,
@@ -293,49 +277,45 @@ pub fn build_train_request(
     serde_json::to_string(&req).unwrap_or_default()
 }
 
-/// One trial's result in a `train_job` response. v0.17a
-/// mirrors the Python sidecar's `trials[]` array.
+/// `train_job` 响应中单个 trial 的结果。v0.17a 镜像 Python
+/// sidecar 的 `trials[]` 数组。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrainTrial {
     pub lr: f64,
     pub reg: f64,
     pub brier: f64,
-    /// `{"w0": ..., "w1": ..., "w2": ...}` — the trained weights
-    /// for this trial. Maps to the Python `weights` dict.
+    /// `{"w0": ..., "w1": ..., "w2": ...}` —— 该 trial 训练出的权重。
+    /// 对应 Python 中的 `weights` 字典。
     pub weights: serde_json::Value,
 }
 
-/// Wire-format mirror of the Python `run_train_job` return value.
+/// 镜像 Python `run_train_job` 返回值的 wire 格式。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrainResult {
-    /// Server-generated job id (e.g. `"train-441c352b"`).
+    /// 服务端生成的 job id（例如 `"train-441c352b"`）。
     pub job_id: String,
-    /// "completed" | "failed" (mirrors the Python return value).
+    /// "completed" | "failed"（镜像 Python 返回值）。
     pub status: String,
-    /// Best trial's Brier score (lower is better). Null on failure.
+    /// 最佳 trial 的 Brier 分数（越低越好）。失败时为 null。
     pub best_brier: Option<f64>,
-    /// Best trial's weights: `{"w0", "w1", "w2"}`. Null on failure.
+    /// 最佳 trial 的权重：`{"w0", "w1", "w2"}`。失败时为 null。
     pub best_params: Option<serde_json::Value>,
-    /// Per-trial stats. Length 0 if the train failed before any
-    /// trial finished.
+    /// 每个 trial 的统计。若 train 在任何 trial 完成前失败则长度为 0。
     pub trials: Vec<TrainTrial>,
-    /// Wall-clock time in milliseconds (Python's `duration_ms`).
+    /// 运行耗时（毫秒），对应 Python 的 `duration_ms`。
     pub duration_ms: i64,
-    /// Absolute path of the candidate JSON the Python sidecar
-    /// wrote (e.g. `~/.polyrocket/sidecar/models/candidate.json`).
-    /// Null on failure.
+    /// Python sidecar 写入的 candidate JSON 的绝对路径
+    ///（例如 `~/.polyrocket/sidecar/models/candidate.json`）。
+    /// 失败时为 null。
     pub candidate_path: Option<String>,
-    /// Human-readable error message if `status == "failed"`.
-    /// None on success.
+    /// `status == "failed"` 时的人类可读错误信息。成功时为 None。
     pub message: Option<String>,
 }
 
-/// Parse a `train_job` response into a `TrainResult`. Returns
-/// Err if the response is `ok=false`.
+/// 将 `train_job` 响应解析为 `TrainResult`。若响应为 `ok=false` 则返回 Err。
 ///
-/// The Python sidecar's `run_train_job` returns a dict with
-/// the fields above; some are optional on failure paths
-/// (e.g. `best_brier` may be null even on partial success).
+/// Python sidecar 的 `run_train_job` 返回一个 dict，包含上述字段；
+/// 部分字段在失败路径上是可选的（例如 `best_brier` 即使在部分成功时也可能为 null）。
 pub fn parse_train_response(resp: &SidecarResponse) -> Result<TrainResult, String> {
     if !resp.ok {
         return Err(resp.error.clone().unwrap_or_else(|| "unknown error".into()));
@@ -371,24 +351,22 @@ pub fn parse_train_response(resp: &SidecarResponse) -> Result<TrainResult, Strin
 }
 
 // =================================================================
-// ============== v0.18a — promote_model wire format ================
+// ============== v0.18a —— promote_model wire 协议格式 ================
 // =================================================================
 
-/// Build a `promote_model` request. Pure function: serializes
-/// to a JSON-line string. The Python sidecar accepts:
+/// 构建 `promote_model` 请求。纯函数：序列化为 JSON-line 字符串。
+/// Python sidecar 接受：
 ///
-///   - job_id: str (optional; if set, refuses to promote a
-///     candidate from a different job — protects against
-///     race conditions where another train finishes between
-///     the user's intent to promote and the promote call)
+///   - job_id: str（可选；若设置，则拒绝 promote 来自其他 job 的
+///     candidate —— 用于防止「用户在表达 promote 意图」与
+///     「实际执行 promote」之间其他 train 完成的竞态条件）
 ///
-/// v0.18a — promote is a fast synchronous file move (~10ms).
-/// No progress events. The IPC returns the full result.
-/// v0.21a — `trial_index` is an optional bulk-promote param.
-/// If `Some(n)`, promotes the n-th trial from `all_trials[]`
-/// instead of the best. The model version gets a `-t{n}`
-/// suffix so the user can distinguish bulk-promoted trials
-/// in the history panel.
+/// v0.18a —— promote 是一次快速的同步文件移动（~10ms）。
+/// 没有进度事件。IPC 返回完整结果。
+/// v0.21a —— `trial_index` 是可选的批量 promote 参数。
+/// 若为 `Some(n)`，则从 `all_trials[]` 中 promote 第 n 个 trial
+/// （而非最佳）。模型版本会附加 `-t{n}` 后缀，便于用户在
+/// history 面板中区分批量 promote 的 trial。
 pub fn build_promote_request(
     id: impl Into<String>,
     job_id: Option<&str>,
@@ -409,44 +387,39 @@ pub fn build_promote_request(
     serde_json::to_string(&req).unwrap_or_default()
 }
 
-/// Wire-format mirror of the Python `run_promote_model`
-/// return value. v0.18a — `promoted: bool` is the primary
-/// success indicator; `status: "ok" | "failed"` is the
-/// Python's own string for backward compat.
+/// 镜像 Python `run_promote_model` 返回值的 wire 格式。
+/// v0.18a —— `promoted: bool` 是首要的成功标志；`status: "ok" | "failed"`
+/// 为 Python 端为向后兼容保留的字符串。
 ///
-/// All fields are nullable because the Python sidecar
-/// returns a partially-populated dict on failure paths
-/// (e.g. when the candidate file is missing).
+/// 所有字段均可为空，因为 Python sidecar 在失败路径上
+/// 返回部分填充的 dict（例如 candidate 文件缺失时）。
 ///
-/// v0.21a — `trial_index: Option<usize>` records which
-/// trial was promoted. `None` means the best (default);
-/// `Some(n)` means the n-th trial of the train sweep
-/// (bulk promote).
+/// v0.21a —— `trial_index: Option<usize>` 记录被 promote 的 trial。
+/// `None` 表示最佳（默认）；`Some(n)` 表示 train 扫描中的第 n 个
+/// trial（批量 promote）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromoteResult {
-    /// `true` on success, `false` on failure.
+    /// 成功为 `true`，失败为 `false`。
     pub promoted: bool,
-    /// "ok" | "failed" — mirrors the Python's return string.
+    /// "ok" | "failed" —— 镜像 Python 返回字符串。
     pub status: String,
-    /// Path of the previous active.json (or null on first promote).
+    /// 旧 active.json 的路径（首次 promote 时为 null）。
     pub previous_path: Option<String>,
-    /// Path of the new active.json (the candidate was renamed to this).
+    /// 新 active.json 的路径（candidate 被重命名为此）。
     pub active_path: Option<String>,
-    /// Wall-clock time of the promote in milliseconds.
+    /// promote 的墙钟时间（毫秒）。
     pub promoted_at_ms: Option<i64>,
-    /// New model version string (e.g. `logistic-train-441c352b`
-    /// for the best, or `logistic-train-441c352b-t2` for bulk).
-    /// Empty string on failure.
+    /// 新模型版本字符串（例如最佳的 `logistic-train-441c352b`，
+    /// 或批量的 `logistic-train-441c352b-t2`）。失败时为空字符串。
     pub model_version: String,
-    /// Human-readable error message on failure; `None` on success.
+    /// 失败时的人类可读错误信息；成功时为 `None`。
     pub message: Option<String>,
-    /// v0.21a — which trial was promoted. `None` = best;
-    /// `Some(n)` = trial n of the train sweep.
+    /// v0.21a —— 被 promote 的 trial。`None` = 最佳；`Some(n)` = train 扫描中第 n 个 trial。
     pub trial_index: Option<usize>,
 }
 
-/// Parse a `promote_model` response into a `PromoteResult`.
-/// Returns Err if the response is `ok=false`.
+/// 将 `promote_model` 响应解析为 `PromoteResult`。
+/// 若响应为 `ok=false` 则返回 Err。
 pub fn parse_promote_response(resp: &SidecarResponse) -> Result<PromoteResult, String> {
     if !resp.ok {
         return Err(resp.error.clone().unwrap_or_else(|| "unknown error".into()));
@@ -477,12 +450,11 @@ pub fn parse_promote_response(resp: &SidecarResponse) -> Result<PromoteResult, S
 }
 
 // =================================================================
-// ============ v0.19a — list_promote_history wire format ===========
+// ============ v0.19a —— list_promote_history wire 格式 ===========
 // =================================================================
 
-/// Build a `list_promote_history` request. Pure function.
-/// v0.19a — read-only audit, no params. The request just
-/// carries the id for correlation.
+/// 构建 `list_promote_history` 请求。纯函数。
+/// v0.19a —— 只读审计，无参数。请求仅携带 id 用于关联。
 pub fn build_list_promote_history_request(id: impl Into<String>) -> String {
     let req = SidecarRequest {
         id: id.into(),
@@ -492,64 +464,56 @@ pub fn build_list_promote_history_request(id: impl Into<String>) -> String {
     serde_json::to_string(&req).unwrap_or_default()
 }
 
-/// Wire-format mirror of a single entry in
-/// `active.json.promotion_history[]`. v0.19a — one entry per
-/// successful promote. Oldest first, newest last (the last
-/// entry is the one that was just superseded when a new
-/// promote happened; if you want the currently active model
-/// use `model_version` from `PredictResult` instead).
+/// 镜像 `active.json.promotion_history[]` 中单条目的 wire 格式。
+/// v0.19a —— 每次成功 promote 对应一条记录。最旧在前、最新在后
+///（新 promote 发生时，最末条目即为刚被取代的；如需当前活跃模型，
+/// 请改用 `PredictResult` 中的 `model_version`）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromoteHistoryEntry {
-    /// Train job_id, e.g. "train-441c352b".
+    /// Train job_id，例如 "train-441c352b"。
     pub job_id: String,
-    /// Derived model version, e.g. "logistic-train-441c352b".
+    /// 派生的模型版本，例如 "logistic-train-441c352b"。
     pub model_version: String,
-    /// Wall-clock time of the promote in milliseconds.
+    /// promote 的墙钟时间（毫秒）。
     pub promoted_at_ms: i64,
-    /// Best Brier score from the train sweep (lower is better).
+    /// train 扫描中的最佳 Brier 分数（越低越好）。
     pub best_brier: Option<f64>,
-    /// Hyperparameters of the best trial.
+    /// 最佳 trial 的超参数。
     #[serde(default)]
     pub best_params: Option<Value>,
-    /// v0.21a — which trial of the train sweep was promoted.
-    /// `None` = best (default); `Some(n)` = trial n (bulk).
-    /// Older history entries from before v0.21a won't have
-    /// this field; serde-defaults to None.
+    /// v0.21a —— 被 promote 的 trial。`None` = 最佳（默认）；
+    /// `Some(n)` = 第 n 个 trial（批量）。v0.21a 之前的旧条目
+    /// 没有该字段；serde 默认为 None。
     #[serde(default)]
     pub trial_index: Option<usize>,
-    /// v0.41a — human-readable reason for the promote.
-    /// Surfaced as a hover tooltip on the history row in
-    /// the L1. Format: "Promoted as best trial" or
-    /// "Promoted as trial N of M".
+    /// v0.41a —— promote 的人类可读原因。在 L1 中显示为
+    /// history 行的 hover tooltip。格式：
+    /// "Promoted as best trial" 或 "Promoted as trial N of M"。
     ///
-    /// Older entries from before v0.41 won't have this
-    /// field; serde-defaults to None.
+    /// v0.41 之前的旧条目没有该字段；serde 默认为 None。
     #[serde(default)]
     pub reason: Option<String>,
 }
 
-/// Wire-format mirror of the `list_promote_history` response.
+/// 镜像 `list_promote_history` 响应的 wire 格式。
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PromoteHistoryResult {
-    /// `true` on success, `false` if active.json is missing
-    /// or malformed. (The Python sidecar returns ok=false
-    /// only in pathological cases; missing file is `ok=true
-    /// with count=0` because it's the natural "no history
-    /// yet" state.)
+    /// 成功为 `true`；若 active.json 缺失或格式错误则为 `false`
+    ///（Python sidecar 仅在极端情况下返回 ok=false；文件缺失属于
+    /// 「尚无 history」的自然状态，会以 `ok=true` 且 `count=0` 返回）。
     pub ok: bool,
-    /// History entries, oldest first.
+    /// history 条目，最旧在前。
     pub entries: Vec<PromoteHistoryEntry>,
-    /// `len(entries)` for convenience.
+    /// `len(entries)`，方便使用。
     pub count: usize,
-    /// Human-readable error message on failure; `None` on success.
+    /// 失败时的人类可读错误信息；成功时为 `None`。
     pub message: Option<String>,
 }
 
-/// Parse a `list_promote_history` response into a
-/// `PromoteHistoryResult`. Returns Err only if the sidecar
-/// returned `ok=false` at the envelope level (transport
-/// error). An ok=true envelope with ok=false at the result
-/// level (file is malformed) returns Ok with the message.
+/// 将 `list_promote_history` 响应解析为 `PromoteHistoryResult`。
+/// 仅当 sidecar 在 envelope 层返回 `ok=false`（传输错误）时才返回 Err。
+/// 若 envelope 为 ok=true 但 result 层 ok=false（文件格式错误），
+/// 则返回 Ok 并携带 message。
 pub fn parse_list_promote_history_response(
     resp: &SidecarResponse,
 ) -> Result<PromoteHistoryResult, String> {
@@ -577,13 +541,12 @@ pub fn parse_list_promote_history_response(
 }
 
 // =================================================================
-// ============== v0.20a — rollback_model wire format ===============
+// ============== v0.20a —— rollback_model wire 协议格式 ===============
 // =================================================================
 
-/// Build a `rollback_model` request. Pure function.
-/// v0.20a — rolls the active model back to a previous
-/// version (looked up by `model_version` in the
-/// promotion_history).
+/// 构建 `rollback_model` 请求。纯函数。
+/// v0.20a —— 将活跃模型回滚到先前的某个版本
+///（按 `model_version` 在 promotion_history 中查找）。
 pub fn build_rollback_request(
     id: impl Into<String>,
     model_version: &str,
@@ -596,31 +559,28 @@ pub fn build_rollback_request(
     serde_json::to_string(&req).unwrap_or_default()
 }
 
-/// Wire-format mirror of the Python `run_rollback_model`
-/// return value. v0.20a — `rolled_back: bool` is the
-/// primary success indicator.
+/// 镜像 Python `run_rollback_model` 返回值的 wire 格式。
+/// v0.20a —— `rolled_back: bool` 是首要的成功标志。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RollbackResult {
-    /// `true` on success, `false` on failure.
+    /// 成功为 `true`，失败为 `false`。
     pub rolled_back: bool,
-    /// "ok" | "failed" — mirrors the Python's return string.
+    /// "ok" | "failed" —— 镜像 Python 返回字符串。
     pub status: String,
-    /// Path of the previous active.json (always the same
-    /// path; rollback is a write to the same file).
+    /// 旧 active.json 的路径（始终为同一路径；rollback 写入同一文件）。
     pub previous_path: Option<String>,
-    /// Path of the new active.json (same as previous_path).
+    /// 新 active.json 的路径（与 previous_path 相同）。
     pub active_path: Option<String>,
-    /// Wall-clock time of the rollback in milliseconds.
+    /// rollback 的墙钟时间（毫秒）。
     pub rolled_back_at_ms: Option<i64>,
-    /// The version that was rolled back to. Empty on failure.
+    /// 回滚到的版本。失败时为空。
     pub model_version: String,
-    /// Human-readable error message on failure.
+    /// 失败时的人类可读错误信息。
     pub message: Option<String>,
 }
 
-/// Parse a `rollback_model` response into a `RollbackResult`.
-/// Returns Err if the response is `ok=false` at the
-/// envelope level.
+/// 将 `rollback_model` 响应解析为 `RollbackResult`。
+/// 若响应在 envelope 层为 `ok=false` 则返回 Err。
 pub fn parse_rollback_response(resp: &SidecarResponse) -> Result<RollbackResult, String> {
     if !resp.ok {
         return Err(resp.error.clone().unwrap_or_else(|| "unknown error".into()));
@@ -650,16 +610,15 @@ pub fn parse_rollback_response(resp: &SidecarResponse) -> Result<RollbackResult,
 }
 
 // =================================================================
-// ========== v0.23a — auto_promote_if_better wire format ==========
+// ========== v0.23a —— auto_promote_if_better wire 协议格式 ==========
 // =================================================================
 
-/// Build a `auto_promote_if_better` request. Pure function.
-/// v0.23a — one-click "promote the candidate only if it's
-/// meaningfully better than the active model" action.
+/// 构建 `auto_promote_if_better` 请求。纯函数。
+/// v0.23a —— 一键「仅当候选明显优于活跃模型时才 promote」操作。
 ///
-/// `brier_margin` is how much better the candidate must be
-/// (lower Brier = better). Default 0.005.
-/// `trial_index` is which trial to use (None = best).
+/// `brier_margin` 表示候选需要优于此 margin（Brier 越低越好）。
+/// 默认 0.005。
+/// `trial_index` 表示使用哪个 trial（None = 最佳）。
 pub fn build_auto_promote_if_better_request(
     id: impl Into<String>,
     brier_margin: Option<f64>,
@@ -680,38 +639,37 @@ pub fn build_auto_promote_if_better_request(
     serde_json::to_string(&req).unwrap_or_default()
 }
 
-/// Wire-format mirror of the Python `run_auto_promote_if_better`
-/// return value. v0.23a — the user clicks "Promote if better"
-/// after each train; this DTO carries the result.
+/// 镜像 Python `run_auto_promote_if_better` 返回值的 wire 格式。
+/// v0.23a —— 用户在每次 train 后点击「Promote if better」；该 DTO
+/// 携带执行结果。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutoPromoteIfBetterResult {
-    /// `true` if the candidate was actually promoted.
+    /// 若候选模型确实被 promote 则为 `true`。
     pub promoted: bool,
-    /// `true` if the candidate was NOT promoted (because
-    /// it wasn't meaningfully better). Mutually exclusive
-    /// with `promoted=true`.
+    /// 若候选未被 promote（因为不够优秀）则为 `true`。
+    /// 与 `promoted=true` 互斥。
     pub skipped: bool,
-    /// Human-readable reason: "auto-promoted: improvement
-    /// X > margin Y" / "candidate brier X is not at least
-    /// Y better than active Z" / "no candidate" / etc.
+    /// 人类可读的原因：
+    /// "auto-promoted: improvement X > margin Y" /
+    /// "candidate brier X is not at least Y better than active Z" /
+    /// "no candidate" 等。
     pub reason: String,
-    /// The candidate's brier (or None if no candidate).
+    /// 候选模型的 brier（无候选则为 None）。
     pub candidate_brier: Option<f64>,
-    /// The active model's brier (or None if no active).
+    /// 活跃模型的 brier（无活跃模型则为 None）。
     pub active_brier: Option<f64>,
-    /// The brier_margin used for the comparison.
+    /// 比较所用的 brier_margin。
     pub margin: f64,
-    /// The new model version (on success). Empty on skip/fail.
+    /// 新模型版本（成功时）。skip/fail 时为空。
     pub model_version: Option<String>,
-    /// The promote timestamp (on success). None on skip/fail.
+    /// promote 时间戳（成功时）。skip/fail 时为 None。
     pub promoted_at_ms: Option<i64>,
-    /// Human-readable message (e.g. the Python's error).
+    /// 人类可读的消息（例如 Python 端的错误信息）。
     pub message: Option<String>,
 }
 
-/// Parse a `auto_promote_if_better` response into an
-/// `AutoPromoteIfBetterResult`. Returns Err if the
-/// response is `ok=false` at the envelope level.
+/// 将 `auto_promote_if_better` 响应解析为 `AutoPromoteIfBetterResult`。
+/// 若响应在 envelope 层为 `ok=false` 则返回 Err。
 pub fn parse_auto_promote_if_better_response(
     resp: &SidecarResponse,
 ) -> Result<AutoPromoteIfBetterResult, String> {
@@ -740,12 +698,11 @@ pub fn parse_auto_promote_if_better_response(
 }
 
 // =================================================================
-// ============== v0.25a — promote_all_trials wire format ==========
+// ============== v0.25a —— promote_all_trials wire 格式 ==========
 // =================================================================
 
-/// Build a `promote_all_trials` request. Pure function.
-/// v0.25a — no params; the sidecar reads the current
-/// candidate and promotes every trial.
+/// 构建 `promote_all_trials` 请求。纯函数。
+/// v0.25a —— 无参数；sidecar 读取当前 candidate 并 promote 每个 trial。
 pub fn build_promote_all_trials_request(id: impl Into<String>) -> String {
     let req = SidecarRequest {
         id: id.into(),
@@ -755,31 +712,25 @@ pub fn build_promote_all_trials_request(id: impl Into<String>) -> String {
     serde_json::to_string(&req).unwrap_or_default()
 }
 
-/// v0.43a — one sample in a backtest. The L1 builds
-/// this list from the markets DB (resolved markets
-/// only) and passes it through. We keep the type
-/// here so the wire format and the Rust types stay
-/// in sync.
+/// v0.43a —— 回测中的一条样本。L1 从 markets DB（仅已结算市场）构造
+/// 该列表并直接透传。我们把类型放在这里，是为了使 wire 格式与
+/// Rust 类型保持同步。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BacktestSample {
-    /// The market price at predict-time (0..1).
+    /// 预测时刻的市场价格（0..1）。
     pub price: f64,
-    /// How many hours since the market opened at
-    /// predict-time. The model's `w2` weights age.
+    /// 预测时刻距市场开盘的小时数。模型的 `w2` 对 age 加权。
     pub market_age_hours: f64,
-    /// Resolution outcome (0 = NO, 1 = YES).
+    /// 结算结果（0 = NO，1 = YES）。
     pub outcome: f64,
-    /// Optional human-readable label, surfaced
-    /// in the top winners/losers list (e.g. the
-    /// market question). Empty string is fine.
+    /// 可选的人类可读标签，会在 top winners/losers 列表中展示
+    ///（例如市场问题）。空字符串也可以。
     #[serde(default)]
     pub label: String,
 }
 
-/// Build a `backtest_model` request. v0.43a. Pure
-/// function — the samples are passed through
-/// verbatim; the sidecar does the prediction
-/// + Brier computation.
+/// 构建 `backtest_model` 请求。v0.43a。纯函数 —— 样本原样透传；
+/// 由 sidecar 完成预测与 Brier 计算。
 pub fn build_backtest_model_request(
     id: impl Into<String>,
     model_version: &str,
@@ -797,27 +748,24 @@ pub fn build_backtest_model_request(
 }
 
 // =================================================================
-// v0.55 — explain_model request builder + response types
+// v0.55 —— explain_model 请求构造器与响应类型
 // =================================================================
 
-/// v0.55 — input sample for an explainability query.
-/// Mirrors `explainability.run_explainability`'s
-/// `sample` param. Both fields are optional;
-/// omitting both gives a default sample
-/// (price=0.5, age=24h).
+/// v0.55 —— 可解释性查询的输入样本。镜像
+/// `explainability.run_explainability` 的 `sample` 参数。
+/// 两个字段均为可选；同时省略则使用默认样本（price=0.5，age=24h）。
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ExplainSample {
-    /// The market price, 0..1. Default 0.5.
+    /// 市场价格，0..1。默认 0.5。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub price: Option<f64>,
-    /// The market age in hours, >=0. Default 24.
+    /// 市场年龄（小时），>=0。默认 24。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub market_age_hours: Option<f64>,
 }
 
-/// v0.55 — builder for the `explain_model`
-/// request line. `sample` is optional — when
-/// None, the sidecar uses a default sample.
+/// v0.55 —— `explain_model` 请求行的构造器。`sample` 可选 —— 当
+/// 为 None 时，sidecar 使用默认样本。
 pub fn build_explain_model_request(
     id: impl Into<String>,
     model_version: &str,
@@ -837,55 +785,43 @@ pub fn build_explain_model_request(
     serde_json::to_string(&req).unwrap_or_default()
 }
 
-/// v0.55 — one feature's contribution to a single
-/// prediction. The L1 renders this as a horizontal
-/// bar chart (positive bars in green, negative
-/// in red, length = abs_contribution).
+/// v0.55 —— 单个预测中一个特征的贡献。L1 将其渲染为水平条形图
+///（正值绿色、负值红色，长度 = abs_contribution）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExplainFeature {
-    /// Feature name, e.g. "price", "bias",
-    /// "market_age_hours".
+    /// 特征名，例如 "price"、"bias"、"market_age_hours"。
     pub feature: String,
-    /// The actual feature value used in the sample.
+    /// 样本中实际使用的特征值。
     pub value: f64,
-    /// The model's weight for this feature.
+    /// 模型对该特征的权重。
     pub weight: f64,
-    /// The contribution to (p - 0.5). Positive
-    /// means "this feature moved the prediction
-    /// higher", negative means "moved it lower".
+    /// 对 (p - 0.5) 的贡献。正值表示「该特征把预测推高」，
+    /// 负值表示「把预测压低」。
     pub contribution: f64,
-    /// `|contribution|`. Used for sorting +
-    /// chart bar length.
+    /// `|contribution|`。用于排序以及条形图长度。
     pub abs_contribution: f64,
 }
 
-/// v0.55 — wire-format mirror of the Python
-/// sidecar's `explain_model` response.
+/// v0.55 —— 镜像 Python sidecar `explain_model` 响应的 wire 格式。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExplainResult {
-    /// `true` on success; `false` for unknown
-    /// model / missing weights / invalid sample.
+    /// 成功为 `true`；未知模型 / 缺失权重 / 样本非法则为 `false`。
     pub ok: bool,
-    /// Echoed from the request.
+    /// 从请求回显。
     pub model_version: String,
-    /// Per-feature contributions, sorted by
-    /// `abs_contribution` descending.
+    /// 逐特征贡献，按 `abs_contribution` 降序排列。
     pub features: Vec<ExplainFeature>,
-    /// The model's predicted probability for
-    /// the sample (0..1). `None` on error.
+    /// 模型对该样本的预测概率（0..1）。错误时为 `None`。
     pub prediction: Option<f64>,
-    /// The sample we evaluated (price +
-    /// market_age_hours). Echoed from the
-    /// request, with defaults filled in.
+    /// 已评估的样本（price + market_age_hours）。从请求回显，
+    /// 缺失字段已填充默认值。
     pub sample: Option<ExplainSample>,
-    /// Human-readable status / error.
+    /// 人类可读的状态 / 错误信息。
     pub message: String,
 }
 
-/// v0.55 — parse a sidecar `explain_model` response
-/// into a typed `ExplainResult`. The shape is
-/// always there on `ok=true`/`ok=false`; we just
-/// tolerate the failure case.
+/// v0.55 —— 将 sidecar `explain_model` 响应解析为强类型的 `ExplainResult`。
+/// `ok=true`/`ok=false` 两种情况下结构始终存在；这里仅容忍失败情形。
 pub fn parse_explain_model_response(
     response: &SidecarResponse,
 ) -> AppResult<ExplainResult> {
@@ -930,10 +866,8 @@ pub fn parse_explain_model_response(
                 .iter()
                 .filter_map(|x| serde_json::from_value(x.clone()).ok())
                 .collect();
-            // Sort by abs_contribution descending.
-            // The sidecar already sorts, but we
-            // re-sort defensively in case the
-            // protocol changes.
+            // 按 abs_contribution 降序排列。sidecar 已排序，
+            // 这里再次排序以做防御性处理，防止协议变更。
             v.sort_by(|a, b| {
                 b.abs_contribution
                     .partial_cmp(&a.abs_contribution)
@@ -964,61 +898,49 @@ pub fn parse_explain_model_response(
 }
 
 // =================================================================
-// v0.59 — SHAP via KernelExplainer
+// v0.59 —— 通过 KernelExplainer 实现 SHAP
 // =================================================================
 
-/// v0.59 — one feature's SHAP value. Same shape
-/// as ExplainFeature (v0.55) but with
-/// `shap_value` / `abs_shap` instead of
-/// `contribution` / `abs_contribution` to make
-/// the math explicit in the L1.
+/// v0.59 —— 单个特征的 SHAP 值。形状与 ExplainFeature（v0.55）
+/// 相同，但使用 `shap_value` / `abs_shap` 替代 `contribution` /
+/// `abs_contribution`，便于在 L1 中显式呈现 SHAP 数学含义。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShapFeature {
     pub feature: String,
     pub value: f64,
     pub weight: f64,
-    /// The SHAP value φ_i. Positive = "moved
-    /// the prediction higher", negative =
-    /// "moved it lower". Satisfies:
+    /// SHAP 值 φ_i。正值表示「把预测推高」，负值表示「把预测压低」。
+    /// 满足：
     ///   Σφ_i = f(x) - E[f(x)]
-    /// (the SHAP efficiency axiom).
+    ///（SHAP efficiency 公理）。
     pub shap_value: f64,
-    /// `|shap_value|`. Used for sorting + chart
-    /// bar length.
+    /// `|shap_value|`。用于排序以及条形图长度。
     pub abs_shap: f64,
 }
 
-/// v0.59 — wire-format mirror of the Python
-/// sidecar's `shap_explain` response.
+/// v0.59 —— 镜像 Python sidecar `shap_explain` 响应的 wire 格式。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShapResult {
     pub ok: bool,
     pub model_version: String,
-    /// Always "kernel_shap" today; future
-    /// variants (e.g. "tree_shap" for tree-
-    /// based models) can set this differently.
+    /// 当前始终为 "kernel_shap"；未来变体（例如面向树模型的
+    /// "tree_shap"）可在此设置不同值。
     pub method: String,
     pub features: Vec<ShapFeature>,
-    /// The baseline (empty coalition) prediction.
-    /// `None` on error.
+    /// baseline（空 coalition）的预测。错误时为 `None`。
     pub baseline_prediction: Option<f64>,
-    /// The model's prediction for the target
-    /// sample. `None` on error.
+    /// 模型对目标样本的预测。错误时为 `None`。
     pub target_prediction: Option<f64>,
-    /// SHAP efficiency gap: `Σφ_i - (f(x) -
-    /// E[f(x)])`. Should be ~0.0 within
-    /// floating-point tolerance; a non-zero
-    /// value means the regression didn't
-    /// converge (e.g. degenerate model).
+    /// SHAP efficiency 差距：`Σφ_i - (f(x) - E[f(x)])`。
+    /// 在浮点容差内应接近 0.0；非零表示回归未收敛
+    ///（例如模型退化）。
     pub efficiency_diff: Option<f64>,
     pub sample: Option<ExplainSample>,
     pub message: String,
 }
 
-/// v0.59 — builder for the `shap_explain`
-/// request line. `sample` is optional — when
-/// None, the sidecar uses the default sample
-/// (price=0.5, age=24h).
+/// v0.59 —— `shap_explain` 请求行的构造器。`sample` 可选 ——
+/// 为 None 时，sidecar 使用默认样本（price=0.5，age=24h）。
 pub fn build_shap_explain_request(
     id: impl Into<String>,
     model_version: &str,
@@ -1038,10 +960,8 @@ pub fn build_shap_explain_request(
     serde_json::to_string(&req).unwrap_or_default()
 }
 
-/// v0.59 — parse a sidecar `shap_explain`
-/// response into a typed `ShapResult`. Same
-/// error-tolerance pattern as the v0.55
-/// `parse_explain_model_response`.
+/// v0.59 —— 将 sidecar `shap_explain` 响应解析为强类型的 `ShapResult`。
+/// 错误容忍模式与 v0.55 的 `parse_explain_model_response` 一致。
 pub fn parse_shap_explain_response(
     response: &SidecarResponse,
 ) -> AppResult<ShapResult> {
@@ -1094,7 +1014,7 @@ pub fn parse_shap_explain_response(
                 .iter()
                 .filter_map(|x| serde_json::from_value(x.clone()).ok())
                 .collect();
-            // Sort by abs_shap descending.
+            // 按 abs_shap 降序排列。
             v.sort_by(|a, b| {
                 b.abs_shap
                     .partial_cmp(&a.abs_shap)
@@ -1133,118 +1053,100 @@ pub fn parse_shap_explain_response(
     })
 }
 
-/// v0.43a — one entry in the calibration histogram.
-/// The L1 renders this as a small bar chart:
-/// "in this prediction bucket, the actual
-/// resolution rate was X (vs predicted Y)".
+/// v0.43a —— 校准直方图中的一条记录。L1 将其渲染为小型条形图：
+///「该预测桶内的实际结算率为 X（vs 预测的 Y）」。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BacktestCalibrationBucket {
-    /// Human-readable bucket label, e.g. "[0.4, 0.6)".
+    /// 人类可读的桶标签，例如 "[0.4, 0.6)"。
     pub bucket: String,
-    /// Mean predicted probability in this bucket.
-    /// `None` when the bucket is empty.
+    /// 该桶内的平均预测概率。桶为空时为 `None`。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub predicted_avg: Option<f64>,
-    /// Actual resolution rate in this bucket.
-    /// `None` when the bucket is empty.
+    /// 该桶内的实际结算率。桶为空时为 `None`。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub actual_rate: Option<f64>,
-    /// Number of samples in this bucket.
+    /// 该桶内的样本数。
     pub count: usize,
 }
 
-/// v0.43a — one entry in the top winners / top
-/// losers list. Includes enough context to render
-/// a tooltip on hover.
+/// v0.43a —— top winners / top losers 列表中的一条记录。
+/// 包含足够的上下文以便在 hover 时渲染 tooltip。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BacktestTopSample {
-    /// Echoed from the input `label`.
+    /// 从输入 `label` 回显。
     pub label: String,
-    /// Per-sample Brier.
+    /// 该样本的 Brier 分数。
     pub brier: f64,
-    /// The model's prediction.
+    /// 模型的预测。
     pub predicted: f64,
-    /// The actual outcome.
+    /// 实际结果。
     pub outcome: f64,
 }
 
-/// v0.43a — wire-format mirror of the Python
-/// sidecar's `backtest_model` response.
+/// v0.43a —— 镜像 Python sidecar `backtest_model` 响应的 wire 格式。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BacktestResult {
-    /// `true` on success; `false` for unknown
-    /// model / empty samples / all-malformed /
-    /// missing weights.
+    /// 成功为 `true`；未知模型 / 样本为空 / 全部格式错误 /
+/// 缺失权重则为 `false`。
     pub ok: bool,
-    /// Echoed from the request.
+    /// 从请求回显。
     pub model_version: String,
-    /// Number of samples that passed validation
-    /// and contributed to Brier.
+    /// 通过校验并对 Brier 有贡献的样本数。
     pub sample_count: usize,
-    /// Mean squared error of predictions vs
-    /// outcomes. `None` when `ok=false`.
+    /// 预测与结果之间的均方误差。`ok=false` 时为 `None`。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub brier_mean: Option<f64>,
-    /// Per-sample Brier scores, in input order.
-    /// Useful for client-side histograms.
+    /// 每条样本的 Brier 分数，按输入顺序。可用于客户端直方图。
     #[serde(default)]
     pub brier_breakdown: Vec<f64>,
-    /// 5 calibration buckets in [0, 1].
+    /// [0, 1] 范围内的 5 个校准桶。
     #[serde(default)]
     pub calibration: Vec<BacktestCalibrationBucket>,
-    /// 3 lowest-Brier samples (best predictions).
+    /// Brier 最低的 3 条样本（最佳预测）。
     #[serde(default)]
     pub top_winners: Vec<BacktestTopSample>,
-    /// 3 highest-Brier samples (worst predictions),
-    /// reversed (worst first).
+    /// Brier 最高的 3 条样本（最差预测），顺序反转（最差在前）。
     #[serde(default)]
     pub top_losers: Vec<BacktestTopSample>,
-    /// Human-readable status / error message.
+    /// 人类可读的状态 / 错误信息。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
 }
 
-/// Wire-format mirror of one per-trial promote result
-/// inside the `results` list. v0.25a.
+/// `results` 列表中单个 trial promote 结果的 wire 格式镜像。v0.25a。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromoteAllTrialResult {
-    /// 0-indexed trial number.
+    /// 0 索引的 trial 编号。
     pub trial_index: usize,
-    /// `true` if this trial was successfully promoted.
+    /// 若该 trial 成功 promote 则为 `true`。
     pub promoted: bool,
-    /// "ok" | "failed" — mirrors the Python's per-call status.
+    /// "ok" | "failed" —— 镜像 Python 端的逐调用状态。
     pub status: String,
-    /// New model version (e.g. "logistic-train-XYZ-t2").
-    /// Empty string on failure.
+    /// 新模型版本（例如 "logistic-train-XYZ-t2"）。失败时为空字符串。
     pub model_version: String,
-    /// Wall-clock time of the promote in ms.
+    /// promote 的墙钟时间（毫秒）。
     pub promoted_at_ms: Option<i64>,
-    /// Human-readable error message on failure.
+    /// 失败时的人类可读错误信息。
     pub message: Option<String>,
 }
 
-/// Wire-format mirror of the Python `run_promote_all_trials`
-/// return value. v0.25a.
+/// 镜像 Python `run_promote_all_trials` 返回值的 wire 格式。v0.25a。
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PromoteAllTrialsResult {
-    /// `true` if all trial promotes succeeded.
+    /// 所有 trial promote 均成功则为 `true`。
     pub ok: bool,
-    /// Per-trial results, in trial_index order.
+    /// 各 trial 的结果，按 trial_index 顺序。
     pub results: Vec<PromoteAllTrialResult>,
-    /// `len(results)`.
+    /// 即 `len(results)`。
     pub count: usize,
-    /// Overall error message (e.g. "no candidate"). None
-    /// if all promotes succeeded.
+    /// 总体错误信息（例如 "no candidate"）。所有 promote 均成功时为 None。
     pub message: Option<String>,
 }
 
-/// Parse a `backtest_model` response into a
-/// `BacktestResult`. Returns Err if the response
-/// is `ok=false` at the envelope level. The
-/// `BacktestResult.ok` field reflects the
-/// application-level success (model found, samples
-/// valid) which is independent of the
-/// envelope-level `ok`.
+/// 将 `backtest_model` 响应解析为 `BacktestResult`。
+/// 若响应在 envelope 层为 `ok=false` 则返回 Err。
+/// `BacktestResult.ok` 字段反映应用层级的成功状态
+///（模型找到、样本合法），与 envelope 层级的 `ok` 独立。
 pub fn parse_backtest_model_response(
     resp: &SidecarResponse,
 ) -> Result<BacktestResult, String> {
@@ -1256,9 +1158,8 @@ pub fn parse_backtest_model_response(
         .map_err(|e| format!("backtest decode: {e}"))
 }
 
-/// Parse a `promote_all_trials` response into a
-/// `PromoteAllTrialsResult`. Returns Err if the response
-/// is `ok=false` at the envelope level.
+/// 将 `promote_all_trials` 响应解析为 `PromoteAllTrialsResult`。
+/// 若响应在 envelope 层为 `ok=false` 则返回 Err。
 pub fn parse_promote_all_trials_response(
     resp: &SidecarResponse,
 ) -> Result<PromoteAllTrialsResult, String> {
@@ -1311,7 +1212,7 @@ mod tests {
 
     #[test]
     fn parse_promote_response_success() {
-        // v0.18a — full success case
+        // v0.18a —— 完整成功用例
         let r = SidecarResponse {
             id: "promote-abc".into(),
             ok: true,
@@ -1336,10 +1237,9 @@ mod tests {
 
     #[test]
     fn parse_promote_response_no_candidate() {
-        // v0.18a — the user clicked Promote before Train.
-        // The Python sidecar returns promoted: false with a
-        // descriptive message. The Rust side returns the
-        // same shape so the L1 doesn't need a special path.
+        // v0.18a —— 用户在 Train 完成前点击了 Promote。
+        // Python sidecar 返回 promoted: false 并附带说明性信息。
+        // Rust 端返回同样的结构，以便 L1 无需走特殊路径。
         let r = SidecarResponse {
             id: "promote-xyz".into(),
             ok: true,
@@ -1361,8 +1261,8 @@ mod tests {
 
     #[test]
     fn parse_promote_response_job_id_mismatch() {
-        // v0.18a — the user passed job_id="X" but the
-        // current candidate is from job_id="Y". Refused.
+        // v0.18a —— 用户传入了 job_id="X"，但当前 candidate 来自
+        // job_id="Y"，因此被拒绝。
         let r = SidecarResponse {
             id: "promote-mmm".into(),
             ok: true,
@@ -1380,8 +1280,8 @@ mod tests {
 
     #[test]
     fn parse_promote_response_not_ok_returns_err() {
-        // v0.18a — the Python sidecar returned ok=false.
-        // We propagate the error message.
+        // v0.18a —— Python sidecar 返回了 ok=false。
+        // 我们直接传递错误信息。
         let r = SidecarResponse {
             id: "promote-eee".into(),
             ok: false,
@@ -1393,7 +1293,7 @@ mod tests {
 
     #[test]
     fn build_promote_request_no_job_id() {
-        // v0.18a — optional job_id is omitted
+        // v0.18a —— 可选 job_id 被省略
         let line = build_promote_request("promote-123", None, None);
         let v: serde_json::Value = serde_json::from_str(&line).unwrap();
         assert_eq!(v["method"], "promote_model");
@@ -1403,7 +1303,7 @@ mod tests {
 
     #[test]
     fn build_promote_request_with_job_id() {
-        // v0.18a — job_id is included
+        // v0.18a —— 包含 job_id
         let line = build_promote_request("promote-456", Some("train-abc"), None);
         let v: serde_json::Value = serde_json::from_str(&line).unwrap();
         assert_eq!(v["params"]["job_id"], "train-abc");
@@ -1411,7 +1311,7 @@ mod tests {
 
     #[test]
     fn build_promote_request_with_trial_index() {
-        // v0.21a — bulk promote: trial_index in params
+        // v0.21a —— 批量 promote：params 中携带 trial_index
         let line = build_promote_request("promote-789", Some("train-abc"), Some(2));
         let v: serde_json::Value = serde_json::from_str(&line).unwrap();
         assert_eq!(v["params"]["job_id"], "train-abc");
@@ -1420,7 +1320,7 @@ mod tests {
 
     #[test]
     fn parse_promote_response_with_trial_index() {
-        // v0.21a — bulk promote: response carries trial_index
+        // v0.21a —— 批量 promote：响应携带 trial_index
         let r = SidecarResponse {
             id: "promote-bulk".into(),
             ok: true,
@@ -1443,9 +1343,8 @@ mod tests {
 
     #[test]
     fn parse_promote_response_default_trial_index() {
-        // v0.21a — backward-compat: when trial_index is missing
-        // (Python sidecar didn't return it), the Rust side
-        // returns None (best, not bulk).
+        // v0.21a —— 向后兼容：当 trial_index 缺失
+        //（Python sidecar 未返回），Rust 端返回 None（最佳，非批量）。
         let r = SidecarResponse {
             id: "promote-best".into(),
             ok: true,
@@ -1467,7 +1366,7 @@ mod tests {
 
     #[test]
     fn build_list_promote_history_request_basic() {
-        // v0.19a — read-only audit, no params (empty object)
+        // v0.19a —— 只读审计，无参数（空对象）
         let line = build_list_promote_history_request("list-1");
         let v: serde_json::Value = serde_json::from_str(&line).unwrap();
         assert_eq!(v["method"], "list_promote_history");
@@ -1477,7 +1376,7 @@ mod tests {
 
     #[test]
     fn parse_list_promote_history_response_populated() {
-        // v0.19a — 2 entries, ok=true
+        // v0.19a —— 2 条记录，ok=true
         let r = SidecarResponse {
             id: "list-2".into(),
             ok: true,
@@ -1518,7 +1417,7 @@ mod tests {
 
     #[test]
     fn parse_list_promote_history_response_empty() {
-        // v0.19a — no active model yet; ok=true with empty entries
+        // v0.19a —— 尚无活跃模型；ok=true 且 entries 为空
         let r = SidecarResponse {
             id: "list-3".into(),
             ok: true,
@@ -1539,7 +1438,7 @@ mod tests {
 
     #[test]
     fn parse_list_promote_history_response_not_ok_returns_err() {
-        // v0.19a — envelope-level error
+        // v0.19a —— envelope 层错误
         let r = SidecarResponse {
             id: "list-4".into(),
             ok: false,
@@ -1551,7 +1450,7 @@ mod tests {
 
     #[test]
     fn build_rollback_request_basic() {
-        // v0.20a — model_version in params
+        // v0.20a —— params 中携带 model_version
         let line = build_rollback_request("rollback-1", "logistic-train-441c352b");
         let v: serde_json::Value = serde_json::from_str(&line).unwrap();
         assert_eq!(v["method"], "rollback_model");
@@ -1561,7 +1460,7 @@ mod tests {
 
     #[test]
     fn parse_rollback_response_success() {
-        // v0.20a — full success case
+        // v0.20a —— 完整成功用例
         let r = SidecarResponse {
             id: "rollback-2".into(),
             ok: true,
@@ -1585,10 +1484,9 @@ mod tests {
 
     #[test]
     fn parse_rollback_response_not_found() {
-        // v0.20a — the requested model_version isn't in the
-        // history (e.g. user passed a typo). The Python
-        // sidecar returns rolled_back=false with a clear
-        // diagnostic. The Rust side returns the same shape.
+        // v0.20a —— 请求的 model_version 不在 history 中
+        //（例如用户拼错）。Python sidecar 返回 rolled_back=false
+        // 并附带清晰的诊断信息。Rust 端返回同样的结构。
         let r = SidecarResponse {
             id: "rollback-3".into(),
             ok: true,
@@ -1608,9 +1506,8 @@ mod tests {
 
     #[test]
     fn parse_rollback_response_no_weights() {
-        // v0.20a — entry exists but was promoted before
-        // v0.20a (no weights stored). The user needs to
-        // retrain to roll back to it.
+        // v0.20a —— 条目存在但 promote 早于 v0.20a（未存储 weights）。
+        // 用户需要重新训练才能回滚到该版本。
         let r = SidecarResponse {
             id: "rollback-4".into(),
             ok: true,
@@ -1628,7 +1525,7 @@ mod tests {
 
     #[test]
     fn parse_rollback_response_not_ok_returns_err() {
-        // v0.20a — envelope-level error
+        // v0.20a —— envelope 层错误
         let r = SidecarResponse {
             id: "rollback-5".into(),
             ok: false,
@@ -1640,8 +1537,7 @@ mod tests {
 
     #[test]
     fn build_auto_promote_if_better_request_default_margin() {
-        // v0.23a — no params → empty params object (Python
-        // uses its default 0.005 margin)
+        // v0.23a —— 无参数 → params 为空对象（Python 使用默认 0.005 margin）
         let line = build_auto_promote_if_better_request("ap-1", None, None);
         let v: serde_json::Value = serde_json::from_str(&line).unwrap();
         assert_eq!(v["method"], "auto_promote_if_better");
@@ -1651,7 +1547,7 @@ mod tests {
 
     #[test]
     fn build_auto_promote_if_better_request_with_margin_and_trial() {
-        // v0.23a — both params
+        // v0.23a —— 两个参数均提供
         let line = build_auto_promote_if_better_request("ap-2", Some(0.01), Some(2));
         let v: serde_json::Value = serde_json::from_str(&line).unwrap();
         assert_eq!(v["params"]["brier_margin"], 0.01);
@@ -1660,7 +1556,7 @@ mod tests {
 
     #[test]
     fn parse_auto_promote_if_better_response_promoted() {
-        // v0.23a — promoted case (candidate was meaningfully better)
+        // v0.23a —— promote 用例（候选明显更优）
         let r = SidecarResponse {
             id: "ap-3".into(),
             ok: true,
@@ -1688,7 +1584,7 @@ mod tests {
 
     #[test]
     fn parse_auto_promote_if_better_response_skipped() {
-        // v0.23a — skipped case (candidate wasn't meaningfully better)
+        // v0.23a —— 跳过用例（候选并未明显更优）
         let r = SidecarResponse {
             id: "ap-4".into(),
             ok: true,
@@ -1715,7 +1611,7 @@ mod tests {
 
     #[test]
     fn parse_auto_promote_if_better_response_no_active() {
-        // v0.23a — no active model: auto-promotes the candidate
+        // v0.23a —— 无活跃模型：自动 promote 候选
         let r = SidecarResponse {
             id: "ap-5".into(),
             ok: true,
@@ -1739,7 +1635,7 @@ mod tests {
 
     #[test]
     fn parse_auto_promote_if_better_response_not_ok_returns_err() {
-        // v0.23a — envelope-level error
+        // v0.23a —— envelope 层错误
         let r = SidecarResponse {
             id: "ap-6".into(),
             ok: false,
@@ -1751,7 +1647,7 @@ mod tests {
 
     #[test]
     fn build_promote_all_trials_request_basic() {
-        // v0.25a — no params, just the method + id
+        // v0.25a —— 无参数，仅 method + id
         let line = build_promote_all_trials_request("all-1");
         let v: serde_json::Value = serde_json::from_str(&line).unwrap();
         assert_eq!(v["method"], "promote_all_trials");
@@ -1761,7 +1657,7 @@ mod tests {
 
     #[test]
     fn parse_promote_all_trials_response_all_ok() {
-        // v0.25a — 4 trials all promoted successfully
+        // v0.25a —— 4 个 trial 全部 promote 成功
         let r = SidecarResponse {
             id: "all-2".into(),
             ok: true,
@@ -1819,8 +1715,8 @@ mod tests {
 
     #[test]
     fn parse_promote_all_trials_response_no_candidate() {
-        // v0.25a — no candidate on disk returns ok=false
-        // with empty results and a clear message
+        // v0.25a —— 磁盘上无 candidate 时返回 ok=false，
+        // results 为空并附带清晰消息
         let r = SidecarResponse {
             id: "all-3".into(),
             ok: true,
@@ -1841,7 +1737,7 @@ mod tests {
 
     #[test]
     fn parse_promote_all_trials_response_not_ok_returns_err() {
-        // v0.25a — envelope-level error
+        // v0.25a —— envelope 层错误
         let r = SidecarResponse {
             id: "all-4".into(),
             ok: false,
@@ -1891,7 +1787,7 @@ mod tests {
     #[test]
     fn parse_line_rejects_invalid() {
         assert!(parse_line("not json").is_err());
-        assert!(parse_line(r#"{"id":"r1"}"#).is_err()); // neither method nor ok
+        assert!(parse_line(r#"{"id":"r1"}"#).is_err()); // 既不含 method 也不含 ok
     }
 
     #[test]
@@ -1900,7 +1796,7 @@ mod tests {
             ("m1".to_string(), 0.5),
             ("m2".to_string(), 0.7),
         ]);
-        // Parse back as a request
+        // 解析回 request
         let parsed = match parse_line(&line).unwrap() {
             ParseResult::Request(r) => r,
             _ => panic!(),
@@ -1910,7 +1806,7 @@ mod tests {
         let markets = parsed.params.get("markets").and_then(|v| v.as_array()).unwrap();
         assert_eq!(markets.len(), 2);
 
-        // Build a fake response and round-trip
+        // 构造一个伪响应并往返解析
         let resp = SidecarResponse::ok("r1", serde_json::json!({
             "predictions": [
                 { "market_id": "m1", "prob": 0.65, "confidence": 0.7, "rationale": "why" },
@@ -1924,14 +1820,14 @@ mod tests {
         assert!((result.predictions[0].prob - 0.65).abs() < 1e-9);
         assert_eq!(result.predictions[0].rationale.as_deref(), Some("why"));
         assert!(result.predictions[1].rationale.is_none());
-        // v0.12a — model_version is hoisted to the top level
+        // v0.12a —— model_version 被提升到顶层
         assert_eq!(result.model_version.as_deref(), Some("logistic-train-abc123"));
     }
 
     #[test]
     fn parse_predict_response_model_version_optional() {
-        // Back-compat: if the sidecar doesn't send model_version,
-        // we still parse OK with model_version = None.
+        // 向后兼容：若 sidecar 未发送 model_version，仍可正常解析，
+        // 此时 model_version = None。
         let resp = SidecarResponse::ok("r1", serde_json::json!({
             "predictions": [
                 { "market_id": "m1", "prob": 0.5, "confidence": 0.5 },
@@ -1945,7 +1841,7 @@ mod tests {
 
     #[test]
     fn parse_predict_response_brier_round_trip() {
-        // v0.13b — brier_score is hoisted from the response.
+        // v0.13b —— brier_score 从响应中被提升出来。
         let resp = SidecarResponse::ok("r1", serde_json::json!({
             "predictions": [
                 { "market_id": "m1", "prob": 0.6, "confidence": 0.5 },
@@ -1974,7 +1870,7 @@ mod tests {
         assert!(r.is_err());
     }
 
-    // v0.43b — backtest request builder
+    // v0.43b —— backtest 请求构造器
     #[test]
     fn build_backtest_model_request_basic() {
         let samples = vec![
@@ -2007,7 +1903,7 @@ mod tests {
         assert_eq!(arr[1]["label"], "");
     }
 
-    // v0.43b — backtest response parser
+    // v0.43b —— backtest 响应解析器
     #[test]
     fn parse_backtest_response_ok() {
         let resp = SidecarResponse::ok(
@@ -2044,9 +1940,8 @@ mod tests {
 
     #[test]
     fn parse_backtest_response_app_level_error() {
-        // Envelope ok=true but application ok=false
-        // (model not found). The parser should still
-        // succeed; the L1 checks `result.ok`.
+        // envelope 层 ok=true 但应用层 ok=false（模型未找到）。
+        // 解析仍应成功；L1 检查 `result.ok`。
         let resp = SidecarResponse::ok(
             "backtest-1",
             serde_json::json!({
@@ -2068,21 +1963,20 @@ mod tests {
 
     #[test]
     fn parse_backtest_envelope_error() {
-        // Envelope-level ok=false (transport error)
+        // envelope 层 ok=false（传输错误）
         let resp = SidecarResponse::err("backtest-1", "sidecar not running");
         assert!(parse_backtest_model_response(&resp).is_err());
     }
 
     #[test]
     fn sidecar_method_backtest_round_trip() {
-        // The "backtest_model" string must round-trip
-        // through the SidecarMethod enum.
+        // "backtest_model" 字符串必须能通过 SidecarMethod 枚举往返。
         let m = SidecarMethod::parse("backtest_model").unwrap();
         assert_eq!(m, SidecarMethod::BacktestModel);
         assert_eq!(m.as_str(), "backtest_model");
     }
 
-    // v0.55 — explain_model request builder
+    // v0.55 —— explain_model 请求构造器
     #[test]
     fn build_explain_model_request_no_sample() {
         let line = build_explain_model_request(
@@ -2094,7 +1988,7 @@ mod tests {
         assert_eq!(v["id"], "explain-1");
         assert_eq!(v["method"], "explain_model");
         assert_eq!(v["params"]["model_version"], "logistic-train-abc");
-        // No `sample` key when None.
+        // 当 sample 为 None 时不带 `sample` 键。
         assert!(v["params"].get("sample").is_none());
     }
 
@@ -2114,7 +2008,7 @@ mod tests {
         assert_eq!(v["params"]["sample"]["market_age_hours"], 36.0);
     }
 
-    // v0.55 — explain_model response parser
+    // v0.55 —— explain_model 响应解析器
     #[test]
     fn parse_explain_response_ok() {
         let resp = SidecarResponse::ok(
@@ -2136,9 +2030,8 @@ mod tests {
         assert!(r.ok);
         assert_eq!(r.model_version, "logistic-train-abc");
         assert_eq!(r.features.len(), 3);
-        // Features are sorted by abs_contribution
-        // descending in the sidecar, so the
-        // first should be "price" (0.30).
+        // features 在 sidecar 中按 abs_contribution 降序排列，
+        // 因此第一个应为 "price"（0.30）。
         assert_eq!(r.features[0].feature, "price");
         assert_eq!(r.features[0].abs_contribution, 0.30);
         assert!((r.prediction.unwrap() - 0.55).abs() < 1e-6);
@@ -2163,7 +2056,7 @@ mod tests {
         assert_eq!(m.as_str(), "explain_model");
     }
 
-    // v0.59 — SHAP request builder
+    // v0.59 —— SHAP 请求构造器
     #[test]
     fn build_shap_explain_request_no_sample() {
         let line = build_shap_explain_request(
@@ -2193,14 +2086,12 @@ mod tests {
         assert_eq!(v["params"]["sample"]["price"], 0.42);
     }
 
-    // v0.59 — SHAP response parser
+    // v0.59 —— SHAP 响应解析器
     #[test]
     fn parse_shap_response_ok_satisfies_efficiency() {
-        // A well-formed response where the
-        // SHAP values sum to the deviation
-        // (target - baseline). The efficiency
-        // diff should be ~0 within float
-        // tolerance.
+        // 一个格式良好的响应，其 SHAP 值之和等于偏差
+        //（target - baseline）。efficiency diff 应在浮点
+        // 容差内接近 0。
         let resp = SidecarResponse::ok(
             "shap-1",
             serde_json::json!({
@@ -2224,8 +2115,7 @@ mod tests {
         assert_eq!(r.model_version, "logistic-train-abc");
         assert_eq!(r.method, "kernel_shap");
         assert_eq!(r.features.len(), 3);
-        // Top feature by abs_shap should be
-        // "price" (0.30).
+        // abs_shap 最大的特征应为 "price" (0.30)。
         assert_eq!(r.features[0].feature, "price");
         assert!((r.target_prediction.unwrap() - 0.801).abs() < 1e-6);
     }

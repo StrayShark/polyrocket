@@ -1,8 +1,8 @@
-//! L2 — Python sidecar process manager (M7).
+//! L2 —— Python 侧车（sidecar）进程管理器（M7）。
 //!
-//! Spawns the optional `polyrocket-sidecar` Python process, sends
-//! JSON-line requests, and tracks health. All protocol details are
-//! in `domain::lab::sidecar`; this module handles the OS process.
+//! 按需启动 `polyrocket-sidecar` Python 进程，发送 JSON-line 请求，
+//! 并跟踪其健康状态。所有协议细节都在 `domain::lab::sidecar` 中；
+//! 本模块负责与系统进程打交道。
 
 use crate::AppError;
 use crate::AppResult;
@@ -28,17 +28,15 @@ use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, State};
 
-/// v0.122a — kill switch for the sidecar migration.
+/// v0.122a —— 侧车迁移版本的总开关。
 ///
-/// When `POLYROCKET_DISABLE_SIDECAR=1`, every sidecar IPC entry
-/// point calls this at the top and short-circuits with the
-/// canonical disabled message. The caller sees an `AppError`
-/// carrying [`SIDECAR_DISABLED_MSG`].
+/// 当 `POLYROCKET_DISABLE_SIDECAR=1` 时，每个侧车 IPC 入口
+/// 在最开始调用本函数，并以规范的「已禁用」消息短路返回。
+/// 调用方会看到携带 [`SIDECAR_DISABLED_MSG`] 的 `AppError`。
 ///
-/// **Process control** (`start_sidecar` / `stop_sidecar` /
-/// `sidecar_status`) deliberately does NOT call this — even in
-/// disabled mode the user should be able to inspect / reset
-/// the sidecar handle. Only the data-plane IPCs are gated.
+/// **进程控制**（`start_sidecar` / `stop_sidecar` / `sidecar_status`）
+/// 故意不调用本函数 —— 即使处于禁用模式，用户也应能查看 / 重置
+/// 侧车句柄。只有数据面 IPC 才受此开关约束。
 fn check_sidecar_enabled() -> AppResult<()> {
     if is_sidecar_disabled() {
         Err(AppError::Internal(SIDECAR_DISABLED_MSG.to_string()))
@@ -47,17 +45,14 @@ fn check_sidecar_enabled() -> AppResult<()> {
     }
 }
 
-/// v0.122b — load weights from `active.json` and produce the
-/// triple the inference layer needs: (weights, model_version,
-/// brier_score). Returns the fallback weights when the file is
-/// missing or malformed (mirrors Python `active.py`).
+/// v0.122b —— 从 `active.json` 加载权重，产出推理层所需的
+/// 三元组：(weights, model_version, brier_score)。当文件缺失
+/// 或格式错误时回退到 fallback 权重（与 Python `active.py` 行为一致）。
 ///
-/// Side-effect: reads from disk on every call. The Python
-/// `active.py` had a 1-second mtime cache; the Rust scheduler's
-/// `degradation_check` loop already calls this every 5 minutes
-/// so the I/O cost is negligible. v0.122d (auto_promote) will
-/// add a process-local mtime cache if profiling shows the call
-/// is hot.
+/// 副作用：每次调用都会读磁盘。Python `active.py` 原本有 1 秒
+/// mtime 缓存；Rust 调度器的 `degradation_check` 循环每 5 分钟
+/// 调用一次，因此 I/O 开销可忽略。v0.122d（auto_promote）若
+/// 性能剖析显示此处为热点，会加入进程内 mtime 缓存。
 fn load_active_or_fallback() -> (
     crate::domain::lab::inference::InferenceWeights,
     String,
@@ -85,8 +80,8 @@ fn load_active_or_fallback() -> (
             (weights, m.model_version, m.best_brier)
         }
         None => {
-            // No active.json yet (first-time use). Log so the
-            // user knows the fallback is in use.
+            // 还没有 active.json（首次使用）。打日志让用户
+            // 知道正在使用 fallback。
             tracing::info!(
                 "v0.122b inference: no active.json at {}; using inline fallback weights",
                 path.display()
@@ -122,19 +117,18 @@ impl Default for SidecarStatus {
 
 #[derive(Debug, Deserialize)]
 pub struct StartSidecarArgs {
-    /// Path to the sidecar binary / python script. Defaults to
-    /// `POLYROCKET_SIDECAR_CMD` env or "polyrocket-sidecar".
+    /// 侧车二进制 / python 脚本路径。默认
+    /// 为 `POLYROCKET_SIDECAR_CMD` 环境变量或 "polyrocket-sidecar"。
     pub command: Option<String>,
     pub args: Option<Vec<String>>,
 }
 
-/// Wrap the OS process + pipes in a small state struct.
+/// 将系统进程 + 管道封装为一个小型状态结构体。
 ///
-/// v0.28a — fields are `Arc<Mutex<...>>` so the struct is
-/// cheaply `Clone` (one Arc bump per field). This lets the
-/// auto-promote worker in `train_job` clone the sidecar
-/// state into a background `tokio::spawn` task without
-/// moving the original out of Tauri's `State`.
+/// v0.28a —— 字段均为 `Arc<Mutex<...>>`，便于以极低成本克隆
+/// （每个字段一次 Arc 引用计数递增）。这样 `train_job` 中的
+/// auto-promote worker 就能把侧车状态克隆到一个后台
+/// `tokio::spawn` 任务中，而无需把原对象从 Tauri 的 `State` 中搬出。
 #[derive(Clone)]
 pub struct SidecarState {
     pub child: Arc<Mutex<Option<Child>>>,
@@ -167,28 +161,26 @@ impl SidecarState {
         }
     }
 
-    /// v0.11b — Send a `ping` to the running sidecar via stdin, read
-    /// one line from stdout, return `Ok(latency_ms)` on success.
+    /// v0.11b —— 通过 stdin 向运行中的侧车发送 `ping`，
+    /// 从 stdout 读取一行，命中后返回 `Ok(latency_ms)`。
     ///
-    /// This is a synchronous helper used by the health-probe scheduler
-    /// loop. It MUST be called from a blocking context (e.g. via
-    /// `tokio::task::spawn_blocking`) because it holds the stdin +
-    /// stdout mutexes for the duration of the read.
+    /// 这是一个同步辅助函数，供健康探测调度循环使用。
+    /// 必须在阻塞上下文中调用（例如通过 `tokio::task::spawn_blocking`），
+    /// 因为它在读取期间会持有 stdin + stdout 互斥锁。
     ///
-    /// Returns:
-    ///   - `Ok(latency_ms)` if we got a `pong` back within the timeout
-    ///   - `Err(String)`     otherwise (process not running, write/read
-    ///                        failed, timeout, parse error, etc.)
+    /// 返回值：
+    ///   - `Ok(latency_ms)` —— 在超时时间内收到 `pong`
+    ///   - `Err(String)` —— 其他情况（进程未运行、写 / 读失败、
+    ///                       超时、解析错误等）
     ///
-    /// Lock discipline: hold stdin only while writing, hold stdout
-    /// only while reading. This way other code paths (e.g. user-initiated
-    /// `sidecar_predict`) can interleave their own I/O without
-    /// deadlocking.
+    /// 加锁约定：仅在写入时持有 stdin，仅在读取时持有 stdout。
+    /// 这样其他代码路径（例如用户触发的 `sidecar_predict`）
+    /// 就能在不发生死锁的前提下穿插自己的 I/O。
     pub fn ping_blocking(&self, timeout_ms: u64) -> Result<u64, String> {
         use std::io::{BufRead, BufReader, Write};
         use std::time::{Duration, Instant};
 
-        // Build the JSON-line request
+        // 构造 JSON-line 请求
         let id = format!("sweeper-{}", chrono::Utc::now().timestamp_millis());
         let payload = serde_json::json!({
             "id": id,
@@ -200,7 +192,7 @@ impl SidecarState {
         let started = Instant::now();
         let deadline = Duration::from_millis(timeout_ms);
 
-        // Write + flush under stdin lock, then release.
+        // 在 stdin 锁内写并 flush，写完即释放。
         {
             let mut stdin_guard = self.stdin.lock().map_err(|e| format!("stdin lock: {e}"))?;
             let stdin = stdin_guard.as_mut().ok_or_else(|| "stdin not available".to_string())?;
@@ -212,7 +204,7 @@ impl SidecarState {
             }
         }
 
-        // Read one line under stdout lock, then release.
+        // 在 stdout 锁内读一行，读完即释放。
         let response = {
             let mut stdout_guard = self.stdout.lock().map_err(|e| format!("stdout lock: {e}"))?;
             let stdout = stdout_guard.as_mut().ok_or_else(|| "stdout not available".to_string())?;
@@ -224,10 +216,9 @@ impl SidecarState {
             buf
         };
 
-        // Check the deadline AFTER releasing the lock. (Approximate —
-        // a hung read can block past the deadline, but in practice the
-        // Python sidecar responds in <50ms and the pipe is line-
-        // buffered, so read_line returns as soon as '\n' arrives.)
+        // 释放锁之后再检查是否超时（这是近似做法 —— 一次卡住的读取
+        // 可能跨过超时点。但实际上 Python 侧车 < 50ms 就响应，
+        // 而且管道是行缓冲的，'\n' 一到 read_line 就返回）。
         if started.elapsed() > deadline {
             return Err(format!("timeout after {}ms", started.elapsed().as_millis()));
         }
@@ -235,10 +226,9 @@ impl SidecarState {
             return Err("empty response".into());
         }
 
-        // Best-effort parse: we just check that the response has
-        // `ok: true`. We don't correlate the id because v0.11b is
-        // the only writer; future versions with concurrent probes
-        // will need a per-id oneshot channel.
+        // 尽力解析：仅检查响应是否含 `ok: true`。
+        // 不做 id 关联，因为 v0.11b 阶段只有这一个写入者；
+        // 后续版本若有多探测并发，需要按 id 走 oneshot 通道。
         let parsed: serde_json::Value = serde_json::from_str(response.trim())
             .map_err(|e| format!("parse: {e}"))?;
         if parsed.get("ok").and_then(|v| v.as_bool()) != Some(true) {
@@ -247,28 +237,25 @@ impl SidecarState {
         Ok(started.elapsed().as_millis() as u64)
     }
 
-    /// v0.12c — async-friendly wrapper around `ping_blocking`.
+    /// v0.12c —— `ping_blocking` 的异步友好版本。
     ///
-    /// The blocking helper holds a sync mutex; calling it directly
-    /// from the async runtime would block the worker thread. This
-    /// wrapper uses `tokio::task::spawn_blocking` to run the I/O
-    /// off the runtime, with `tokio::time::timeout` for an enforced
-    /// wall-clock deadline (the blocking helper's timeout is best-
-    /// effort because the read can race the deadline).
+    /// 阻塞版本内部使用同步互斥锁，若直接在异步运行时调用会
+    /// 阻塞工作线程。本封装使用 `tokio::task::spawn_blocking`
+    /// 把 I/O 移到运行时之外，再用 `tokio::time::timeout` 强制
+    /// 设定一个墙上时钟截止时间（阻塞版本的超时只是尽力而为，
+    /// 因为读操作可能与截止时间赛跑）。
     ///
-    /// Returns the latency in ms on success, or an error string
-    /// describing the failure.
+    /// 成功时返回毫秒级的延迟，否则返回描述失败原因的错误字符串。
     pub async fn ping_async(&self, timeout_ms: u64) -> Result<u64, String> {
         let this = Self {
-            child: Arc::new(Mutex::new(None)),  // ping_async doesn't need the child
+            child: Arc::new(Mutex::new(None)),  // ping_async 用不到 child
             stdin: Arc::new(Mutex::new(None)),
             stdout: Arc::new(Mutex::new(None)),
             status: Arc::new(Mutex::new(self.status.lock().map_err(|e| format!("status lock: {e}"))?.clone())),
         };
-        // Move the real stdin/stdout into the spawned task by
-        // swapping the contents. This is safe because we hold
-        // no other references and we're on a single-threaded
-        // async runtime per call.
+        // 通过 swap 把真正的 stdin/stdout 移入派生任务。
+        // 这是安全的，因为此时我们没有持有其他引用，且每次调用
+        // 都运行在同一个单线程异步运行时上。
         *this.stdin.lock().map_err(|e| format!("stdin lock: {e}"))? =
             self.stdin.lock().map_err(|e| format!("stdin lock: {e}"))?.take();
         *this.stdout.lock().map_err(|e| format!("stdout lock: {e}"))? =
@@ -287,11 +274,11 @@ impl SidecarState {
         }
     }
 
-    /// v0.13d — blocking version of `sidecar_predict`.
+    /// v0.13d —— `sidecar_predict` 的阻塞版本。
     ///
-    /// Same lock discipline as `ping_blocking`: hold stdin only while
-    /// writing, hold stdout only while reading. Falls back to empty
-    /// Vec if stdin/stdout is unavailable (sidecar not running).
+    /// 加锁约定与 `ping_blocking` 一致：仅在写入时持有 stdin，
+    /// 仅在读取时持有 stdout。stdin/stdout 不可用时
+    /// （侧车未运行）回退为空 Vec。
     pub fn predict_blocking(
         &self,
         markets: &[(String, f64)],
@@ -354,13 +341,12 @@ impl SidecarState {
         parse_predict_response(&response).map_err(|e| format!("decode: {e}"))
     }
 
-    /// v0.13d — async wrapper around `predict_blocking`.
-    ///
-    /// Same pattern as `ping_async`: `spawn_blocking` for the I/O,
-    /// `tokio::time::timeout` for the wall-clock deadline. The
-    /// returned `PredictResult` includes the model_version and
-    /// brier_score that v0.12a / v0.13b added.
-    pub async fn predict_async(
+    /// v0.13d —— `predict_blocking` 的 async 包装。
+///
+/// 与 `ping_async` 采用同一模式：`spawn_blocking` 处理 I/O，
+/// `tokio::time::timeout` 兜底墙钟截止时间。返回的 `PredictResult`
+/// 包含 v0.12a / v0.13b 新增的 model_version 与 brier_score。
+pub async fn predict_async(
         &self,
         markets: Vec<(String, f64)>,
         timeout_ms: u64,
@@ -390,7 +376,7 @@ impl SidecarState {
     }
 }
 
-/// Start the sidecar. If already running, no-op.
+/// 启动侧车。若已在运行则什么都不做。
 #[tauri::command]
 pub async fn start_sidecar(
     state: State<'_, SidecarState>,
@@ -409,15 +395,12 @@ pub async fn start_sidecar(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    // v0.56 — propagate the proxy to the
-    // sidecar. We set the standard env vars
-    // (HTTP_PROXY / HTTPS_PROXY / ALL_PROXY) so
-    // that any HTTP library the sidecar uses
-    // (httpx, requests) automatically routes
-    // through it. We only set these when the
-    // Rust-side proxy is enabled; the env-var
-    // path is opt-in to keep the default
-    // (direct outbound) intact.
+    // v0.56 —— 把代理透传给侧车。设置标准环境变量
+    // （HTTP_PROXY / HTTPS_PROXY / ALL_PROXY），
+    // 这样侧车用到的任何 HTTP 库（httpx、requests）
+    // 都会自动通过它走。仅在 Rust 端启用代理时
+    // 才设置这些变量；环境变量路径是 opt-in 的，
+    // 以保持默认（直连出站）行为不变。
     if let Ok(proxy) = std::env::var("POLYROCKET_PROXY") {
         let p = proxy.trim();
         if !p.is_empty() {
@@ -444,7 +427,7 @@ pub async fn start_sidecar(
     Ok(status)
 }
 
-/// Stop the sidecar (SIGKILL equivalent).
+/// 停止侧车（相当于 SIGKILL）。
 #[tauri::command]
 pub async fn stop_sidecar(state: State<'_, SidecarState>) -> AppResult<SidecarStatus> {
     let mut guard = state.child.lock().unwrap();
@@ -459,7 +442,7 @@ pub async fn stop_sidecar(state: State<'_, SidecarState>) -> AppResult<SidecarSt
     Ok(status)
 }
 
-/// Return current sidecar status.
+/// 返回当前侧车状态。
 #[tauri::command]
 pub async fn sidecar_status(state: State<'_, SidecarState>) -> AppResult<SidecarStatus> {
     read_status(&state)
@@ -470,30 +453,29 @@ fn read_status(state: &SidecarState) -> AppResult<SidecarStatus> {
     Ok(s)
 }
 
-/// Send a `predict` request to the sidecar. Returns parsed predictions.
-/// In v0.6b this is a best-effort: if no sidecar is running, returns
-/// empty Vec (caller falls back to the heuristic domain::signal).
+/// 向侧车发送 `predict` 请求，返回解析后的预测结果。
+/// 在 v0.6b 中这是尽力而为：若侧车未运行，返回空 Vec
+/// （调用方回退到 domain::signal 的启发式逻辑）。
 #[tauri::command]
 pub async fn sidecar_predict(
     state: State<'_, SidecarState>,
     markets: Vec<(String, f64)>,
 ) -> AppResult<Vec<Prediction>> {
-    // v0.122b — when POLYROCKET_DISABLE_SIDECAR=1, use the new
-    // Rust path. When unset (default), still use the Python
-    // sidecar. v0.122g flips the default. (The flag is the
-    // safety hatch for rolling back the port.)
+    // v0.122b —— 当 POLYROCKET_DISABLE_SIDECAR=1 时走新的 Rust 路径。
+    // 未设置时（默认）仍然使用 Python 侧车。
+    // v0.122g 会翻转默认行为。（这个开关是回滚迁移的安全阀。）
     if !is_sidecar_disabled() {
         return sidecar_predict_legacy(state, markets).await;
     }
-    // New Rust path — call inference::predict_from_markets and
-    // convert the result to the wire `Vec<Prediction>` shape.
+    // 新 Rust 路径 —— 调用 inference::predict_from_markets
+    // 并把结果转换为传输用的 `Vec<Prediction>` 形态。
     let (weights, model_version, brier_score) = load_active_or_fallback();
     let inputs: Vec<_> = markets
         .iter()
         .map(|(id, price)| crate::domain::lab::inference::MarketInput {
             market_id: id.as_str(),
             price: *price,
-            market_age_hours: 0.0, // wire shape doesn't carry age; default 0
+            market_age_hours: 0.0, // 传输格式不包含 age;默认 0
         })
         .collect();
     let r = crate::domain::lab::inference::predict_from_markets(
@@ -513,9 +495,9 @@ pub async fn sidecar_predict(
         .collect())
 }
 
-/// v0.122b — the original `sidecar_predict` body, now a private
-/// helper. Kept verbatim so the legacy Python path stays
-/// available when `POLYROCKET_DISABLE_SIDECAR=1`.
+/// v0.122b —— 原 `sidecar_predict` 函数体，现在作为私有辅助函数。
+/// 完整保留是为了在 `POLYROCKET_DISABLE_SIDECAR=1` 时
+/// 仍然可走旧的 Python 路径。
 async fn sidecar_predict_legacy(
     state: State<'_, SidecarState>,
     markets: Vec<(String, f64)>,
@@ -524,12 +506,12 @@ async fn sidecar_predict_legacy(
     if !state.is_running() {
         return Ok(Vec::new());
     }
-    // Build the request and try to read a response.
+    // 构造请求并尝试读取响应。
     let id = format!("pred_{}", chrono::Utc::now().timestamp_millis());
     let line = build_predict_request(&id, &markets);
 
-    // Send the line via stdin (synchronous std::io::Write; we hold the
-    // lock briefly). If the sidecar has died, fall back to empty.
+    // 通过 stdin 发送（同步 std::io::Write；短暂持有锁）。
+    // 若侧车已挂，则回退为空。
     {
         let mut stdin_guard = state.stdin.lock().unwrap();
         let Some(stdin) = stdin_guard.as_mut() else {
@@ -543,9 +525,8 @@ async fn sidecar_predict_legacy(
             return Err(AppError::Internal(format!("sidecar flush: {e}")));
         }
     }
-    // Read a single line from stdout. In v0.6b this is a one-shot
-    // synchronous read; a real impl would use async I/O and a
-    // correlation table (request id → oneshot).
+    // 从 stdout 读取单行。v0.6b 阶段这是一次性同步读取；
+    // 真正的实现应该用异步 I/O 加关联表（请求 id → oneshot）。
     let mut response_line = String::new();
     {
         let mut stdout_guard = state.stdout.lock().unwrap();
@@ -571,7 +552,7 @@ async fn sidecar_predict_legacy(
         }
     };
     if response.id != id {
-        // Mismatched id; in v0.6c we'll fix with proper correlation.
+        // id 不匹配；v0.6c 将通过正确的关联机制修复。
         return Err(AppError::Internal(format!(
             "sidecar id mismatch: sent={id}, got={}",
             response.id
@@ -583,11 +564,10 @@ async fn sidecar_predict_legacy(
     Ok(preds.predictions)
 }
 
-/// v0.13d — async-friendly version of `sidecar_predict` that
-/// returns the full `PredictResult` (with model_version +
-/// brier_score). Uses `spawn_blocking` + `tokio::time::timeout`
-/// like `ping_async`. Falls back to an empty `PredictResult` when
-/// the sidecar is not running (matches the v0.6b semantics).
+/// v0.13d —— `sidecar_predict` 的异步友好版本，
+/// 返回完整的 `PredictResult`（含 model_version + brier_score）。
+/// 与 `ping_async` 同样使用 `spawn_blocking` + `tokio::time::timeout`。
+/// 当侧车未运行时回退到一个空的 `PredictResult`（与 v0.6b 语义一致）。
 #[tauri::command]
 pub async fn sidecar_predict_async(
     state: State<'_, SidecarState>,
@@ -611,37 +591,35 @@ pub async fn sidecar_predict_async(
 }
 
 // =================================================================
-// ============== v0.17a — train_job IPC + progress events ==========
+// ============== v0.17a —— train_job IPC 与进度事件 ==============
 // =================================================================
 
-/// Args for the `train_job` IPC. v0.17a — mirrors the Python
-/// sidecar's optional params. All fields are optional; the
-/// Python sidecar uses sensible defaults (n_trials=4, epochs=80).
+/// `train_job` IPC 的入参。v0.17a —— 镜像 Python 侧车的可选参数。
+/// 所有字段均可选；Python 侧车使用合理默认值（n_trials=4, epochs=80）。
 #[derive(Debug, Clone, Deserialize)]
 pub struct TrainJobArgs {
-    /// Default 4 (max 4 in v0.17a; the grid is 4 hardcoded
-    /// (lr, reg) combinations in `train.py`).
+    /// 默认 4（v0.17a 中最大 4；`train.py` 中的网格为
+    /// 4 组硬编码的 (lr, reg) 组合）。
     pub n_trials: Option<u32>,
-    /// Default 80. Per-trial training epochs.
+    /// 默认 80。每轮训练的 epoch 数。
     pub epochs: Option<u32>,
-    /// Optional timeout in milliseconds for the IPC. Default
-    /// 60s — the Python sweep is 4 × 80 epochs, usually 2-10s
-    /// but can spike to 30s on a slow box.
+    /// IPC 可选超时（毫秒）。默认 60 秒 —— Python 扫描为
+    /// 4 × 80 epoch，通常 2-10 秒，慢机器可能飙升到 30 秒。
     pub timeout_ms: Option<u64>,
 }
 
-/// v0.17a — kick off a training job on the Python sidecar.
+/// v0.17a —— 在 Python 侧车上启动一个训练任务。
 ///
-/// Emits two events on the Tauri bus:
-///   - `train_job:started`  — when the IPC is dispatched
-///   - `train_job:finished` — when the sweep completes (or fails)
+/// 在 Tauri 总线上发射两个事件：
+///   - `train_job:started`  —— IPC 被分发时
+///   - `train_job:finished` —— 扫描完成（或失败）时
 ///
-/// Returns the full `TrainResult` (job_id, status, best_brier,
-/// best_params, trials, duration_ms, candidate_path, message).
+/// 返回完整的 `TrainResult`（job_id、status、best_brier、
+/// best_params、trials、duration_ms、candidate_path、message）。
 ///
-/// Falls back to a "failed" result with no trials when the
-/// sidecar is not running — matches the v0.6b predict fallback
-/// (the L1 doesn't have to special-case "sidecar down").
+/// 当侧车未运行时回退为一个无 trial 的「failed」结果
+/// —— 与 v0.6b 的 predict fallback 一致
+/// （L1 不必为「侧车宕掉」单独写分支）。
 #[tauri::command]
 pub async fn train_job(
     state: State<'_, SidecarState>,
@@ -656,8 +634,8 @@ pub async fn train_job(
     let timeout = args.timeout_ms.unwrap_or(60_000);
     let started_at = chrono::Utc::now().timestamp_millis();
 
-    // v0.17a — emit started BEFORE the sidecar call so the L1
-    // can immediately render the "Training…" pill.
+    // v0.17a —— 在调用侧车之前就先 emit started 事件，
+    // 这样 L1 可以立即渲染出「Training…」提示。
     let _ = app.emit(
         "train_job:started",
         TrainStartedEvent {
@@ -667,9 +645,8 @@ pub async fn train_job(
             started_at,
         },
     );
-    // v0.42b — lifecycle event for the IPC accept. This
-    // is the "user clicked Train" moment; it doesn't
-    // mean the sidecar will succeed.
+    // v0.42b —— IPC 接收瞬间的生命周期事件。
+    // 这代表「用户点击了 Train」，并不保证侧车最终会成功。
     use crate::infra::telemetry;
     telemetry::emit(telemetry::Event::TrainStarted {
         job_id: job_id.clone(),
@@ -678,10 +655,9 @@ pub async fn train_job(
     });
 
     if !state.is_running() {
-        // Sidecar not running — emit a finished event with
-        // status="failed" and a descriptive message, then
-        // return the same shape so the L1 doesn't have to
-        // handle a special "no sidecar" path.
+        // 侧车未运行 —— 发射一个 status="failed" 的 finished
+        // 事件并附带描述信息，然后返回同样形态的结果，
+        // L1 不必为「侧车不可用」单独写分支。
         telemetry::emit(telemetry::Event::TrainFailed {
             job_id: job_id.clone(),
             error: "sidecar not running".into(),
@@ -712,16 +688,15 @@ pub async fn train_job(
         });
     }
 
-    // Build the request line, write under stdin lock, read
-    // one line under stdout lock. Same lock discipline as
-    // `sidecar_predict` (v0.6b). The 4-trial sweep takes
-    // 2-30s, well within the 60s timeout.
+    // 构造请求行，在 stdin 锁内写入，在 stdout 锁内读取一行。
+    // 加锁约定与 `sidecar_predict`（v0.6b）一致。
+    // 4-trial 扫描耗时 2-30 秒，远小于 60 秒超时。
     let line = build_train_request(&job_id, Some(n_trials), Some(epochs));
     let started = std::time::Instant::now();
     let deadline = std::time::Duration::from_millis(timeout);
 
     let response_line = {
-        // Write under stdin lock, release before reading.
+        // 在 stdin 锁内写入，读之前释放锁。
         {
             let mut stdin_guard = state.stdin.lock().map_err(|e| format!("stdin lock: {e}"))
                 .map_err(AppError::Internal)?;
@@ -735,7 +710,7 @@ pub async fn train_job(
                 return Err(AppError::Internal(format!("train_job flush: {e}")));
             }
         }
-        // Read one line under stdout lock.
+        // 在 stdout 锁内读取一行。
         let mut stdout_guard = state.stdout.lock().map_err(|e| format!("stdout lock: {e}"))
             .map_err(AppError::Internal)?;
         let stdout = stdout_guard.as_mut()
@@ -752,9 +727,8 @@ pub async fn train_job(
     let elapsed = started.elapsed();
     if elapsed > deadline {
         let msg = format!("train_job timeout after {}ms", elapsed.as_millis());
-        // v0.42b — emit lifecycle event. TrainFailed
-        // captures the timeout distinctly from a
-        // sidecar-decoded failure.
+        // v0.42b —— 发射生命周期事件。TrainFailed 把超时
+        // 与侧车解码得到的失败区别开来。
         use crate::infra::telemetry;
         telemetry::emit(telemetry::Event::TrainFailed {
             job_id: job_id.clone(),
@@ -793,8 +767,8 @@ pub async fn train_job(
         )));
     }
     let result = parse_train_response(&response).map_err(|e| {
-        // v0.42b — emit lifecycle event. Decode error
-        // is treated as a failed train for telemetry.
+        // v0.42b —— 发射生命周期事件。遥测把解码错误
+        // 也归类为训练失败。
         use crate::infra::telemetry;
         telemetry::emit(telemetry::Event::TrainFailed {
             job_id: job_id.clone(),
@@ -803,10 +777,10 @@ pub async fn train_job(
         AppError::Internal(format!("train_job decode: {e}"))
     })?;
 
-    // v0.17a — emit finished with the parsed result.
-    // v0.42b — emit TrainCompleted lifecycle event. We
-    // pull the model_version from result.model_version
-    // and best_brier straight off the parsed payload.
+    // v0.17a —— 用解析结果发射 finished 事件。
+    // v0.42b —— 发射 TrainCompleted 生命周期事件。
+    // model_version 从 result.model_version 读取，
+    // best_brier 直接来自解析后的 payload。
     use crate::infra::telemetry as _t;
     let train_completed = matches!(result.status.as_str(), "succeeded" | "ok");
     if train_completed {
@@ -848,16 +822,15 @@ pub async fn train_job(
         },
     );
 
-    // v0.28a — if auto-promote is enabled in AppState AND
-    // the train succeeded, spawn a background worker that
-    // calls `auto_promote_if_better` and emits the result
-    // on `auto_promote:finished`. The train IPC returns
-    // immediately; the worker runs in the background.
+    // v0.28a —— 若 AppState 中启用了 auto-promote，且
+    // 本次训练成功，则派生一个后台 worker 调用
+    // `auto_promote_if_better`，并把结果 emit 到
+    // `auto_promote:finished`。train IPC 立即返回，
+    // worker 在后台运行。
     //
-    // The worker reads `state` (SidecarState) and `app` (AppHandle)
-    // by cloning — both are cheap (SidecarState is just
-    // Arc<Mutex<...>> internally; AppHandle is a clone of
-    // a long-lived handle).
+    // worker 通过克隆读取 `state`（SidecarState）和 `app`（AppHandle）
+    // —— 两者都很轻量（SidecarState 内部仅是 Arc<Mutex<...>>；
+    // AppHandle 是某个长期句柄的克隆）。
     if result.status == "succeeded" || result.status == "ok" {
         let auto_promote_enabled = {
             let guard = app_state
@@ -892,20 +865,17 @@ pub async fn train_job(
     Ok(result)
 }
 
-/// v0.18a — promote the current candidate to the active slot.
+/// v0.18a —— 把当前候选提升到 active 槽位。
 ///
-/// This is a fast, synchronous operation (~10ms file move).
-/// No progress events. The IPC returns the full `PromoteResult`.
+/// 这是一个快速、同步的操作（约 10 毫秒的文件移动）。
+/// 不发射进度事件。IPC 返回完整的 `PromoteResult`。
 ///
-/// `args.job_id` is optional. If set, the Python sidecar
-/// refuses to promote a candidate from a different job
-/// (race-condition protection — protects against the case
-/// where a second train finishes between the user's intent
-/// to promote and the actual promote call).
+/// `args.job_id` 可选。若设置，Python 侧车会拒绝提升来自
+/// 其他 job 的候选（用于竞态保护 —— 防止「用户打算提升
+/// → 第二次训练完成 → 实际提升」之间发生目标漂移）。
 ///
-/// Falls back to `promoted: false` with a descriptive message
-/// when the sidecar is not running (matches the v0.17a train
-/// fallback pattern).
+/// 当侧车未运行时回退为 `promoted: false` 并附带描述信息
+/// （与 v0.17a 的 train fallback 模式一致）。
 #[tauri::command]
 pub async fn promote_model(
     state: State<'_, SidecarState>,
@@ -928,8 +898,8 @@ pub async fn promote_model(
         });
     }
 
-    // Same lock discipline as train_job: write under stdin
-    // lock, read under stdout lock.
+    // 与 train_job 相同的加锁约定：stdin 锁内写入，
+    // stdout 锁内读取。
     let response_line = {
         {
             let mut stdin_guard = state.stdin.lock()
@@ -976,11 +946,10 @@ pub async fn promote_model(
         AppError::Internal(format!("promote decode: {e}"))
     })
     .map(|r| {
-        // v0.42b — emit lifecycle event on successful
-        // promote. We read the `reason` and `trial_index`
-        // straight off the response. Skipped / failed
-        // promotes don't emit (the OS notification path
-        // already covers user-visible signal).
+        // v0.42b —— 提升成功时发射生命周期事件。
+        // `reason` 和 `trial_index` 直接从响应读取。
+        // 跳过 / 失败的提升不发射（系统通知路径已能
+        // 覆盖用户可见的提示）。
         if r.promoted {
             use crate::infra::telemetry;
             telemetry::emit(telemetry::Event::PromoteCompleted {
@@ -994,24 +963,20 @@ pub async fn promote_model(
     })
 }
 
-/// Args for the `promote_model` IPC. v0.18a — mirrors the
-/// Python sidecar's optional `job_id` param.
-/// v0.21a — added `trial_index` for bulk promote.
+/// `promote_model` IPC 的入参。v0.18a —— 镜像 Python 侧车的
+/// 可选 `job_id` 参数。v0.21a —— 新增 `trial_index` 以支持批量提升。
 #[derive(Debug, Clone, Deserialize)]
 pub struct PromoteModelArgs {
-    /// If set, refuses to promote a candidate from a
-    /// different job. Defaults to `None` (accept any
-    /// current candidate).
+    /// 若设置，则拒绝提升来自其他 job 的候选。
+    /// 默认 `None`（接受任意当前候选）。
     pub job_id: Option<String>,
-    /// v0.21a — if set, promotes the n-th trial from
-    /// `all_trials[]` instead of the best. 0-indexed.
-    /// `None` (default) means "promote the best".
+    /// v0.21a —— 若设置，则提升 `all_trials[]` 中的第 n 个 trial
+    /// 而不是 best。0 索引。`None`（默认）意为「提升最佳」。
     pub trial_index: Option<usize>,
 }
 
-/// List the promote history. v0.19b — read-only audit.
-/// No args; returns the last 20 promotions from active.json's
-/// `promotion_history` array.
+/// 列出提升历史。v0.19b —— 只读审计。
+/// 无入参；返回 active.json 中 `promotion_history` 数组的最近 20 条。
 #[tauri::command]
 pub async fn list_promote_history(
     state: State<'_, SidecarState>,
@@ -1036,7 +1001,7 @@ pub async fn list_promote_history(
         });
     }
 
-    // Same lock discipline as train_job/promote_model.
+    // 与 train_job / promote_model 相同的加锁约定。
     let response_line = {
         {
             let mut stdin_guard = state.stdin.lock()
@@ -1084,7 +1049,7 @@ pub async fn list_promote_history(
     })
 }
 
-/// Roll the active model back to a previous version. v0.20b.
+/// 将 active 模型回滚到之前的版本。v0.20b。
 #[tauri::command]
 pub async fn rollback_model(
     state: State<'_, SidecarState>,
@@ -1160,16 +1125,14 @@ pub async fn rollback_model(
     })
 }
 
-/// Args for the `rollback_model` IPC. v0.20b — `model_version`
-/// is the version to roll back to (looked up in the
-/// `promotion_history` array).
+/// `rollback_model` IPC 的入参。v0.20b —— `model_version` 是
+/// 要回滚到的目标版本（在 `promotion_history` 数组中查找）。
 #[derive(Debug, Clone, Deserialize)]
 pub struct RollbackModelArgs {
     pub model_version: String,
 }
 
-/// Auto-promote the candidate only if it's meaningfully
-/// better than the active model. v0.23b.
+/// 仅当候选明显优于 active 模型时才自动提升。v0.23b。
 #[tauri::command]
 pub async fn auto_promote_if_better(
     state: State<'_, SidecarState>,
@@ -1251,21 +1214,19 @@ pub async fn auto_promote_if_better(
     })
 }
 
-/// Args for the `auto_promote_if_better` IPC. v0.23b —
-/// `brier_margin` is how much better the candidate must
-/// be (lower Brier = better) for the auto-promote to
-/// happen. Default 0.005. `trial_index` is which trial
-/// to use (None = best).
+/// `auto_promote_if_better` IPC 的入参。v0.23b —— `brier_margin`
+/// 是候选必须比当前 active 优秀多少（Brier 越低越好）才会触发
+/// 自动提升。默认 0.005。`trial_index` 选择使用哪一个 trial
+/// （None = 最佳）。
 #[derive(Debug, Clone, Deserialize)]
 pub struct AutoPromoteIfBetterArgs {
     pub brier_margin: Option<f64>,
     pub trial_index: Option<usize>,
 }
 
-/// Bulk-promote every trial from the current candidate. v0.25b.
-/// No args — the sidecar reads the candidate and promotes
-/// every trial in `all_trials[]` in order. Returns a list
-/// of per-trial results.
+/// 批量提升当前候选中的全部 trial。v0.25b。
+/// 无入参 —— 侧车读取候选并按顺序提升 `all_trials[]` 中的
+/// 每个 trial。返回每个 trial 的结果列表。
 #[tauri::command]
 pub async fn promote_all_trials(
     state: State<'_, SidecarState>,
@@ -1338,44 +1299,36 @@ pub async fn promote_all_trials(
 }
 
 // =================================================================
-// ============== v0.43b — backtest_model IPC =======================
+// ============== v0.43b —— backtest_model IPC ===================
 // =================================================================
 
-/// v0.43b — args for the `backtest_model` IPC. The L1
-/// pulls resolved markets from the markets DB, converts
-/// each to a `BacktestSample`, and passes them in.
-/// Returns a `BacktestResult` with Brier + calibration
-/// + top winners/losers.
+/// v0.43b —— `backtest_model` IPC 的入参。L1 从 markets
+/// 表中拉取已结算的市场，把每条转换为 `BacktestSample` 后传入。
+/// 返回 `BacktestResult`，包含 Brier + 校准（calibration）
+/// + 表现最好 / 最差的若干样本。
 ///
-/// The sidecar is pure (no IO beyond reading the model
-/// file), so the per-call cost is `O(samples)` — fast
-/// for hundreds of samples, slow for millions. The
-/// L1 should pre-filter to a reasonable time window.
+/// 侧车逻辑很纯粹（除读模型文件外无 IO），因此单次调用
+/// 的复杂度为 `O(samples)` —— 数百样本很快，数百万则很慢。
+/// L1 应预先按合理时间窗口过滤。
 #[derive(Debug, Clone, Deserialize)]
 pub struct BacktestModelArgs {
-    /// The model to backtest, e.g.
-    /// "logistic-train-441c352b". Looked up in
-    /// `archive.jsonl` first, then `active.json`.
+    /// 要回测的模型，例如
+    /// "logistic-train-441c352b"。先在 `archive.jsonl`
+    /// 中查找，再到 `active.json`。
     pub model_version: String,
-    /// The list of (price, market_age_hours, outcome)
-    /// samples to replay the model against. Each
-    /// sample may also include a `label` for the
-    /// top winners/losers display.
+    /// 用于回放模型的 (price, market_age_hours, outcome)
+    /// 样本列表。每个样本还可以包含一个 `label`，
+    /// 用于 best/worst 列表展示。
     pub samples: Vec<BacktestSample>,
 }
 
-/// v0.43b — replay a saved model against a list of
-/// (price, market_age_hours, outcome) samples and
-/// return Brier + calibration + per-sample
-/// predictions. Closes the v0.17-v0.41 model
-/// lifecycle gap: there's no way to ask
-/// "how would this model have done on real
-/// resolutions" without this.
+/// v0.43b —— 把保存的模型在 (price, market_age_hours, outcome)
+/// 样本列表上回放，返回 Brier + 校准 + 每个样本的预测。
+/// 补齐了 v0.17–v0.41 模型生命周期的缺口：没有这个 IPC，
+/// 就无法回答「这个模型在真实结算上的表现如何」。
 ///
-/// The IPC's job is just protocol plumbing —
-/// stdin/stdout lock + parse + return. The
-/// prediction + Brier math lives in the Python
-/// sidecar (v0.43a).
+/// IPC 本身只做协议传输 —— stdin/stdout 加锁、解析、返回。
+/// 预测 + Brier 计算都在 Python 侧车中（v0.43a）。
 #[tauri::command]
 pub async fn backtest_model(
     state: State<'_, SidecarState>,
@@ -1454,36 +1407,32 @@ pub async fn backtest_model(
 }
 
 // =================================================================
-// v0.55 — explain_model IPC
+// v0.55 —— explain_model IPC
 // =================================================================
 
-/// v0.55 — args for the `explain_model` IPC. The
-/// L1 sends a model_version + optional sample;
-/// the sidecar returns per-feature contributions
-/// to the prediction. The L1 renders this as a
-/// horizontal bar chart.
+/// v0.55 —— `explain_model` IPC 的入参。
+/// L1 发送 model_version + 可选 sample；
+/// 侧车返回每个特征对预测的贡献。L1
+/// 把它渲染为水平条形图。
 #[derive(Debug, Clone, Deserialize)]
 pub struct ExplainModelArgs {
-    /// The model to explain, e.g.
-    /// "logistic-train-441c352b". Looked up in
-    /// `archive.jsonl` first, then `active.json`.
+    /// 要解释的模型，例如
+    /// "logistic-train-441c352b"。先在 `archive.jsonl`
+    /// 中查找，再到 `active.json`。
     pub model_version: String,
-    /// Optional sample: { price, market_age_hours }.
-    /// When omitted, the sidecar uses a default
-    /// sample (price=0.5, age=24h) so the user
-    /// gets a "what would the model say for a
-    /// typical market" view.
+    /// 可选 sample：{ price, market_age_hours }。
+    /// 缺省时侧车使用默认 sample（price=0.5, age=24h），
+    /// 让用户看到「模型对典型市场会输出什么」。
     #[serde(default)]
     pub sample: Option<ExplainSample>,
 }
 
-/// v0.55 — per-feature contribution for one sample.
-/// For the 3-feature logistic model this is an
-/// exact decomposition (not a SHAP approximation):
-/// `contribution_i = w_i * x_i * p(1-p)`. The L1
-/// renders the `features` array as a horizontal
-/// bar chart (positive bars in green, negative
-/// in red, length = `abs_contribution`).
+/// v0.55 —— 单个样本中每个特征的贡献。
+/// 对 3 特征 logistic 模型而言这是精确分解
+/// （非 SHAP 近似）：
+/// `contribution_i = w_i * x_i * p(1-p)`。
+/// L1 把 `features` 数组渲染为水平条形图
+/// （正值绿色，负值红色，长度为 `abs_contribution`）。
 #[tauri::command]
 pub async fn explain_model(
     state: State<'_, SidecarState>,
@@ -1563,27 +1512,24 @@ pub async fn explain_model(
 }
 
 // =================================================================
-// v0.59 — shap_explain IPC (real SHAP via KernelExplainer)
+// v0.59 —— shap_explain IPC（通过 KernelExplainer 计算真实 SHAP）
 // =================================================================
 
-/// v0.59 — args for the `shap_explain` IPC. Same
-/// shape as `ExplainModelArgs` (v0.55). The
-/// sidecar returns per-feature SHAP values
-/// that satisfy the efficiency axiom.
+/// v0.59 —— `shap_explain` IPC 的入参。结构与
+/// `ExplainModelArgs`（v0.55）相同。侧车返回满足
+/// efficiency axiom 的逐特征 SHAP 值。
 #[derive(Debug, Clone, Deserialize)]
 pub struct ShapExplainArgs {
-    /// The model to explain.
+    /// 要解释的模型。
     pub model_version: String,
-    /// Optional sample: { price, market_age_hours }.
+    /// 可选 sample：{ price, market_age_hours }。
     #[serde(default)]
     pub sample: Option<ExplainSample>,
 }
 
-/// v0.59 — compute true SHAP values for one
-/// sample. The result satisfies the SHAP
-/// efficiency axiom: `Σφ_i = f(x) - E[f(x)]`
-/// (the deviation from the baseline
-/// prediction).
+/// v0.59 —— 为单个样本计算真实 SHAP 值。
+/// 结果满足 SHAP efficiency axiom：
+/// `Σφ_i = f(x) - E[f(x)]`（即相对基线预测的偏离）。
 #[tauri::command]
 pub async fn shap_explain(
     state: State<'_, SidecarState>,
@@ -1665,8 +1611,8 @@ pub async fn shap_explain(
     })
 }
 
-/// Send an arbitrary `SidecarRequest` and return the raw response.
-/// Useful for `ping` and other lightweight methods.
+/// 发送任意 `SidecarRequest` 并返回原始响应。
+/// 适用于 `ping` 及其他轻量方法。
 #[tauri::command]
 pub async fn sidecar_request(
     state: State<'_, SidecarState>,
@@ -1713,7 +1659,7 @@ pub async fn sidecar_request(
     }
 }
 
-/// Default list of well-known methods (for L1 auto-discovery).
+/// 默认的已知方法列表（供 L1 自动发现使用）。
 pub fn known_methods() -> Vec<SidecarMethod> {
     vec![
         SidecarMethod::Ping,
@@ -1724,41 +1670,36 @@ pub fn known_methods() -> Vec<SidecarMethod> {
 }
 
 // =================================================================
-// v0.33b — list_promote_history_archive (read dropped entries)
+// v0.33b —— list_promote_history_archive（读取被裁掉的条目）
 // =================================================================
 
-/// v0.33b — args for the `list_promote_history_archive` IPC.
-/// Mirrors the Python sidecar's archive.jsonl format. All
-/// fields are optional; the L1 can paginate with `offset`
-/// + `limit`, or filter by `from_ms` / `to_ms`.
+/// v0.33b —— `list_promote_history_archive` IPC 的入参。
+/// 镜像 Python 侧车的 archive.jsonl 格式。所有字段均可选；
+/// L1 可通过 `offset` + `limit` 分页，或按
+/// `from_ms` / `to_ms` 过滤。
 #[derive(Debug, Clone, Deserialize)]
 pub struct ListPromoteHistoryArchiveArgs {
-    /// Optional lower bound on `promoted_at_ms`. Default
-    /// 0 (no lower bound).
+    /// `promoted_at_ms` 的可选下界。默认 0（无下界）。
     pub from_ms: Option<i64>,
-    /// Optional upper bound on `promoted_at_ms`. Default
-    /// i64::MAX (no upper bound).
+    /// `promoted_at_ms` 的可选上界。默认 i64::MAX（无上界）。
     pub to_ms: Option<i64>,
-    /// Pagination offset. Default 0.
+    /// 分页偏移。默认 0。
     pub offset: Option<usize>,
-    /// Pagination limit. Default 100 (capped at 1000).
+    /// 分页大小。默认 100（上限 1000）。
     pub limit: Option<usize>,
-    /// v0.42e-3 — optional whitelist of job_ids. When
-    /// supplied, the result only includes entries whose
-    /// `job_id` is in this set. Used by the
-    /// `ModelComparison` component to fetch weights for
-    /// the 2-3 selected entries without pulling the
-    /// whole archive. Empty array = no entries; missing
-    /// = no filter (return all).
+    /// v0.42e-3 —— 可选的 job_ids 白名单。提供时，
+    /// 结果仅包含 `job_id` 属于该集合的条目。
+    /// `ModelComparison` 组件用它在不取整个 archive 的
+    /// 前提下获取 2-3 个选中条目的权重。空数组 = 无条目；
+    /// 缺省 = 不过滤（返回全部）。
     #[serde(default)]
     pub job_ids: Option<Vec<String>>,
 }
 
-/// v0.33b — wire-format mirror of the Python sidecar's
-/// archive.jsonl. Each entry is one line in the JSONL file
-/// (one archived promotion). Fields mirror
-/// `PromoteHistoryEntry` plus `archived_at_ms` (when the
-/// entry was written to the archive).
+/// v0.33b —— Python 侧车 archive.jsonl 的传输格式镜像。
+/// 每条对应 JSONL 文件的一行（即一次被归档的提升）。
+/// 字段镜像 `PromoteHistoryEntry`，并新增 `archived_at_ms`
+/// （条目写入 archive 的时间）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromoteHistoryArchiveEntry {
     pub job_id: String,
@@ -1768,48 +1709,46 @@ pub struct PromoteHistoryArchiveEntry {
     pub best_params: Option<serde_json::Value>,
     pub weights: Option<serde_json::Value>,
     pub trial_index: Option<usize>,
-    /// v0.33b — when this entry was written to the archive
-    /// file. May differ from `promoted_at_ms` if the sidecar
-    /// was offline and the entry was written later.
+    /// v0.33b —— 该条目写入 archive 文件的时间。
+    /// 若侧车当时离线、稍后才写入，可能与 `promoted_at_ms` 不同。
     pub archived_at_ms: i64,
 }
 
-/// v0.33b — response of `list_promote_history_archive`.
+/// v0.33b —— `list_promote_history_archive` 的响应。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromoteHistoryArchiveResult {
-    /// `true` if the archive file exists and was readable.
+    /// `true` 表示 archive 文件存在并可读。
     pub ok: bool,
-    /// All entries matching the filter (after pagination).
+    /// 过滤后（已分页）的所有条目。
     pub entries: Vec<PromoteHistoryArchiveEntry>,
-    /// Total entries in the file (before pagination).
+    /// 文件中的总条目数（分页之前）。
     pub total: usize,
-    /// Optional message (error or "no archive yet").
+    /// 可选消息（错误或「暂无 archive」）。
     pub message: Option<String>,
 }
 
-/// v0.33b — read the Python sidecar's `archive.jsonl` file
-/// and return paginated entries. The file lives at
-/// `~/.polyrocket/sidecar/models/archive.jsonl` (overridable
-/// via `POLYROCKET_SIDECAR_MODEL_DIR`).
+/// v0.33b —— 读取 Python 侧车的 `archive.jsonl` 文件
+/// 并返回分页条目。文件位于
+/// `~/.polyrocket/sidecar/models/archive.jsonl`
+/// （可通过 `POLYROCKET_SIDECAR_MODEL_DIR` 覆盖）。
 ///
-/// The file is JSONL: one JSON object per line. We parse
-/// each line, filter by `from_ms`/`to_ms`, and return up to
-/// `limit` entries starting at `offset`. Results are
-/// sorted by `promoted_at_ms` descending (newest first).
+/// 文件为 JSONL：每行一个 JSON 对象。我们逐行解析，
+/// 按 `from_ms`/`to_ms` 过滤，返回从 `offset` 开始
+/// 最多 `limit` 条。结果按 `promoted_at_ms` 倒序
+/// （最新的在最前面）。
 ///
-/// The 20-entry cap on `promotion_history[]` is the primary
-/// in-memory audit trail. The archive file is the durable
-/// long-term trail. The L1 can show "View archive" on the
-/// ModelLab page to see entries that fell off the cap.
+/// `promotion_history[]` 的 20 条上限是主要的内存审计轨迹。
+/// archive 文件是持久的长期轨迹。L1 在 ModelLab 页面上
+/// 提供「查看 archive」入口，可以看到被挤出 20 条上限的那些条目。
 #[tauri::command]
 pub async fn list_promote_history_archive(
     args: ListPromoteHistoryArchiveArgs,
 ) -> AppResult<PromoteHistoryArchiveResult> {
     check_sidecar_enabled()?;
     use std::io::{BufRead, BufReader};
-    // v0.33b — derive the archive path from the same env
-    // var the Python sidecar uses. If unset, default to
-    // ~/.polyrocket/sidecar/models/archive.jsonl.
+    // v0.33b —— 用 Python 侧车所用的同一个环境变量
+    // 推导 archive 路径。未设置时默认
+    // ~/.polyrocket/sidecar/models/archive.jsonl。
     let model_dir = std::env::var("POLYROCKET_SIDECAR_MODEL_DIR").unwrap_or_else(|_| {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
         format!("{home}/.polyrocket/sidecar/models")
@@ -1829,9 +1768,9 @@ pub async fn list_promote_history_archive(
     let to_ms = args.to_ms.unwrap_or(i64::MAX);
     let offset = args.offset.unwrap_or(0);
     let limit = args.limit.unwrap_or(100).min(1000);
-    // v0.42e-3 — build a HashSet for O(1) lookup if
-    // the caller passed a job_ids whitelist. None =
-    // no filter (return all matching time range).
+    // v0.42e-3 —— 若调用方传入了 job_ids 白名单，
+    // 构建一个 HashSet 以实现 O(1) 查询。
+    // None = 不过滤（返回时间范围内的全部）。
     let job_ids_filter: Option<std::collections::HashSet<String>> =
         args.job_ids.as_ref().map(|v| v.iter().cloned().collect());
 
@@ -1847,30 +1786,28 @@ pub async fn list_promote_history_archive(
         }
     };
 
-    // Parse all lines, filter, sort newest-first, paginate.
-    // For a long-term archive (thousands of entries) this
-    // could be slow; for the expected use case (a few
-    // hundred entries per year) it's fine.
+    // 解析所有行、过滤、按时间倒序排序、再分页。
+    // 对一个长期 archive（数千条）这可能偏慢；
+    // 对预期场景（每年几百条）已经足够。
     let mut all: Vec<PromoteHistoryArchiveEntry> = Vec::new();
     let reader = BufReader::new(file);
     for line in reader.lines() {
         let line = match line {
             Ok(l) => l,
-            Err(_) => continue, // skip malformed lines silently
+            Err(_) => continue, // 静默跳过格式错误的行
         };
         if line.trim().is_empty() {
             continue;
         }
         let entry: PromoteHistoryArchiveEntry = match serde_json::from_str(&line) {
             Ok(e) => e,
-            Err(_) => continue, // skip malformed lines silently
+            Err(_) => continue, // 静默跳过格式错误的行
         };
         if entry.promoted_at_ms < from_ms || entry.promoted_at_ms > to_ms {
             continue;
         }
-        // v0.42e-3 — apply the job_ids whitelist if set.
-        // Empty whitelist returns no entries; missing =
-        // no filter.
+        // v0.42e-3 —— 若设置了 job_ids 白名单则应用。
+        // 空白名单返回 0 条；缺省 = 不过滤。
         if let Some(set) = &job_ids_filter {
             if !set.contains(&entry.job_id) {
                 continue;
@@ -1878,7 +1815,7 @@ pub async fn list_promote_history_archive(
         }
         all.push(entry);
     }
-    // Newest first
+    // 最新的排在前面
     all.sort_by(|a, b| b.promoted_at_ms.cmp(&a.promoted_at_ms));
     let total = all.len();
     let entries: Vec<PromoteHistoryArchiveEntry> = all
@@ -1896,36 +1833,35 @@ pub async fn list_promote_history_archive(
 }
 
 // =================================================================
-// v0.28a — auto-promote config (in-memory, set via L1 IPC)
+// v0.28a —— auto-promote 配置（内存中，由 L1 IPC 设置）
 // =================================================================
 
-/// v0.28a — args for `set_auto_promote_config`. Both fields
-/// are optional: `None` means "leave unchanged" so the L1
-/// can update only the field the user changed in the UI
-/// (e.g. just the toggle, not the margin).
+/// v0.28a —— `set_auto_promote_config` 的入参。
+/// 两个字段都是可选的：`None` 意为「保持不变」，
+/// 这样 L1 只能更新用户在 UI 中改动的那一项
+/// （例如只改开关、不动 margin）。
 #[derive(Debug, Clone, Deserialize, specta::Type)]
 pub struct SetAutoPromoteConfigArgs {
     pub enabled: Option<bool>,
     pub brier_margin: Option<f64>,
 }
 
-/// v0.28a — current auto-promote config. Returned by
-/// `get_auto_promote_config` for the L1 to display
-/// "what the Rust side currently has" (in case the L1
-/// store was reset, e.g. by a hard refresh).
+/// v0.28a —— 当前的 auto-promote 配置。
+/// 由 `get_auto_promote_config` 返回给 L1，用于展示
+/// 「Rust 端现在持有的是什么」（例如硬刷新导致
+/// L1 store 被重置时）。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct AutoPromoteConfigDto {
     pub enabled: bool,
     pub brier_margin: f64,
 }
 
-/// v0.28a — L1 pushes the user's auto-promote settings
-/// into `AppState` so the Rust `train_job` handler can
-/// decide whether to spawn the auto-promote worker.
+/// v0.28a —— L1 把用户的 auto-promote 设置推入
+/// `AppState`，以便 Rust 端的 `train_job` handler 决定
+/// 是否派生 auto-promote worker。
 ///
-/// Both fields are optional; only the supplied ones are
-/// updated. Returns the new merged config so the L1
-/// can confirm what Rust now has.
+/// 两个字段均可选；只更新提供的字段。返回合并后的新
+/// 配置，让 L1 可以确认 Rust 当前持有的状态。
 #[tauri::command]
 pub async fn set_auto_promote_config(
     state: State<'_, crate::infra::state::AppState>,
@@ -1939,9 +1875,9 @@ pub async fn set_auto_promote_config(
         guard.enabled = e;
     }
     if let Some(m) = args.brier_margin {
-        // Clamp to a sane range: 0.0 (any improvement) to 0.1
-        // (only promote if 10% better). Negative would be
-        // "promote if not worse", which is silly.
+        // 把 margin 钳制在合理区间：0.0（任意提升即可）到
+        // 0.1（必须好 10% 才提升）。负值相当于
+        // 「只要不比当前更差就提升」，没什么意义。
         guard.brier_margin = m.clamp(0.0, 0.1);
     }
     Ok(AutoPromoteConfigDto {
@@ -1951,44 +1887,38 @@ pub async fn set_auto_promote_config(
 }
 
 // =================================================================
-// v0.42c — telemetry enabled toggle (L1 IPC)
+// v0.42c —— telemetry 启用开关（L1 IPC）
 // =================================================================
 
-/// v0.42c — runtime override of telemetry enable/disable.
-/// L1 calls this from the Settings toggle. The default
-/// (false) is what `init_from_env` leaves it as unless
-/// `POLYROCKET_TELEMETRY=1` was set in the env at
-/// startup. After this call, the user is in full
-/// control — the env var no longer matters for this
-/// process.
+/// v0.42c —— 运行时覆盖 telemetry 的开 / 关状态。
+/// L1 在 Settings 开关中调用本接口。默认（false）是 `init_from_env`
+/// 留下的值，除非启动时设置了 `POLYROCKET_TELEMETRY=1`。
+/// 本调用之后，用户完全控制 —— 环境变量对本进程不再起作用。
 #[tauri::command]
 pub async fn set_telemetry_enabled(args: SetTelemetryEnabledArgs) -> AppResult<bool> {
     crate::infra::telemetry::set_enabled(args.enabled);
     Ok(args.enabled)
 }
 
-/// v0.42c — read the current telemetry state. The L1
-/// calls this on Settings mount so the toggle
-/// reflects "what the Rust side currently has"
-/// (in case the env var set it at startup).
+/// v0.42c —— 读取当前 telemetry 状态。L1 在 Settings
+/// 页面挂载时调用本接口，使开关能反映「Rust 侧当前持有
+/// 的状态」（应对启动时由环境变量设定的情形）。
 #[tauri::command]
 pub async fn get_telemetry_enabled() -> AppResult<bool> {
     Ok(crate::infra::telemetry::is_enabled())
 }
 
-/// v0.42c — args for `set_telemetry_enabled`. We use a
-/// struct (not a bare bool) for future-proofing: a
-/// future `sink: Option<String>` could let the L1
-/// pick stderr vs file vs no-op without an IPC
-/// redesign.
+/// v0.42c —— `set_telemetry_enabled` 的入参。
+/// 使用结构体而非裸 bool 是为了将来扩展：
+/// 比如新增 `sink: Option<String>` 让 L1 在
+/// stderr / 文件 / no-op 之间切换时无需重新设计 IPC。
 #[derive(Debug, Clone, Deserialize)]
 pub struct SetTelemetryEnabledArgs {
     pub enabled: bool,
 }
 
-/// v0.28a — read the current auto-promote config from
-/// `AppState`. Returns defaults if the L1 has never
-/// pushed any config.
+/// v0.28a —— 从 `AppState` 读取当前 auto-promote 配置。
+/// 若 L1 从未推过任何配置则返回默认值。
 #[tauri::command]
 pub async fn get_auto_promote_config(
     state: State<'_, crate::infra::state::AppState>,
@@ -2003,39 +1933,38 @@ pub async fn get_auto_promote_config(
     })
 }
 
-/// v0.28a — event payload for the background auto-promote
-/// worker. Emitted on the Tauri bus as `auto_promote:finished`.
+/// v0.28a —— 后台 auto-promote worker 的事件 payload。
+/// 在 Tauri 总线上以 `auto_promote:finished` 发射。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutoPromoteFinishedEvent {
-    /// The job_id from the train that triggered the auto-promote.
+    /// 触发本次 auto-promote 的 train job_id。
     pub job_id: String,
-    /// Whether the auto-promote actually promoted.
+    /// auto-promote 是否真的完成了 promote。
     pub promoted: bool,
-    /// Reason / status string from the sidecar.
+    /// 来自侧车的 reason / status 字符串。
     pub message: String,
-    /// If promoted, the new model version.
+    /// 若完成 promote,新模型版本。
     pub model_version: Option<String>,
-    /// When the auto-promote finished (unix millis).
+    /// auto-promote 完成的时间（unix 毫秒）。
     pub finished_at: i64,
 }
 
-/// v0.28a — spawn a background task that calls
-/// `auto_promote_if_better` on the sidecar, then emits
-/// `auto_promote:finished`.
+/// v0.28a —— 在后台任务中调用侧车的 `auto_promote_if_better`,
+/// 然后发射 `auto_promote:finished`。
 ///
-/// This is a private helper used by `train_job` after
-/// the sidecar returns a successful train. It is NOT a
-/// `#[tauri::command]` — it runs in a `tokio::spawn`'d
-/// task so the train IPC returns immediately.
+/// 这是一个私有辅助函数，由 `train_job` 在侧车返回
+/// 一次成功 train 之后调用。它不是 `#[tauri::command]` ——
 ///
-/// The worker:
-/// 1. Calls `auto_promote_if_better(brier_margin)` via
-///    the same stdin/stdout protocol as the user-facing
-///    command
-/// 2. Emits the result on `auto_promote:finished`
-/// 3. Silently swallows errors (they are reflected in
-///    `message`; we don't want a failed auto-promote
-///    to crash the train IPC that already returned)
+/// 运行在 `tokio::spawn` 派生的任务中，因此 train IPC 会
+/// 立即返回。
+///
+/// 工作流程：
+/// 1. 通过与面向用户的命令相同的 stdin/stdout 协议调用
+///    `auto_promote_if_better(brier_margin)`
+/// 2. 在 `auto_promote:finished` 上发射结果
+/// 3. 静默吞掉错误（错误信息会反映在 `message` 中；
+///    我们不希望一次失败的 auto-promote 把已经返回的
+///    train IPC 也搞崩）
 async fn run_auto_promote_worker(
     sidecar: SidecarState,
     app: AppHandle,
@@ -2052,9 +1981,9 @@ async fn run_auto_promote_worker(
     );
     let line = build_auto_promote_if_better_request(&inner_job_id, Some(brier_margin), None);
 
-    // If the sidecar isn't running, the worker just
-    // emits a "no-op" finished event so the L1 can
-    // update its UI (e.g. "auto-promote skipped: sidecar down").
+    // 如果侧车未运行，worker 就直接发射一个
+    // "no-op" 的 finished 事件，便于 L1 更新
+    // 自身的 UI（例如「auto-promote skipped: sidecar down」）。
     if !sidecar.is_running() {
         let _ = app.emit(
             "auto_promote:finished",
@@ -2195,12 +2124,11 @@ async fn run_auto_promote_worker(
             finished_at: chrono::Utc::now().timestamp_millis(),
         },
     );
-    // v0.42b — emit lifecycle event. The OS notification
-    // path is unchanged (v0.39a only fires on
-    // `promoted: true`); telemetry captures BOTH
-    // outcomes for analysis. Future v0.42e may add a
-    // skipped-notification toggle that piggybacks on
-    // the AutoPromoteSkipped event.
+    // v0.42b —— 发射生命周期事件。系统通知路径
+    // 不变（v0.39a 仅在 `promoted: true` 时触发）；
+    // telemetry 同时捕获两种结果用于分析。
+    // 后续 v0.42e 可能会加入一个「跳过时也通知」
+    // 的开关，复用 AutoPromoteSkipped 事件。
     use crate::infra::telemetry;
     if result.promoted {
         telemetry::emit(telemetry::Event::AutoPromoteFired {
@@ -2237,12 +2165,12 @@ mod tests {
     }
 
     // ============================================================
-    // v0.33b — list_promote_history_archive
+    // v0.33b —— list_promote_history_archive
     // ============================================================
 
     use std::io::Write;
 
-    /// Helper: write a JSONL archive file with N entries.
+    /// 辅助函数：写入包含 N 条记录的 JSONL archive 文件。
     fn write_test_archive(path: &std::path::Path, n: usize) {
         let mut f = std::fs::File::create(path).unwrap();
         for i in 0..n {
@@ -2263,8 +2191,8 @@ mod tests {
     #[tokio::test]
     #[serial_test::serial]
     async fn archive_returns_empty_when_no_file() {
-        // v0.33b — if archive.jsonl doesn't exist, return
-        // ok=true with 0 entries and a friendly message
+        // v0.33b —— 如果 archive.jsonl 不存在,返回
+        // ok=true 且 0 条记录,并附一条友好提示
         let tmp = std::env::temp_dir().join(format!(
             "polyrocket_test_archive_none_{}",
             std::process::id()
@@ -2295,8 +2223,8 @@ mod tests {
     #[tokio::test]
     #[serial_test::serial]
     async fn archive_reads_and_paginates_entries() {
-        // v0.33b — write 25 entries, read with default
-        // limit=100, verify all 25 returned, sorted newest-first
+        // v0.33b —— 写入 25 条，用默认 limit=100 读取，
+        // 验证 25 条全部返回、按时间倒序
         let tmp = std::env::temp_dir().join(format!(
             "polyrocket_test_archive_25_{}",
             std::process::id()
@@ -2318,12 +2246,12 @@ mod tests {
         assert!(r.ok);
         assert_eq!(r.total, 25);
         assert_eq!(r.entries.len(), 25);
-        // Newest first: entry[0] is the 25th written (i=24)
-        // The job_id is `train-00000018` (24 in hex, 0-padded to 8)
+        // 最新的排在前面：entry[0] 是第 25 条写入的（i=24）
+        // job_id 为 `train-00000018`（24 的十六进制，0 补齐到 8 位）
         assert_eq!(r.entries[0].job_id, "train-00000018");
-        // The last entry is the oldest (i=0)
+        // 最后一条是最早的（i=0）
         assert_eq!(r.entries[24].job_id, "train-00000000");
-        // Each entry has all the required fields
+        // 每条都包含所有必需字段
         assert!(r.entries[0].archived_at_ms > 0);
         assert!(r.entries[0].weights.is_some());
 
@@ -2334,10 +2262,9 @@ mod tests {
     #[tokio::test]
     #[serial_test::serial]
     async fn archive_pagination_offset_and_limit() {
-        // v0.33b — write 30 entries, read with offset=10
-        // limit=5, verify 5 entries returned (indices 10..15
-        // of the newest-first list, which is the 20th-16th
-        // oldest entries)
+        // v0.33b —— 写入 30 条记录，用 offset=10 limit=5 读取，
+        // 验证返回 5 条（newest-first 列表的索引 10..15，
+        // 也就是按时间从老到新的第 16 到 20 条）
         let tmp = std::env::temp_dir().join(format!(
             "polyrocket_test_archive_pag_{}",
             std::process::id()
@@ -2367,8 +2294,8 @@ mod tests {
     #[tokio::test]
     #[serial_test::serial]
     async fn archive_filters_by_time_range() {
-        // v0.33b — write 10 entries at 1000ms intervals,
-        // filter to 5 entries (i=3..7) by from_ms/to_ms
+        // v0.33b —— 以 1000ms 间隔写入 10 条，
+        // 用 from_ms / to_ms 过滤为 5 条（i=3..7）
         let tmp = std::env::temp_dir().join(format!(
             "polyrocket_test_archive_time_{}",
             std::process::id()
@@ -2378,7 +2305,7 @@ mod tests {
         write_test_archive(&tmp.join("archive.jsonl"), 10);
         std::env::set_var("POLYROCKET_SIDECAR_MODEL_DIR", &tmp);
 
-        // Entry i=3 is at 1_700_000_003_000, i=7 is at 1_700_000_007_000
+        // i=3 对应 1_700_000_003_000，i=7 对应 1_700_000_007_000
         let r = list_promote_history_archive(ListPromoteHistoryArchiveArgs {
             from_ms: Some(1_700_000_003_000),
             to_ms: Some(1_700_000_007_000),
@@ -2389,7 +2316,7 @@ mod tests {
         .await
         .unwrap();
         assert!(r.ok);
-        // 5 entries match: i=3,4,5,6,7
+        // 命中 5 条：i=3,4,5,6,7
         assert_eq!(r.total, 5);
         assert_eq!(r.entries.len(), 5);
 
@@ -2400,11 +2327,10 @@ mod tests {
     #[tokio::test]
     #[serial_test::serial]
     async fn archive_filters_by_job_ids() {
-        // v0.42e-3 — whitelist filter on job_ids.
-        // The ModelComparison modal uses this to
-        // pull weights for the 2-3 selected
-        // entries without fetching the whole
-        // archive.
+        // v0.42e-3 —— 对 job_ids 应用白名单过滤。
+        // ModelComparison 模态框用它来
+        // 在不取整个 archive 的前提下
+        // 取出 2-3 个被选条目的权重。
         let tmp = std::env::temp_dir().join(format!(
             "polyrocket_test_archive_jobids_{}",
             std::process::id()
@@ -2414,9 +2340,9 @@ mod tests {
         write_test_archive(&tmp.join("archive.jsonl"), 10);
         std::env::set_var("POLYROCKET_SIDECAR_MODEL_DIR", &tmp);
 
-        // Whitelist: train-00000002, train-00000005,
-        // train-00000008 (the helper writes
-        // job_id="train-{:08x}" so i=2 → 00000002).
+        // 白名单：train-00000002、train-00000005、
+        // train-00000008（辅助函数写入的 job_id 形如
+        // "train-{:08x}"，因此 i=2 → 00000002）。
         let r = list_promote_history_archive(ListPromoteHistoryArchiveArgs {
             from_ms: None,
             to_ms: None,
@@ -2431,7 +2357,7 @@ mod tests {
         .await
         .unwrap();
         assert!(r.ok);
-        // total counts entries BEFORE pagination
+        // total 在分页前统计
         assert_eq!(r.total, 3);
         assert_eq!(r.entries.len(), 3);
         let ids: std::collections::HashSet<String> =
@@ -2440,7 +2366,7 @@ mod tests {
         assert!(ids.contains("train-00000005"));
         assert!(ids.contains("train-00000008"));
 
-        // Empty whitelist → 0 entries
+        // 空白名单 → 0 条
         let r2 = list_promote_history_archive(ListPromoteHistoryArchiveArgs {
             from_ms: None,
             to_ms: None,
@@ -2453,7 +2379,7 @@ mod tests {
         assert_eq!(r2.total, 0);
         assert_eq!(r2.entries.len(), 0);
 
-        // Whitelist that matches nothing → 0 entries
+        // 白名单无任何匹配 → 0 条
         let r3 = list_promote_history_archive(ListPromoteHistoryArchiveArgs {
             from_ms: None,
             to_ms: None,
@@ -2466,8 +2392,8 @@ mod tests {
         assert_eq!(r3.total, 0);
         assert_eq!(r3.entries.len(), 0);
 
-        // Whitelist combined with from_ms — both
-        // filters must apply
+        // 白名单与 from_ms 同时使用 —— 两个过滤
+        // 必须都生效
         let r4 = list_promote_history_archive(ListPromoteHistoryArchiveArgs {
             from_ms: Some(1_700_000_006_000),
             to_ms: None,
@@ -2481,37 +2407,36 @@ mod tests {
         })
         .await
         .unwrap();
-        // Only train-00000008 survives (i=5 is at
-        // 1_700_000_005_000 which is below the
-        // from_ms)
+        // 仅 train-00000008 留下（i=5 的时间戳是
+        // 1_700_000_005_000，低于 from_ms）
         assert_eq!(r4.total, 1);
         assert_eq!(r4.entries[0].job_id, "train-00000008");
 
         std::env::remove_var("POLYROCKET_SIDECAR_MODEL_DIR");
         let _ = std::fs::remove_dir_all(&tmp);
     }
-// ----- v0.122a: POLYROCKET_DISABLE_SIDECAR short-circuit -----
+// ----- v0.122a：POLYROCKET_DISABLE_SIDECAR 短路 -----
 
     #[test]
     #[serial_test::serial]
     fn check_sidecar_enabled_passes_when_flag_unset() {
-        // SAFETY: serialised with other env-mutating tests.
+        // SAFETY：与其他会修改环境变量的测试串行执行。
         unsafe { std::env::remove_var("POLYROCKET_DISABLE_SIDECAR") };
         assert!(check_sidecar_enabled().is_ok(),
-            "default state (flag unset) must let sidecar IPCs through");
+            "默认状态（开关未设置）必须放行侧车 IPC");
     }
 
     #[test]
     #[serial_test::serial]
     fn check_sidecar_enabled_blocks_when_flag_set() {
-        // SAFETY: serialised with other env-mutating tests.
+        // SAFETY：与其他会修改环境变量的测试串行执行。
         unsafe { std::env::set_var("POLYROCKET_DISABLE_SIDECAR", "1") };
         let err = check_sidecar_enabled()
-            .expect_err("flag set must short-circuit");
+            .expect_err("开关设置时必须短路返回");
         let msg = format!("{err:?}");
         assert!(
             msg.contains("sidecar disabled") && msg.contains("v0.122"),
-            "error message must include the canonical disabled phrase, got: {msg}"
+            "错误信息必须包含规范的禁用提示，实际: {msg}"
         );
         unsafe { std::env::remove_var("POLYROCKET_DISABLE_SIDECAR") };
     }

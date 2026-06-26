@@ -1,28 +1,28 @@
-//! L3 — Demo data seeder (pure).
+//! L3 — 演示数据 seeder（纯函数）。
 //!
-//! Deterministic sample data so a fresh `cargo tauri dev` shows a
-//! fully-populated UI (Dashboard charts, History rows, P&L signals,
-//! Copy tracker rows, …) instead of an empty shell.
+//! 提供确定性样本数据，使新启动的 `cargo tauri dev` 能展示一个
+//! 完全填充好的 UI（Dashboard 图表、History 行、P&L 信号、
+//! Copy tracker 行……），而不是一个空壳。
 //!
-//! Constraints:
-//!   - All IDs are stable strings (no uuid, no random) so screenshots
-//!     and integration tests are reproducible.
-//!   - All timestamps are pinned to `SEED_NOW_MS` (a fixed epoch).
-//!     Re-running the seeder produces the same byte-identical rows.
-//!   - Quantities are decimal strings (e.g. "12.50") matching the
-//!     schema's `text` representation for `size`/`shares`/`liquidity`.
+//! 约束：
+//!   - 所有 ID 都是稳定字符串（无 uuid，无随机），使截图和
+//!     集成测试可复现。
+//!   - 所有时间戳固定为 `SEED_NOW_MS`（固定 epoch）。
+//!     重新运行 seeder 会产生字节级完全相同的行。
+//!   - 数量使用十进制字符串（如 "12.50"），与 schema 中
+//!     `size`/`shares`/`liquidity` 的 `text` 表示一致。
 //!
-//! Trigger: `infra::db::seed::apply_seed` (idempotent) is called from
-//! `init_pool` on first launch and on explicit `seed_demo_data(force=true)`.
+//! 触发点：`infra::db::seed::apply_seed`（幂等）会在首次启动
+//! 时以及显式调用 `seed_demo_data(force=true)` 时被 `init_pool` 调用。
 
 use serde::{Deserialize, Serialize};
 
-/// The fixed reference epoch for all seeded timestamps.
-/// 2026-01-15 12:00:00 UTC, in milliseconds.
+/// 所有播种时间戳使用的固定参考 epoch。
+/// 2026-01-15 12:00:00 UTC,以毫秒为单位。
 pub const SEED_NOW_MS: i64 = 1_768_456_800_000;
 
-/// Marker string written to `audit_log.action` so the seeder is
-/// observable in the Audit page.
+/// 写入到 `audit_log.action` 的标记字符串,以便在
+/// Audit 页面观察 seeder。
 pub const SEED_AUDIT_ACTION: &str = "seed_demo_data";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,7 +110,7 @@ pub struct SeedCopyEvent {
     pub matched_bet_id: Option<String>,
 }
 
-/// All seed rows. Functions return `Vec<...>` and are pure — no I/O.
+/// 所有 seed 行。函数返回 `Vec<...>`，且为纯函数 —— 无 I/O。
 #[derive(Debug, Clone, Default)]
 pub struct SeedBundle {
     pub wallets: Vec<SeedWallet>,
@@ -122,8 +122,8 @@ pub struct SeedBundle {
 }
 
 impl SeedBundle {
-    /// Return the canonical demo dataset.
-    /// 4 wallets · 12 markets · 14 signals · 18 bets · 3 copy targets · 5 copy events
+    /// 返回规范的 demo 数据集。
+    /// 4 个钱包 · 12 个市场 · 14 个信号 · 18 个注单 · 3 个跟单目标 · 5 个跟单事件
     pub fn demo() -> Self {
         let wallets = seed_wallets();
         let markets = seed_markets();
@@ -134,7 +134,7 @@ impl SeedBundle {
         Self { wallets, markets, signals, bets, copy_targets, copy_events }
     }
 
-    /// Total row count — useful for the IPC return value.
+    /// 总行数 —— 便于作为 IPC 返回值使用。
     pub fn total_rows(&self) -> usize {
         self.wallets.len()
             + self.markets.len()
@@ -183,12 +183,12 @@ fn seed_wallets() -> Vec<SeedWallet> {
 }
 
 fn seed_markets() -> Vec<SeedMarket> {
-    // Mix of active, resolved, and expiring markets across 3 categories.
-    // end_date is relative to SEED_NOW_MS (in ms).
+    // 跨 3 个分类的活跃、已结算、即将到期市场的混合。
+    // end_date 相对于 SEED_NOW_MS（以毫秒计）。
     let day = 86_400_000;
     let hour = 3_600_000;
     vec![
-        // ── Football (4) ────────────────────────────────────────────
+        // ── Football 足球 (4) ────────────────────────────────────────────
         SeedMarket {
             id: "mkt-football-eu-final-2026".into(),
             slug: "champions-league-final-2026-winner".into(),
@@ -387,13 +387,13 @@ fn seed_markets() -> Vec<SeedMarket> {
 }
 
 fn seed_signets(markets: &[SeedMarket]) -> Vec<SeedSignal> {
-    // 1-2 signals per market, focused on the active ones (more interesting for the UI).
+    // 每个市场 1-2 个信号,集中在活跃市场（对 UI 更有展示价值）。
     let day = 86_400_000;
     let mut out = Vec::new();
     let mut next_id = 1000i64;
     for m in markets {
         if !m.active { continue; }
-        // 1-2 signals per active market
+        // 每个活跃市场 1-2 个信号
         let primary = SeedSignal {
             market_id: m.id.clone(),
             computed_at: SEED_NOW_MS - 2 * 3_600_000,
@@ -417,7 +417,7 @@ fn seed_signets(markets: &[SeedMarket]) -> Vec<SeedSignal> {
         primary.edge = primary.predicted_prob - primary.market_prob;
         out.push(primary);
         next_id += 1;
-        // Second signal for football/politics markets only
+        // 仅为足球/政治市场生成第二个信号
         if matches!(m.category.as_str(), "football" | "politics") {
             let mut secondary = SeedSignal {
                 market_id: m.id.clone(),
@@ -434,7 +434,7 @@ fn seed_signets(markets: &[SeedMarket]) -> Vec<SeedSignal> {
             out.push(secondary);
             next_id += 1;
         }
-        // 5 minutes of unused time elapses
+        // 5 分钟的未使用时间流逝（占位说明,无功能作用）
         let _ = day;
     }
     out
@@ -447,10 +447,10 @@ fn seed_bets(
     markets: &[SeedMarket],
     _signals: &[SeedSignal],
 ) -> Vec<SeedBet> {
-    // 18 bets across the wallets; mix of:
-    //   - 10 settled (5 win, 4 loss, 1 cancelled)
-    //   - 6 open
-    //   - 2 with tx_hash (Mode B signed)
+    // 跨钱包的 18 个注单;混合如下:
+    //   - 10 个已结算（5 赢、4 输、1 取消）
+    //   - 6 个未结算
+    //   - 2 个带 tx_hash（Mode B 签名）
     let day = 86_400_000;
     let hour = 3_600_000;
     let w1 = &wallets[0].id;
@@ -492,9 +492,9 @@ fn seed_bets(
         mk("bet-007", w1, "mkt-cs2-blast-spring", "jump", "yes", "12.00", 0.62, "19.35", SEED_NOW_MS - 9 * day, Some(SEED_NOW_MS - 1 * day), Some("-12.00"), "settled_no", None, None),
         mk("bet-008", w3, "mkt-cs2-blast-finals", "jump", "no", "8.00", 0.48, "16.67", SEED_NOW_MS - 5 * day, Some(SEED_NOW_MS - 2 * day), Some("-8.00"), "settled_no", None, None),
         mk("bet-009", w1, "mkt-politics-g7-summit", "jump", "no", "5.00", 0.30, "16.67", SEED_NOW_MS - 13 * day, Some(SEED_NOW_MS - 5 * day), Some("-5.00"), "settled_no", None, Some("hedge")),
-        // ── Cancelled (1) ────────────────────────────────────────
+        // ── Cancelled 已取消 (1) ────────────────────────────────────────
         mk("bet-010", w1, "mkt-football-premier-top4", "jump", "yes", "10.00", 0.50, "20.00", SEED_NOW_MS - 3 * day, None, None, "cancelled", None, Some("user cancelled from UI")),
-        // ── Open (6) ─────────────────────────────────────────────
+        // ── Open 进行中 (6) ─────────────────────────────────────────────
         mk("bet-011", w2, "mkt-football-eu-final-2026", "signed", "yes", "40.00", 0.38, "105.26", SEED_NOW_MS - 1 * day, None, None, "open", Some("0xdemo011"), Some("Mode B open, watching finals")),
         mk("bet-012-llm", w2, "mkt-cs2-major-2026", "signed", "yes", "25.00", 0.32, "78.13", SEED_NOW_MS - 12 * hour, None, None, "open", Some("0xdemo012"), Some("LLM consensus: place at <0.35")),
         mk("bet-013", w1, "mkt-politics-fed-rate", "jump", "yes", "60.00", 0.41, "146.34", SEED_NOW_MS - 8 * hour, None, None, "open", None, None),
@@ -504,9 +504,9 @@ fn seed_bets(
     ]
     .into_iter()
     .map(|b| {
-        // `_markets` and `_signals` are intentionally unused here; the
-        // array is just there so the caller can reference ids without
-        // us hardcoding them above. Silence the warning.
+        // `_markets` 和 `_signals` 在这里故意未使用；保留这些参数是
+        // 为了让调用方可以引用 id 而无需在调用处硬编码它们。
+        // 此处压制 unused 警告。
         let _ = (markets, _signals);
         b
     })
@@ -560,8 +560,8 @@ fn seed_copy_events(
         .collect();
 
     for (i, t) in targets.iter().enumerate() {
-        if !t.enabled && i == 2 { continue; }  // skip the disabled one for events
-        // 2 events per active target
+        if !t.enabled && i == 2 { continue; }  // 跳过已禁用的那个,用于 events
+        // 每个活跃 target 2 个事件
         for j in 0..2i64 {
             let market = active_markets[((i as i64) * 2 + j) as usize % active_markets.len()];
             let matched = if j == 0 && !settled_bets.is_empty() {
@@ -646,13 +646,13 @@ mod tests {
 
     #[test]
     fn seed_now_is_2026_jan_15() {
-        // Pinning the reference time so screenshots and tests stay reproducible.
+        // 固定参考时间,使截图和测试保持可复现。
         assert_eq!(SEED_NOW_MS, 1_768_456_800_000);
     }
 
     #[test]
     fn ids_are_stable_across_runs() {
-        // Run the seeder twice and check the IDs are identical.
+        // 运行 seeder 两次,确认 ID 完全一致。
         let a = SeedBundle::demo();
         let b = SeedBundle::demo();
         let a_ids: Vec<&str> = a.markets.iter().map(|m| m.id.as_str()).collect();

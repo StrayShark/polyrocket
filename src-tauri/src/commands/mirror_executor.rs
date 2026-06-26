@@ -1,15 +1,15 @@
-//! L2 — Mirror executor IPCs (M5 auto-execution).
+//! L2 —— Mirror executor IPC（M5 自动执行）。
 //!
-//! Manages the `copy_mirror_queue` table in SQLite and runs the
-//! domain::mirror executor to pick which pending mirrors to submit
-//! as Mode B bets.
+//! 管理 SQLite 中的 `copy_mirror_queue` 表，并运行
+//! domain::mirror executor 来挑选哪些待处理 mirror
+//! 作为 Mode B 投注提交。
 //!
-//! Flow:
-//! 1. L4 scheduler (infra::scheduler) ticks every N seconds
-//! 2. Calls `run_mirror_executor_pass` IPC (or directly via Rust)
-//! 3. The pass reads pending mirrors, runs pick_next_mirror + find_rejections
-//! 4. Picked mirrors are submitted as Mode B bets via sign_order
-//! 5. Rejected mirrors are marked with their reason
+//! 流程：
+//! 1. L4 scheduler（infra::scheduler）每 N 秒 tick 一次
+//! 2. 调用 `run_mirror_executor_pass` IPC（或直接通过 Rust）
+//! 3. 这一轮读取 pending mirror，运行 pick_next_mirror + find_rejections
+//! 4. 被选中的 mirror 通过 sign_order 作为 Mode B 投注提交
+//! 5. 被拒绝的 mirror 标记其原因
 
 use crate::AppError;
 use crate::AppResult;
@@ -24,7 +24,7 @@ use sqlx::{FromRow, Row};
 use std::collections::HashMap;
 use tauri::State;
 
-/// Persisted mirror order (DB row). Mirrors `copy_mirror_queue` table.
+/// 已持久化的 mirror 单（DB 行）。镜像 `copy_mirror_queue` 表结构。
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct MirrorRow {
     pub id: String,
@@ -71,7 +71,7 @@ pub struct EnqueueArgs {
     pub flipped: bool,
 }
 
-/// Enqueue a new mirror (called when should_mirror returns a decision).
+/// 将新 mirror 入队（在 `should_mirror` 返回决策时调用）。
 #[tauri::command]
 pub async fn enqueue_mirror(
     state: State<'_, AppState>,
@@ -108,7 +108,7 @@ pub struct ListMirrorsArgs {
     pub limit: Option<i64>,
 }
 
-/// List mirrors newest first, optionally filtered by status.
+/// 列出 mirror，按时间倒序，可按 status 过滤。
 #[tauri::command]
 pub async fn list_mirrors(
     state: State<'_, AppState>,
@@ -141,7 +141,7 @@ pub struct RunPassArgs {
     pub wallet_id: String,
 }
 
-/// Run one executor pass: pick pending → submit, reject stale.
+/// 运行一轮 executor：挑选 pending → 提交，拒绝过期项。
 #[tauri::command]
 pub async fn run_mirror_executor_pass(
     state: State<'_, AppState>,
@@ -151,25 +151,22 @@ pub async fn run_mirror_executor_pass(
 }
 
 // =================================================================
-// ============== v0.44c — paper mode IPC + paper_fills query ======
+// ============== v0.44c —— paper mode IPC + paper_fills query ======
 // =================================================================
 
-/// v0.44c — args for `set_mirror_paper_mode`. The L1
-/// pushes the user's paper-mode pref to Rust on
-/// Settings mount and on every toggle. The
-/// scheduler reads the current value on every tick.
+/// v0.44c —— `set_mirror_paper_mode` 的参数。L1 在
+/// Settings 挂载时以及每次切换时,把用户的 paper 模式偏好
+/// 推送给 Rust。scheduler 在每次 tick 时读取当前值。
 #[derive(Debug, Clone, Deserialize)]
 pub struct SetMirrorPaperModeArgs {
     pub enabled: bool,
 }
 
-/// v0.44c — runtime override of paper mode. After
-/// this call, the next mirror executor pass writes
-/// picked orders to `paper_fills` (paper mode on)
-/// or to `bets` (paper mode off). The env-var
-/// `POLYROCKET_MIRROR_PAPER_MODE` only matters at
-/// process start; after this IPC the user's choice
-/// wins.
+/// v0.44c —— paper 模式的运行时覆盖。本次调用之后,
+/// 下一轮 mirror executor 把被选中的订单写入 `paper_fills`
+/// （paper 模式开启）或 `bets`（paper 模式关闭）。环境变量
+/// `POLYROCKET_MIRROR_PAPER_MODE` 仅在进程启动时生效;
+/// 本次 IPC 之后,以用户的选择为准。
 #[tauri::command]
 pub async fn set_mirror_paper_mode(
     state: State<'_, AppState>,
@@ -183,10 +180,9 @@ pub async fn set_mirror_paper_mode(
     Ok(args.enabled)
 }
 
-/// v0.44c — read the current paper-mode override.
-/// The L1 calls this on Settings mount so the
-/// toggle reflects what the Rust side currently
-/// has (in case the env var set it at startup).
+/// v0.44c —— 读取当前的 paper 模式覆盖值。
+/// L1 在 Settings 挂载时调用此接口,以使开关
+/// 反映 Rust 侧当前持有的值（防止环境变量在启动时设置）。
 #[tauri::command]
 pub async fn get_mirror_paper_mode(
     state: State<'_, AppState>,
@@ -198,11 +194,10 @@ pub async fn get_mirror_paper_mode(
     Ok(*guard)
 }
 
-/// v0.44c — wire-format mirror of a single
-/// `paper_fills` row. Used by `list_paper_fills`
-/// below. v0.45 — added 4 settlement fields
-/// (settled_at, resolved_outcome, won, pnl_usdc).
-/// All Option — pre-v0.45 fills don't have them.
+/// v0.44c —— 单条 `paper_fills` 行的 wire 格式镜像。
+/// 由下面的 `list_paper_fills` 使用。v0.45 —— 新增 4 个结算字段
+/// （settled_at、resolved_outcome、won、pnl_usdc）。
+/// 均为 Option —— v0.45 之前的 fill 没有这些字段。
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct PaperFillDto {
     pub id: String,
@@ -215,25 +210,24 @@ pub struct PaperFillDto {
     pub notes: Option<String>,
     pub settled_at: Option<i64>,
     pub resolved_outcome: Option<String>,
-    /// `1` = won (side matched outcome), `0` = lost,
-    /// `None` = not yet settled. Wire-format bool
-    /// would be more L1-friendly but Option<i64>
-    /// matches the DB schema exactly.
+    /// `1` = 获胜（方向匹配 outcome），`0` = 失败，
+    /// `None` = 尚未结算。wire 格式的 bool
+    /// 对 L1 更友好，但 Option<i64>
+    /// 与 DB schema 完全一致。
     pub won: Option<i64>,
     pub pnl_usdc: Option<String>,
 }
 
-/// v0.44c — args for `list_paper_fills`. Same
-/// shape as `list_bets` for consistency.
+/// v0.44c —— `list_paper_fills` 的参数。结构与
+/// `list_bets` 保持一致。
 #[derive(Debug, Deserialize)]
 pub struct ListPaperFillsArgs {
     pub limit: Option<i64>,
 }
 
-/// v0.44c — query the paper_fills table. The L1
-/// uses this to render the [PAPER] badges in Copy
-/// / PnL and to show the paper-only PnL summary.
-/// Default limit 100, newest first.
+/// v0.44c —— 查询 paper_fills 表。L1 用它在 Copy、
+/// PnL 中渲染 [PAPER] 徽章,以及展示仅 paper 的 PnL 汇总。
+/// 默认 limit 100,按时间倒序。
 #[tauri::command]
 pub async fn list_paper_fills(
     state: State<'_, AppState>,
@@ -259,7 +253,7 @@ pub async fn run_pass_impl(
     let cfg = ExecutorConfig::from_env();
     let now = chrono::Utc::now().timestamp_millis();
 
-    // 1. Load all pending mirrors
+    // 1. 加载所有 pending mirror
     let rows: Vec<MirrorRow> = sqlx::query_as(
         "SELECT * FROM copy_mirror_queue WHERE status IN ('pending','submitted')",
     )
@@ -267,7 +261,7 @@ pub async fn run_pass_impl(
     .await?;
     let orders: Vec<MirrorOrder> = rows.into_iter().map(Into::into).collect();
 
-    // 2. Load market close times
+    // 2. 加载市场收盘时间
     let market_ids: Vec<String> = orders.iter().map(|o| o.market_id.clone()).collect();
     let market_closes = if market_ids.is_empty() {
         HashMap::new()
@@ -291,10 +285,10 @@ pub async fn run_pass_impl(
         map
     };
 
-    // 3. Run pure decision logic
+    // 3. 运行纯决策逻辑
     let result = execute_pass(&orders, &market_closes, now, &cfg)?;
 
-    // 4. Apply rejections
+    // 4. 应用拒绝
     for (id, reason) in &result.rejected {
         sqlx::query(
             "UPDATE copy_mirror_queue
@@ -305,7 +299,7 @@ pub async fn run_pass_impl(
         .bind(id)
         .execute(&state.db)
         .await?;
-        // Audit log
+        // 审计 log
         sqlx::query(
             "INSERT INTO audit_log (actor, action, target, payload, result)
              VALUES ('system', 'mirror.reject', ?, ?, 'ok')",
@@ -316,18 +310,17 @@ pub async fn run_pass_impl(
         .await?;
     }
 
-    // 5. Apply picks — submit as Mode B bets, OR as
-    // paper fills if paper_mode is on. The decision
-    // logic (what to pick, what to reject) is
-    // unchanged; only the write path differs.
+    // 5. 应用 picks —— 提交为 Mode B 投注,或当 paper_mode
+    // 开启时提交为 paper fill。决策逻辑（选什么、拒什么）
+    // 不变;只有写入路径不同。
     for id in &result.picked {
         let order = orders.iter().find(|o| &o.id == id).cloned();
         let Some(o) = order else { continue };
-        // Use sign_order from domain::bet to get a deterministic tx_hash
+        // 使用 domain::bet 中的 sign_order 获取确定性的 tx_hash
         let side = match crate::domain::bet::BetSide::parse(&o.side) {
             Ok(s) => s,
             Err(_) => {
-                // skip if invalid
+                // 若非法则跳过
                 sqlx::query(
                     "UPDATE copy_mirror_queue
                      SET status = 'rejected', reject_reason = 'invalid'
@@ -341,14 +334,12 @@ pub async fn run_pass_impl(
         };
 
         if cfg.paper_mode {
-            // v0.44 — paper mode. Skip signing
-            // entirely; just write a paper_fills
-            // row and mark the mirror as paper-
-            // submitted. The fill is real (size,
-            // price, market_id, side) but the user
-            // didn't actually trade. The mirror is
-            // also marked `paper_submitted` (not
-            // `submitted`) so the L1 can filter.
+            // v0.44 —— paper 模式。完全跳过签名;
+            // 只写一行 paper_fills,并把该 mirror 标记为
+            // paper-submitted。fill 是真实的（size、
+            // price、market_id、side）,但用户并未真实下单。
+            // mirror 同时被标记为 `paper_submitted`（而非
+            // `submitted`）,方便 L1 过滤。
             let paper_id = uuid::Uuid::new_v4().to_string();
             sqlx::query(
                 "INSERT INTO paper_fills
@@ -409,7 +400,7 @@ pub async fn run_pass_impl(
             AppError::Internal(format!("sign_order: {e}"))
         })?;
 
-        // Insert the bet row
+        // 插入 bet 行
         let bet_id = uuid::Uuid::new_v4().to_string();
         sqlx::query(
             "INSERT INTO bets
@@ -428,7 +419,7 @@ pub async fn run_pass_impl(
         .execute(&state.db)
         .await?;
 
-        // Mark mirror as submitted + link to bet
+        // 将 mirror 标记为 submitted 并关联到 bet
         sqlx::query(
             "UPDATE copy_mirror_queue
              SET status = 'submitted', submitted_at = ?, bet_id = ?
@@ -440,7 +431,7 @@ pub async fn run_pass_impl(
         .execute(&state.db)
         .await?;
 
-        // Audit
+        // 审计
         sqlx::query(
             "INSERT INTO audit_log (actor, action, target, payload, result)
              VALUES ('system', 'mirror.submit', ?, ?, 'ok')",
@@ -471,7 +462,7 @@ pub struct MirrorQueueStats {
     pub headroom_usdc: f64,
 }
 
-/// Aggregate stats for the queue + executor headroom.
+/// 队列与 executor 余量的汇总统计。
 #[tauri::command]
 pub async fn mirror_queue_stats(state: State<'_, AppState>) -> AppResult<MirrorQueueStats> {
     let row = sqlx::query(

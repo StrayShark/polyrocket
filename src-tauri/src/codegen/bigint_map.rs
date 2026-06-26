@@ -1,13 +1,13 @@
-//! v0.86c — custom `BigIntMap<K, V>` wrapper for specta codegen.
-//! Maps to TS `{ [key: K]: bigint }` (only V=BigInt-style types supported).
+//! v0.86c —— 用于 specta codegen 的自定义 `BigIntMap<K, V>` 包装器。
+//! 映射到 TS `{ [key: K]: bigint }`(仅支持 V 为 BigInt 风格的类型)。
 //!
-//! Same pattern as `OptionBigInt`: serde transparent, specta Type
-//! impl returns custom DataType shape.
+//! 与 `OptionBigInt` 模式相同:serde 透明,
+//! specta Type impl 返回自定义的 DataType 形状。
 //!
-//! **Why**: `#[specta(type = BigInt)]` on a `HashMap<K, V>` field
-//! doesn't recurse into the value type (specta-typescript 0.0.12
-//! limitation). For `AuditRetentionViewCodegen.overrides:
-//! HashMap<String, i64>` we want TS `{ [key: string]: bigint }`.
+//! **原因**:对 `HashMap<K, V>` 字段使用 `#[specta(type = BigInt)]`
+//! 不会递归到 value 类型(specta-typescript 0.0.12 的限制)。
+//! 对于 `AuditRetentionViewCodegen.overrides: HashMap<String, i64>`,
+//! 我们希望导出为 TS `{ [key: string]: bigint }`。
 
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -15,12 +15,12 @@ use std::hash::Hash;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-/// v0.86c — Newtype wrapper that maps to TS `{ [key: K]: bigint }`.
+/// v0.86c —— 映射到 TS `{ [key: K]: bigint }` 的 Newtype 包装器。
 ///
-/// Serde is transparent (delegates to inner HashMap<K, V>). Specta
-/// Type impl returns `DataType::Map(key, Reference(bigint))` where
-/// the key type is derived from K via `K::definition()` (so
-/// `HashMap<String, i64>` → key is `String`, value is `bigint`).
+/// Serde 透明(委托给内部的 HashMap<K, V>)。
+/// Specta Type impl 返回 `DataType::Map(key, Reference(bigint))`,
+/// 其中 key 类型通过 `K::definition()` 派生
+///(因此 `HashMap<String, i64>` → key 为 `String`,value 为 `bigint`)。
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BigIntMap<K, V>(pub HashMap<K, V>)
 where
@@ -30,11 +30,11 @@ impl<K, V> BigIntMap<K, V>
 where
     K: Eq + Hash,
 {
-    /// Construct from a HashMap.
+    /// 从 HashMap 构造。
     pub fn new(m: HashMap<K, V>) -> Self {
         Self(m)
     }
-    /// Get the inner HashMap.
+    /// 获取内部的 HashMap。
     pub fn inner(&self) -> &HashMap<K, V> {
         &self.0
     }
@@ -49,7 +49,7 @@ where
     }
 }
 
-// Serde transparent delegation.
+// Serde 透明委托。
 impl<K, V> Serialize for BigIntMap<K, V>
 where
     K: Eq + Hash + Serialize,
@@ -69,8 +69,8 @@ where
     }
 }
 
-// Specta Type impl. The key type comes from K's Type impl; the value
-// type is hardcoded to `bigint` (this wrapper is for bigint-style V only).
+// Specta Type impl。key 类型来自 K 的 Type impl;
+// value 类型硬编码为 `bigint`(本包装器仅用于 bigint 风格的 V)。
 impl<K, V> Type for BigIntMap<K, V>
 where
     K: Eq + Hash + Type,
@@ -85,7 +85,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    //! Sanity tests — verify BigIntMap is transparent for serde.
+    //! 健全性测试 —— 验证 BigIntMap 对 serde 是透明的。
 
     use super::*;
     use std::collections::HashMap;

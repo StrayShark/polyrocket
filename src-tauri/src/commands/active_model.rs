@@ -1,35 +1,29 @@
-//! L2 — Active-model IPC (v0.49b).
+//! L2 —— Active-model IPC（v0.49b）。
 //!
-//! Single source of truth for "what model is currently
-//! active, and what are its training metrics?". Prior
-//! to v0.49b, every consumer (degradation detector,
-//! settings card, etc.) read `active.json` directly
-//! from disk. This module makes that an IPC, so:
+//! 作为「当前激活的是哪个模型、其训练指标是什么」的单一事实来源。
+//! 在 v0.49b 之前,每个消费者(降级检测器、设置卡片等)
+//! 都直接从磁盘读取 `active.json`。本模块将其封装为 IPC,目的是:
 //!
-//! - L1 always goes through `getActiveModel` instead
-//!   of duplicating the file path logic.
-//! - The Rust consumer (degradation loop, future
-//!   v0.50+ monitors) calls the same internal helper
-//!   instead of re-reading active.json.
-//! - Schema changes (v0.50+ will add `weights`) only
-//!   happen in one place.
+//! - L1 始终通过 `getActiveModel` 访问,不再重复文件路径逻辑。
+//! - Rust 端消费者(降级循环、未来 v0.50+ 的监控器)
+//!   调用同一个内部辅助函数,而不是重新读取 active.json。
+//! - Schema 变更(v0.50+ 将新增 `weights`)只在一处进行。
 //!
-//! Returned DTO:
+//! 返回的 DTO:
 //!
 //! ```text
 //! ActiveModel {
-//!   model_version: String,           // e.g. "logistic-train-441c352b"
-//!   best_brier: Option<f64>,         // train-time Brier
-//!   best_params: Option<Value>,      // hyperparams of the best trial
-//!   promoted_at_ms: Option<i64>,     // wall-clock of last promote
-//!   weights: Option<Vec<f64>>,       // optional; v0.50+ will populate
-//!   source_path: String,             // absolute path to active.json
+//!   model_version: String,           // 例如 "logistic-train-441c352b"
+//!   best_brier: Option<f64>,         // 训练时的 Brier
+//!   best_params: Option<Value>,      // 最优 trial 的超参数
+//!   promoted_at_ms: Option<i64>,     // 上一次 promote 的墙钟时间
+//!   weights: Option<Vec<f64>>,       // 可选;v0.50+ 将填充
+//!   source_path: String,             // active.json 的绝对路径
 //! }
 //! ```
 //!
-//! Returns an `AppResult::Ok(None)` when active.json is
-//! missing (typical before first promote). Other IO /
-//! parse errors are surfaced as `AppError::Internal`.
+//! 当 active.json 缺失时(通常在首次 promote 之前)返回
+//! `AppResult::Ok(None)`。其它 IO / 解析错误以 `AppError::Internal` 形式抛出。
 
 use crate::AppError;
 use crate::AppResult;
@@ -37,25 +31,22 @@ use serde::Serialize;
 use std::io::Read;
 use std::path::PathBuf;
 
-/// Wire-format DTO returned by `get_active_model`.
+/// `get_active_model` 返回的 wire-format DTO。
 #[derive(Debug, Clone, Serialize)]
 pub struct ActiveModel {
     pub model_version: String,
     pub best_brier: Option<f64>,
     pub best_params: Option<serde_json::Value>,
     pub promoted_at_ms: Option<i64>,
-    /// v0.50+ will populate this when the sidecar
-    /// writes weights into active.json. Today the
-    /// sidecar doesn't, so it's always None — but
-    /// the field is reserved here for forward-compat.
+    /// 当 sidecar（侧车）把权重写入 active.json 后,v0.50+
+    /// 将填充此字段。目前 sidecar 尚未写入,因此始终为 None —— 但此字段
+    /// 保留以保持向前兼容。
     pub weights: Option<Vec<f64>>,
     pub source_path: String,
 }
 
-/// Resolve the active.json path the same way the
-/// Python sidecar does in `train.py:48`. Centralising
-/// the env-var handling here means the L1 doesn't
-/// have to know about `POLYROCKET_SIDECAR_MODEL_DIR`.
+/// 与 Python 侧车在 `train.py:48` 中解析 active.json 路径的方式保持一致。
+/// 在此处集中处理环境变量,意味着 L1 无需感知 `POLYROCKET_SIDECAR_MODEL_DIR`。
 pub fn active_model_path() -> PathBuf {
     let dir = std::env::var("POLYROCKET_SIDECAR_MODEL_DIR")
         .ok()
@@ -67,10 +58,8 @@ pub fn active_model_path() -> PathBuf {
     PathBuf::from(dir).join("active.json")
 }
 
-/// Read the active model from disk. Returns `Ok(None)`
-/// when active.json is missing (i.e. no model has been
-/// promoted yet). Returns `Err(Internal)` when the
-/// file exists but is malformed.
+/// 从磁盘读取激活模型。active.json 缺失时(即尚未 promote 过任何模型)
+/// 返回 `Ok(None)`;文件存在但格式异常时返回 `Err(Internal)`。
 pub fn read_active_model_from_disk() -> AppResult<Option<ActiveModel>> {
     let path = active_model_path();
     let mut f = match std::fs::File::open(&path) {
@@ -86,8 +75,8 @@ pub fn read_active_model_from_disk() -> AppResult<Option<ActiveModel>> {
         Ok(v) => v,
         Err(e) => return Err(AppError::Internal(format!("parse active.json: {e}"))),
     };
-    // Best-effort schema decode. Fields are all optional;
-    // we surface what's there.
+    // 尽力而为的 schema 解码。所有字段均为可选,
+    // 我们返回文件中实际存在的内容。
     let model_version = v
         .get("model_version")
         .and_then(|x| x.as_str())
@@ -124,17 +113,15 @@ pub fn read_active_model_from_disk() -> AppResult<Option<ActiveModel>> {
     }))
 }
 
-/// IPC: read the active model from disk. Returns
-/// `null` when active.json is missing (no model has
-/// been promoted yet). Errors are surfaced via the
-/// standard `AppError::Internal` channel.
+/// IPC:从磁盘读取激活模型。active.json 缺失时(尚未 promote 过任何模型)
+/// 返回 `null`。错误通过标准的 `AppError::Internal` 通道抛出。
 #[tauri::command]
 pub fn get_active_model() -> AppResult<Option<ActiveModel>> {
     read_active_model_from_disk()
 }
 
 // ============================================================
-// Tests
+// 测试
 // ============================================================
 
 #[cfg(test)]
@@ -142,8 +129,7 @@ mod tests {
     use super::*;
     use std::io::Write;
 
-    /// Write a JSON value to a temp file. Returns the
-    /// path; caller is responsible for `remove_file`.
+    /// 将 JSON 值写入临时文件,返回路径;调用方负责 `remove_file`。
     fn write_active_json(value: serde_json::Value) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
             "polyrocket_active_model_test_{}",
@@ -159,23 +145,20 @@ mod tests {
         path
     }
 
-    /// v0.49b — the env var override path. We can't
-    /// modify the process env from parallel tests, so
-    /// we just sanity-check the path computation here.
+    /// v0.49b —— 环境变量覆盖路径。我们无法在并行测试中
+    /// 修改进程环境,因此这里只对路径计算做基本校验。
     #[test]
     fn active_model_path_under_default() {
-        // Sanity: when env unset, path ends with .polyrocket/sidecar/models/active.json
+        // 健全性检查：当环境变量未设置时,路径以 .polyrocket/sidecar/models/active.json 结尾
         let p = active_model_path();
         let s = p.to_string_lossy();
-        // Either "$HOME/.polyrocket/sidecar/models/active.json"
-        // or whatever POLYROCKET_SIDECAR_MODEL_DIR points to.
+        // 要么是 "$HOME/.polyrocket/sidecar/models/active.json"
+        // 要么是 POLYROCKET_SIDECAR_MODEL_DIR 所指向的位置。
         assert!(s.ends_with("active.json"), "got: {s}");
     }
 
-    /// v0.49b — the read function gracefully returns
-    /// Ok(None) when the file is missing. Tested by
-    /// pointing the env var at a temp dir without
-    /// active.json.
+    /// v0.49b —— 当文件缺失时,读取函数优雅地返回 Ok(None)。
+    /// 通过将环境变量指向不包含 active.json 的临时目录进行测试。
     #[test]
     fn read_returns_none_when_missing() {
         let dir = std::env::temp_dir().join(format!(
@@ -186,10 +169,9 @@ mod tests {
                 .as_nanos()
         ));
         std::fs::create_dir_all(&dir).unwrap();
-        // SAFETY: POLYROCKET_SIDECAR_MODEL_DIR is read
-        // by name; this test is the only writer in the
-        // test process. set_var is unsafe since Rust
-        // 1.83 but we need it for the test.
+        // SAFETY: POLYROCKET_SIDECAR_MODEL_DIR 按名称读取;
+        // 本测试是该测试进程中唯一的写入者。
+        // set_var 自 Rust 1.83 起标记为 unsafe,但测试需要它。
         unsafe { std::env::set_var("POLYROCKET_SIDECAR_MODEL_DIR", &dir); }
         let result = read_active_model_from_disk();
         unsafe { std::env::remove_var("POLYROCKET_SIDECAR_MODEL_DIR"); }
@@ -197,8 +179,8 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// v0.49b — happy path: a well-formed active.json
-    /// round-trips into the DTO with all fields.
+    /// v0.49b —— 正常路径:格式良好的 active.json 可往返
+    /// 转换为带全部字段的 DTO。
     #[test]
     fn read_happy_path_populates_all_fields() {
         let path = write_active_json(serde_json::json!({
@@ -223,16 +205,16 @@ mod tests {
         let _ = std::fs::remove_dir_all(&parent);
     }
 
-    /// v0.49b — a malformed active.json surfaces as
-    /// AppError::Internal (not silently Ok(None)).
+    /// v0.49b —— 格式错误的 active.json 应抛出
+    /// AppError::Internal(而不是被静默地当成 Ok(None))。
     #[test]
     fn read_malformed_json_returns_error() {
         let path = write_active_json(serde_json::json!({
             "model_version": "logistic-train-xyz"
-            // missing "best.brier" — fine, it's optional
-            // — but the file is JSON-valid. Try invalid JSON.
+            // 缺少 "best.brier" —— 可以,该字段可选
+            // —— 但该文件仍是合法 JSON。下面用非法 JSON 覆盖。
         }));
-        // Overwrite with garbage.
+        // 用乱码覆盖。
         let mut f = std::fs::File::create(&path).unwrap();
         f.write_all(b"{ not json").unwrap();
         drop(f);

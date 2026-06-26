@@ -1,5 +1,5 @@
-//! Anthropic Messages API client.
-//! Spec: <https://docs.anthropic.com/en/api/messages>
+//! Anthropic Messages API 客户端。
+//! 规范：<https://docs.anthropic.com/en/api/messages>
 
 use crate::domain::llm::{CallError, CallOutcome, CallRequest, CostRate, LlmClient, ProviderKind, err};
 use serde_json::{Value, json};
@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 //   - 鉴权：x-api-key header (not Authorization: Bearer)
 //   - 必填：anthropic-version: 2023-06-01
 //   - system prompt 走独立 system 字段（非 messages[0]）
-//   - response: content[0].text + usage.input_tokens/output_tokens
+//   - response: content[0].text + usage.input_tokens/output_tokens（响应路径）
 //   - cache 标记：cache_creation_input_tokens / cache_read_input_tokens
 //   - 计费含 cache read（多 1.1x 或 1.25x）
 
@@ -23,7 +23,7 @@ use serde_json::{Value, json};
 /// **`api_base`**：默认 `https://api.anthropic.com`。可指向 gateway proxy
 /// （如 AWS Bedrock / GCP Vertex Anthropic）—— 协议兼容就行。
 pub struct AnthropicClient {
-    pub api_base: String, // e.g. "https://api.anthropic.com"
+    pub api_base: String, // 例如："https://api.anthropic.com"
 }
 
 impl AnthropicClient {
@@ -46,7 +46,7 @@ impl LlmClient for AnthropicClient {
     /// 真实 Anthropic call。**业务流程**：
     ///   1. URL = `{api_base}/v1/messages`（Anthropic 固定 path）
     ///   2. `split_system` 把 system message 提到独立字段
-    ///   3. `x-api-key` + `anthropic-version: 2023-06-01` headers
+    ///   3. `x-api-key` + `anthropic-version: 2023-06-01` headers（鉴权 + 版本头）
     ///   4. `parse_messages_response` 解 `content[0].text` + `usage.*_tokens`
     ///   5. 非 2xx → `classify_status` 归 stable code
     async fn call(
@@ -114,7 +114,7 @@ pub fn parse_messages_response(
         code: err::PARSE,
         message: format!("Anthropic response not JSON: {e}; body={}", truncate(body_text, 200)),
     })?;
-    // Text content is at content[0].text when type=="text"
+    // 当 type=="text" 时,文本内容位于 content[0].text
     let text = body.pointer("/content/0/text")
         .and_then(|v| v.as_str())
         .unwrap_or("")

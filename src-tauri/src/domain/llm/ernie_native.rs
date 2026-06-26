@@ -1,26 +1,26 @@
-//! ERNIE 百度千帆 (v0.111.1) — Native AK/SK + Wenxinworkshop chat protocol.
+//! ERNIE 百度千帆 (v0.111.1) —— Native AK/SK + Wenxinworkshop chat 协议。
 //!
-//! **Why a separate client** (vs CustomClient(OpenaiCompat) used in v0.111):
-//!   - 千帆提供两种鉴权方式:
-//!     1. **Modern OpenAI 兼容 v2** (`qianfan.baidubce.com/v2/...` with
-//!        `bce-v3/ALTAK-...` key) — v0.111 走这条路 (CustomClient)
-//!     2. **Native AK/SK** (老 `wenxinworkshop/chat/{model}` 协议) — v0.111.1
-//!        加这条路给持有老 API key 的用户
-//!   - Native 协议是两段式:
+//! **为什么单独建一个客户端**（vs v0.111 使用的 CustomClient(OpenaiCompat)）：
+//!   - 千帆提供两种鉴权方式：
+//!     1. **Modern OpenAI 兼容 v2**（`qianfan.baidubce.com/v2/...`，使用
+//!        `bce-v3/ALTAK-...` key）—— v0.111 走这条路（CustomClient）
+//!     2. **Native AK/SK**（老的 `wenxinworkshop/chat/{model}` 协议）—— v0.111.1
+//!        新增这条路给持有老 API key 的用户
+//!   - Native 协议是两段式：
 //!     a) AK + SK → `oauth/2.0/token` → access_token
 //!     b) access_token → `wenxinworkshop/chat/{model}?access_token=...` → chat
-//!   - Response shape 也不同: native 返回 `{"result": "..."}` 不是 OpenAI 的
+//!   - 响应形状也不同：native 返回 `{"result": "..."}`，不是 OpenAI 的
 //!     `{"choices": [{"message": {"content": "..."}}]}`。
 //!
-//! **实现要点**:
-//!   - `ErnieNativeClient` 持有 `api_key` (AK) + `secret_key` (SK) + `model`
-//!   - 调用前 lazy-fetch access_token (用 `tokio::sync::Mutex<Option<TokenCache>>`)
-//!   - access_token 缓存 29 天 (BCE 实际是 30 天 TTL)
-//!   - Native 协议不支持 stream,一次性返回
+//! **实现要点**：
+//!   - `ErnieNativeClient` 持有 `api_key`（AK）+ `secret_key`（SK）+ `model`
+//!   - 调用前 lazy-fetch access_token（用 `tokio::sync::Mutex<Option<TokenCache>>`）
+//!   - access_token 缓存 29 天（BCE 实际是 30 天 TTL）
+//!   - Native 协议不支持 stream，一次性返回
 //!
-//! **Keyring secret 格式**: 因为 OS keyring 一条 entry 存一个 secret,我们用
-//! `concat!("{api_key}:{secret_key}")` 格式,parse 时 splitn(2, ':')。这是
-//! v0.111.1 ERNIE native 的约定,前端 keyring 写入时按这个格式。
+//! **Keyring secret 格式**：由于 OS keyring 一条 entry 存一个 secret，我们用
+//! `concat!("{api_key}:{secret_key}")` 格式，parse 时用 splitn(2, ':')。
+//! 这是 v0.111.1 ERNIE native 的约定，前端 keyring 写入时按这个格式。
 
 use crate::domain::llm::{CallError, CallOutcome, CallRequest, CostRate, LlmClient, ProviderKind, err};
 use crate::domain::llm::common;
@@ -55,7 +55,7 @@ pub struct TokenResponse {
     pub session_key: Option<String>,
 }
 
-fn default_expires_in() -> u64 { 2592000 } // 30 天
+fn default_expires_in() -> u64 { 2592000 } // 30 天默认值
 
 /// Access token 缓存条目。`fetched_at_unix` 是 `SystemTime::now()` 时的 unix 时间。
 #[derive(Debug, Clone)]
@@ -128,7 +128,7 @@ pub struct ErnieChatRequest {
     /// 用户 id (for monitoring)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_id: Option<String>,
-    /// max output tokens, 2-2048
+    /// 最大输出 token 数,范围 2-2048
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_output_tokens: Option<u32>,
 }
@@ -149,7 +149,7 @@ pub struct ErnieNativeClient {
 
 impl std::fmt::Debug for ErnieNativeClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // 不 print secrets
+        // 不打印 secrets
         f.debug_struct("ErnieNativeClient")
             .field("api_key", &"<redacted>")
             .field("secret_key", &"<redacted>")
@@ -170,7 +170,7 @@ impl ErnieNativeClient {
     }
 
     /// 从 keyring secret (`api_key:secret_key`) 解析成 client。
-    /// v0.111.1 协议: 用 `splitn(2, ':')` 分隔 AK 和 SK。SK 可包含 `:` (base64 padding)。
+    /// v0.111.1 协议: 用 `splitn(2, ':')` 分隔 AK 和 SK。SK 可包含 `:`（base64 padding）。
     pub fn from_secret(secret: &str, model: impl Into<String>) -> Result<Self, String> {
         let mut parts = secret.splitn(2, ':');
         let ak = parts.next().ok_or("missing api_key")?;
@@ -178,7 +178,7 @@ impl ErnieNativeClient {
         Ok(Self::new(ak.to_string(), sk.to_string(), model))
     }
 
-    /// Fetch access_token via OAuth2 client_credentials grant.
+    /// 通过 OAuth2 client_credentials grant 拉取 access_token。
     /// 公开方法供测试用,生产中通过 `ensure_token` 间接调。
     pub async fn fetch_token(
         &self,
@@ -223,7 +223,7 @@ impl ErnieNativeClient {
         })
     }
 
-    /// Ensure token is fresh; fetch if missing or expired.
+    /// 确保 token 仍有效;缺失或过期时重新拉取。
     async fn ensure_token(&self, http: &reqwest::Client) -> Result<String, CallError> {
         let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
         {
@@ -240,7 +240,7 @@ impl ErnieNativeClient {
         Ok(token)
     }
 
-    /// Build chat request body from LLM `CallRequest`.
+    /// 根据 LLM `CallRequest` 构建聊天请求体。
     /// 千帆 body 不一样 — `messages` 字段直接 array of `{role, content}`,不是 OpenAI
     /// 的 `{role, content: string}` 格式 (千帆是相同格式,OAI 也一样;差异在
     /// `temperature` 用 0.0-1.0 不一样)。
@@ -298,7 +298,7 @@ impl LlmClient for ErnieNativeClient {
             })?;
         let status = resp.status();
         if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
-            // Token 可能过期,清缓存让下次重试
+            // Token 可能过期,清空缓存让下次重试
             *self.token_cache.lock().await = None;
             return Err(CallError {
                 http_status: Some(status.as_u16()),
@@ -386,7 +386,7 @@ mod tests {
             fetched_at_unix: 1000,
             expires_in: 100,
         };
-        // age=200 + 86400 safety margin = 86600 >= 100 → expired
+        // age=200 + 86400 安全余量 = 86600 >= 100 → 过期
         assert!(cache.is_expired(1200));
     }
 
@@ -397,7 +397,7 @@ mod tests {
             fetched_at_unix: 1000,
             expires_in: 2592000,
         };
-        // age=10 + 86400 safety margin = 86410 < 2592000 → not expired
+        // age=10 + 86400 安全余量 = 86410 < 2592000 → 未过期
         assert!(!cache.is_expired(1010));
     }
 
@@ -433,7 +433,7 @@ mod tests {
         assert_eq!(body.messages[0].role, "user");
         assert_eq!(body.messages[0].content, "hi");
         assert_eq!(body.temperature, Some(0.5));
-        // max_tokens clamped to 2048 by 千帆 protocol
+        // max_tokens 被千帆 protocol 限制为 2048
         assert_eq!(body.max_output_tokens, Some(512));
     }
 
@@ -441,7 +441,7 @@ mod tests {
     fn build_chat_request_body_clamps_max_tokens_to_2048() {
         let req = CallRequest::new("ernie-5.0").max_tokens(10000);
         let body = ErnieNativeClient::build_chat_request_body(&req);
-        // 千帆 protocol 上限 2048
+        // 千帆 protocol 上限为 2048
         assert_eq!(body.max_output_tokens, Some(2048));
     }
 
@@ -452,7 +452,7 @@ mod tests {
             .user("hi");
         let body = ErnieNativeClient::build_chat_request_body(&req);
         assert_eq!(body.system, Some("be polite".into()));
-        // system message 被移出 messages
+        // system message 被移出 messages 列表
         assert_eq!(body.messages.len(), 1);
         assert_eq!(body.messages[0].role, "user");
     }
@@ -460,9 +460,9 @@ mod tests {
     #[test]
     fn urlencoding_basic() {
         assert_eq!(urlencoding("abc-123_~.~"), "abc-123_~.~");
-        // Chinese: 百度 → %E7%99%BE%E5%BA%A6
+        // 中文: 百度 → %E7%99%BE%E5%BA%A6
         assert_eq!(urlencoding("百度"), "%E7%99%BE%E5%BA%A6");
-        // Space → %20
+        // 空格 → %20
         assert_eq!(urlencoding("a b"), "a%20b");
     }
 
@@ -483,7 +483,7 @@ mod tests {
 
     #[test]
     fn from_secret_handles_sk_with_colon() {
-        // splitn(2, ':') — SK can contain colons (e.g. base64 padding)
+        // splitn(2, ':') — SK 可以包含冒号(例如 base64 padding)
         let c = ErnieNativeClient::from_secret("ak:sk:abc:def", "m").unwrap();
         assert_eq!(c.api_key, "ak");
         assert_eq!(c.secret_key, "sk:abc:def");

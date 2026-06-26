@@ -1,19 +1,19 @@
-//! L3 — Sidecar health snapshot (pure).
+//! L3 —— Sidecar 健康快照（纯函数）。
 //!
-//! Tracks a rolling "last 20 probes" history so the L1 UI can show
-//! a small sparkline of uptime. Newer = better, fewer errors = better.
+//! 跟踪一个滚动的“最近 20 次探针”历史,便于 L1 UI
+//! 显示一个小的 uptime 火花图。越新越好,错误越少越好。
 //!
-//! Pure functions only — the L4 module does the actual IPC ping.
+//! 仅包含纯函数 —— L4 模块执行实际的 IPC ping。
 
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SidecarHealthKind {
-    /// Probe returned `pong` in time.
+    /// 探针及时返回 pong。
     Ok,
-    /// Probe returned an error (timeout, parse failure, non-200).
+    /// 探针失败：超时、解析失败、非 200。
     Failed,
-    /// No probe has been recorded yet.
+    /// 尚未记录任何探针。
     Unknown,
 }
 

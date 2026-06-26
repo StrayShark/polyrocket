@@ -1,30 +1,30 @@
-//! L2 — Wallet balance (v0.123).
+//! L2 —— 钱包余额（v0.123）。
 //!
-//! IPC: `get_wallet_balance` —— read the user's USDC (collateral)
-//! balance from Polymarket's CLOB API. This is the v0.123 simplification:
-//! instead of a synthetic dashboard widget, surface the real on-chain
-//! balance (rounded to 2dp) so the user can confirm `.env` L2 creds
-//! are correctly wired.
+//! IPC:get_wallet_balance —— 从 Polymarket CLOB API
+//! 读取用户的 USDC（抵押品）余额。这是 v0.123 的简化：
+//! 不再展示合成的 dashboard 小部件，而是直接呈现真实的
+//! 链上余额（保留 2 位小数），便于用户确认 `.env`
+//! 中的 L2 凭据是否正确接入。
 //!
-//! ## L2 HMAC auth
+//! ## L2 HMAC 认证
 //!
-//! Polymarket's CLOB `GET /balance-allowance?asset_type=COLLATERAL`
-//! requires L2 (HMAC) authentication with 4 headers:
+//! Polymarket CLOB 的 `GET /balance-allowance?asset_type=COLLATERAL`
+//! 需要 L2（HMAC）认证，附带 4 个 header：
 //!
-//!   POLY_ADDRESS    — L1 polygon address (EIP-55 checksum, not in .env)
-//!   POLY_API_KEY    — UUID
-//!   POLY_PASSPHRASE — wallet-specific passphrase
-//!   POLY_TIMESTAMP  — current unix seconds (must match signed time)
-//!   POLY_SIGNATURE  — base64(HMAC-SHA256(secret, msg))
+//!   POLY_ADDRESS    —— L1 polygon 地址（EIP-55 校验和，不在 .env 中）
+//!   POLY_API_KEY    —— UUID
+//!   POLY_PASSPHRASE —— 钱包专属口令
+//!   POLY_TIMESTAMP  —— 当前 unix 秒（须与签名时间一致）
+//!   POLY_SIGNATURE  —— base64(HMAC-SHA256(secret, msg))
 //!
-//! where `msg = timestamp + method + path + body`.
+//! 其中 `msg = timestamp + method + path + body`。
 //!
-//! `POLY_ADDRESS` is not in `.env` (L1 keys never live in dev
-//! files). When it's missing, we degrade to the most-recent
-//! `wallets.address` row — the address that was used to
-//! generate the L2 API key. If that's also empty, we return
-//! `BalanceLookupError::NoAddress` so the L1 can show a
-//! friendly "Add wallet address in Settings" prompt.
+//! `POLY_ADDRESS` 不在 `.env` 中（L1 私钥从不写入开发
+//! 目录文件）。当它缺失时，我们回退到 `wallets.address`
+//! 表中最新的一行 —— 也就是当初生成 L2 API key 时
+//! 用到的那个地址。若此处也为空，则返回
+//! `BalanceLookupError::NoAddress`，让 L1 可以展示
+//! 友好的「请在 Settings 添加钱包地址」提示。
 
 use crate::AppResult;
 use crate::infra::http::new_http_client;
@@ -39,36 +39,35 @@ type HmacSha256 = Hmac<Sha256>;
 
 const CLOB_BASE: &str = "https://clob.polymarket.com";
 
-/// v0.123 — balance lookup outcome. `ok=true` means the API
-/// returned a balance; `ok=false` covers all error shapes
-/// (creds missing, network down, API error, missing L1
-/// address, etc.). The `reason` field is human-readable
-/// for the L1 to surface.
+/// v0.123 —— 余额查询结果。`ok=true` 表示 API 返回了余额；
+/// `ok=false` 覆盖所有错误情形（凭据缺失、网络异常、
+/// API 错误、L1 地址缺失等）。`reason` 字段是人类可读
+/// 的字符串，便于 L1 直接展示给用户。
 #[derive(Debug, Clone, Serialize)]
 pub struct BalanceResult {
     pub ok: bool,
-    /// USDC collateral balance, rounded to 2dp. 0 on error.
+    /// USDC 抵押品余额，保留 2 位小数。出错时为 0。
     pub balance_usdc: f64,
-    /// Original raw balance string from the API (for
-    /// debugging). Empty on error.
+    /// API 返回的原始余额字符串（供调试用）。
+    /// 出错时为空。
     pub raw_balance: String,
-    /// Free-form reason when ok=false. Stable copy so the
-    /// L1 can match on it.
+    /// `ok=false` 时的自由文本原因。是稳定字符串，
+    /// 便于 L1 进行匹配。
     pub reason: String,
-    /// True when the .env L2 creds are present (regardless
-    /// of whether the lookup succeeded).
+    /// 当 .env 中的 L2 凭据存在时为 true（无论
+    /// 实际的查询是否成功）。
     pub creds_present: bool,
 }
 
-/// IPC: `get_wallet_balance` —— read USDC balance from
-/// Polymarket CLOB using the .env L2 credentials.
+/// IPC:get_wallet_balance —— 从 Polymarket CLOB
+/// 通过 .env 中的 L2 凭据读取 USDC 余额。
 ///
-/// **Returns**: `BalanceResult` (always succeeds at the IPC
-/// level — errors are encoded in `ok` + `reason`).
+/// **Returns**：`BalanceResult`（IPC 层面始终返回成功 —
+/// 错误信息编码在 `ok` + `reason` 中）。
 #[tauri::command]
 pub async fn get_wallet_balance(state: State<'_, crate::infra::state::AppState>) -> AppResult<BalanceResult> {
-    // 1) Read creds from .env (already injected by
-    //    platform::env::maybe_load_dev_env on boot).
+    // 1) 从 .env 读取凭据（启动时已由
+    //    `platform::env::maybe_load_dev_env` 注入）。
     let api_key = std::env::var("POLYMARKET_API_KEY")
         .ok()
         .filter(|v| !v.is_empty())
@@ -95,11 +94,11 @@ pub async fn get_wallet_balance(state: State<'_, crate::infra::state::AppState>)
         });
     }
 
-    // 2) Resolve the L1 polygon address from the wallets
-    //    table. The bootstrap row (id="wallet-bootstrap-pm")
-    //    has an empty address — that's the v0.123 default.
-    //    The user can populate it via Settings once they want
-    //    Mode A (jump-to-PM) betting.
+    // 2) 从 wallets 表解析 L1 polygon 地址。
+    //    引导行（id="wallet-bootstrap-pm"）的
+    //    address 为空 —— 这是 v0.123 时的默认值。
+    //    用户在 Settings 里填写后才能启用 Mode A
+    //    （jump-to-PM）的下注。
     let address: Option<String> = sqlx::query_scalar(
         "SELECT address FROM wallets
          WHERE address IS NOT NULL AND address != ''
@@ -122,7 +121,7 @@ pub async fn get_wallet_balance(state: State<'_, crate::infra::state::AppState>)
         }
     };
 
-    // 3) Build the L2 HMAC headers.
+    // 3) 构造 L2 HMAC header。
     let path = "/balance-allowance";
     let query = "?asset_type=COLLATERAL";
     let ts = chrono::Utc::now().timestamp();
@@ -144,9 +143,9 @@ pub async fn get_wallet_balance(state: State<'_, crate::infra::state::AppState>)
     mac.update(msg.as_bytes());
     let sig = BASE64.encode(mac.finalize().into_bytes());
 
-    // 4) Hit the CLOB API. The shape of the response is
-    //    `{ "balance": "1234.56", "allowance": "0" }`
-    //    where balance is a string in human units.
+    // 4) 请求 CLOB API。响应形态为
+    //    `{ "balance": "1234.56", "allowance": "0" }`，
+    //    balance 是人类单位的字符串。
     let url = format!("{CLOB_BASE}{path}{query}");
     let resp = match new_http_client()
         .get(&url)
@@ -182,8 +181,8 @@ pub async fn get_wallet_balance(state: State<'_, crate::infra::state::AppState>)
         });
     }
 
-    // 5) Parse the JSON. CLOB returns the balance as a
-    //    string in human units, not atomic units.
+    // 5) 解析 JSON。CLOB 返回的是人类可读单位的
+    //    字符串余额，而不是原子单位。
     let body: serde_json::Value = match resp.json().await {
         Ok(v) => v,
         Err(e) => {
@@ -202,8 +201,8 @@ pub async fn get_wallet_balance(state: State<'_, crate::infra::state::AppState>)
         .unwrap_or("")
         .to_string();
     let balance: f64 = raw.parse().unwrap_or(0.0);
-    // Round to 2dp (USDC has 6 decimals on-chain but PM UI
-    // renders 2dp — same as the rest of polyrocket).
+    // 四舍五入保留 2 位小数（USDC 链上有 6 位小数，
+    // 但 PM 界面展示 2 位 —— 与 polyrocket 其他位置一致）。
     let balance_rounded = (balance * 100.0).round() / 100.0;
 
     Ok(BalanceResult {

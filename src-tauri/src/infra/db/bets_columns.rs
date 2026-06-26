@@ -1,40 +1,37 @@
-//! L4 — bets table schema migration.
+//! L4 —— bets 表结构迁移。
 //!
-//! v0.50a — adds the order-type columns (order_type,
-//! limit_price, stop_price, post_only) to the `bets`
-//! table for pre-v0.50 databases.
+//! v0.50a —— 为 pre-v0.50 的数据库的 `bets` 表添加订单类型相关列
+//!（order_type、limit_price、stop_price、post_only）。
 //!
-//! v0.51b — adds the fill columns (filled_at,
-//! fill_price, fill_size, partial) for when real
-//! CLOB execution lands. Today (v0.51a) we don't
-//! have real execution yet — the deterministic stub
-//! in v0.5d populates filled_at = placed_at and
-//! fill_price = price, so slippage = 0 by construction.
+//! v0.51b —— 添加成交相关列（filled_at、fill_price、
+//! fill_size、partial），用于真实 CLOB 执行上线时。
+//! 当前（v0.51a）还没有真实执行 —— v0.5d 中的确定性桩
+//! 会填充 filled_at = placed_at、fill_price = price，
+//! 因此按构造滑点恒为 0。
 //!
-//! SQLite does not support `ALTER TABLE ... ADD COLUMN
-//! IF NOT EXISTS`, so we use the `PRAGMA table_info`
-//! pattern: query the column names, ADD COLUMN only
-//! if missing. Idempotent — safe to run on every boot.
+//! SQLite 不支持 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`，
+//! 因此我们使用 `PRAGMA table_info` 模式：先查询列名，
+//! 仅在缺失时执行 ADD COLUMN。具有幂等性 —— 每次启动都可安全运行。
 
 use sqlx::SqlitePool;
 
-/// v0.50a + v0.51b — ensure `bets` has the order-type
-/// AND fill columns. Adds 8 columns total:
+/// v0.50a + v0.51b —— 确保 `bets` 表同时具有订单类型列和成交列，
+/// 共添加 8 个列：
 ///   v0.50a:
-///     - order_type   TEXT     (default 'market')
-///     - limit_price  REAL     (nullable)
-///     - stop_price   REAL     (nullable)
-///     - post_only    INTEGER  (default 0)
+///     - order_type   TEXT     （默认 'market'）
+///     - limit_price  REAL     （可空）
+///     - stop_price   REAL     （可空）
+///     - post_only    INTEGER  （默认 0）
 ///   v0.51b:
-///     - filled_at    INTEGER  (nullable)
-///     - fill_price   REAL     (nullable)
-///     - fill_size    TEXT     (nullable — string for
-///       back-compat with the existing `size` column)
-///     - partial      INTEGER  (default 0; 1 if the
-///       order was partially filled — v0.51+)
+///     - filled_at    INTEGER  （可空）
+///     - fill_price   REAL     （可空）
+///     - fill_size    TEXT     （可空 —— 使用字符串以保持
+///       与现有 `size` 列的向后兼容）
+///     - partial      INTEGER  （默认 0；若订单为部分
+///       成交则为 1 —— v0.51+）
 ///
-/// Pre-v0.50/v0.51 bets get the default values.
-/// Existing bet rows are not retroactively re-typed.
+/// pre-v0.50/v0.51 的 bets 行获得默认值。
+/// 现有 bets 行不会被回溯重写类型。
 pub async fn ensure_bets_columns(pool: &SqlitePool) -> sqlx::Result<()> {
     let existing: Vec<(i64, String, String, i64, Option<String>, i64)> =
         sqlx::query_as("PRAGMA table_info(bets)")
@@ -45,7 +42,7 @@ pub async fn ensure_bets_columns(pool: &SqlitePool) -> sqlx::Result<()> {
         .map(|(_, name, _, _, _, _)| name)
         .collect();
 
-    // v0.50a — order-type columns
+    // v0.50a —— 订单类型列
     if !names.contains("order_type") {
         sqlx::query("ALTER TABLE bets ADD COLUMN order_type TEXT NOT NULL DEFAULT 'market'")
             .execute(pool)
@@ -67,7 +64,7 @@ pub async fn ensure_bets_columns(pool: &SqlitePool) -> sqlx::Result<()> {
             .await?;
     }
 
-    // v0.51b — fill columns
+    // v0.51b —— 成交列
     if !names.contains("filled_at") {
         sqlx::query("ALTER TABLE bets ADD COLUMN filled_at INTEGER")
             .execute(pool)
@@ -89,11 +86,11 @@ pub async fn ensure_bets_columns(pool: &SqlitePool) -> sqlx::Result<()> {
             .await?;
     }
 
-    // v0.79a — M11 bankroll allocation link
+    // v0.79a —— M11 资金分配链接
     if !names.contains("allocation_id") {
-        // TEXT nullable, no default — pre-v0.79 bets have NULL
-        // (i.e. they were placed manually or by copy trading,
-        // not from a bankroll allocation batch).
+        // TEXT 可空，无默认值 —— pre-v0.79 的 bets 为 NULL
+        //（即这些下注是手动或通过跟单产生的，
+        // 而非来自资金分配批次）。
         sqlx::query("ALTER TABLE bets ADD COLUMN allocation_id TEXT")
             .execute(pool)
             .await?;
@@ -103,15 +100,14 @@ pub async fn ensure_bets_columns(pool: &SqlitePool) -> sqlx::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    // The migration itself needs a real SqlitePool, which
-    // is too heavy for a pure lib test. The seed-driven
-    // e2e tests in src-tauri/tests/ cover this path.
+    // 迁移本身需要一个真实的 SqlitePool，对纯 lib 单元测试
+    // 来说过重。src-tauri/tests/ 下的种子驱动的 e2e 测试
+    // 已经覆盖了这条路径。
     //
-    // What we DO test here is the helper's idempotency:
-    // given a SqlitePool that already has the columns,
-    // calling ensure_bets_columns a second time must
-    // not error. We use a temp file-backed pool so the
-    // pragma and ALTER both work as in production.
+    // 这里真正测试的是辅助函数的幂等性：对于一个已经
+    // 拥有这些列的 SqlitePool，再次调用 ensure_bets_columns
+    // 不应报错。我们使用一个临时文件后端的 pool，
+    // 这样 PRAGMA 与 ALTER 的行为都与生产环境一致。
 
     use super::*;
     use sqlx::sqlite::SqlitePoolOptions;
@@ -157,7 +153,7 @@ mod tests {
         for expected in ["order_type", "limit_price", "stop_price", "post_only"] {
             assert!(names.contains(expected), "missing {expected}");
         }
-        // v0.79a — M11 bankroll allocation link
+        // v0.79a —— M11 资金分配链接
         assert!(names.contains("allocation_id"), "missing allocation_id (v0.79a)");
     }
 
@@ -165,8 +161,8 @@ mod tests {
     async fn idempotent_second_run_does_not_error() {
         let pool = make_pool().await;
         ensure_bets_columns(&pool).await.unwrap();
-        // Second run: every column already present, so
-        // the `if !names.contains(...)` guard short-circuits.
+        // 第二次运行：所有列已存在，因此 `if !names.contains(...)`
+        // 守卫短路返回。
         ensure_bets_columns(&pool).await.unwrap();
         ensure_bets_columns(&pool).await.unwrap();
     }

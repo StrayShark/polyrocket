@@ -1,12 +1,12 @@
-//! Google Gemini — generateContent API.
-//! Spec: <https://ai.google.dev/api/generate-content>
+//! Google Gemini —— generateContent API。
+//! 规范：<https://ai.google.dev/api/generate-content>
 //!
-//! Notes
+//! 注意事项
 //! -----
-//! - API key is passed as a query param, NOT as Authorization header.
-//! - System instructions have a separate field.
-//! - Response uses `candidates[0].content.parts[0].text` for the text.
-//! - Token counts come from `usageMetadata`.
+//! - API key 作为 query 参数传递,不是 Authorization header。
+//! - System instructions 有独立字段。
+//! - 响应文本路径为 `candidates[0].content.parts[0].text`。
+//! - Token 计数来自 `usageMetadata`。
 
 use crate::domain::llm::{CallError, CallOutcome, CallRequest, CostRate, LlmClient, ProviderKind, err};
 use serde_json::{Value, json};
@@ -22,7 +22,7 @@ use serde_json::{Value, json};
 /// **`api_base`**：默认 `https://generativelanguage.googleapis.com/v1beta`。
 /// `request_path` 走 `models/{model}:generateContent`。
 pub struct GoogleClient {
-    pub api_base: String, // e.g. "https://generativelanguage.googleapis.com/v1beta"
+    pub api_base: String, // 例如 "https://generativelanguage.googleapis.com/v1beta"
 }
 
 impl GoogleClient {
@@ -43,7 +43,7 @@ impl LlmClient for GoogleClient {
     fn kind(&self) -> ProviderKind { ProviderKind::Google }
 
     /// 真实 Gemini call。**业务流程**：
-    ///   1. URL = `{api_base}/models/{model}:generateContent?key={secret}`
+    ///   1. URL = `{api_base}/models/{model}:generateContent?key={secret}`（API key 在 query）
     ///      （**API key 在 query string** —— Google 跟 OpenAI/Anthropic 不同）
     ///   2. `split_contents` 把 system 提到独立 `systemInstruction` 字段
     ///   3. assistant role 映射到 Gemini 的 `model` role
@@ -160,7 +160,7 @@ fn split_contents(messages: &[crate::domain::llm::ChatMessage]) -> (Option<Strin
             system = Some(m.content.clone());
             continue;
         }
-        // Gemini role is "user" | "model"; map assistant -> model
+        // Gemini role 是 "user" | "model"；assistant -> model
         let role = if m.role == "assistant" { "model" } else { "user" };
         contents.push(json!({
             "role": role,

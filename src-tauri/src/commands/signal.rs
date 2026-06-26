@@ -1,8 +1,8 @@
-//! L2 — Active signals (M5).
+//! L2 —— 活跃信号（M5）。
 //!
-//! IPCs: `list_active_signals` (filter by min edge + category),
-//! `recompute_signals` (computes signals via the Rust inference
-//! module — was a no-op stub before v0.122c).
+//! IPC:list_active_signals（按最小 edge + 类别过滤），
+//! `recompute_signals`（通过 Rust inference 模块计算信号，
+//! 在 v0.122c 之前是返回 0 的空实现）。
 
 use crate::AppResult;
 use crate::infra::state::AppState;
@@ -68,37 +68,37 @@ pub async fn list_active_signals(
     Ok(rows)
 }
 
-/// IPC: `recompute_signals` —— 手动触发 signal 重算。
+/// IPC:recompute_signals —— 手动触发 signal 重算。
 ///
-/// **v0.122c 实现**：跑 v0.122b 的 Rust `inference::predict_from_markets`
-/// 拿所有 active markets 的预测，写入 `signals` 表。**之前是返回 0 的
-/// stub** —— Signals 页的 "Recompute" 按钮点了什么都不发生，UI 上
-/// football markets 一直显示 "No active signals"。现在端到端 E2E
-/// 测试能跑通：
-///   1. 用户在 Markets → football market detail 点 "Run analysis"
-///   2. LLM 调 `llm_analyze` IPC 写 `llm_recommendations`
-///   3. 用户在 Signals 页点 "Recompute"
-///   4. `recompute_signals` 跑 inference 算所有 markets 的 edge
-///   5. 写 `signals` 表，Signals 页 + Dashboard + MarketDetail 都更新
+/// **v0.122c 实现**：运行 v0.122b 的 Rust `inference::predict_from_markets`
+/// 拿到所有 active markets 的预测，并写入 `signals` 表。**此前是一个
+/// 返回 0 的 stub** —— Signals 页的 "Recompute" 按钮点击后没有任何效果，
+/// UI 上 football markets 始终显示 "No active signals"。现在端到端
+/// E2E 测试可以走通：
+///   1. 用户在 Markets → football market detail 点击 "Run analysis"
+///   2. LLM 调 `llm_analyze` IPC 写入 `llm_recommendations`
+///   3. 用户在 Signals 页点击 "Recompute"
+///   4. `recompute_signals` 跑 inference 算出所有 markets 的 edge
+///   5. 写入 `signals` 表，Signals 页 + Dashboard + MarketDetail 都会更新
 ///
-/// **Returns**：写入的 signal 数量（含老 markets 的覆盖更新）。
+/// **Returns**：写入的 signal 数量（包含对老 markets 的覆盖更新）。
 #[tauri::command]
 pub async fn recompute_signals(state: State<'_, AppState>) -> AppResult<usize> {
     use crate::commands::active_model::read_active_model_from_disk;
     use crate::domain::lab::inference::{self, InferenceWeights, MarketInput};
 
-    // 1) Resolve model weights + version from active.json (or fallback).
-    //    `read_active_model_from_disk` returns Ok(None) when the file
-    //    is missing — that's the common dev case (no model promoted
-    //    yet). We fall back to the same triple the Python sidecar
-    //    uses, so the e2e flow works on a fresh DB.
+    // 1) 从 active.json 解析模型权重 + 版本（或回退）。
+    //    `read_active_model_from_disk` 在文件缺失时返回 Ok(None)——
+    //    这是常见的开发场景（尚未 promote 任何模型）。
+    //    我们回退到 Python 侧车使用的同一三元组,
+    //    这样在全新 DB 上 e2e 流程也能工作。
     let (weights, model_version, brier_score): (InferenceWeights, String, Option<f64>) =
         match read_active_model_from_disk() {
             Ok(Some(active)) => {
-                // v0.50+ active.json stores weights as a top-level
-                // `weights: [w0, w1, w2]` array. We synthesise the
-                // `best` block that `InferenceWeights::from_active_json_best`
-                // expects so the parsing path is shared.
+                // v0.50+ active.json 把 weights 存为顶层
+                // `weights: [w0, w1, w2]` 数组。我们在这里
+                // 合成 `InferenceWeights::from_active_json_best`
+                // 所期望的 `best` 块，使解析路径可以复用。
                 let best = if let Some(ws) = active.weights.as_ref().filter(|v| v.len() == 3) {
                     serde_json::json!({
                         "w0": ws[0],
@@ -119,10 +119,10 @@ pub async fn recompute_signals(state: State<'_, AppState>) -> AppResult<usize> {
             ),
         };
 
-    // 2) Pull all active + unresolved markets with a usable YES price.
-    //    `yes_price REAL` is set by `sync_markets`; treat NULL / 0
-    //    as "no price" and skip those rows (the inference layer
-    //    would clamp 0 to a degenerate edge anyway).
+    // 2) 拉取所有 active 且未结算、且具备有效 YES 价的市场。
+    //    `yes_price REAL` 由 `sync_markets` 写入；NULL / 0
+    //    视为「无价格」并跳过（推理层会把 0 钳制成
+    //    一个退化的 edge，没有意义）。
     let rows: Vec<(String, Option<f64>, i64)> = sqlx::query_as(
         "SELECT id, yes_price, created_at
          FROM markets
@@ -135,14 +135,15 @@ pub async fn recompute_signals(state: State<'_, AppState>) -> AppResult<usize> {
         return Ok(0);
     }
 
-    // 3) Build MarketInput list. `market_age_hours` = (now - created_at) in hours.
+    // 3) 构造 MarketInput 列表。
+    //    `market_age_hours` = (当前时间 - created_at) 的小时数。
     let now_ms = chrono::Utc::now().timestamp_millis();
     let inputs: Vec<MarketInput> = rows
         .iter()
         .map(|(id, yes, created_at_ms)| {
             let age_ms = (now_ms - *created_at_ms).max(0);
             let age_h = age_ms as f64 / 3_600_000.0;
-            // Cast: yes_price is REAL in DB; fall through to 0.5 if NULL.
+            // 类型转换：DB 中 yes_price 是 REAL；NULL 时退到 0.5。
             let price = yes.unwrap_or(0.5).clamp(0.0, 1.0);
             MarketInput {
                 market_id: id.as_str(),
@@ -152,7 +153,7 @@ pub async fn recompute_signals(state: State<'_, AppState>) -> AppResult<usize> {
         })
         .collect();
 
-    // 4) Run inference. This is a pure-function call (no IO) — cheap.
+    // 4) 运行推理。这是纯函数调用（无 IO），开销很低。
     let result = inference::predict_from_markets(
         &weights,
         &model_version,
@@ -160,16 +161,16 @@ pub async fn recompute_signals(state: State<'_, AppState>) -> AppResult<usize> {
         &inputs,
     );
 
-    // 5) Refresh signals for this model_version. We DELETE all prior
-    //    rows for `(model_version)` then INSERT the fresh batch in
-    //    a single transaction so partial failures roll back. The
-    //    `signals` schema has no unique constraint, so `ON CONFLICT`
-    //    would not work — the DELETE+INSERT pattern is simpler and
-    //    matches the "Recompute" semantics (latest wins).
+    // 5) 刷新该 model_version 的 signals。我们在一个事务里
+    //    先 DELETE 同一 `(model_version)` 的所有旧行，
+    //    再 INSERT 新批次，保证部分失败可回滚。
+    //    `signals` 表没有唯一约束，`ON CONFLICT` 不适用；
+    //    DELETE+INSERT 模式更简单，且契合「Recompute」
+    //    的「最新为准」语义。
     //
-    //    `kind` and `polarity` were added in v0.62; v0.122c uses
-    //    them so the Dashboard "Recent activity" can filter by
-    //    `kind='inference'`.
+    //    `kind` 与 `polarity` 在 v0.62 新增；v0.122c 写它们，
+    //    这样 Dashboard 「Recent activity」可按
+    //    `kind='inference'` 过滤。
     let mut tx = state.db.begin().await?;
     sqlx::query("DELETE FROM signals WHERE model_version = ?")
         .bind(&model_version)
@@ -192,8 +193,8 @@ pub async fn recompute_signals(state: State<'_, AppState>) -> AppResult<usize> {
             "bearish"
         };
         let summary: String = pred.rationale.chars().take(200).collect();
-        // 48h horizon matches the existing signal schema default
-        // and what `list_active_signals` renders.
+        // 48 小时 horizon 与现有 signals schema 默认值一致，
+        // 也是 `list_active_signals` 渲染所使用的值。
         let horizon_hours: i64 = 48;
 
         sqlx::query(

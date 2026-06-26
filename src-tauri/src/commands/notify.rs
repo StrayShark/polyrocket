@@ -1,8 +1,7 @@
-//! L2 — System notifications (X2 governance).
+//! L2 —— 系统通知（X2 治理）。
 //!
-//! Wraps tauri_plugin_notification. Pure helper functions live in
-//! domain::notify (NotificationPayload builders); this module handles
-//! the actual OS send + permission request.
+//! 封装 tauri_plugin_notification。domain::notify 中放置纯辅助函数
+//! （NotificationPayload 构建器）；本模块处理实际的系统通知发送 + 权限申请。
 
 use crate::AppResult;
 use crate::domain::notify::{NotificationKind, NotificationPayload};
@@ -15,16 +14,14 @@ pub struct SendNotificationArgs {
     pub kind: String,
     pub title: String,
     pub body: String,
-    /// Whether the user has globally enabled notifications
-    /// (L1 sends this from prefs-store; default true).
+    /// 用户是否全局开启了通知（L1 从 prefs-store 传过来；默认 true）。
     #[serde(default = "default_true")]
     pub prefs_enabled: bool,
 }
 
 fn default_true() -> bool { true }
 
-/// Send a system notification. Returns 1 if the OS accepted the
-/// request, 0 if disabled by prefs.
+/// 发送一条系统通知。操作系统接受则返回 1，因偏好设置被禁用则返回 0。
 #[tauri::command]
 pub async fn send_notification(
     app: AppHandle,
@@ -33,7 +30,7 @@ pub async fn send_notification(
     if !args.prefs_enabled {
         return Ok(0);
     }
-    // Parse kind (best-effort; falls back to Info)
+    // 解析 kind（尽力解析；无法识别时回退到 Info）
     let _kind: NotificationKind = NotificationKind::new_from_str(&args.kind)
         .unwrap_or(NotificationKind::Info);
 
@@ -47,8 +44,7 @@ pub async fn send_notification(
     Ok(1)
 }
 
-/// Request OS permission for notifications. macOS / iOS require this
-/// before any notification can be sent.
+/// 向操作系统申请通知权限。macOS / iOS 在发送任何通知之前都需要这一步。
 #[tauri::command]
 pub async fn request_notification_permission(app: AppHandle) -> AppResult<bool> {
     let granted = app
@@ -58,7 +54,7 @@ pub async fn request_notification_permission(app: AppHandle) -> AppResult<bool> 
     Ok(granted == tauri_plugin_notification::PermissionState::Granted)
 }
 
-/// Check current notification permission state.
+/// 查询当前通知权限状态。
 #[tauri::command]
 pub async fn notification_permission_state(app: AppHandle) -> AppResult<String> {
     let state = app
@@ -75,7 +71,7 @@ pub async fn notification_permission_state(app: AppHandle) -> AppResult<String> 
 }
 
 impl NotificationKind {
-    /// Lenient parser used by IPC — falls back to Info on unknown.
+    /// IPC 使用的宽松解析器 —— 无法识别时回退到 Info。
     pub fn new_from_str(s: &str) -> Option<Self> {
         match s {
             "new_signal" => Some(NotificationKind::NewSignal),
@@ -92,5 +88,5 @@ impl NotificationKind {
     }
 }
 
-// Re-export the payload struct for L1 ipc.ts
+// 为 L1 的 ipc.ts 重新导出 payload 结构体
 pub use crate::domain::notify::NotificationPayload as OutgoingNotification;

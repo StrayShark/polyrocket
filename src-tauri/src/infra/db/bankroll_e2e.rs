@@ -1,29 +1,28 @@
-//! v0.79b — bankroll allocation E2E integration test.
+//! v0.79b —— 资金分配端到端集成测试。
 //!
-//! **What this test covers**: the "press Apply and the bets land in
-//! the DB" path. We:
-//!   1. Set up a fresh SQLite with bankroll + bets schema
-//!   2. Build a BankrollConfig + 2 signals
-//!   3. Call `compute_allocation` (pure, no IO)
-//!   4. Call `apply_allocation` (writes to DB)
-//!   5. Verify:
-//!      - `allocation_batches` has 1 row with correct total
-//!      - `bets` has 2 rows (one per AllocationItem)
-//!      - Each bet has `mode = 'C_allocated'`
-//!      - Each bet has `allocation_id = <batch.id>`
-//!      - Each bet's `size` matches the AllocationItem
+//! **本测试覆盖范围**:"点击 Apply 后注单落入数据库" 这条路径。
+//! 我们:
+//!   1. 用资金分配 + bets schema 搭建一个全新的 SQLite
+//!   2. 构造一个 BankrollConfig + 2 个信号
+//!   3. 调用 `compute_allocation`（纯函数，无 IO）
+//!   4. 调用 `apply_allocation`（写入数据库）
+//!   5. 校验:
+//!      - `allocation_batches` 有 1 行且总额正确
+//!      - `bets` 有 2 行（每个 AllocationItem 一行）
+//!      - 每个 bet 的 `mode = 'C_allocated'`
+//!      - 每个 bet 的 `allocation_id = <batch.id>`
+//!      - 每个 bet 的 `size` 与 AllocationItem 匹配
 //!
-//! **Why this matters**: v0.78e wrote to `allocation_batches` but
-//! didn't write `bets` rows. v0.79a added the bets writes. This
-//! test is the regression guard — if someone removes the bet-writes
-//! from `apply_allocation`, the test fails.
+//! **为什么重要**:v0.78e 写入了 `allocation_batches`,但没有写入
+//! `bets` 行。v0.79a 补上了 bets 的写入。本测试是回归防线 ——
+//! 如果有人从 `apply_allocation` 中移除了注单写入,本测试就会失败。
 
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqlitePoolOptions;
 
-/// Bootstrap a SQLite pool with the schema needed for apply_allocation.
-/// Mirrors `infra::db::bankroll::ensure_tables` + `infra::db::bets_columns::ensure_bets_columns`
-/// + minimal `wallets` table (since the FK on `bets.wallet_id` is logical only).
+/// 引导一个 SQLite pool,使用 `apply_allocation` 所需的 schema。
+/// 镜像 `infra::db::bankroll::ensure_tables` + `infra::db::bets_columns::ensure_bets_columns`
+/// + 最小的 `wallets` 表（因为 `bets.wallet_id` 的 FK 只是逻辑上的）。
 async fn setup_pool() -> SqlitePool {
     let dir = std::env::temp_dir().join(format!(
         "polyrocket_bankroll_e2e_{}",
@@ -40,14 +39,14 @@ async fn setup_pool() -> SqlitePool {
         .await
         .unwrap();
 
-    // Minimal wallets table (no FK enforcement in SQLite by default,
-    // so we just need the table to exist for the test to be realistic).
+    // 最小的 wallets 表（SQLite 默认不强制外键,
+    // 因此这里只需要表存在,测试就能贴近真实场景）。
     sqlx::query("CREATE TABLE wallets (id TEXT PRIMARY KEY, label TEXT NOT NULL)")
         .execute(&pool)
         .await
         .unwrap();
 
-    // Bets table (minimal — matches the v0.78 schema).
+    // bets 表（最小化 —— 与 v0.78 schema 一致）。
     sqlx::query(
         "CREATE TABLE bets (
             id TEXT PRIMARY KEY,
@@ -82,7 +81,7 @@ async fn setup_pool() -> SqlitePool {
     .await
     .unwrap();
 
-    // Bankroll tables (mirrors ensure_tables).
+    // 资金分配表（与 ensure_tables 一致）。
     sqlx::query(
         "CREATE TABLE bankroll_config (
             wallet_id TEXT PRIMARY KEY,
@@ -138,7 +137,7 @@ async fn apply_allocation_writes_batch_and_bets() {
     let pool = setup_pool().await;
     let wallet_id = "w1".to_string();
 
-    // 1. Insert a wallet
+    // 1. 插入一个钱包
     sqlx::query("INSERT INTO wallets (id, label) VALUES (?, ?)")
         .bind(&wallet_id)
         .bind("Treasury")
@@ -146,14 +145,14 @@ async fn apply_allocation_writes_batch_and_bets() {
         .await
         .unwrap();
 
-    // 2. Build the config + signals
+    // 2. 构造配置 + signals
     let config = BankrollConfig::default();
     let signals = vec![
-        make_signal("m1", 0.10, 0.8),  // edge 10%, conf 80% → Kelly 0.05
-        make_signal("m2", 0.15, 0.7),  // edge 15%, conf 70% → Kelly ~0.075
+        make_signal("m1", 0.10, 0.8),  // edge 10%, conf 80% → Kelly 0.05（边距 10%,置信度 80% → Kelly 0.05）
+        make_signal("m2", 0.15, 0.7),  // edge 15%, conf 70% → Kelly ~0.075（边距 15%,置信度 70% → Kelly ~0.075）
     ];
 
-    // 3. Compute allocation (pure)
+    // 3. 计算分配（纯函数）
     let args = ComputeAllocationArgs {
         bankroll_usdc: "1000".to_string(),
         config: None,
@@ -164,9 +163,9 @@ async fn apply_allocation_writes_batch_and_bets() {
     let _ = config;
     assert_eq!(result.per_market.len(), 2, "expected 2 markets allocated");
 
-    // 4. Apply (writes to DB)
-    // We need to use the AppState pattern. Easiest: just call
-    // insert_batch + write the bets manually using the same SQL.
+    // 4. Apply（写入 DB）
+    // 这里需要使用 AppState 模式。最简单的做法:
+    // 直接调用 insert_batch + 用同样的 SQL 写入注单。
     let batch_id = uuid::Uuid::new_v4().to_string();
     let total_alloc = result.total_allocated_usdc.clone();
     let config_json = "{}".to_string();
@@ -185,7 +184,7 @@ async fn apply_allocation_writes_batch_and_bets() {
     .await
     .unwrap();
 
-    // 5. Write the bets (mirrors the v0.79a logic in apply_allocation)
+    // 5. 写入 bets（与 v0.79a 在 apply_allocation 中的逻辑一致）
     let now_ms = chrono::Utc::now().timestamp_millis();
     for item in &result.per_market {
         let bet_id = uuid::Uuid::new_v4().to_string();
@@ -224,7 +223,7 @@ async fn apply_allocation_writes_batch_and_bets() {
         .unwrap();
     }
 
-    // 6. Verify allocation_batches has 1 row
+    // 6. 校验 allocation_batches 有 1 行
     let batch_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM allocation_batches WHERE id = ?")
         .bind(&batch_id)
         .fetch_one(&pool)
@@ -232,7 +231,7 @@ async fn apply_allocation_writes_batch_and_bets() {
         .unwrap();
     assert_eq!(batch_count, 1, "expected 1 allocation_batches row");
 
-    // 7. Verify bets has 2 rows, all linked to the batch
+    // 7. 验证 bets 有 2 行,均与该批次关联
     let bet_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bets WHERE allocation_id = ?")
         .bind(&batch_id)
         .fetch_one(&pool)
@@ -240,7 +239,7 @@ async fn apply_allocation_writes_batch_and_bets() {
         .unwrap();
     assert_eq!(bet_count, 2, "expected 2 bets rows linked to batch");
 
-    // 8. Verify all bets have mode = 'C_allocated'
+    // 8. 校验所有 bets 的 mode = 'C_allocated'
     let modes: Vec<String> = sqlx::query_scalar(
         "SELECT DISTINCT mode FROM bets WHERE allocation_id = ?",
     )
@@ -250,7 +249,7 @@ async fn apply_allocation_writes_batch_and_bets() {
     .unwrap();
     assert_eq!(modes, vec!["C_allocated".to_string()]);
 
-    // 9. Verify the bet sizes match the allocation
+    // 9. 校验 bet 的 size 与分配一致
     let sizes: Vec<String> = sqlx::query_scalar(
         "SELECT size FROM bets WHERE allocation_id = ? ORDER BY market_id",
     )
@@ -264,9 +263,9 @@ async fn apply_allocation_writes_batch_and_bets() {
     db_sizes.sort();
     assert_eq!(db_sizes, alloc_sizes, "bet sizes must match allocation");
 
-    // Use `apply_allocation` import so the test fails to compile
-    // if v0.79a is rolled back. (The fn is exported but we exercise
-    // its SQL inline to avoid the Tauri State wrapper.)
+    // 引用 `apply_allocation` 的导入,使得 v0.79a 被回滚时本测试无法编译。
+    //（该函数已导出,但我们直接使用其 SQL,
+    // 以避免 Tauri State 的封装。）
     let _: fn() = || {
         let _ = ComputeAllocationArgs {
             bankroll_usdc: "0".to_string(),
@@ -293,8 +292,8 @@ async fn apply_allocation_with_zero_signals_writes_nothing() {
     assert_eq!(r.per_market.len(), 0);
     assert_eq!(r.total_allocated_usdc, "0.00");
 
-    // Even with an empty result, calling the write path should
-    // produce 0 bets and 0 allocation_batches.
-    // (The function checks `result.per_market.is_empty()` first.)
+    // 即使结果为空,调用写入路径也应产生 0 条 bet
+    // 和 0 条 allocation_batches。
+    // （该函数会先检查 `result.per_market.is_empty()`。）
     let _ = pool;
 }

@@ -1,29 +1,25 @@
-// v0.54a — tauri-plugin-dialog wrappers.
+// v0.54a —— tauri-plugin-dialog 封装。
 //
-// We don't expose the plugin's commands directly to the
-// L1; instead, we wrap them in a tiny Rust-side facade that:
-//   1. Sets a sensible default title.
-//   2. Maps the plugin's `Option<FilePath>` return into
-//      a flat `String | null` so the L1 doesn't have to
-//      translate `FilePath` across the IPC boundary.
-//   3. Returns `serde_json::Value` from `pick_file` so
-//      the same IPC handles both single-file and
-//      multi-file modes (L1 picks one based on
-//      `multiple`).
+// 我们不直接把插件的命令暴露给 L1;而是把它们包装在
+// 一个轻量的 Rust 端外观中,目的:
+//   1. 设置合理的默认标题。
+//   2. 把插件返回的 `Option<FilePath>` 扁平化为
+//      `String | null`,L1 不用跨 IPC 边界翻译 `FilePath`。
+//   3. `pick_file` 返回 `serde_json::Value`,
+//      让同一 IPC 同时处理单文件与多文件模式
+//      （L1 根据 `multiple` 决定）。
 //
-// All functions are `#[tauri::command]`. They take
-// AppHandle explicitly so the dialog plugin can look
-// up the parent window.
+// 所有函数都是 `#[tauri::command]`。它们显式接收
+// AppHandle,以便 dialog 插件可以查找父窗口。
 
 use tauri::AppHandle;
 use tauri_plugin_dialog::{DialogExt, FilePath};
 
 use crate::infra::error::{AppError, AppResult};
 
-/// v0.54a — open a native directory picker. The user
-/// sees their home directory by default. Returns the
-/// picked path as a `String`, or `None` if the user
-/// cancelled.
+/// v0.54a —— 打开原生目录选择器。默认情况下用户
+/// 看到的是 home 目录。返回选中路径的 `String`;
+/// 用户取消时返回 `None`。
 #[tauri::command]
 pub async fn pick_directory(app: AppHandle) -> AppResult<Option<String>> {
     let (tx, rx) = tokio::sync::oneshot::channel();
@@ -56,16 +52,15 @@ pub struct DialogFileFilter {
     pub extensions: Vec<String>,
 }
 
-/// v0.54a — open a native file picker. Returns the
-/// picked path as a `String` (single mode) or
-/// `Vec<String>` (multi mode), or `None` if cancelled.
-/// The exact JS shape is `string | null | string[]` —
-/// the L1 wrapper picks one based on `multiple`.
+/// v0.54a —— 打开原生文件选择器。返回选中路径的
+/// `String`（单选模式）或 `Vec<String>`（多选模式）;
+/// 取消时返回 `None`。JS 端的实际形态为
+/// `string | null | string[]` —— L1 包装根据 `multiple`
+/// 选择对应类型。
 ///
-/// We return `serde_json::Value` because the shape
-/// is a sum type and `tauri::command` return types
-/// must be concrete — `Option<String>` would lose
-/// the multi case.
+/// 这里返回 `serde_json::Value`,因为其形态是
+/// sum type,而 `tauri::command` 的返回类型必须是具体类型
+/// —— `Option<String>` 无法表达多选场景。
 #[tauri::command]
 pub async fn pick_file(
     app: AppHandle,
@@ -74,9 +69,8 @@ pub async fn pick_file(
     let (tx, rx) = tokio::sync::oneshot::channel();
     let mut builder = app.dialog().file();
     builder = builder.set_title("polyrocket — choose a file");
-    // First filter slot in the OS dialog is the
-    // "any file" catch-all; subsequent slots are
-    // the L1-supplied filters.
+    // OS 对话框中的第一个 filter 是「全部文件」兜底;
+    // 之后的 filter 来自 L1 传入。
     builder = builder.add_filter("any", &["*"]);
     for f in &args.filters {
         let ext_refs: Vec<&str> = f.extensions.iter().map(|s| s.as_str()).collect();

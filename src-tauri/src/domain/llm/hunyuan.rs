@@ -1,21 +1,22 @@
-//! Hunyuan 腾讯混元 (v0.113) — TC3-HMAC-SHA256 签名协议.
+//! Hunyuan 腾讯混元（v0.113）—— TC3-HMAC-SHA256 签名协议。
 //!
-//! **Why a separate client** (vs CustomClient(OpenaiCompat)):
-//!   - 腾讯云 TC3-HMAC-SHA256 签名是 Tencent Cloud 通用签名,需要在每个
-//!     request 重新计算签名 (no static API key)
-//!   - 签名涉及 4 级 HMAC 链:
+//! **为什么单独建一个客户端**（vs CustomClient(OpenaiCompat)）：
+//!   - 腾讯云 TC3-HMAC-SHA256 签名是 Tencent Cloud 通用签名，需要在每个
+//!     request 重新计算签名（无静态 API key）
+//!   - 签名涉及 4 级 HMAC 链：
 //!     1. `SecretKey` → `TC3`
 //!     2. `TC3` + date → `TC3+date`
 //!     3. `TC3+date` + service → `TC3+date+service`
-//!     4. `TC3+date+service` + `tc3_request` → final signing key
-//!   - 每个 level 都是 HMAC-SHA256 (跟 AWS SigV4 类似但有 Tencent 自有元素)
+//!     4. `TC3+date+service` + `tc3_request` → 最终 signing key
+//!   - 每个 level 都是 HMAC-SHA256（与 AWS SigV4 类似但有 Tencent 自有元素）
 //!   - Headers: `Authorization: TC3-HMAC-SHA256 Credential=.../..., SignedHeaders=..., Signature=...`
 //!
-//! **Endpoint**: `https://hunyuan.tencent.com/openapi/v1/chat/completions`
-//! (走 OpenAI 兼容 chat/completions schema,但 **必须** 加 TC3 auth header)
+//! **端点**：`https://hunyuan.tencent.com/openapi/v1/chat/completions`
+//! （走 OpenAI 兼容 chat/completions schema，但 **必须** 加 TC3 auth header）
 //!
-//! **Keyring secret 格式**: `{SecretId}:{SecretKey}` (splitn(2, ':')).
-//! `SecretId` 是腾讯云发的访问 ID (32 字符 base64-like,prefix AKID),`SecretKey` 是 32 字节 hex。
+//! **Keyring secret 格式**：`{SecretId}:{SecretKey}`（splitn(2, ':')）。
+//! `SecretId` 是腾讯云发的访问 ID（32 字符 base64-like，prefix AKID），
+//! `SecretKey` 是 32 字节 hex。
 
 use crate::domain::llm::{CallError, CallOutcome, CallRequest, CostRate, LlmClient, ProviderKind, err};
 use hmac::{Hmac, Mac};
@@ -30,7 +31,7 @@ const HUNYUAN_ALGORITHM: &str = "TC3-HMAC-SHA256";
 const HUNYUAN_ACTION: &str = "ChatCompletions";
 const HUNYUAN_VERSION: &str = "2023-09-01";
 
-/// hex encode lowercase (avoid `hex` crate dep). 写一个最简的。
+/// hex 编码（输出小写），避免引入 `hex` crate 依赖。写一个最简的实现。
 fn hex_encode(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut out = String::with_capacity(bytes.len() * 2);
@@ -77,8 +78,8 @@ pub struct HunyuanUsage {
     pub total_tokens: u32,
 }
 
-/// Hunyuan request body. **Schema 跟 OpenAI chat/completions 一样**, 多了
-/// Tencent 特有的几个 optional fields (`stream` 默认 false, `tools` 等)。
+/// Hunyuan 请求体。**Schema 跟 OpenAI chat/completions 一样**，多了
+/// Tencent 特有的几个 optional 字段（`stream` 默认 false、`tools` 等）。
 #[derive(Debug, Serialize)]
 pub struct HunyuanRequest {
     pub model: String,
@@ -94,7 +95,7 @@ pub struct HunyuanRequest {
     pub stream: bool,
 }
 
-/// Hunyuan client. 持有 SecretId + SecretKey + model, 每次 call 重新算签名。
+/// Hunyuan 客户端。持有 SecretId + SecretKey + model，每次调用时重新计算签名。
 pub struct HunyuanClient {
     pub secret_id: String,
     pub secret_key: String,
@@ -131,7 +132,7 @@ impl HunyuanClient {
         Ok(Self::new(sid.to_string(), sk.to_string(), model, region))
     }
 
-    /// 计算 SHA256 hex (lowercase) of bytes.
+    /// 计算字节的 SHA256 十六进制字符串（小写）。
     pub fn sha256_hex(bytes: &[u8]) -> String {
         let mut hasher = Sha256::new();
         hasher.update(bytes);
@@ -139,14 +140,14 @@ impl HunyuanClient {
         hex_encode(result.as_slice())
     }
 
-    /// HMAC-SHA256 (returns raw bytes).
+    /// HMAC-SHA256（返回原始字节）。
     fn hmac_sha256(key: &[u8], msg: &[u8]) -> Vec<u8> {
         let mut mac = HmacSha256::new_from_slice(key).expect("HMAC accepts any key length");
         mac.update(msg);
         mac.finalize().into_bytes().to_vec()
     }
 
-    /// 4 级 HMAC 链 → final signing key.
+    /// 4 级 HMAC 链 → 最终签名 key。
     /// `TC3` → `TC3+date` → `TC3+date+service` → `TC3+date+service+tc3_request`
     pub fn derive_signing_key(&self, date: &str) -> Vec<u8> {
         let secret_date = Self::hmac_sha256(
@@ -158,7 +159,7 @@ impl HunyuanClient {
         secret_signing
     }
 
-    /// Build canonical request (per TC3 spec).
+    /// 按 TC3 规范构建规范化请求。
     /// 格式: `HTTPMethod\nCanonicalURI\nCanonicalQueryString\nCanonicalHeaders\nSignedHeaders\nHashedRequestPayload`
     pub fn build_canonical_request(
         method: &str,
@@ -174,7 +175,7 @@ impl HunyuanClient {
         )
     }
 
-    /// Build string to sign (per TC3 spec).
+    /// 构造待签名字符串（按 TC3 规范）。
     /// 格式: `Algorithm\nRequestTimestamp\nCredentialScope\nHashedCanonicalRequest`
     pub fn build_string_to_sign(
         timestamp: &str,
@@ -188,14 +189,14 @@ impl HunyuanClient {
         )
     }
 
-    /// Convert unix timestamp (seconds) to UTC date string `YYYY-MM-DD`.
+    /// 将 unix 时间戳(秒)转换为 UTC 日期字符串 `YYYY-MM-DD`。
     /// v0.113.1 — 用算法实现避免 chrono feature dep。
     /// (年-月-日 Gregorian calendar,1970 epoch)
     pub fn date_string_unix(unix_secs: i64) -> String {
-        // Days since 1970-01-01
+        // 自 1970-01-01 起的天数
         let days = unix_secs.div_euclid(86400);
-        // Civil-from-days algorithm by Howard Hinnant (public domain).
-        // Reference: http://howardhinnant.github.io/date_algorithms.html
+        // Howard Hinnant 的 Civil-from-days 算法 (public domain)。
+        // 参考: http://howardhinnant.github.io/date_algorithms.html
         let z = days + 719468;
         let era = if z >= 0 { z } else { z - 146096 } / 146097;
         let doe = (z - era * 146097) as u64;
@@ -209,10 +210,10 @@ impl HunyuanClient {
         format!("{:04}-{:02}-{:02}", y, m, d)
     }
 
-    /// Compute the final Authorization header value.
-    /// 这是 TC3 spec 核心 — 4 步:
-    ///   1. 拼 canonical request
-    ///   2. hash canonical request (SHA256)
+    /// 计算最终的 Authorization header 值。
+    /// 这是 TC3 规范的核心 —— 4 步:
+    ///   1. 拼 canonical request（拼装规范化请求）
+    ///   2. hash canonical request (SHA256)（SHA256 哈希规范化请求）
     ///   3. 拼 string to sign
     ///   4. 用 derived signing key HMAC-SHA256 算 signature (hex)
     pub fn sign_request(
@@ -225,7 +226,7 @@ impl HunyuanClient {
     ) -> String {
         let payload_hash = Self::sha256_hex(body_bytes);
 
-        // Headers: host + content-type + action + timestamp
+        // Headers: host + content-type + action + timestamp（腾讯云规范要求）
         let canonical_headers = format!(
             "content-type:application/json\nhost:{}\nx-tc-action:{}\n",
             HUNYUAN_HOST,
@@ -267,8 +268,8 @@ impl LlmClient for HunyuanClient {
     ) -> Result<CallOutcome, CallError> {
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
         let timestamp = now.as_secs().to_string();
-        // v0.113.1 — use chrono for canonical date format (YYYY-MM-DD, UTC).
-        // Production: TC3 spec requires exact date in CredentialScope.
+        // v0.113.1 — 使用算法计算规范的日期格式 (YYYY-MM-DD, UTC)。
+        // 生产环境: TC3 spec 要求 CredentialScope 中日期精确。
         let date = Self::date_string_unix(now.as_secs() as i64);
 
         let body = HunyuanRequest {
@@ -399,11 +400,12 @@ mod tests {
             "content-type:application/json\nhost:hunyuan.tencent.com\nx-tc-action:chatcompletions\n",
             "abc123",
         );
-        // 6 segments, separated by \n
-        // (canonical headers has its own embedded \n, so total \n count is more than 5)
+        // 6 段,以 \n 分隔
+        // (canonical headers 自带嵌入的 \n,所以总 \n 数 > 5)
         let parts: Vec<_> = cr.split('\n').collect();
         // POST\n/\n\n<headers>\ncontent-type;host;x-tc-action\nabc123
-        // That's 10 \n-separated parts including the empty one between \n\n.
+        // （POST、空路径、空 query、规范化 headers、签名 headers、负载哈希）
+        // 共 10 个 \n 分隔的部分,包括 \n\n 之间的空段。
         assert!(parts.len() >= 6, "expected at least 6 parts, got {}", parts.len());
         assert_eq!(parts[0], "POST");
         assert_eq!(parts[1], "/");
@@ -426,11 +428,11 @@ mod tests {
         let c = HunyuanClient::new("sid-test", "sk-test", "hunyuan-pro", "ap-guangzhou");
         let body = br#"{"model":"hunyuan-pro","messages":[]}"#;
         let auth = c.sign_request("POST", "/", "1700000000", "2026-06-22", body);
-        // Authorization header format
+        // Authorization header 格式
         assert!(auth.starts_with("TC3-HMAC-SHA256 Credential=sid-test/2026-06-22/hunyuan/tc3_request"));
         assert!(auth.contains("SignedHeaders=content-type;host;x-tc-action"));
         assert!(auth.contains("Signature="));
-        // Signature is 64 hex chars (SHA256)
+        // Signature 是 64 个十六进制字符 (SHA256)
         let sig = auth.split("Signature=").nth(1).unwrap();
         assert_eq!(sig.len(), 64);
         assert!(sig.chars().all(|c| c.is_ascii_hexdigit()));
@@ -469,7 +471,7 @@ mod tests {
         assert!(s.contains("<redacted>"));
     }
 
-    // v0.113.1 — date_string_unix tests (replaces chrono placeholder)
+    // v0.113.1 — date_string_unix 测试 (取代 chrono 占位实现)
     #[test]
     fn date_string_unix_epoch_is_1970_01_01() {
         assert_eq!(HunyuanClient::date_string_unix(0), "1970-01-01");
@@ -482,26 +484,26 @@ mod tests {
 
     #[test]
     fn date_string_unix_year_2000() {
-        // 2000-01-01 = 946684800 unix seconds
+        // 2000-01-01 = 946684800 unix 秒（已知基准值）
         assert_eq!(HunyuanClient::date_string_unix(946684800), "2000-01-01");
     }
 
     #[test]
     fn date_string_unix_year_2024_leap_day() {
-        // 2024-02-29 = 1709164800 unix seconds
+        // 2024-02-29 = 1709164800 unix 秒（闰年闰日）
         assert_eq!(HunyuanClient::date_string_unix(1709164800), "2024-02-29");
     }
 
     #[test]
     fn date_string_unix_year_2026_current() {
-        // 2026-06-22 = 1782144000 unix seconds (approx)
+        // 2026-06-22 = 1782144000 unix 秒（当前日期约值）
         let d = HunyuanClient::date_string_unix(1782144000);
         assert!(d.starts_with("2026-"));
     }
 
     #[test]
     fn date_string_unix_negative_pre_epoch() {
-        // 1969-12-31 = -86400 unix seconds
+        // 1969-12-31 = -86400 unix 秒（epoch 之前）
         assert_eq!(HunyuanClient::date_string_unix(-86400), "1969-12-31");
     }
 }

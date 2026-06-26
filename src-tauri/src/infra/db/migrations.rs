@@ -1,28 +1,26 @@
-//! L4 — Primary table schema migrations.
+//! L4 —— 主表结构迁移。
 //!
-//! v0.119 — moved primary tables (wallets, markets, signals, bets)
-//! out of `seed.rs::apply_seed()` into a dedicated migration that
-//! runs on EVERY boot. Previously these tables were only created
-//! during first-run seed, which is skipped if any of these tables
-//! already exists. This caused a chicken-and-egg crash on databases
-//! that previously had been seeded but had their tables corrupted
-//! or wiped (e.g. WAL truncation, manual fs surgery).
+//! v0.119 —— 将主表（wallets、markets、signals、bets）
+//! 从 `seed.rs::apply_seed()` 抽离到独立的迁移中，
+//! 每次启动都会执行。此前这些表只在首次运行的 seed 阶段
+//! 创建，当其中任一表已存在时会被跳过。这导致一种"先有鸡
+//! 还是先有蛋"的崩溃：先前已被 seed 过，但表被损坏或
+//! 清空的数据库（例如 WAL 截断、手工 fs 手术）。
 //!
-//! Idempotent — every statement is `CREATE TABLE IF NOT EXISTS`.
-//! Safe to run on every boot.
+//! 具有幂等性 —— 每条语句都是 `CREATE TABLE IF NOT EXISTS`。
+//! 每次启动都可安全运行。
 
 use sqlx::SqlitePool;
 
-/// v0.119 — run all primary table migrations in dependency order.
+/// v0.119 —— 按依赖顺序运行所有主表迁移。
 ///
-/// Order matters: tables referenced by foreign keys must be created
-/// first. We intentionally don't declare FKs in the schema (sqlite
-/// FK enforcement is OFF by default; would surprise users) but
-/// logically:
-///   1. wallets  — independent
-///   2. markets  — independent
-///   3. signals  — references markets
-///   4. bets     — references wallets + markets + signals
+/// 顺序很关键：被外键引用的表必须先创建。我们故意不在
+/// schema 中声明外键（SQLite 默认关闭外键强制检查；
+/// 启用会令用户困惑），但逻辑上：
+///   1. wallets  —— 独立
+///   2. markets  —— 独立
+///   3. signals  —— 引用 markets
+///   4. bets     —— 引用 wallets + markets + signals
 pub async fn ensure_primary_tables(pool: &SqlitePool) -> sqlx::Result<()> {
     // 1) wallets
     sqlx::query(
@@ -41,19 +39,18 @@ pub async fn ensure_primary_tables(pool: &SqlitePool) -> sqlx::Result<()> {
 
     // 2) markets
     //
-    // v0.119 — added `yes_price REAL`, `no_price REAL`, `closes_at INTEGER`,
-    // `status TEXT`, `resolution_source TEXT`. The `llm_analyze` IPC's
-    // `build_market_context` (commands/llm.rs) SELECTs all of these — without
-    // them, the very first analyze call crashed with `no such column:
-    // resolution_source` (and the others). Pre-v0.119 the SELECT silently
-    // broke and llm_analyze had never succeeded against a freshly-seeded DB.
+    // v0.119 —— 新增 `yes_price REAL`、`no_price REAL`、`closes_at INTEGER`、
+    // `status TEXT`、`resolution_source TEXT`。`llm_analyze` IPC 的
+    // `build_market_context`（commands/llm.rs）会 SELECT 这些列 —— 缺失
+    // 时，第一次 analyze 调用会以 `no such column: resolution_source`
+    // （以及其它列）崩溃。pre-v0.119 时该 SELECT 静默失败，
+    // 在刚 seed 过的库上 llm_analyze 一次都没成功过。
     //
-    // All new columns are nullable or have DEFAULTs so existing rows from
-    // seed.rs / sync_markets keep working. Production sync_markets still
-    // needs to populate yes/no_price (currently only orderbook_snapshots
-    // has them); for now the build_market_context falls back to NULL when
-    // the columns are empty and the LLM still gets a valid (if slightly
-    // sparse) market context.
+    // 所有新列都可空或带 DEFAULT，因此 seed.rs / sync_markets 写入的
+    // 现有行依然有效。生产环境 sync_markets 仍需填充 yes/no_price
+    //（目前只有 orderbook_snapshots 拥有这些字段）；现阶段
+    // build_market_context 在列为空时回退为 NULL，LLM 仍能
+    // 拿到一个有效（虽然稍稀疏）的市场上下文。
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS markets (
             id TEXT PRIMARY KEY,
@@ -84,12 +81,12 @@ pub async fn ensure_primary_tables(pool: &SqlitePool) -> sqlx::Result<()> {
 
     // 3) signals
     //
-    // v0.119 — added `kind TEXT`, `summary TEXT`, `polarity TEXT DEFAULT 'neutral'`.
-    // The `llm_analyze` IPC's `build_market_context` (commands/llm.rs) selects
-    // these 3 columns to populate `SignalSummary { name, value, polarity }`
-    // (prompts.rs). Pre-v0.119 this crashed with `no such column: s.kind`
-    // on every analyze call. All 3 are TEXT/nullable so existing seed
-    // rows keep working.
+    // v0.119 —— 新增 `kind TEXT`、`summary TEXT`、`polarity TEXT DEFAULT 'neutral'`。
+    // `llm_analyze` IPC 的 `build_market_context`（commands/llm.rs）会 SELECT
+    // 这 3 列以填充 `SignalSummary { name, value, polarity }`
+    // （prompts.rs）。pre-v0.119 时，每次 analyze 调用都会因
+    // `no such column: s.kind` 崩溃。三列都是 TEXT/可空，
+    // 现有 seed 行依旧有效。
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS signals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -140,8 +137,8 @@ pub async fn ensure_primary_tables(pool: &SqlitePool) -> sqlx::Result<()> {
     .execute(pool)
     .await?;
 
-    // 5) copy_targets (matches seed.rs original schema — must match
-    // `commands::copy::add_copy_target` IPC's INSERT statement)
+    // 5) copy_targets（与 seed.rs 原始 schema 一致 —— 必须与
+    // `commands::copy::add_copy_target` IPC 的 INSERT 语句匹配）
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS copy_targets (
             id TEXT PRIMARY KEY,
@@ -156,7 +153,7 @@ pub async fn ensure_primary_tables(pool: &SqlitePool) -> sqlx::Result<()> {
     .execute(pool)
     .await?;
 
-    // 6) copy_events (matches seed.rs original schema)
+    // 6) copy_events（与 seed.rs 原始 schema 一致）
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS copy_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -173,15 +170,16 @@ pub async fn ensure_primary_tables(pool: &SqlitePool) -> sqlx::Result<()> {
     .execute(pool)
     .await?;
 
-    // 7) audit_log (matches seed.rs original schema — must match
-    // INSERT statements in commands/{audit,llm,brief,bet,storage_migrate}.rs
-    // and infra::scheduler/mod.rs)
+    // 7) audit_log（与 seed.rs 原始 schema 一致 —— 必须与
+    // commands/{audit,llm,brief,bet,storage_migrate}.rs
+    // 以及 infra::scheduler/mod.rs 中的 INSERT 语句匹配）
     //
-    // v0.119 — `at` now has a DEFAULT so INSERT statements that omit it
-    // (most of them in commands/) still succeed. Pre-fix, every audit_log
-    // writer had to remember `.bind(now_ms)` or it crashed with
-    // `NOT NULL constraint failed: audit_log.at`. The DEFAULT uses
-    // SQLite 3.38+'s `unixepoch()` * 1000 for unix epoch milliseconds.
+    // v0.119 —— `at` 现在带有 DEFAULT，因此省略该列的
+    // INSERT 语句（commands/ 中绝大多数）依然能成功。
+    // 修复前，所有 audit_log 写入方都必须记得 `.bind(now_ms)`，
+    // 否则会以 `NOT NULL constraint failed: audit_log.at` 崩溃。
+    // DEFAULT 使用 SQLite 3.38+ 的 `unixepoch() * 1000` 获得
+    // 毫秒级 unix 时间戳。
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS audit_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -196,7 +194,7 @@ pub async fn ensure_primary_tables(pool: &SqlitePool) -> sqlx::Result<()> {
     .execute(pool)
     .await?;
 
-    // 8) daily_briefs (was missing in fresh-init flow)
+    // 8) daily_briefs（在 fresh-init 流程中曾缺失）
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS daily_briefs (
             market_id TEXT PRIMARY KEY,
@@ -212,15 +210,15 @@ pub async fn ensure_primary_tables(pool: &SqlitePool) -> sqlx::Result<()> {
 
     // 9) llm_analyses + llm_recommendations
     //
-    // v0.119 — added `signal_id` + `triggered_by` columns. `llm_analyze` IPC
-    // (commands/llm.rs:23-31) writes both — without them the very first
-    // analyze call after a fresh init would crash with `no column named signal_id`.
+    // v0.119 —— 新增 `signal_id` + `triggered_by` 列。`llm_analyze` IPC
+    // （commands/llm.rs:23-31）会同时写入这两列 —— 缺失时，首次 fresh init
+    // 之后的 analyze 调用会因 `no column named signal_id` 崩溃。
     //
-    // Also added DEFAULTs to `prompt_template` and `market_snapshot`. The IPC's
-    // pending-row INSERT (commands/llm.rs:1130 area) sets neither, but they are
-    // NOT NULL — pre-v0.119 this crashed on every analyze call. With DEFAULTs,
-    // the row lands as 'pending' with empty template + snapshot; a later UPDATE
-    // can fill them in (current IPC doesn't, but the row is at least valid).
+    // 同时为 `prompt_template` 和 `market_snapshot` 添加 DEFAULT。
+    // IPC 中 pending 行的 INSERT（commands/llm.rs:1130 附近）两者都未设置，
+    // 但列为 NOT NULL —— pre-v0.119 时每次 analyze 调用都会崩溃。
+    // 添加 DEFAULT 后，行以 'pending' 状态落盘，template + snapshot
+    // 为空字符串；后续 UPDATE 可填入（当前 IPC 暂未实现，但行至少有效）。
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS llm_analyses (
             id TEXT PRIMARY KEY,
@@ -272,10 +270,10 @@ pub async fn ensure_primary_tables(pool: &SqlitePool) -> sqlx::Result<()> {
     .execute(pool)
     .await?;
 
-    // 10) llm_providers (referenced by llm_provider_keys + llm_health_checks).
-    // Schema must match INSERT statements in commands::llm::upsert_llm_provider
-    // and commands::llm_mgmt. Includes all fields from the wider
-    // llm_mgmt UPSERT path so a fresh DB can host the full provider config.
+    // 10) llm_providers（被 llm_provider_keys + llm_health_checks 引用）。
+    // Schema 必须与 commands::llm::upsert_llm_provider 和
+    // commands::llm_mgmt 中的 INSERT 语句一致。包含 llm_mgmt UPSERT
+    // 路径的全部字段，使 fresh DB 能托管完整的 provider 配置。
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS llm_providers (
             id TEXT PRIMARY KEY,
@@ -309,7 +307,7 @@ pub async fn ensure_primary_tables(pool: &SqlitePool) -> sqlx::Result<()> {
     .execute(pool)
     .await?;
 
-    // 11) llm_provider_keys (referenced by llm_health_checks + keyring)
+    // 11) llm_provider_keys（被 llm_health_checks + keyring 引用）
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS llm_provider_keys (
             id TEXT PRIMARY KEY,
@@ -332,7 +330,7 @@ pub async fn ensure_primary_tables(pool: &SqlitePool) -> sqlx::Result<()> {
     .execute(pool)
     .await?;
 
-    // 12) llm_health_checks (background monitor + scheduler reads)
+    // 12) llm_health_checks（后台监控 + scheduler 读取）
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS llm_health_checks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -351,7 +349,7 @@ pub async fn ensure_primary_tables(pool: &SqlitePool) -> sqlx::Result<()> {
     .execute(pool)
     .await?;
 
-    // 13) model_performance (used by pnl.rs brier_score query)
+    // 13) model_performance（被 pnl.rs 的 brier_score 查询使用）
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS model_performance (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -369,8 +367,8 @@ pub async fn ensure_primary_tables(pool: &SqlitePool) -> sqlx::Result<()> {
     .execute(pool)
     .await?;
 
-    // 14) llm_call_logs (per-call log: latency, cost, success — feeds
-    // scheduler cost-anomaly + LLM perf dashboards)
+    // 14) llm_call_logs（按调用记录：延迟、费用、成功 —— 为
+    // scheduler 成本异常检测和 LLM 性能仪表盘供数）
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS llm_call_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -396,8 +394,8 @@ pub async fn ensure_primary_tables(pool: &SqlitePool) -> sqlx::Result<()> {
     .execute(pool)
     .await?;
 
-    // 15) llm_decisions (audit trail: did user follow the LLM recommendation?
-    // feeds the "was the LLM right?" scoring in commands/llm.rs)
+    // 15) llm_decisions（审计轨迹：用户是否遵循了 LLM 的建议？
+    // 为 commands/llm.rs 中的"LLM 是否正确？"评分供数）
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS llm_decisions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -413,7 +411,7 @@ pub async fn ensure_primary_tables(pool: &SqlitePool) -> sqlx::Result<()> {
     .execute(pool)
     .await?;
 
-    // 16) user_brief_prefs (per-user daily-brief preferences)
+    // 16) user_brief_prefs（按用户的 daily-brief 偏好）
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS user_brief_prefs (
             user_id TEXT PRIMARY KEY,
@@ -427,9 +425,9 @@ pub async fn ensure_primary_tables(pool: &SqlitePool) -> sqlx::Result<()> {
     .execute(pool)
     .await?;
 
-    // 17) orderbook_snapshots (full bid/ask depth — feeds LLM market
-    // context. Distinct from price_snapshots which only stores
-    // best bid/ask mid.)
+    // 17) orderbook_snapshots（完整的 bid/ask 深度 —— 为 LLM 市场
+    // 上下文供数。区别于 price_snapshots，后者只保存
+    // best bid/ask 的中间价。）
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS orderbook_snapshots (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -444,28 +442,64 @@ pub async fn ensure_primary_tables(pool: &SqlitePool) -> sqlx::Result<()> {
     .execute(pool)
     .await?;
 
-    // v0.119 — additive column migrations for already-seeded databases.
-    // `CREATE TABLE IF NOT EXISTS` is a no-op when the table exists with
-    // a different schema, so we also need explicit `ALTER TABLE ADD COLUMN`
-    // for fresh columns added in v0.119+. SQLite throws "duplicate column"
-    // if we try to add a column that already exists, so each ALTER is wrapped
-    // in a sqlite-level try (using a CASE that swallows the duplicate-column
-    // error via the `changes()` function returning 0 isn't standard, so we
-    // accept the error via a subquery guard).
+    // P1-1 —— news_items（新闻关联器）
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS news_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            source TEXT NOT NULL,
+            url TEXT NOT NULL,
+            published_at INTEGER NOT NULL,
+            market_id TEXT,
+            relevance_score REAL,
+            impact_direction TEXT,
+            summary TEXT,
+            created_at INTEGER NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await?;
+
+    // P1-3 —— arb_opportunities（套利扫描器 + 跨平台）
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS arb_opportunities (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            market_id TEXT NOT NULL,
+            question TEXT NOT NULL,
+            yes_cost REAL NOT NULL,
+            no_cost REAL NOT NULL,
+            total_cost REAL NOT NULL,
+            profit_margin REAL NOT NULL,
+            platform TEXT DEFAULT 'polymarket' NOT NULL,
+            detected_at INTEGER NOT NULL,
+            expires_at INTEGER
+        )",
+    )
+    .execute(pool)
+    .await?;
+
+    // v0.119 —— 针对已经 seed 过的数据库的加性列迁移。
+    // `CREATE TABLE IF NOT EXISTS` 在表已存在且 schema 不同时
+    // 是 no-op，因此我们还需要对 v0.119+ 新增的列显式执行
+    // `ALTER TABLE ADD COLUMN`。如果尝试添加已存在的列，
+    // SQLite 会抛出"duplicate column"错误，所以每条 ALTER
+    // 都被包装在 sqlite 层的 try 中（用 `changes()` 函数返回 0
+    // 来吞掉 duplicate-column 错误并非标准做法，因此我们
+    // 通过子查询守卫接受错误）。
     //
-    // audit_log: was created pre-v0.119 without `at` DEFAULT. We add it
-    //   defensively (no-op if already defaulted).
-    // llm_analyses: was created pre-v0.119 without `signal_id` /
-    //   `triggered_by`. Both are nullable so safe to add to existing rows.
+    // audit_log：pre-v0.119 创建时没有 `at` DEFAULT。我们防御性
+    //   地添加（若已存在 DEFAULT 则 no-op）。
+    // llm_analyses：pre-v0.119 创建时没有 `signal_id` /
+    //   `triggered_by`。两列均可空，对已有行安全。
     let _ = sqlx::query("ALTER TABLE llm_analyses ADD COLUMN signal_id INTEGER")
-        .execute(pool).await;  // ignore "duplicate column" error
+        .execute(pool).await;  // 忽略 "duplicate column" 错误
     let _ = sqlx::query("ALTER TABLE llm_analyses ADD COLUMN triggered_by TEXT NOT NULL DEFAULT ''")
         .execute(pool).await;
 
-    // markets: v0.119 added yes_price / no_price / closes_at / status /
-    // resolution_source so llm_analyze can SELECT them. Add defensively
-    // for already-seeded databases (the in-process CREATE TABLE IF NOT
-    // EXISTS above is a no-op when markets already exists).
+    // markets：v0.119 新增 yes_price / no_price / closes_at / status /
+    // resolution_source 以便 llm_analyze 可以 SELECT 它们。
+    // 对已 seed 的数据库防御性添加（上方进程内的 CREATE TABLE IF NOT
+    // EXISTS 在 markets 已存在时是 no-op）。
     let _ = sqlx::query("ALTER TABLE markets ADD COLUMN yes_price REAL")
         .execute(pool).await;
     let _ = sqlx::query("ALTER TABLE markets ADD COLUMN no_price REAL")
@@ -477,9 +511,9 @@ pub async fn ensure_primary_tables(pool: &SqlitePool) -> sqlx::Result<()> {
     let _ = sqlx::query("ALTER TABLE markets ADD COLUMN resolution_source TEXT")
         .execute(pool).await;
 
-    // signals: v0.119 added kind / summary / polarity so llm_analyze can
-    // SELECT them in build_market_context. Add defensively for
-    // already-seeded databases.
+    // signals：v0.119 新增 kind / summary / polarity，以便 llm_analyze
+    // 可以在 build_market_context 中 SELECT 它们。对已 seed 的
+    // 数据库防御性添加。
     let _ = sqlx::query("ALTER TABLE signals ADD COLUMN kind TEXT")
         .execute(pool).await;
     let _ = sqlx::query("ALTER TABLE signals ADD COLUMN summary TEXT")
@@ -487,16 +521,51 @@ pub async fn ensure_primary_tables(pool: &SqlitePool) -> sqlx::Result<()> {
     let _ = sqlx::query("ALTER TABLE signals ADD COLUMN polarity TEXT DEFAULT 'neutral'")
         .execute(pool).await;
 
-    // llm_recommendations: v0.119 added `reasoning` column. `llm_analyze`
-    // writes per-recommendation reasoning text (commands/llm.rs:715-735).
-    // Pre-v0.119 this crashed with `no such column: reasoning` on every
-    // analyze call. Nullable so existing rows keep working.
+    // llm_recommendations：v0.119 新增 `reasoning` 列。`llm_analyze`
+    // 会按条建议写入 reasoning 文本（commands/llm.rs:715-735）。
+    // pre-v0.119 时每次 analyze 调用都因 `no such column: reasoning`
+    // 崩溃。可空列，因此已有行依旧有效。
     let _ = sqlx::query("ALTER TABLE llm_recommendations ADD COLUMN reasoning TEXT")
         .execute(pool).await;
     let _ = sqlx::query("ALTER TABLE llm_recommendations ADD COLUMN parse_ok INTEGER NOT NULL DEFAULT 1")
         .execute(pool).await;
     let _ = sqlx::query("ALTER TABLE llm_recommendations ADD COLUMN parse_error TEXT")
         .execute(pool).await;
+
+    // 18) spike_alerts（P0-3 —— 尖峰检测）。存储由
+    // `commands::spike::run_spike_scan` 写入的检测到的价格尖峰。
+    // `notified` 跟踪前端是否已为该 alert 展示通知
+    //（0 = 待通知，1 = 已通知）。
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS spike_alerts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            market_id TEXT NOT NULL,
+            old_price REAL NOT NULL,
+            new_price REAL NOT NULL,
+            change_pct REAL NOT NULL,
+            detected_at INTEGER NOT NULL,
+            notified INTEGER DEFAULT 0 NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await?;
+
+    // Phase 1.7 —— 用于 scan_market_anomalies scheduler 循环的
+    // market_anomalies 表。存储周期性后台扫描器检测到的价格
+    // 尖峰、成交量激增与均值回归信号。
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS market_anomalies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            market_id TEXT NOT NULL,
+            kind TEXT NOT NULL,           -- 'price_spike' | 'volume_surge' | 'reversion'
+            severity TEXT NOT NULL,       -- 'low' | 'medium' | 'high'
+            payload TEXT,                 -- JSON details
+            detected_at INTEGER NOT NULL,
+            notified INTEGER DEFAULT 0 NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await?;
 
     Ok(())
 }

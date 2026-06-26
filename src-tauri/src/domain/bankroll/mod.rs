@@ -1,43 +1,43 @@
-//! L3 — Bankroll allocation (M11, v0.78).
+//! L3 — 资金分配（M11, v0.78）。
 //!
-//! **What this module owns**: the pure-function algorithm that turns a
-//! list of `Signal` (with `edge`, `confidence`, `market_prob`) plus a
-//! `BankrollConfig` into a `Vec<AllocationItem>` (per-market $ amount).
+//! **本模块职责**：将一组 `Signal`（含 `edge`、`confidence`、`market_prob`）
+//! 与 `BankrollConfig` 转换为 `Vec<AllocationItem>`（每市场 $ 金额）
+//! 的纯函数算法。
 //!
-//! **What this module does NOT own**: DB writes, IPC, UI. Those are
-//! L2 (commands) and L1 (React) respectively. This module is **pure
-//! functions + pure data** — no `AppState`, no SQL, no `tokio::spawn`.
+//! **本模块非职责**：数据库写入、IPC、UI。这些分别属于
+//! L2（commands）和 L1（React）。本模块是**纯函数 + 纯数据**，
+//! 不依赖 `AppState`、SQL 或 `tokio::spawn`。
 //!
-//! **Algorithm**: Fractional Kelly Criterion + multi-constraint cap.
-//! See `docs/bankroll-allocation-design.md` §1 for the full design.
+//! **算法**：分数凯利准则 + 多重约束上限。
+//! 完整设计参见 `docs/bankroll-allocation-design.md` §1。
 //!
-//! Spec: docs/polyrocket-modules.md M11.
+//! 规范：docs/polyrocket-modules.md M11。
 
 use crate::domain::signal::Signal;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::HashMap;
 
-/// Per-wallet bankroll configuration. Stored in `bankroll_config` table.
+/// 每个钱包的资金配置。存储在 `bankroll_config` 表中。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BankrollConfig {
-    /// Fraction of full Kelly to use. 0.25 = quarter-Kelly (default).
-    /// Range: (0, 1]. >1.0 is allowed but discouraged.
+    /// 所使用的完整凯利比例。0.25 = 四分之一凯利（默认）。
+    /// 范围：(0, 1]。允许 >1.0，但不推荐。
     pub kelly_multiplier: f64,
-    /// Hard cap on per-signal allocation as fraction of bankroll.
-    /// Range: (0, 1]. Default 0.10 = 10%.
+    /// 单信号分配占资金比例的硬上限。
+    /// 范围：(0, 1]。默认 0.10 = 10%。
     pub max_per_signal_pct: f64,
-    /// Reserve fraction never allocated. Default 0.20 = 20%.
-    /// Range: [0, 1).
+    /// 从不分配的保留比例。默认 0.20 = 20%。
+    /// 范围：[0, 1)。
     pub reserve_pct: f64,
-    /// Minimum |edge| to be considered. Default 0.05 = 5%.
-    /// Signals below this are dropped at filter step 1.
+    /// 考虑的最小 |edge|。默认 0.05 = 5%。
+    /// 低于此值的信号在第 1 步过滤时被丢弃。
     pub min_edge_pct: f64,
-    /// Maximum total exposure as fraction of bankroll. Default 0.80.
-    /// Range: (0, 1].
+    /// 总敞口占资金比例的最大值。默认 0.80。
+    /// 范围：(0, 1]。
     pub max_total_exposure_pct: f64,
-    /// Minimum confidence to consider. Default 0.6.
-    /// Range: [0, 1].
+    /// 考虑的最小 confidence。默认 0.6。
+    /// 范围：[0, 1]。
     pub min_confidence: f64,
 }
 
@@ -54,75 +54,74 @@ impl Default for BankrollConfig {
     }
 }
 
-/// Side of the bet (Yes/No token on a prediction market).
+/// 投注方向（预测市场中的 Yes/No 代币）。
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Type)]
 pub enum BetSide {
     Yes,
     No,
 }
 
-/// One allocation for a single market. Multiple signals on the same
-/// market are grouped into a single `AllocationItem` (with
-/// `source_signal_ids` listing the merged signals).
+/// 单个市场的一项分配。同一市场的多个信号会被合并为单个
+/// `AllocationItem`（`source_signal_ids` 列出合并的信号）。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type)]
 pub struct AllocationItem {
     pub market_id: String,
     pub side: BetSide,
-    /// Final size in USDC, rounded to 2 decimals (string to avoid
-    /// float precision issues — the DB column is TEXT).
+    /// 最终 USDC 金额，保留两位小数（使用字符串以避免
+    /// 浮点精度问题 —— 数据库列为 TEXT）。
     pub size_usdc: String,
-    /// Raw Kelly fraction before any caps. Range: [0, 1].
+    /// 应用任何上限之前的原始凯利比例。范围：[0, 1]。
     pub kelly_pct: f64,
-    /// Why this allocation was capped, if at all.
+    /// 若分配被上限限制，记录原因（若有）。
     pub capped_reason: Option<CappedReason>,
-    /// Original signal IDs that were merged into this allocation.
+    /// 合并到本分配的原始信号 ID 列表。
     pub source_signal_ids: Vec<String>,
-    /// Model version (most recent among merged signals).
+    /// 模型版本（合并信号中最近的版本）。
     pub model_version: String,
-    /// Confidence (max across merged signals).
+    /// 置信度（合并信号中的最大值）。
     pub confidence: f64,
-    /// Expected ROI = edge × confidence. Used for display only.
+    /// 预期 ROI = edge × confidence。仅用于展示。
     pub expected_roi: f64,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Type)]
 pub enum CappedReason {
-    /// Allocation was capped by `max_per_signal_pct`.
+    /// 分配受 `max_per_signal_pct` 限制。
     PerSignalCap,
-    /// Allocation was capped by market liquidity.
+    /// 分配受市场流动性限制。
     Liquidity,
-    /// Total exposure > max_total_exposure_pct, scaled down.
+    /// 总敞口 > max_total_exposure_pct，按比例缩减。
     TotalExposure,
 }
 
-/// Final allocation result.
+/// 最终分配结果。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type)]
 pub struct AllocationResult {
-    /// Total USDC allocated across all markets (sum of size_usdc).
+    /// 所有市场分配的总 USDC（size_usdc 之和）。
     pub total_allocated_usdc: String,
-    /// USDC held in reserve (not allocated).
+    /// 保留未分配的 USDC。
     pub reserved_usdc: String,
-    /// Per-market allocations.
+    /// 每个市场的分配。
     pub per_market: Vec<AllocationItem>,
-    /// Markets dropped due to liquidity (kelly > 0 but couldn't fit).
+    /// 因流动性问题被丢弃的市场（凯利 > 0 但无法容纳）。
     pub dropped_markets: Vec<String>,
 }
 
-/// Input to `compute_allocation`.
+/// `compute_allocation` 的输入。
 #[derive(Debug, Clone)]
 pub struct AllocationInput<'a> {
-    /// Total available USDC (string to match DB TEXT columns).
-    /// Must parse to f64 > 0. Returns empty result if 0.
+    /// 可用 USDC 总额（字符串以匹配数据库 TEXT 列）。
+    /// 必须能解析为 f64 > 0。若为 0 则返回空结果。
     pub bankroll_usdc: &'a str,
-    /// Per-wallet configuration.
+    /// 每个钱包的配置。
     pub config: &'a BankrollConfig,
-    /// Signals to consider. Same-market signals are grouped.
+    /// 考虑的信号。同市场的信号会被合并。
     pub signals: &'a [Signal],
-    /// Optional: market_id → max USDC allocatable (liquidity cap).
+    /// 可选：market_id → 该市场最大可分配 USDC（流动性上限）。
     pub market_liquidity: Option<&'a HashMap<String, String>>,
 }
 
-/// Parse USDC string → f64. Returns None on parse error or non-finite.
+/// 将 USDC 字符串解析为 f64。解析错误或非有限值时返回 None。
 fn parse_usdc(s: &str) -> Option<f64> {
     let v: f64 = s.parse().ok()?;
     if !v.is_finite() || v < 0.0 {
@@ -131,33 +130,33 @@ fn parse_usdc(s: &str) -> Option<f64> {
     Some(v)
 }
 
-/// Format f64 → USDC string with 2 decimals (banker's round).
+/// 将 f64 格式化为保留两位小数的 USDC 字符串（银行家舍入）。
 fn fmt_usdc(v: f64) -> String {
-    // Round to 2 decimals. We use `* 100.0` + `round` / `100.0` for
-    // cent precision. `f64::round` is banker's-round in IEEE 754.
+    // 保留两位小数。使用 `* 100.0` + `round` / `100.0` 以
+    // 达到分精度。`f64::round` 在 IEEE 754 中是银行家舍入。
     let cents = (v * 100.0).round();
     format!("{:.2}", cents / 100.0)
 }
 
-/// Compute the Kelly fraction for a single signal.
+/// 计算单个信号的凯利比例。
 ///
-/// Returns None if:
-/// - market_prob is 0 or 1 (can't compute odds)
-/// - predicted_prob is invalid (< 0; > 1.5 is clamped, ≤ 0 returns None)
-/// - confidence < min_confidence
-/// - edge is non-positive (no edge to bet on)
+/// 在以下情况下返回 None：
+/// - market_prob 为 0 或 1（无法计算赔率）
+/// - predicted_prob 无效（< 0；> 1.5 时被裁剪，≤ 0 时返回 None）
+/// - confidence < min_confidence（置信度低于阈值）
+/// - edge 非正（无可下注的 edge）
 ///
-/// Otherwise returns (kelly_fraction, side). predicted_prob is clamped
-/// to [0, 1] before use to handle LLM output drift gracefully.
+/// 其他情况下返回 (kelly_fraction, side)。predicted_prob 在
+/// 使用前被裁剪到 [0, 1]，以优雅处理 LLM 输出漂移。
 pub fn kelly_fraction(
     signal: &Signal,
     config: &BankrollConfig,
 ) -> Option<(f64, BetSide)> {
     if signal.market_prob <= 0.0 || signal.market_prob >= 1.0 {
-        return None; // can't compute odds
+        return None; // 无法计算赔率
     }
     if signal.predicted_prob < 0.0 {
-        return None; // truly invalid
+        return None; // 真正无效
     }
     let predicted = signal.predicted_prob.clamp(0.0, 1.0);
     if predicted <= 0.0 {
@@ -168,13 +167,13 @@ pub fn kelly_fraction(
     }
     let edge = signal.edge;
     if edge <= 0.0 {
-        return None; // no edge to bet on
+        return None; // 没有可下注的 edge
     }
     let decimal_odds = 1.0 / signal.market_prob;
-    let b = decimal_odds - 1.0; // net odds
+    let b = decimal_odds - 1.0; // 净赔率
     let p = predicted;
     let q = 1.0 - p;
-    let f = (b * p - q) / b; // full Kelly
+    let f = (b * p - q) / b; // 完整凯利
     if f <= 0.0 {
         return None;
     }
@@ -182,15 +181,15 @@ pub fn kelly_fraction(
     Some((f, side))
 }
 
-/// Group signals by `market_id`, keeping the one with max |edge| per
-/// market. Returns the merged signal (using max-edge values) + a list
-/// of source IDs. **Deterministic order**: sorted by `market_id` to
-/// make the result reproducible across HashMap hash randomization.
+/// 按 `market_id` 对信号分组，每个市场保留 |edge| 最大的信号。
+/// 返回合并后的信号（使用 max-edge 的值）和源 ID 列表。
+/// **确定性顺序**：按 `market_id` 排序，使结果在 HashMap 哈希随机化下
+/// 仍可复现。
 fn group_by_market(signals: Vec<Signal>) -> Vec<(Signal, Vec<String>)> {
     let mut groups: HashMap<String, Signal> = HashMap::new();
     let mut ids: HashMap<String, Vec<String>> = HashMap::new();
     for s in signals {
-        let id = s.computed_at.to_string(); // synthetic ID from computed_at
+        let id = s.computed_at.to_string(); // 由 computed_at 生成的合成 ID
         let entry = groups.entry(s.market_id.clone()).or_insert_with(|| s.clone());
         if s.edge.abs() > entry.edge.abs() {
             *entry = s.clone();
@@ -204,7 +203,7 @@ fn group_by_market(signals: Vec<Signal>) -> Vec<(Signal, Vec<String>)> {
             (k, v, source_ids)
         })
         .collect();
-    // Sort by market_id for deterministic order
+    // 按 market_id 排序以保证确定性顺序
     result.sort_by(|a, b| a.0.cmp(&b.0));
     result
         .into_iter()
@@ -212,16 +211,16 @@ fn group_by_market(signals: Vec<Signal>) -> Vec<(Signal, Vec<String>)> {
         .collect()
 }
 
-/// Main entry: compute allocation given bankroll + config + signals.
+/// 主入口：依据资金 + 配置 + 信号计算分配。
 ///
-/// **Algorithm** (see design doc §1):
-/// 1. Filter: |edge| < min_edge_pct → drop
-/// 2. Group: same market_id → 1 signal (max |edge|)
-/// 3. Per-signal: raw_alloc = f_kelly * bankroll
-/// 4. Cap each: min(raw, max_per_signal_pct * bankroll, liquidity)
-/// 5. Reserve: total <= bankroll * (1 - reserve_pct)
-/// 6. If total > max_total: scale all proportionally
-/// 7. Round to 2 decimals
+/// **算法**（参见设计文档 §1）：
+/// 1. 过滤：|edge| < min_edge_pct → 丢弃
+/// 2. 分组：同 market_id → 1 个信号（最大 |edge|）
+/// 3. 单信号：raw_alloc = f_kelly * bankroll
+/// 4. 上限约束：min(raw, max_per_signal_pct * bankroll, liquidity)
+/// 5. 保留：total <= bankroll * (1 - reserve_pct)
+/// 6. 若 total > max_total：按比例缩减所有项
+/// 7. 保留两位小数
 pub fn compute_allocation(input: &AllocationInput) -> AllocationResult {
     let bankroll = match parse_usdc(input.bankroll_usdc) {
         Some(b) if b > 0.0 => b,
@@ -239,7 +238,7 @@ pub fn compute_allocation(input: &AllocationInput) -> AllocationResult {
     let max_total = bankroll * config.max_total_exposure_pct;
     let max_per_signal = bankroll * config.max_per_signal_pct;
 
-    // Step 1: filter signals
+    // 第 1 步：过滤信号
     let filtered: Vec<Signal> = input
         .signals
         .iter()
@@ -256,10 +255,10 @@ pub fn compute_allocation(input: &AllocationInput) -> AllocationResult {
         };
     }
 
-    // Step 2: group by market
+    // 第 2 步：按市场分组
     let grouped = group_by_market(filtered);
 
-    // Step 3+4: per-signal kelly + cap
+    // 第 3+4 步：单信号凯利 + 上限
     let mut items: Vec<AllocationItem> = Vec::new();
     let mut dropped: Vec<String> = vec![];
     for (signal, source_ids) in grouped {
@@ -303,7 +302,7 @@ pub fn compute_allocation(input: &AllocationInput) -> AllocationResult {
         });
     }
 
-    // Step 5: total ≤ (bankroll - reserve)
+    // 第 5 步：total ≤ (bankroll - reserve)
     let total_raw: f64 = items
         .iter()
         .filter_map(|i| parse_usdc(&i.size_usdc))
@@ -311,7 +310,7 @@ pub fn compute_allocation(input: &AllocationInput) -> AllocationResult {
     let cap_by_reserve = bankroll - reserved;
     let effective_cap = max_total.min(cap_by_reserve);
 
-    // Step 6: scale down if total > effective_cap
+    // 第 6 步：若 total > effective_cap 则按比例缩减
     if total_raw > effective_cap && total_raw > 0.0 {
         let scale = effective_cap / total_raw;
         for item in &mut items {
@@ -322,7 +321,7 @@ pub fn compute_allocation(input: &AllocationInput) -> AllocationResult {
         }
     }
 
-    // Final total
+    // 最终总额
     let total_alloc: f64 = items
         .iter()
         .filter_map(|i| parse_usdc(&i.size_usdc))
@@ -358,7 +357,7 @@ mod tests {
         BankrollConfig::default()
     }
 
-    // ============ Basic API ============
+    // ============ 基础 API ============
 
     #[test]
     fn fmt_usdc_rounds_to_2_decimals() {
@@ -378,7 +377,7 @@ mod tests {
         assert_eq!(parse_usdc("NaN"), None);
     }
 
-    // ============ Kelly edge cases ============
+    // ============ Kelly 边界情况 ============
 
     #[test]
     fn kelly_returns_none_for_market_prob_zero() {
@@ -408,7 +407,7 @@ mod tests {
 
     #[test]
     fn kelly_returns_none_for_low_confidence() {
-        let s = sig("m1", 0.10, 0.3); // below 0.6 min
+        let s = sig("m1", 0.10, 0.3); // 低于 0.6 最小值
         assert!(kelly_fraction(&s, &config()).is_none());
     }
 
@@ -416,9 +415,9 @@ mod tests {
     fn kelly_clamps_predicted_above_one() {
         let mut s = sig("m1", 0.10, 0.8);
         s.predicted_prob = 1.5;
-        // Should still compute, but with clamped predicted (=1.0)
-        // edge becomes 0.5, market=0.5, p=1, q=0, b=1
-        // f = (1*1-0)/1 = 1.0 (full Kelly, will be capped)
+        // 仍应能计算，但 predicted 被裁剪（=1.0）
+        // edge 变为 0.5，market=0.5，p=1，q=0，b=1
+        // f = (1*1-0)/1 = 1.0（完整凯利，将被上限约束）
         let (f, _side) = kelly_fraction(&s, &config()).unwrap();
         assert!(f > 0.0);
         assert!(f <= 1.0);
@@ -426,15 +425,15 @@ mod tests {
 
     #[test]
     fn kelly_positive_for_high_confidence_edge() {
-        // edge=0.20, conf=0.9, market=0.5 → decimal_odds=2, b=1
-        // p=0.7, q=0.3, f=(1*0.7-0.3)/1=0.4
+        // edge=0.20, conf=0.9, market=0.5 → decimal_odds=2, b=1（凯利输入参数）
+        // p=0.7, q=0.3, f=(1*0.7-0.3)/1=0.4（凯利比例）
         let s = sig("m1", 0.20, 0.9);
         let (f, side) = kelly_fraction(&s, &config()).unwrap();
         assert!((f - 0.4).abs() < 0.01);
         assert_eq!(side, BetSide::Yes);
     }
 
-    // ============ Allocation: zero bankroll ============
+    // ============ 分配：零资金 ============
 
     #[test]
     fn zero_bankroll_returns_empty() {
@@ -461,7 +460,7 @@ mod tests {
         };
         let r = compute_allocation(&input);
         assert_eq!(r.total_allocated_usdc, "0.00");
-        // Reserve is 20% of 1000 = 200
+        // 保留为 1000 的 20% = 200
         assert_eq!(r.reserved_usdc, "200.00");
     }
 
@@ -478,12 +477,12 @@ mod tests {
         assert!(r.per_market.is_empty());
     }
 
-    // ============ Per-signal cap ============
+    // ============ 单信号上限 ============
 
     #[test]
     fn huge_kelly_capped_at_max_per_signal() {
-        // 100% Kelly with 0.25 multiplier = 25% of bankroll per signal
-        // max_per_signal_pct = 10% → should cap at 100
+        // 100% Kelly，0.25 倍数 = 每个信号占资金的 25%
+        // max_per_signal_pct = 10% → 应被限制为 100
         let signals = vec![sig("m1", 0.30, 0.99)];
         let input = AllocationInput {
             bankroll_usdc: "1000",
@@ -497,12 +496,12 @@ mod tests {
         assert_eq!(r.per_market[0].capped_reason, Some(CappedReason::PerSignalCap));
     }
 
-    // ============ Liquidity cap ============
+    // ============ 流动性上限 ============
 
     #[test]
     fn liquidity_caps_allocation() {
         let mut liq = HashMap::new();
-        liq.insert("m1".to_string(), "30".to_string()); // only $30 liquidity
+        liq.insert("m1".to_string(), "30".to_string()); // 仅 $30 流动性
         let signals = vec![sig("m1", 0.10, 0.8)];
         let input = AllocationInput {
             bankroll_usdc: "1000",
@@ -515,7 +514,7 @@ mod tests {
         assert_eq!(r.per_market[0].capped_reason, Some(CappedReason::Liquidity));
     }
 
-    // ============ Same market grouping ============
+    // ============ 同市场合并 ============
 
     #[test]
     fn same_market_signals_grouped() {
@@ -550,18 +549,18 @@ mod tests {
             market_liquidity: None,
         };
         let r = compute_allocation(&input);
-        assert_eq!(r.per_market.len(), 1); // grouped
-        // Higher |edge| (0.20) wins
+        assert_eq!(r.per_market.len(), 1); // 已合并
+        // 较高 |edge|（0.20）胜出
         assert_eq!(r.per_market[0].confidence, 0.9);
         assert_eq!(r.per_market[0].model_version, "m2");
     }
 
-    // ============ Total exposure cap ============
+    // ============ 总敞口上限 ============
 
     #[test]
     fn total_exposure_caps_via_proportional_scale() {
-        // 10 signals with edge=0.30 conf=0.99 → each wants huge allocation
-        // Without total cap: would over-allocate. With 80% cap: scale down.
+        // 10 个 edge=0.30 conf=0.99 的信号 → 每个都希望大额分配
+        // 没有总上限时：会超配。设置 80% 上限：按比例缩减。
         let signals: Vec<Signal> = (0..10)
             .map(|i| sig(&format!("m{}", i), 0.30, 0.99))
             .collect();
@@ -572,9 +571,9 @@ mod tests {
             market_liquidity: None,
         };
         let r = compute_allocation(&input);
-        // Per-signal cap = $100 (10% of 1000)
-        // 10 signals = $1000 raw. Effective cap = min(800, 800) = 800.
-        // Scale = 0.8 → each = $80
+        // 单信号上限 = $100（1000 的 10%）
+        // 10 个信号 = $1000 原始。有效上限 = min(800, 800) = 800。
+        // 比例 = 0.8 → 每个 = $80
         assert!(r.per_market.len() == 10);
         for item in &r.per_market {
             assert_eq!(item.size_usdc, "80.00");
@@ -583,7 +582,7 @@ mod tests {
         assert_eq!(r.total_allocated_usdc, "800.00");
     }
 
-    // ============ Determinism ============
+    // ============ 确定性 ============
 
     #[test]
     fn same_input_same_output() {

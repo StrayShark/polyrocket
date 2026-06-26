@@ -1,17 +1,15 @@
-//! L3 — Mirror queue executor (M5 auto-execution).
+//! L3 — Mirror 队列执行器 (M5 自动执行)。
 //!
-//! Decides which pending mirrors should be submitted as Mode B bets
-//! RIGHT NOW, given current capacity (one bet per cycle to avoid
-//! overwhelming the user with auto-trades).
+//! 根据当前容量,决定哪些 pending mirrors 应该作为 Mode B 投注
+//! 立即提交(每周期一笔,避免自动交易压垮用户)。
 //!
-//! State machine (already in domain::copy::MirrorStatus):
-//!   Pending → Submitted (after executor picks it up)
-//!   Pending → Rejected (insufficient capacity, market closed, etc.)
-//!   Submitted → Filled | Rejected (later, when on-chain confirmation
-//!                                       arrives — M5 phase 2)
+//! 状态机 (已存在于 domain::copy::MirrorStatus):
+//!   Pending → Submitted (执行器拾取后)
+//!   Pending → Rejected (容量不足、市场已关闭等)
+//!   Submitted → Filled | Rejected (后续链上确认到达时 — M5 phase 2)
 //!
-//! v0.6a — pure decision logic. The L2 scheduler (infra::scheduler)
-//! is the runtime that calls `pick_next_mirror` every N seconds.
+//! v0.6a — 纯决策逻辑。L2 scheduler (infra::scheduler) 是运行时,
+//! 每 N 秒调用 `pick_next_mirror`。
 
 use crate::domain::copy::{MirrorOrder, MirrorStatus};
 use crate::AppError;
@@ -19,32 +17,27 @@ use crate::AppResult;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-/// Configurable caps for the auto-executor.
+/// 自动执行器的可配置上限。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutorConfig {
-    /// Maximum total USDC exposure across all open mirrors.
+    /// 所有未平仓 mirror 的最大总 USDC 敞口。
     pub max_total_exposure_usdc: f64,
-    /// Maximum number of mirrors to submit per cycle.
+    /// 每周期提交的最大 mirror 数量。
     pub max_per_cycle: usize,
-    /// Minimum size to bother with (dust filter).
+    /// 值得处理的最小尺寸(dust filter)。
     pub min_size_usdc: f64,
-    /// Don't submit mirrors for markets closing in less than this many
-    /// hours (too risky to settle).
+    /// 不要提交距收市时间少于这么多小时的 mirror
+    /// (结算风险太高)。
     pub min_horizon_hours: i64,
-    /// v0.44a — paper mode. When true, picked
-    /// mirrors go to the `paper_fills` table
-    /// instead of `bets`, and the CLOB signing
-    /// step is skipped. The decision logic
-    /// (what to pick, what to reject) is
-    /// unchanged — paper mode only changes the
-    /// write path. This lets the user validate
-    /// their config (sizing, exposure caps,
-    /// frequency) without risking real money.
+    /// v0.44a — paper mode（纸面模式）。开启时，被选中的 mirror
+    /// 写入 `paper_fills` 表而不是 `bets`，且跳过 CLOB 签名步骤。
+    /// 决策逻辑（选什么、拒绝什么）保持不变 —— paper mode
+    /// 只改变写入路径。这让用户能验证自己的配置（仓位、暴露上限、
+    /// 频率）而不冒真实资金的风险。
     ///
-    /// Default false (live mode). Runtime
-    /// override via `set_mirror_executor_paper_mode`
-    /// IPC; env-var default via
-    /// `POLYROCKET_MIRROR_PAPER_MODE=1`.
+    /// 默认 false（实盘模式）。运行时可通过
+    /// `set_mirror_executor_paper_mode` IPC 覆盖；
+    /// 环境变量默认通过 `POLYROCKET_MIRROR_PAPER_MODE=1`。
     pub paper_mode: bool,
 }
 
@@ -92,18 +85,18 @@ impl ExecutorConfig {
     }
 }
 
-/// Reasons a mirror was rejected (for audit log + UI).
+/// Mirror 被拒绝的原因(用于 audit log + UI)。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RejectReason {
-    /// Size below min_size_usdc
+    /// Size 低于 min_size_usdc
     TooSmall,
-    /// Market closes too soon
+    /// Market 收市时间过早
     TooShortHorizon,
-    /// Total exposure would exceed cap
+    /// 总敞口将超过上限
     OverExposure,
-    /// Order is older than max_age_ms (stale)
+    /// Order 超过 max_age_ms (陈旧)
     Stale,
-    /// Internal: missing market_id
+    /// 内部: 缺失 market_id
     Invalid,
 }
 
@@ -119,7 +112,7 @@ impl RejectReason {
     }
 }
 
-/// Compute current total USDC exposure across all in-flight mirrors.
+/// 计算所有进行中 mirror 的当前总 USDC 敞口。
 pub fn current_exposure(orders: &[MirrorOrder]) -> f64 {
     orders
         .iter()
@@ -128,23 +121,23 @@ pub fn current_exposure(orders: &[MirrorOrder]) -> f64 {
         .sum()
 }
 
-/// Pick the next batch of mirrors to submit. Returns the IDs of
-/// mirrors that should be promoted Pending → Submitted, in order.
+/// 挑选下一批要提交的 mirrors。返回应被提升 Pending → Submitted 的
+/// mirror ID,按顺序排列。
 ///
-/// Inputs:
-/// - `orders` — current mirror queue (any status)
-/// - `market_closes_at` — map of market_id → close timestamp (ms).
-///   The L2 caller resolves this from the markets table.
-/// - `now_ms` — current time
-/// - `cfg` — executor config
+/// 输入:
+/// - `orders` — 当前 mirror 队列(任何状态)
+/// - `market_closes_at` — market_id → 收市时间戳 (ms) 的映射。
+///   L2 调用方从 markets 表解析这个。
+/// - `now_ms` — 当前时间
+/// - `cfg` — executor 配置
 pub fn pick_next_mirror(
     orders: &[MirrorOrder],
     market_closes_at: &std::collections::HashMap<String, i64>,
     now_ms: i64,
     cfg: &ExecutorConfig,
 ) -> Vec<String> {
-    // Headroom counts only SUBMITTED mirrors (already locked-in exposure);
-    // pending candidates are evaluated individually against the cap.
+    // Headroom 只计算 SUBMITTED mirrors (已锁定的敞口);
+    // pending candidates 单独与上限对比评估。
     let submitted_exposure: f64 = orders
         .iter()
         .filter(|o| o.status == MirrorStatus::Submitted)
@@ -152,7 +145,7 @@ pub fn pick_next_mirror(
         .sum();
     let headroom = (cfg.max_total_exposure_usdc - submitted_exposure).max(0.0);
 
-    // Eligible = Pending AND size ≥ min AND not stale AND horizon OK
+    // 满足条件 = Pending 且 size ≥ min 且未过期 且 horizon OK
     let mut eligible: Vec<&MirrorOrder> = orders
         .iter()
         .filter(|o| o.status == MirrorStatus::Pending)
@@ -167,7 +160,7 @@ pub fn pick_next_mirror(
             }
         })
         .collect();
-    // Newest first (FIFO)
+    // 最新优先 (FIFO)
     eligible.sort_by_key(|o| std::cmp::Reverse(o.created_at));
 
     let mut out = Vec::new();
@@ -178,7 +171,7 @@ pub fn pick_next_mirror(
         }
         let size: f64 = o.size.parse().unwrap_or(0.0);
         if used + size > headroom {
-            continue; // would bust the cap; skip but try next
+            continue; // 会突破上限;跳过但尝试下一个
         }
         out.push(o.id.clone());
         used += size;
@@ -186,8 +179,8 @@ pub fn pick_next_mirror(
     out
 }
 
-/// Decide which pending mirrors to reject this cycle (and why).
-/// Returns a vec of (mirror_id, reason).
+/// 决定本周期要拒绝哪些 pending mirrors(及原因)。
+/// 返回 (mirror_id, reason) 的 vec。
 pub fn find_rejections(
     orders: &[MirrorOrder],
     market_closes_at: &std::collections::HashMap<String, i64>,
@@ -225,14 +218,14 @@ pub fn find_rejections(
     out
 }
 
-/// Pretty-print a timestamp for the audit log.
+/// 为 audit log 美化打印时间戳。
 pub fn fmt_ts(ms: i64) -> String {
     DateTime::<Utc>::from_timestamp_millis(ms)
         .map(|d| d.format("%Y-%m-%dT%H:%M:%SZ").to_string())
         .unwrap_or_else(|| format!("invalid_ts_{ms}"))
 }
 
-/// Run a one-shot executor pass. Pure function — caller does the IO.
+/// 运行一次性的 executor pass。纯函数——调用方负责 IO。
 pub fn execute_pass(
     orders: &[MirrorOrder],
     market_closes_at: &std::collections::HashMap<String, i64>,
@@ -301,7 +294,7 @@ mod tests {
             mk_order("m1", "100", now() - 1000),
             mk_order("m2", "50", now() - 2000),
         ];
-        // third one is filled → not counted
+        // 第三个是 filled → 不计入
         let mut o3 = mk_order("m3", "999", now() - 3000);
         o3.status = MirrorStatus::Filled;
         orders.push(o3);
@@ -353,19 +346,19 @@ mod tests {
     #[test]
     fn pick_respects_exposure_cap() {
         let cfg = ExecutorConfig { max_total_exposure_usdc: 50.0, ..Default::default() };
-        // Existing exposure: 30 (one submitted). Headroom: 20.
+        // 现有敞口: 30 (一个 submitted)。Headroom: 20。
         let mut existing = mk_order("mx", "30", now() - 5000);
         existing.status = MirrorStatus::Submitted;
         let candidates = vec![
-            mk_order("m1", "15", now() - 1000), // would fit (30+15=45)
-            mk_order("m2", "25", now() - 2000), // busts cap (30+25=55)
+            mk_order("m1", "15", now() - 1000), // 能装下 (30+15=45)
+            mk_order("m2", "25", now() - 2000), // 突破上限 (30+25=55)
         ];
         let mut orders = vec![existing];
         orders.extend(candidates);
         let closes = std::collections::HashMap::from([closes("m1", 24), closes("m2", 24)]);
         let picks = pick_next_mirror(&orders, &closes, now(), &cfg);
         assert_eq!(picks.len(), 1);
-        // id format = mir_{tx_hash}_{market} = mir_0xm1_tx_m1
+        // id 格式 = mir_{tx_hash}_{market} = mir_0xm1_tx_m1
         assert_eq!(picks[0], "mir_0xm1_tx_m1");
     }
 
@@ -386,7 +379,7 @@ mod tests {
         let rejects = find_rejections(&orders, &closes, now(), &cfg);
         assert_eq!(rejects.len(), 3);
         let by_id: std::collections::HashMap<_, _> = rejects.into_iter().collect();
-        // id format = mir_{event.tx_hash}_{market} = mir_0xsmall_tx_small
+        // id 格式 = mir_{event.tx_hash}_{market} = mir_0xsmall_tx_small
         assert_eq!(by_id["mir_0xsmall_tx_small"], RejectReason::TooSmall);
         assert_eq!(by_id["mir_0xshort_tx_short"], RejectReason::TooShortHorizon);
         assert_eq!(by_id["mir_0xstale_tx_stale"], RejectReason::Stale);
@@ -410,20 +403,18 @@ mod tests {
         assert!(s.ends_with('Z'));
     }
 
-    // v0.44a — paper_mode default + env override.
-    // Each test starts by clearing the env var so
-    // the test order doesn't matter (cargo runs
-    // tests in parallel; without this, the
-    // `paper_mode_1` test would leak its env var
-    // to other tests in the same binary). The
-    // `serial_test` crate would be the cleanest
-    // fix, but to avoid adding a new dep, we just
-    // run these as part of the same test (combined
-    // into one sequential test) and assert all the
-    // cases at once.
+    // v0.44a — paper_mode 默认值 + env 覆盖。
+    // 每个测试开始时清除 env var,这样
+    // 测试顺序无所谓 (cargo 并行跑测试;
+    // 不这么做的话,`paper_mode_1` 测试
+    // 会把 env var 泄漏给同 binary 中的
+    // 其他测试)。`serial_test` crate 是最干净的
+    // 修复方案,但为避免新增 dep,我们把这些
+    // 整合到一个测试中(组合成一个串行测试),
+    // 一次性断言所有情况。
     #[test]
     fn executor_config_paper_mode_all_cases() {
-        // Default off
+        // 默认关闭
         std::env::remove_var("POLYROCKET_MIRROR_PAPER_MODE");
         let c = ExecutorConfig::default();
         assert!(!c.paper_mode);
@@ -435,17 +426,17 @@ mod tests {
         let c = ExecutorConfig::from_env();
         assert!(c.paper_mode);
 
-        // "TRUE" case-insensitive = on
+        // "TRUE" 大小写不敏感 = 开启
         std::env::set_var("POLYROCKET_MIRROR_PAPER_MODE", "TRUE");
         let c = ExecutorConfig::from_env();
         assert!(c.paper_mode);
 
-        // 0 = off
+        // 0 = 关闭
         std::env::set_var("POLYROCKET_MIRROR_PAPER_MODE", "0");
         let c = ExecutorConfig::from_env();
         assert!(!c.paper_mode);
 
-        // Unset = off
+        // 未设置 = 关闭
         std::env::remove_var("POLYROCKET_MIRROR_PAPER_MODE");
         let c = ExecutorConfig::from_env();
         assert!(!c.paper_mode);

@@ -1,25 +1,24 @@
-//! L4 — v0.123 dev bootstrap.
+//! L4 —— v0.123 开发态 bootstrap。
 //!
-//! On startup, when `POLYROCKET_ENV=dev` (and keyring-only mode is
-//! off — the v0.119 default), inspect the loaded `.env` and
-//! self-register LLM provider rows + a PM wallet row so the L1
-//! has something to render. This eliminates the "fresh DB has
-//! nothing to show" problem that blocked the v0.121 UI E2E
-//! (the Welcome flow was the only place these rows got created;
-//! skipping Welcome left the dashboard empty).
+//! 启动时,当 `POLYROCKET_ENV=dev`(且 keyring-only 模式
+//! 关闭 —— v0.119 的默认)时,检查加载的 `.env` 并
+//! 自注册 LLM provider 行 + PM wallet 行,让 L1 有
+//! 内容可渲染。这消除了 v0.121 UI E2E 阻塞的
+//! "全新 DB 没什么可显示" 问题
+//!（之前这些行只在 Welcome 流程中创建;
+//! 跳过 Welcome 就会留下空 dashboard）。
 //!
-//! Idempotent: every operation is `INSERT OR IGNORE` or
-//! `INSERT OR REPLACE` keyed on a deterministic id, so calling
-//! `bootstrap()` on every boot is safe and converges to the
-//! canonical state.
+//! 幂等:每次操作都是基于确定 id 的 `INSERT OR IGNORE`
+//! 或 `INSERT OR REPLACE`,所以每次启动都调用
+//! `bootstrap()` 都是安全的,且收敛到规范状态。
 //!
-//! Layer rules: this module sits at L4 (infrastructure) and
-//! uses L4 `infra::db::pool` + L4 `platform::env` (the .env
-//! loader already populated the process env). It does NOT
-//! call into L2/L3 IPC handlers — the LLM provider upsert
-//! goes through the SQL path directly (a literal copy of what
-//! `commands::llm_mgmt::llm_provider_upsert` does, minus the
-//! specta wrapper).
+//! 分层规则:本模块位于 L4(基础设施),使用
+//! L4 `infra::db::pool` + L4 `platform::env`(.env 加载器
+//! 已填充 process env)。它**不**调
+//! L2/L3 IPC handler —— LLM provider upsert
+//! 直接走 SQL 路径(逐字复制
+//! `commands::llm_mgmt::llm_provider_upsert`,去掉
+//! specta 包装)。
 
 use crate::infra::error::AppResult;
 use crate::infra::state::AppState;
@@ -28,14 +27,14 @@ use sqlx::SqlitePool;
 use tauri::AppHandle;
 use tauri::Manager;
 
-/// Run the bootstrap. Safe to call from `lib.rs::run()`'s
-/// setup hook on every boot. Errors are logged but do NOT
-/// fail the boot — the app stays usable even if .env is
-/// missing or the DB is read-only.
+/// 运行 bootstrap。可在 `lib.rs::run()` 的
+/// setup hook 中每次启动都安全调用。错误会
+/// 记录但**不**让启动失败 —— 即使 .env 缺失
+/// 或 DB 只读,app 仍可使用。
 pub fn bootstrap(app: &AppHandle) {
-    // Gating: same rules as the .env loader. Without the
-    // dev-mode flag we don't auto-register (a real production
-    // user expects to paste their own keys).
+    // 门控:与 .env loader 同规则。缺少 dev-mode
+    // 标志时我们不会自动注册(真实生产用户
+    // 期望自己粘贴密钥)。
     let env_name = std::env::var("POLYROCKET_ENV").unwrap_or_default();
     let keyring_only = std::env::var("POLYROCKET_KEYRING_ONLY")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
@@ -49,10 +48,11 @@ pub fn bootstrap(app: &AppHandle) {
 
     let pool = app.state::<AppState>().db.clone();
 
-    // We're already inside the Tauri async runtime (the
-    // setup hook runs on it). Just spawn a task — DO NOT
-    // use `block_on` here, that panics with "Cannot start
-    // a runtime from within a runtime".
+    // 我们已经在 Tauri async runtime 中
+    //（setup hook 跑在它上面）。直接 spawn
+    // task —— **不**要在这里用 `block_on`,
+    // 否则会 panic "Cannot start a runtime
+    // from within a runtime"。
     tauri::async_runtime::spawn(async move {
         match do_bootstrap(&pool).await {
             Ok(n) => tracing::info!("v0.123 bootstrap: {n} action(s) applied"),
@@ -69,16 +69,16 @@ async fn do_bootstrap(pool: &SqlitePool) -> AppResult<usize> {
     Ok(actions)
 }
 
-/// Walk the candidate LLM provider list. For each one with a
-/// `*_API_KEY` env var set, INSERT OR IGNORE a row into
-/// `llm_providers` + `llm_provider_keys` (the two tables the
-/// LLM dispatch IPC reads from).
+/// 遍历候选 LLM provider 列表。对每个设置了
+/// `*_API_KEY` 环境变量的,在 `llm_providers` +
+/// `llm_provider_keys`(LLM dispatch IPC 读取的
+/// 两张表)里 `INSERT OR IGNORE` 一行。
 async fn register_llm_providers(pool: &SqlitePool) -> AppResult<usize> {
-    // Candidates mirrored from `e2e_football::bootstrap_providers`.
-    // The id here is the SHORT form (e.g. `MiniMax`); the
-    // `llm_providers.id` column stores the same short form, and
-    // `pick_keys` matches on it. The env var name is
-    // `{id_uppercase}_API_KEY` (e.g. `MINIMAX_API_KEY`).
+    // 候选镜像自 `e2e_football::bootstrap_providers`。
+    // 这里的 id 是 SHORT 形式(如 `MiniMax`);
+    // `llm_providers.id` 列存的就是这种 short 形式,
+    // `pick_keys` 也按它匹配。环境变量名为
+    // `{id_uppercase}_API_KEY`(如 `MINIMAX_API_KEY`)。
     let candidates: &[(&str, &str, &str, &str, f64, f64)] = &[
         ("MiniMax", "MiniMax (M2.7)",         "https://api.minimax.chat/v1",                "MiniMax-M2.7",                 0.4,  1.2),
         ("doubao",  "Doubao (火山方舟)",        "https://ark.cn-beijing.volces.com/api/coding/v3",   "doubao-seed-2-0-pro-260215",   0.08, 0.08),
@@ -97,9 +97,9 @@ async fn register_llm_providers(pool: &SqlitePool) -> AppResult<usize> {
             None => continue,
         };
 
-        // 1) upsert into llm_providers. The id column stores
-        //    the SHORT form (e.g. `MiniMax`) — same form as
-        //    `llm_provider_keys.provider_id`.
+        // 1) upsert 到 llm_providers。id 列存的是
+        //    SHORT 形式(如 `MiniMax`)—— 与
+        //    `llm_provider_keys.provider_id` 形式一致。
         let upsert_ok = sqlx::query(
             "INSERT INTO llm_providers
                 (id, display_name, provider_kind, request_format, supports_streaming,
@@ -129,8 +129,8 @@ async fn register_llm_providers(pool: &SqlitePool) -> AppResult<usize> {
             continue;
         }
 
-        // 2) insert a matching llm_provider_keys row (the dispatch IPC
-        //    reads from this table — without a row, "no enabled keys").
+        // 2) 插入对应的 llm_provider_keys 行(dispatch IPC
+        //    读这张表 —— 没有行就 "no enabled keys")。
         let key_id = format!("{id}-prod-1-bootstrap");
         let keyring_alias = format!("llm/{id}/prod-1");
         let ins = sqlx::query(
@@ -153,7 +153,7 @@ async fn register_llm_providers(pool: &SqlitePool) -> AppResult<usize> {
                 tracing::info!("bootstrap: registered {id} (key_len={})", secret.len());
             }
             Ok(_) => {
-                // already present — idempotent skip
+                // 已存在 —— 幂等跳过
             }
             Err(e) => {
                 tracing::warn!("bootstrap: llm_provider_keys insert for {id} failed: {e}");
@@ -164,18 +164,18 @@ async fn register_llm_providers(pool: &SqlitePool) -> AppResult<usize> {
     Ok(count)
 }
 
-/// Insert a placeholder `wallets` row for the L2 PM address so
-/// the L1 has a wallet to display. We do NOT have the address
-/// from the .env (the .env only has the L2 API key/secret/passphrase,
-/// not the L1 polygon address); we leave address blank and let the
-/// Welcome flow fill it in if the user wants to use Mode A.
+/// 为 L2 PM 地址插入占位 `wallets` 行,让 L1
+/// 有 wallet 可显示。我们**不**从 .env
+/// 拿地址(.env 只有 L2 API key/secret/passphrase,
+/// 没有 L1 polygon 地址);我们把 address 留空,
+/// 让 Welcome 流程在用户想用 Mode A 时填进去。
 ///
-/// For the simplified v0.123 UI this row is only used to make
-/// `list_wallets` return at least one entry (so the sidebar
-/// footer can show "1 wallet"). It carries no balance — the
-/// balance IPC hits the CLOB API directly.
+/// 对 v0.123 简化的 UI 来说,这一行只是
+/// 让 `list_wallets` 至少返回一条
+///（让侧栏 footer 能显示 "1 wallet"）。
+/// 它不带余额 —— 余额 IPC 直连 CLOB API。
 async fn register_pm_wallet(pool: &SqlitePool) -> AppResult<usize> {
-    // Skip if any wallet already exists.
+    // 若已有 wallet 则跳过。
     let existing: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM wallets")
         .fetch_one(pool)
         .await?;
@@ -198,32 +198,32 @@ async fn register_pm_wallet(pool: &SqlitePool) -> AppResult<usize> {
     Ok(1)
 }
 
-// Suppress unused warnings on the `json!` macro import (kept for
-// future use when we expand this to write richer provider metadata).
+// 抑制 `json!` 宏 import 的 unused 警告
+//（保留供将来扩展写更丰富的 provider metadata 时使用）。
 #[allow(dead_code)]
 fn _force_json_use() -> serde_json::Value {
     json!({})
 }
 
-/// v0.123 — expire stale markets on every boot.
+/// v0.123 —— 每次启动时过期陈旧 market。
 ///
-/// The seed bundle (and any future fixture) hardcodes `end_date`
-/// values. As real time advances, markets whose `end_date` is in
-/// the past should no longer appear in the active list. Without
-/// this pass, the L1 keeps showing "active" pills on matches that
-/// actually closed months ago (e.g. UCL final in January, La Liga
-/// in May — visible on 2026-06-23 even though both events are
-/// over).
+/// seed bundle(以及任何未来的 fixture)硬编码了 `end_date`
+/// 值。随着真实时间前进,`end_date` 已过的 market 不应再
+/// 出现在 active 列表中。没有这次扫描,L1 会一直
+/// 在已关闭数月的比赛上显示 "active" 徽标
+///（例如 1 月的 UCL 决赛、5 月的 La Liga —— 在
+/// 2026-06-23 仍然可见,虽然两项赛事都已结束）。
 ///
-/// The fix: on every bootstrap, flip `active=0` for any market
-/// where `end_date < now_ms AND active=1`. Idempotent and cheap
-/// (one UPDATE, usually 0 rows after the first run).
+/// 修复办法:每次 bootstrap 时,把满足
+/// `end_date < now_ms AND active=1` 的 market 翻成
+/// `active=0`。幂等且轻量(一次 UPDATE,通常
+/// 第一次之后影响 0 行)。
 ///
-/// **Scope**: this only flips the `active` flag — it does NOT
-/// touch `resolved` / `outcome` (those are set by the PM sync
-/// when the real result lands). For seed data with no PM link,
-/// `resolved` stays 0 but `active=0` is enough to hide the row
-/// from the active-only market list.
+/// **范围**:本函数只翻 `active` 标志 —— **不**碰
+/// `resolved` / `outcome`（那两项由 PM sync 在
+/// 真实结果到达时设置）。对没有 PM 链接的 seed
+/// 数据,`resolved` 保持 0,但 `active=0` 足以让
+/// 这行从 active-only 列表中隐藏。
 async fn expire_stale_markets(pool: &SqlitePool) -> AppResult<usize> {
     let now_ms = chrono::Utc::now().timestamp_millis();
     let result = sqlx::query(

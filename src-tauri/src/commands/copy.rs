@@ -1,8 +1,8 @@
-//! L2 — Copy trading (M7).
+//! L2 —— 跟单交易（M7）。
 //!
-//! IPCs: `list_copy_targets`, `add_copy_target`, `recent_copy_events`.
-//! Watches whale addresses for on-chain trades; real impl lands in
-//! `domain::copy` per M7 milestone.
+//! IPC:list_copy_targets、add_copy_target、recent_copy_events。
+//! 监控巨鲸地址的链上交易;真实实现位于
+//! M7 里程碑的 `domain::copy`。
 
 use crate::AppResult;
 use crate::infra::state::AppState;

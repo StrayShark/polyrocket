@@ -1,84 +1,81 @@
-//! L3 — Audit log retention policy (pure).
+//! L3 — 审计日志保留策略（纯函数）。
 //!
-//! Without bounds, the `audit_log` table grows unbounded (every IPC
-//! writes one). After ~1 year of heavy use that could be 100k+ rows.
-//! This module decides which rows to keep and which to purge.
+//! 如果不加限制，`audit_log` 表会无限增长（每次 IPC 都会写入一条）。
+//! 重度使用约 1 年后可能累积 10 万行以上。
+//! 本模块决定保留哪些行、清理哪些行。
 //!
-//! Strategy: **age-based with a safety floor**.
-//!   - Keep at most `max_rows` rows total
-//!   - Keep at least `min_keep_rows` rows even if they're old
-//!   - Always keep the most recent `retain_recent_ms` (e.g. 90 days)
+//! 策略：**基于年龄的保留 + 安全下限**。
+//!   - 最多保留 `max_rows` 行
+//!   - 至少保留 `min_keep_rows` 行（即便时间较旧）
+//!   - 始终保留最近 `retain_recent_ms` 内的记录（例如 90 天）
 //!
-//! The pure function `plan_purge(rows, policy) -> Vec<id_to_delete>` is
-//! tested in isolation; `infra::db::audit::purge_old` applies it.
+//! 纯函数 `plan_purge(rows, policy) -> Vec<id_to_delete>` 单独测试；
+//! 实际清理由 `infra::db::audit::purge_old` 执行。
 
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-/// Retention policy. Defaults target ~90 days of history with a
-/// hard floor of 1000 rows (so a quiet user still has data).
+/// 保留策略。默认目标是约 90 天的历史记录，并设置
+/// 1000 行的硬下限（以确保低频用户仍有数据）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetentionPolicy {
-    /// Maximum age in milliseconds. Rows older than this are eligible
-    /// for purge (subject to `min_keep_rows`).
+    /// 最大保留时长（毫秒）。早于此时间且超过 `min_keep_rows` 的行可被清理。
     pub retain_recent_ms: i64,
-    /// Hard cap on total row count. If we exceed this, the oldest
-    /// rows are purged regardless of age.
+    /// 总行数硬上限。若超过此值，则不论新旧都会清理最旧的行。
     pub max_rows: i64,
-    /// Safety floor: never auto-purge below this many rows, even if
-    /// they're ancient. Default 1000 so users always have context.
+    /// 安全下限：即便数据非常旧，也不会自动清理至低于此行数。
+    /// 默认 1000，确保用户始终保留一定的上下文。
     pub min_keep_rows: i64,
 }
 
 impl Default for RetentionPolicy {
     fn default() -> Self {
         Self {
-            // 90 days
+            // 90 天
             retain_recent_ms: 90 * 86_400_000,
-            // 50k rows
+            // 5 万行
             max_rows: 50_000,
-            // 1000 rows floor
+            // 1000 行下限
             min_keep_rows: 1000,
         }
     }
 }
 
-/// A row's identity + timestamp, in the order returned by the SQL
-/// "ORDER BY at DESC" query. We need the timestamps to apply the
-/// age policy; we need the ids to know what to delete.
+/// 单行的标识与时间戳，按 SQL `ORDER BY at DESC` 返回的顺序。
+/// 时间戳用于应用年龄策略；id 用于确定要删除的记录。
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct AuditRow {
     pub id: i64,
     pub at: i64,
 }
 
-/// Plan output: which row ids to delete.
+/// 计划输出：要删除的行 id 列表。
 pub fn plan_purge(rows: &[AuditRow], policy: &RetentionPolicy, now_ms: i64) -> Vec<i64> {
     if rows.is_empty() {
         return Vec::new();
     }
-    // 1. Compute the cutoff: rows with `at < cutoff` are age-eligible
+    // 1. 计算截止时间：`at < cutoff` 的行符合年龄清理条件
     let cutoff = now_ms - policy.retain_recent_ms;
 
-    // 2. Walk newest→oldest; collect ids that are BOTH:
-    //    - age-eligible (at < cutoff), AND
-    //    - not within the safety floor (id is past index min_keep_rows)
+    // 2. 从新到旧遍历；收集同时满足以下条件的 id：
+    //    - 符合年龄清理条件（at < cutoff），且
+    //    - 不在安全下限内（id 索引超过 min_keep_rows）
     let mut to_delete: Vec<i64> = Vec::new();
     for (idx, row) in rows.iter().enumerate() {
         if idx < policy.min_keep_rows as usize {
-            continue;  // within safety floor
+            continue;  // 在安全下限内
         }
         if row.at >= cutoff {
-            break;  // hit a fresh row — everything older is also fresh (rows are sorted DESC)
+            break;  // 遇到较新行 —— 由于按 DESC 排序，更早的行也均为较新行
         }
         to_delete.push(row.id);
     }
-    let _ = policy.max_rows;  // reserved for future "even if fresh, cap total" use
+    let _ = policy.max_rows;  // 保留供未来"即使较新也要限制总数"使用
     to_delete
 }
 
-/// Count the rows that *would* be deleted without actually building
-/// the id list. Useful for logging.
+/// 统计将被删除的行数，但实际不构造 id 列表。
+/// 便于日志输出。
 pub fn count_purgeable(rows: &[AuditRow], policy: &RetentionPolicy, now_ms: i64) -> usize {
     plan_purge(rows, policy, now_ms).len()
 }
@@ -98,7 +95,7 @@ mod tests {
 
     #[test]
     fn all_recent_returns_empty() {
-        // 10 rows, all within the 90-day window
+        // 10 行，全部位于 90 天窗口内
         let now = 1_000_000_000_000;
         let rows: Vec<AuditRow> = (0..10).map(|i| row(i, now - i * 3_600_000)).collect();
         let to_del = plan_purge(&rows, &RetentionPolicy::default(), now);
@@ -107,34 +104,33 @@ mod tests {
 
     #[test]
     fn all_old_purges_above_floor() {
-        // 100 rows, all 1 year old (way past 90 days)
+        // 100 行，全部为 1 年前（远超 90 天）
         let now = 1_000_000_000_000;
         let one_year_ago = now - 365 * 86_400_000;
         let rows: Vec<AuditRow> = (0..100).map(|i| row(i, one_year_ago + i)).collect();
         let policy = RetentionPolicy::default();  // min_keep_rows = 1000
-        // Floor is 1000, we have 100 → all kept
+        // 下限为 1000，当前仅 100 行 → 全部保留
         assert!(plan_purge(&rows, &policy, now).is_empty());
     }
 
     #[test]
     fn old_above_floor_purges() {
-        // 1500 rows: 1000 newest kept, 500 oldest purged
+        // 1500 行：保留最新 1000 行，清理最早 500 行
         let now = 1_000_000_000_000;
         let old = now - 365 * 86_400_000;
         let mut rows: Vec<AuditRow> = Vec::new();
         for i in 0..500 {
-            rows.push(row(1000 + i, old + i));   // old rows
+            rows.push(row(1000 + i, old + i));   // 旧行
         }
         for i in 0..1000 {
-            rows.push(row(i, now - i * 3_600_000));  // recent rows
+            rows.push(row(i, now - i * 3_600_000));  // 较新行
         }
-        // rows are NOT sorted; the function expects them sorted DESC by `at`.
+        // rows 当前未排序；该函数要求按 `at` 降序排序。
         rows.sort_by(|a, b| b.at.cmp(&a.at));
         let policy = RetentionPolicy::default();
         let to_del = plan_purge(&rows, &policy, now);
-        // The first 1000 (newest) are within the floor; rows beyond that
-        // are checked for age. All 500 old rows are past the floor AND old
-        // → all 500 deleted.
+        // 前 1000 行（最新）位于安全下限内；超出部分再按年龄判断。
+        // 全部 500 条旧行均超过下限且已过期 → 500 条全部被删除。
         assert_eq!(to_del.len(), 500);
     }
 
@@ -142,9 +138,9 @@ mod tests {
     fn mixed_old_and_new_keeps_new() {
         let now = 1_000_000_000_000;
         let old = now - 365 * 86_400_000;
-        // Sorted DESC: 5 new (within 90d), then 5 old (1 year ago)
+        // 降序排序：5 条新行（90 天内），随后 5 条旧行（1 年前）
         let rows = vec![
-            row(1, now - 1_000),    // newest
+            row(1, now - 1_000),    // 最新
             row(2, now - 2_000),
             row(3, now - 3_000),
             row(4, now - 4_000),
@@ -157,19 +153,19 @@ mod tests {
         ];
         let policy = RetentionPolicy::default();
         let to_del = plan_purge(&rows, &policy, now);
-        // min_keep_rows = 1000, so 5 new + 5 old all kept (10 < 1000)
+        // min_keep_rows = 1000，因此 5 新 + 5 旧全部保留（10 < 1000）
         assert!(to_del.is_empty());
     }
 
     #[test]
     fn cutoff_at_exact_boundary_is_retained() {
-        // Row at exactly `cutoff` is considered recent (>=, not <)
+        // 处于恰好 `cutoff` 位置的行视为较新（>=, 而非 <）
         let now = 1_000_000_000_000;
         let policy = RetentionPolicy { retain_recent_ms: 1000, ..Default::default() };
         let rows = vec![row(1, now - 1000), row(2, now - 1001)];
         let to_del = plan_purge(&rows, &policy, now);
-        // Row 1 is at the boundary → kept. Row 2 is past → purged,
-        // but it's also within min_keep_rows (2 < 1000) → kept.
+        // 行 1 处于边界 → 保留。行 2 已过边界 → 应被清理，
+        // 但仍在 min_keep_rows 之内（2 < 1000）→ 保留。
         assert!(to_del.is_empty());
     }
 
@@ -189,7 +185,7 @@ mod tests {
 
     #[test]
     fn custom_policy() {
-        // 1-day retention, 2-row floor
+        // 1 天保留期，2 行下限
         let now = 1_000_000_000_000;
         let policy = RetentionPolicy {
             retain_recent_ms: 86_400_000,
@@ -199,11 +195,11 @@ mod tests {
         let rows = vec![
             row(1, now - 100),
             row(2, now - 200),
-            row(3, now - 2 * 86_400_000),  // 2 days old
-            row(4, now - 3 * 86_400_000),  // 3 days old
+            row(3, now - 2 * 86_400_000),  // 2 天前
+            row(4, now - 3 * 86_400_000),  // 3 天前
         ];
-        // Floor keeps rows 1, 2 (newest 2). Row 3 is 2 days old (>1 day) → purge.
-        // Row 4 is also >1 day and past the floor → purge.
+        // 下限保留行 1、2（最新 2 行）。行 3 已 2 天（>1 天）→ 清理。
+        // 行 4 也已超过 1 天并超出下限 → 清理。
         let to_del = plan_purge(&rows, &policy, now);
         assert_eq!(to_del.len(), 2);
         assert!(to_del.contains(&3));
