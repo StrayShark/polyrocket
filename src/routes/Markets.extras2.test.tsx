@@ -1,27 +1,27 @@
-// v0.72e + v0.119 — Markets extras round 2 tests (football-only).
+// v0.72e + v0.119 — Markets 补充第二轮测试（仅足球）。
 //
-// Markets.tsx is 251 lines with 7-column DataTable + 2 category
-// chips ['all', 'football'] + active_only toggle + syncMarkets
-// mutation + search debounce. Existing tests (v0.66 + v0.70h)
-// cover surface cases.
+// Markets.tsx 共 251 行，包含 7 列 DataTable + 2 个类别
+// 胶囊 ['all', 'football'] + active_only 切换 + syncMarkets
+// 变更 + 搜索防抖。已有测试（v0.66 + v0.70h）
+// 覆盖了表层用例。
 //
-// v0.119 football pivot: only ['all', 'football'] filter pills
-// (no cs2/politics/crypto/tech/other). Tests updated to use
-// football-only data + 'football'/'all' filter chip tests.
+// v0.119 足球转向：仅 ['all', 'football'] 过滤胶囊
+//（无 cs2/politics/crypto/tech/other）。测试更新为使用
+// 仅足球的数据 + 'football'/'all' 过滤胶囊测试。
 //
-// We add 10 tests covering the remaining branches:
-//   - status column: resolved=true with outcome='YES' (Pill shows outcome)
-//   - status column: resolved=true with outcome=null (Pill shows 'resolved')
-//   - status column: active=true → 'active' bull pill
-//   - status column: active=false → 'inactive' muted pill
-//   - category filter chip non-default ('football')
-//   - active_only checkbox toggle → refetch with new query key
-//   - search by slug field (m.slug contains q)
-//   - syncMut onSuccess → toast + invalidate queries
-//   - syncMut onError → toast.error
-//   - Empty state with search term shows "No markets matching ..."
+// 我们新增 10 个测试覆盖剩余分支：
+//   - status 列：resolved=true 且 outcome='YES'（Pill 显示 outcome）
+//   - status 列：resolved=true 且 outcome=null（Pill 显示 'resolved'）
+//   - status 列：active=true → 'active' 牛色胶囊
+//   - status 列：active=false → 'inactive' 弱化胶囊
+//   - 类别过滤胶囊非默认（'football'）
+//   - active_only 复选框切换 → 以新 query key 重新拉取
+//   - 按 slug 字段搜索（m.slug 包含 q）
+//   - syncMut onSuccess → toast + invalidate 查询
+//   - syncMut 失败 → toast.error
+//   - 带搜索词的空状态显示 "No markets matching ..."
 //
-// Coverage target: branches 65.71% → ~80%.
+// 覆盖目标：分支 65.71% → 约 80%。
 //
 // @vitest-environment happy-dom
 
@@ -56,15 +56,15 @@ function renderMarkets() {
 }
 
 const MARKETS = [
-  // m1: resolved=true, outcome='YES' → outcome pill
+  // m1: resolved=true, outcome='YES' → outcome 胶囊
   { id: 'm1', question: 'Q1?', slug: 'q1', category: 'football', liquidity: '1000', volume_24h: '500', end_date: 9999999999, active: false, resolved: true, outcome: 'YES' },
-  // m2: resolved=true, outcome=null → 'resolved' fallback pill
+  // m2: resolved=true, outcome=null → 'resolved' 回退胶囊
   { id: 'm2', question: 'Q2?', slug: 'q2', category: 'football', liquidity: '2000', volume_24h: '600', end_date: 9999999999, active: false, resolved: true, outcome: null },
-  // m3: active=true → 'active' bull pill
+  // m3: active=true → 'active' 多头胶囊
   { id: 'm3', question: 'Q3?', slug: 'q3', category: 'football', liquidity: '3000', volume_24h: '700', end_date: 9999999999, active: true, resolved: false, outcome: null },
-  // m4: active=false (not resolved) → 'inactive' muted pill
+  // m4: active=false (未 resolved) → 'inactive' muted 胶囊
   { id: 'm4', question: 'Q4?', slug: 'q4', category: 'football', liquidity: '4000', volume_24h: '800', end_date: 9999999999, active: false, resolved: false, outcome: null },
-  // m5: football category for filter test
+  // m5：football 分类，用于 filter 测试
   { id: 'm5', question: 'Q5?', slug: 'q5', category: 'football', liquidity: '5000', volume_24h: '900', end_date: 9999999999, active: true, resolved: false, outcome: null },
 ];
 
@@ -103,12 +103,12 @@ describe('Markets (extras round 2 — v0.72e + v0.119 football-only)', () => {
   it('click category chip "football" filters to football-only markets (v0.119)', async () => {
     renderMarkets();
     await waitFor(() => screen.getByText('Q1?'));
-    // v0.119: default is football; verify active state then test filter logic.
+    // v0.119: 默认是 football；先验证 active 状态再测试 filter 逻辑。
     const footballChip = screen.getAllByRole('button').find(b =>
       b.textContent?.trim() === 'football',
     );
     expect(footballChip).toBeDefined();
-    // Default is football, so Q1 (football) should be visible
+    // 默认是 football，所以 Q1（football）应可见
     expect(screen.getByText('Q1?')).toBeInTheDocument();
   });
 
@@ -120,7 +120,7 @@ describe('Markets (extras round 2 — v0.72e + v0.119 football-only)', () => {
     );
     expect(allChip).toBeDefined();
     fireEvent.click(allChip!);
-    // All football markets visible
+    // 全部 football market 可见
     await waitFor(() => {
       expect(screen.getByText('Q1?')).toBeInTheDocument();
       expect(screen.getByText('Q5?')).toBeInTheDocument();
@@ -132,7 +132,7 @@ describe('Markets (extras round 2 — v0.72e + v0.119 football-only)', () => {
     await waitFor(() => screen.getByText('Q1?'));
     const buttons = screen.getAllByRole('button');
     const labels = buttons.map(b => b.textContent?.trim()).filter(Boolean);
-    // Critical assertion: no other category chips exist
+    // 关键断言：不存在其他类别胶囊
     for (const forbidden of ['cs2', 'politics', 'crypto', 'tech', 'other']) {
       expect(labels).not.toContain(forbidden);
     }

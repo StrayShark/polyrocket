@@ -1,12 +1,12 @@
-// v0.70b — Signals route additional tests.
+// v0.70b —— Signals 路由附加测试。
 //
-// /signals is a 295-line component with rich filtering logic
-// (minEdgePct + side), KPI summary cards, and a recompute
-// mutation. Existing test (v0.62a) is 2 surface tests. We add
-// 8 focused tests covering filter branches, KPI math, and
-// mutation flow.
+// /signals 是一个 295 行的组件，包含丰富的过滤逻辑
+//（minEdgePct + side）、KPI 汇总卡片，以及 recompute
+// mutation。已有测试（v0.62a）仅 2 个表面测试。我们新增
+// 8 个聚焦测试，覆盖过滤分支、KPI 计算逻辑以及
+// mutation 流程。
 //
-// Signals.tsx: 36.4% → ~75% stmts.
+// Signals.tsx：36.4% → ~75% stmts。
 //
 // @vitest-environment happy-dom
 
@@ -41,7 +41,7 @@ function renderSignals() {
   );
 }
 
-// Sample: 5 signals covering bullish/bearish + various edges
+// 示例：5 个 signals，覆盖 bullish/bearish + 各种 edge
 const SAMPLE = [
   { id: 1, market_id: 'm1', computed_at: 1718710000000, model_version: 'v1', predicted_prob: 0.65, market_prob: 0.50, edge: 0.15, confidence: 0.8, horizon_hours: 24, rationale: 'r1', market_question: 'Will X happen?' },
   { id: 2, market_id: 'm2', computed_at: 1718710100000, model_version: 'v1', predicted_prob: 0.40, market_prob: 0.50, edge: -0.10, confidence: 0.7, horizon_hours: 12, rationale: 'r2', market_question: 'Will Y happen?' },
@@ -54,7 +54,7 @@ describe('Signals (extended)', () => {
   it('renders loading skeleton on initial mount', async () => {
     mls.mockReturnValue(new Promise(() => {})); // never resolves
     renderSignals();
-    // Skeletons are present (they render as divs with class 'animate-pulse' or similar)
+    // Skeleton 存在（它们渲染为带 'animate-pulse' 类的 div 或类似元素）
     expect(screen.getAllByRole('generic').length).toBeGreaterThan(0);
   });
 
@@ -70,7 +70,7 @@ describe('Signals (extended)', () => {
     mls.mockResolvedValue([]);
     renderSignals();
     await waitFor(() => {
-      // The empty state should appear (matches /signals.empty or no-match text)
+      // 应出现 empty state（匹配 /signals.empty 或 no-match 文本）
       const text = document.body.textContent || '';
       expect(text.length).toBeGreaterThan(0);
     });
@@ -80,7 +80,7 @@ describe('Signals (extended)', () => {
     mls.mockResolvedValue(SAMPLE);
     renderSignals();
     await waitFor(() => {
-      // Market questions should appear (Linked)
+      // market 问题应出现（Linked）
       expect(screen.getByText('Will X happen?')).toBeInTheDocument();
       expect(screen.getByText('Will Y happen?')).toBeInTheDocument();
     });
@@ -90,13 +90,13 @@ describe('Signals (extended)', () => {
     mls.mockResolvedValue(SAMPLE);
     renderSignals();
     await waitFor(() => screen.getByText('Will X happen?'));
-    // Click YES button
+    // 点击 YES 按钮
     const yesButton = screen.getAllByRole('button').find(b => b.textContent?.trim() === 'yes');
     expect(yesButton).toBeDefined();
     fireEvent.click(yesButton!);
     await waitFor(() => {
       expect(screen.getByText('Will X happen?')).toBeInTheDocument();
-      // Bearish markets should be filtered out
+      // Bearish markets 应被过滤掉
       expect(screen.queryByText('Will Y happen?')).not.toBeInTheDocument();
     });
   });
@@ -119,12 +119,12 @@ describe('Signals (extended)', () => {
     renderSignals();
     await waitFor(() => screen.getByText('Will X happen?'));
     const input = screen.getByDisplayValue('5') as HTMLInputElement;
-    // Try entering 0 → should clamp to 1
+    // 尝试输入 0 → 应被夹紧到 1
     fireEvent.change(input, { target: { value: '0' } });
     await waitFor(() => {
       expect(input.value).toBe('1');
     });
-    // Try 999 → should clamp to 50
+    // 尝试输入 999 → 应被夹紧到 50
     fireEvent.change(input, { target: { value: '999' } });
     await waitFor(() => {
       expect(input.value).toBe('50');
@@ -136,7 +136,7 @@ describe('Signals (extended)', () => {
     mrs.mockResolvedValue(3);
     renderSignals();
     await waitFor(() => screen.getByText('Will X happen?'));
-    // Find the Recompute button
+    // 找到 Recompute 按钮
     const recomputeBtn = screen.getAllByRole('button').find(b =>
       b.textContent?.toLowerCase().includes('recompute'),
     );

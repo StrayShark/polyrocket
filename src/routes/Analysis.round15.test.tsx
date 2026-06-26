@@ -1,27 +1,28 @@
-// v0.106 — Analysis.tsx coverage ramp round 15.
+// v0.106 — Analysis.tsx 覆盖率提升第 15 轮。
 //
-// Target: cover the 3 uncovered branches at lines 54-58, 282, 348
-// (from coverage report at v0.105-final).
+// 目标：覆盖 v0.105-final 覆盖率报告中
+// 第 54-58、282、348 行的 3 个未覆盖分支。
 //
-// Lines 54-58: useEffect onAnalyzeStarted listener — `if (cancelled) return;`
-//   and `if (expectedAnalysisRef.current) { setActiveAnalysisId(...) }`.
-//   Already mostly covered by existing tests. The branch we need is the
-//   *negative* path: expectedAnalysisRef.current is false when event fires.
-//   This test fires onAnalyzeStarted without first clicking Run — listener
-//   should NOT setActiveAnalysisId. (Currently not testable from
-//   inside the route because expectedAnalysisRef is internal.)
+// 第 54-58 行：useEffect onAnalyzeStarted 监听器 —— `if (cancelled) return;`
+//   以及 `if (expectedAnalysisRef.current) { setActiveAnalysisId(...) }`。
+//   已有测试已基本覆盖。我们需要的分支是
+//   *负面* 路径：事件触发时 expectedAnalysisRef.current 为 false。
+//   此测试在未先点击 Run 的情况下触发 onAnalyzeStarted ——
+//   监听器不应 setActiveAnalysisId。（目前因 expectedAnalysisRef
+//   是内部的，无法在路由内测试。）
 //
-// Line 282: `<Button onClick={() => signals.refetch()}>` — refresh
-//   button click. We can render with a "signals" query, find the
-//   refresh button, click it, assert signals.refetch is called.
+// 第 282 行：`<Button onClick={() => signals.refetch()}>` —— refresh
+//   按钮点击。我们可以使用 "signals" 查询渲染，
+//   找到 refresh 按钮，点击，断言 signals.refetch 被调用。
 //
-// Line 348: `onClose={() => setChosen(null)}` — modal close when
-//   recommendation is chosen. We render with a chosen recommendation,
-//   find the close button, click, assert chosen is null.
+// 第 348 行：`onClose={() => setChosen(null)}` —— 在
+//   推荐被选中时关闭弹窗。我们使用选中的推荐渲染，
+//   找到关闭按钮，点击，断言 chosen 为 null。
 //
-// The cancelled branch (54-58) is exercised by strict-mode mount/unmount
-// in any Analysis test (the listener cleanup runs once on unmount).
-// We can add a deliberate "unmount while listen is pending" test.
+// cancelled 分支（54-58）在任何 Analysis 测试的
+// 严格模式 mount/unmount 中都会被触发（监听器
+// 清理在 unmount 时运行一次）。
+// 我们可以增加一个"listen pending 时主动 unmount"的测试。
 
 // @vitest-environment happy-dom
 
@@ -30,7 +31,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-// Captured listener — call it manually to simulate the analyze:started event.
+// 捕获的监听器 —— 手动调用以模拟 analyze:started 事件。
 let capturedListener: ((e: { analysis_id: string; market_id: string }) => void) | null = null;
 const mockUnsub = vi.fn();
 
@@ -73,14 +74,14 @@ beforeEach(() => {
 describe('Analysis round 15', () => {
   it('listens for analyze:started event and captures analysis_id when expected', async () => {
     renderAnalysis();
-    // Wait for the useEffect to register the listener
+    // 等待 useEffect 注册监听器
     await waitFor(() => {
       expect(capturedListener).not.toBeNull();
     });
-    // Fire the event with a market id matching what user would have run
+    // 触发事件，传入与用户运行的 market id 匹配的值
     capturedListener!({ analysis_id: 'a-new', market_id: 'm1' });
-    // The page should now show the active analysis id somewhere
-    // (exact assertion depends on Analysis rendering, but the listener path is covered)
+    // 页面现在应在某处显示活跃的 analysis id
+    // （具体断言依赖 Analysis 渲染，但监听器路径已被覆盖）
   });
 
   it('does NOT setActiveAnalysisId when listener fires with non-matching market id', async () => {
@@ -88,11 +89,11 @@ describe('Analysis round 15', () => {
     await waitFor(() => {
       expect(capturedListener).not.toBeNull();
     });
-    // Fire with a market id that user did NOT request — listener path: cancelled=false,
-    // expectedAnalysisRef.current=false → branch path: not setting active.
-    // This is the negative branch of `if (expectedAnalysisRef.current)`.
+    // 使用用户未请求的 market id 触发事件 —— 监听器路径：cancelled=false，
+    // expectedAnalysisRef.current=false → 分支路径：不设置 active。
+    // 这是 `if (expectedAnalysisRef.current)` 的负面分支。
     capturedListener!({ analysis_id: 'a-other', market_id: 'different-market' });
-    // No assertion needed; the branch is covered by code path execution.
+    // 无需断言；该分支已被代码路径执行覆盖。
   });
 
   it('unmounting calls the unsub function (cancelled branch)', async () => {
@@ -101,7 +102,7 @@ describe('Analysis round 15', () => {
       expect(capturedListener).not.toBeNull();
     });
     unmount();
-    // The cleanup function in useEffect calls unsubPromise.then((u) => u())
+    // useEffect 中的清理函数调用 unsubPromise.then((u) => u())
     await waitFor(() => {
       expect(mockUnsub).toHaveBeenCalled();
     });
@@ -109,12 +110,12 @@ describe('Analysis round 15', () => {
 
   it('refresh button on signals card calls signals.refetch', async () => {
     renderAnalysis();
-    // Wait for signals to load (the fixture has 1 signal) — title resolves to 'Active signals'
+    // 等待 signals 加载（fixture 包含 1 个 signal） —— 标题解析为 'Active signals'
     await waitFor(() => {
       expect(screen.queryByText('Active signals')).toBeInTheDocument();
     });
-    // The refresh button has aria-label or text 'Refresh' (analysis.signals.refresh)
-    // We verify at least one ghost-variant button is present (the refresh button)
+    // refresh 按钮具有 aria-label 或文本 'Refresh'（analysis.signals.refresh）
+    // 我们验证至少有一个 ghost-variant 按钮存在（即 refresh 按钮）
     const buttons = screen.getAllByRole('button');
     expect(buttons.length).toBeGreaterThan(0);
   });

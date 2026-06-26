@@ -1,6 +1,6 @@
 /**
- * Help dialog showing the available keyboard shortcuts.
- * Mounted globally by AppShell. Open via `?` key.
+ * 展示可用键盘快捷键的帮助对话框。
+ * 由 AppShell 全局挂载,按 `?` 键打开。
  */
 
 import { useState } from 'react';
@@ -16,7 +16,7 @@ interface KbdHelpDialogProps {
 
 export function KbdHelpDialog({ bindings, open, onClose }: KbdHelpDialogProps) {
   const { t } = useT();
-  // Group bindings by length (1-key vs 2-key)
+  // 按按键数量(单键 vs 双键)分组
   const singles = bindings.filter((b) => b.keys.length === 1);
   const chords = bindings.filter((b) => b.keys.length === 2);
 
@@ -73,7 +73,7 @@ function Kbd({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Hook so AppShell can manage its own dialog state. */
+/** AppShell 用于管理自身对话框状态的 hook。 */
 export function useKbdHelpDialog() {
   const [open, setOpen] = useState(false);
   return {

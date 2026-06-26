@@ -1,12 +1,12 @@
-// v0.75c — LlmMgmt branches round 4 (+5 tests, 89.3→95% br).
+// v0.75c — LlmMgmt 分支第 4 轮（+5 个测试，89.3→95% br）。
 //
-// LlmMgmt.tsx is 484 lines with 4 sub-cards (Providers / Keys /
-// AddKeyModal / TestConnectivity). 27 existing tests (test + more +
-// extras + round2 + branches) cover most flows. v8 coverage
-// reports 8 uncovered branches at lines 92, 144, 197, 208 — we
-// target the remaining 5 reachable branches.
+// LlmMgmt.tsx 共 484 行，包含 4 个子卡片（Providers / Keys /
+// AddKeyModal / TestConnectivity）。已有 27 个测试（test + more +
+// extras + round2 + branches）覆盖了大部分流程。v8 coverage
+// 报告 92、144、197、208 行有 8 个未覆盖的分支 —— 我们
+// 瞄准剩余 5 个可达分支。
 //
-// Coverage target: 89.3% br → ~95% br.
+// 覆盖目标：89.3% br → ~95% br。
 //
 // @vitest-environment happy-dom
 
@@ -81,7 +81,7 @@ describe('LlmMgmt round 4 (v0.75c — branch closing)', () => {
     });
     wrap(<LlmMgmt />);
     await waitFor(() => screen.getAllByRole('button').length > 0);
-    // Find and click the Test button
+    // 寻找并点击 Test 按钮
     const testBtns = screen.getAllByRole('button').filter(b =>
       /test/i.test(b.textContent || ''),
     );
@@ -128,16 +128,16 @@ describe('LlmMgmt round 4 (v0.75c — branch closing)', () => {
   });
 
   it('clicking Add in empty keys state opens AddKeyModal', async () => {
-    // Providers load, but selectedProvider is null → empty state visible
+    // Providers 已加载，但 selectedProvider 为 null → 出现空态
     wrap(<LlmMgmt />);
     await waitFor(() => screen.getAllByRole('button').length > 0);
-    // Try to find an "Add" button in the empty state
+    // 尝试在空态中找到 "Add" 按钮
     const addBtns = screen.getAllByRole('button').filter(b =>
       /add|add key|添加/i.test(b.textContent || ''),
     );
     if (addBtns.length > 0) {
       fireEvent.click(addBtns[0]);
-      // Modal should render — look for an input
+      // Modal 应被渲染 —— 寻找一个 input
       await waitFor(() => {
         const inputs = document.querySelectorAll('input');
         expect(inputs.length).toBeGreaterThan(0);
@@ -156,14 +156,14 @@ describe('LlmMgmt round 4 (v0.75c — branch closing)', () => {
     mkgt2.mockResolvedValue('sk-test-1234');
     wrap(<LlmMgmt />);
     await waitFor(() => screen.getAllByRole('button').length > 0);
-    // Click the openai provider
+    // 点击 openai provider
     const providerBtns = screen.getAllByRole('button').filter(b =>
       /openai/i.test(b.textContent || ''),
     );
     if (providerBtns[0]) {
       fireEvent.click(providerBtns[0]);
       await waitFor(() => {
-        // Now look for key row test buttons
+        // 现在寻找 key 行的 test 按钮
         const keyTestBtns = screen.getAllByRole('button').filter(b =>
           /test/i.test(b.textContent || '') && b !== providerBtns[0],
         );

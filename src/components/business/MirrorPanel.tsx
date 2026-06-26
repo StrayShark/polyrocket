@@ -1,15 +1,15 @@
 /**
- * L1 mirror panel — derives pending mirrors from L1 data using
- * the L3 should_mirror() decision rule.
+ * L1 mirror 面板——基于 L1 数据并使用 L3 的 should_mirror()
+ * 决策规则派生 pending mirror。
  *
- * No backend IPC for "pending mirrors" yet (M5 phase 2); this view
- * is computed client-side from existing data:
+ * 暂未提供后端 IPC 用于 "pending mirrors"(M5 phase 2);
+ * 该视图由客户端基于已有数据计算得到:
  *  - listCopyTargets()
  *  - recentCopyEvents()
- *  - listActiveSignals()  (to get market edges)
+ *  - listActiveSignals()(用于获取 market edges)
  *
- * For each CopyEvent, find the best active signal for the same
- * market and call should_mirror(target, event.side, event.size, signal.edge).
+ * 对每个 CopyEvent,在同 market 中找到最佳 active signal,
+ * 然后调用 should_mirror(target, event.side, event.size, signal.edge)。
  */
 
 import { useQuery } from '@tanstack/react-query';
@@ -87,7 +87,7 @@ export function MirrorPanel() {
         minEdge: target.min_edge,
         createdAt: target.created_at,
       };
-      // best signal for this market
+      // 同一 market 的最佳 signal
       const sig = signals.data
         .filter((s) => s.market_id === event.market_id)
         .reduce<typeof signals.data[number] | undefined>(
@@ -114,7 +114,7 @@ export function MirrorPanel() {
         });
         continue;
       }
-      // If event already matched a bet → filled, otherwise pending.
+      // 若 event 已匹配到一个 bet 则视为 filled,否则为 pending。
       const state: MirrorState = event.matched_bet_id ? 'filled' : 'pending';
       out.push({
         id: `mir_${event.id}`,

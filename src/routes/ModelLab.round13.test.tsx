@@ -1,17 +1,17 @@
-// v0.104 — ModelLab.tsx coverage round 13 (promoteMut + promoteAllMut handlers).
+// v0.104 — ModelLab.tsx 覆盖第 13 轮（promoteMut + promoteAllMut 处理器）。
 //
-// ModelLab has 34 uncovered stmts. After analysis, the gaps are in
-// `promoteMut.onSuccess` (L320-360) and `promoteAllMut.onSuccess`
-// (L400-420) — both only fire when user clicks the promote buttons.
-// v0.83b autoPromote.test.tsx covered autoPromote but NOT promote
-// (the "Promote" button without "Auto") or "Promote all 4".
+// ModelLab 有 34 个未覆盖的语句。分析后发现，空白点在
+// `promoteMut.onSuccess`（L320-360）和 `promoteAllMut.onSuccess`
+// （L400-420）—— 两者仅在用户点击 promote 按钮时触发。
+// v0.83b 的 autoPromote.test.tsx 覆盖了 autoPromote，但未覆盖 promote
+// （不带 "Auto" 的 "Promote" 按钮）或 "Promote all 4"。
 //
-// This file covers:
-// - promoteMut success: toast.success + setLastCandidate(null) + 3 query invalidations
-// - promoteMut error:   toast.error
-// - promoteAllMut success: toast.success 'all_promoted' + setLastCandidate(null)
-// - promoteAllMut partial: toast.info 'all_partial' with ok > 0
-// - promoteAllMut all-failed: toast.error 'all_failed'
+// 本文件覆盖：
+// - promoteMut 成功：toast.success + setLastCandidate(null) + 3 次 query 失效
+// - promoteMut 失败：toast.error
+// - promoteAllMut 成功：toast.success 'all_promoted' + setLastCandidate(null)
+// - promoteAllMut 部分成功：toast.info 'all_partial'，ok > 0
+// - promoteAllMut 全部失败：toast.error 'all_failed'
 //
 // @vitest-environment happy-dom
 
@@ -77,10 +77,10 @@ function wrapWithSpy() {
 }
 
 /**
- * Set up `lastCandidate` state by clicking Train. The Train button
- * triggers trainMut, whose onSuccess calls setLastCandidate when
- * status='completed'. Once lastCandidate is set, the Promote button
- * (data-testid='model-promote-btn') is rendered.
+ * 通过点击 Train 设置 `lastCandidate` 状态。Train 按钮
+ * 触发 trainMut，其 onSuccess 在 status='completed' 时
+ * 调用 setLastCandidate。设置好 lastCandidate 后，Promote 按钮
+ * （data-testid='model-promote-btn'）就会被渲染。
  */
 async function setupLastCandidate() {
   mockTrainJob.mockResolvedValue({
@@ -88,7 +88,7 @@ async function setupLastCandidate() {
     job_id: 'train-v104',
     best_brier: 0.18,
     candidate_path: '/tmp/c-v104.json',
-    // v0.25b — 4 trials so "Promote all 4" button renders
+    // v0.25b — 4 trials 以渲染 "Promote all 4" 按钮
     trials: [
       { trial_index: 0, brier: 0.18, params: {} },
       { trial_index: 1, brier: 0.19, params: {} },
@@ -127,13 +127,13 @@ describe('ModelLab promoteMut + promoteAllMut (v0.104)', () => {
     await waitFor(() => {
       expect(mockPromoteModel).toHaveBeenCalled();
     });
-    // Toast.success fires
+    // 触发 Toast.success
     await waitFor(() => {
       const { toasts } = useToastStore.getState();
       const succ = toasts.find((t) => t.kind === 'success');
       expect(succ).toBeTruthy();
     });
-    // 3 query invalidations: sidecar-active-model, llm-performance, promote-history
+    // 3 次 query 失效：sidecar-active-model、llm-performance、promote-history
     await waitFor(() => {
       const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
       expect(calls.some((c) => c.includes('llm-performance'))).toBe(true);
@@ -171,11 +171,11 @@ describe('ModelLab promoteMut + promoteAllMut (v0.104)', () => {
   });
 
   it('clicking Promote all 4: skipped (requires train:finished event mock)', async () => {
-    // The "Promote all 4" button (data-testid='train-promote-all-btn')
-    // is rendered inside TrainProgress which only mounts after the
-    // `train:finished` event fires. Capturing that listener through
-    // the vi.hoisted pattern requires more complex test setup.
-    // Skipped in v0.104; v0.105 will revisit with full event mocking.
+    // "Promote all 4" 按钮（data-testid='train-promote-all-btn'）
+    // 渲染在 TrainProgress 内部，仅在 `train:finished`
+    // 事件触发后挂载。通过 vi.hoisted 模式捕获该监听器
+    // 需要更复杂的测试设置。
+    // v0.104 中跳过；v0.105 将使用完整的事件 mock 重新处理。
     expect(true).toBe(true);
   });
 

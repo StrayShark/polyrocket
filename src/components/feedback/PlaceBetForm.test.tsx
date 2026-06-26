@@ -1,28 +1,27 @@
-// v0.58b — PlaceBetForm component tests.
+// v0.58b —— PlaceBetForm 组件测试。
 //
-// The PlaceBetForm is the v0.52 form. It supports:
-//   - 2 sides (YES / NO)
-//   - 3 order types (market / limit / stop_loss)
-//   - Conditional limit_price (limit + stop_loss)
-//   - Conditional stop_price (stop_loss only)
-//   - Conditional post_only (limit only)
-//   - Live validation via `validateOrderArgs` IPC
-//   - Submit via `placeSignedOrder` IPC
+// PlaceBetForm 即 v0.52 表单。支持:
+//   - 2 种 side(YES / NO)
+//   - 3 种 order type(market / limit / stop_loss)
+//   - 条件显示的 limit_price(limit + stop_loss)
+//   - 条件显示的 stop_price(仅 stop_loss)
+//   - 条件显示的 post_only(仅 limit)
+//   - 通过 `validateOrderArgs` IPC 实时校验
+//   - 通过 `placeSignedOrder` IPC 提交
 //
-// Today the form has 12 data-testids but 0
-// tests. This file covers:
-//   1. Default form state (market order, YES, $10, 0.5)
-//   2. Side toggle (YES ↔ NO)
-//   3. Order type toggle (market → limit shows
-//      limit_price input; limit → stop_loss shows
-//      stop_price input; market shows neither)
-//   4. Post-only toggle (only visible for limit)
-//   5. Live validation: ok path (valid args)
-//   6. Live validation: error path (invalid args
-//      → validation-error testid appears)
-//   7. Submit: calls placeSignedOrder with the
-//      form state
-//   8. Submit: blocked when validation fails
+// 当前表单有 12 个 data-testid,但测试 0 个。
+// 本文件覆盖:
+//   1. 默认表单状态(market order、YES、$10、0.5)
+//   2. Side 切换(YES ↔ NO)
+//   3. Order type 切换(market → limit 显示
+//      limit_price input;limit → stop_loss 显示
+//      stop_price input;market 不显示任一)
+//   4. Post-only 切换(仅 limit 可见)
+//   5. 实时校验:ok 路径(参数合法)
+//   6. 实时校验:error 路径(参数非法
+//      → 出现 validation-error testid)
+//   7. 提交:按表单状态调用 placeSignedOrder
+//   8. 提交:校验失败时阻止
 
 // @vitest-environment happy-dom
 
@@ -49,8 +48,8 @@ function wrap(node: React.ReactNode) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // Default: validation passes. Returns the
-  // parsed size (number) per the IPC contract.
+  // 默认: 校验通过。按 IPC 合约返回
+  // 解析后的 size (number)。
   vi.mocked(ipc.validateOrderArgs).mockResolvedValue(20);
 });
 
@@ -79,18 +78,17 @@ describe('PlaceBetForm (v0.58b)', () => {
 
   it('side toggle: clicking NO flips the active button', () => {
     render(wrap(<PlaceBetForm initialMarketId="m1" onSuccess={vi.fn()} />));
-    // Default: YES active. Click NO.
+    // 默认: YES 处于激活状态。点击 NO。
     fireEvent.click(screen.getByTestId('place-bet-side-no'));
-    // After click, the test for the form would
-    // assert the visual state. We can verify
-    // the form's submission args later via the
-    // placeSignedOrder mock.
+    // 点击后,form 测试将断言可视状态。
+    // 之后我们可以借助 placeSignedOrder
+    // mock 验证 form 的提交参数。
   });
 
   it('order type toggle: market shows no limit/stop inputs', () => {
     render(wrap(<PlaceBetForm initialMarketId="m1" onSuccess={vi.fn()} />));
-    // Default order_type = 'market'. No limit
-    // or stop input should be visible.
+    // 默认 order_type = 'market'。
+    // 任何 limit / stop input 都不应可见。
     expect(
       screen.queryByTestId('place-bet-limit-price'),
     ).not.toBeInTheDocument();
@@ -111,7 +109,7 @@ describe('PlaceBetForm (v0.58b)', () => {
     expect(
       screen.getByTestId('place-bet-post-only'),
     ).toBeInTheDocument();
-    // Stop_price is only for stop_loss, not limit.
+    // Stop_price 仅用于 stop_loss,limit 没有。
     expect(
       screen.queryByTestId('place-bet-stop-price'),
     ).not.toBeInTheDocument();
@@ -126,7 +124,7 @@ describe('PlaceBetForm (v0.58b)', () => {
     expect(
       screen.getByTestId('place-bet-stop-price'),
     ).toBeInTheDocument();
-    // Post-only is only for limit, not stop_loss.
+    // Post-only 仅用于 limit,stop_loss 没有。
     expect(
       screen.queryByTestId('place-bet-post-only'),
     ).not.toBeInTheDocument();
@@ -210,7 +208,7 @@ describe('PlaceBetForm (v0.58b)', () => {
       ).toBeInTheDocument();
     });
     fireEvent.click(screen.getByTestId('place-bet-submit'));
-    // Wait a tick for the toast to NOT fire.
+    // 等一拍,确认 toast 不会触发。
     await new Promise((r) => setTimeout(r, 50));
     expect(ipc.placeSignedOrder).not.toHaveBeenCalled();
   });

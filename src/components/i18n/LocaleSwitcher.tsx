@@ -1,6 +1,6 @@
 /**
- * Locale switcher dropdown (v0.9d).
- * Lives in the topbar. Click to choose en or zh.
+ * 语言切换下拉框(v0.9d)。
+ * 放在顶栏,点击后可选 en 或 zh。
  */
 
 import { useState } from 'react';

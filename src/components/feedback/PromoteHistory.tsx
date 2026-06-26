@@ -1,52 +1,49 @@
 /**
- * PromoteHistory — v0.19c, v0.20c.
+ * PromoteHistory —— v0.19c、v0.20c。
  *
- * Read-only panel showing the list of past model
- * promotions, oldest first (capped at 20 on the
- * Python side). Each row shows:
+ * 只读面板,显示历史 promote 的 model 列表,
+ * 最早在前(Python 端限制为 20)。每行展示:
  *
- *   - model_version  (e.g. "logistic-train-441c352b")
- *   - promoted_at    (relative: "3h ago" / "yesterday")
- *   - best_brier     (colored badge; green < 0.15,
- *                     yellow 0.15-0.20, red > 0.20)
- *   - Rollback button (v0.20c) — restores this version
- *     as the active model. Disabled while the rollback
- *     is in flight or this row IS the active model.
+ *   - model_version(例如 "logistic-train-441c352b")
+ *   - promoted_at(相对时间:"3h ago" / "yesterday")
+ *   - best_brier(带色徽章;绿 < 0.15,
+ *                黄 0.15-0.20,红 > 0.20)
+ *   - Rollback 按钮(v0.20c)—— 将该版本恢复
+ *     为 active model。在 rollback 进行中,
+ *     或该行就是 active model 时,按钮被禁用。
  *
- * v0.30a — added a trial-type filter at the top of
- * the panel. Three modes:
- *   - "all"   (default) — show every entry
- *   - "best"  — only entries promoted via the best-
- *               trial path (Promote / Promote if better)
- *   - "bulk"  — only entries promoted via the bulk
- *               path (Promote all / Promote trial N)
- * The filter is local component state (not persisted);
- * resets to "all" on remount.
+ * v0.30a —— 在面板顶部增加 trial-type 过滤器。
+ * 三种模式:
+ *   - "all"(默认)—— 显示全部 entry
+ *   - "best"—— 只显示走 best-trial 路径
+ *              promote 的 entry(Promote / Promote if better)
+ *   - "bulk"—— 只显示走 bulk 路径
+ *              promote 的 entry(Promote all / Promote trial N)
+ * 过滤器是组件本地 state(不持久化);
+ * 重新挂载时重置为 "all"。
  *
- * v0.41a — each row has a small "i" icon next to the
- * trial badge. Hovering (or focusing) shows the human-
- * readable `reason` field, e.g. "Promoted as best
- * trial" or "Promoted as trial 2 of 4". This is
- * redundant with the trial badge but more explicit
- * ("this was the explicit best, not just whatever
- * happened to be the lowest brier"). Native `<title>`
- * attribute is the baseline (always-on, a11y);
- * a small "i" icon makes it discoverable.
- * Older entries from before v0.41 don't have
- * `reason`; we render a generic tooltip in that case.
+ * v0.41a —— 每行在 trial 徽章旁有一个小的 "i" 图标。
+ * hover(或聚焦)时展示人类可读的 `reason` 字段,
+ * 例如 "Promoted as best trial" 或
+ * "Promoted as trial 2 of 4"。这与 trial 徽章
+ * 重复,但更明确("这是显式选出的 best,
+ * 而不只是恰好 Brier 最低")。原生 `<title>`
+ * 属性是基线(始终开启,a11y);
+ * 小 "i" 图标让其更易发现。
+ * v0.41 之前的旧 entry 没有 `reason`;
+ * 这种情况下我们展示通用 tooltip。
  *
- * The currently active model is NOT in this list — to
- * see the active model, use the ModelVersionPill at
- * the top of the page. The list is for audit
- * ("which model was active at which time") not for
- * status display.
+ * 当前 active model **不在**该列表中 —— 要查看
+ * active model,请使用页面顶部的 ModelVersionPill。
+ * 此列表用于审计("某时刻哪个 model 是 active 的"),
+ * 不用于状态展示。
  *
- * Refreshes on:
- *   - mount (initial query)
- *   - the `promote_model` mutation succeeding (parent
- *     passes `refetchKey` to invalidate)
- *   - the `rollback_model` mutation succeeding (this
- *     component invalidates itself in onSuccess)
+ * 刷新时机:
+ *   - 挂载(初始 query)
+ *   - `promote_model` mutation 成功(父组件
+ *     传入 `refetchKey` 触发 invalidate)
+ *   - `rollback_model` mutation 成功(本组件
+ *     在 onSuccess 中自行 invalidate)
  */
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -63,19 +60,17 @@ import { Button } from '@/components/base/Button';
 import { BadgePill } from '@/components/base/BadgePill';
 
 interface PromoteHistoryProps {
-  /** Optional className passthrough (for spacing). */
+  /** 可选的 className 透传(用于间距)。 */
   className?: string;
-  /** v0.20c — the currently active model version, so
-   * the row can be marked as "active" (and its
-   * Rollback button disabled — you can't roll back
-   * to the active model). */
+  /** v0.20c —— 当前 active model 版本,以便
+   * 标记行为 "active"(并禁用其
+   * Rollback 按钮 —— 不能回滚到 active model)。 */
   activeModelVersion?: string | null;
-  /** v0.40b — set of job_ids currently selected for
-   * comparison. If undefined, comparison is
-   * disabled (no checkboxes shown). */
+  /** v0.40b —— 当前已选用于对比的 job_id 集合。
+   * 如果为 undefined,对比功能禁用(不显示 checkbox)。 */
   selectedForCompare?: Set<string>;
-  /** v0.40b — called when the user toggles a
-   * checkbox. Receives the new set. */
+  /** v0.40b —— 用户切换 checkbox 时回调。
+   * 接收新的集合。 */
   onSelectionChange?: (next: Set<string>) => void;
 }
 
@@ -86,8 +81,7 @@ function brierColor(brier: number | null): 'bull' | 'warn' | 'bear' | 'muted' {
   return 'bear';
 }
 
-/** v0.30a — classify a history entry as best or bulk
- *  based on its `trial_index`. */
+/** v0.30a —— 根据 `trial_index` 将 history entry 归类为 best 或 bulk。 */
 function entryTrialType(entry: PromoteHistoryEntry): 'best' | 'bulk' {
   return entry.trial_index === null || entry.trial_index === undefined
     ? 'best'
@@ -104,7 +98,7 @@ export function PromoteHistory({
 }: PromoteHistoryProps) {
   const { t } = useT();
   const queryClient = useQueryClient();
-  // v0.30a — trial-type filter (local state, resets on remount)
+  // v0.30a —— trial-type 过滤器(本地 state,重挂时重置)
   const [filter, setFilter] = useState<HistoryFilter>('all');
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['promote-history'],
@@ -120,9 +114,9 @@ export function PromoteHistory({
           t('rollback.toast.rolled_back'),
           t('rollback.toast.version', { version: r.model_version }),
         );
-        // v0.20c — refresh BOTH the active-model probe (so
-        // the ModelVersionPill updates) and the history
-        // panel (so the new "rollback" marker appears).
+        // v0.20c —— 同时刷新 active-model probe(让
+        // ModelVersionPill 更新)和 history 面板
+        // (让新出现的 "rollback" 标记可见)。
         queryClient.invalidateQueries({ queryKey: ['sidecar-active-model'] });
         queryClient.invalidateQueries({ queryKey: ['promote-history'] });
         queryClient.invalidateQueries({ queryKey: ['llm-performance'] });
@@ -158,26 +152,22 @@ export function PromoteHistory({
 
   const entries = data?.entries ?? [];
   const empty = entries.length === 0;
-  // v0.30a — apply the trial-type filter before reversing.
-  //   - "all"  → no filter
-  //   - "best" → only entries promoted via the best path
-  //   - "bulk" → only entries promoted via the bulk path
+  // v0.30a —— 在反转之前应用 trial-type 过滤器。
+  //   - "all"  → 不过滤
+  //   - "best" → 只保留走 best 路径 promote 的 entry
+  //   - "bulk" → 只保留走 bulk 路径 promote 的 entry
   const filtered =
     filter === 'all'
       ? entries
       : entries.filter((e) => entryTrialType(e) === filter);
-  // Reverse to show newest first (the array is oldest-first
-  // from the Python side, which is the natural order for
-  // an append-only log; the UI reverses for "recent first").
+  // 反转以使最新在前(数组在 Python 端是最早在前,
+  // 这是 append-only 日志的自然顺序;UI 反转为 "recent first")。
   const reversed = [...filtered].reverse();
   const filteredEmpty = filtered.length === 0;
-  // v0.40a — compute the set of selected entries (for
-  // the multi-model comparison feature). We use job_id
-  // as the unique key (model_version can collide if
-  // a train was re-run with the same id, but that's
-  // rare; job_id is the canonical key).
-  // Limit to 3 selected; if the user selects more, we
-  // only show 3 in the modal (the most recent 3).
+  // v0.40a —— 计算已选 entry 集合(用于多 model 对比功能)。
+  // 使用 job_id 作为唯一 key(model_version 在同一 id
+  // 重新跑训练时可能冲突,但这很罕见;job_id 是规范 key)。
+  // 最多 3 个;若用户选更多,modal 中只显示最近 3 个。
 
   if (empty) {
     return (
@@ -197,9 +187,9 @@ export function PromoteHistory({
       data-testid="promote-history"
       data-count={filtered.length}
     >
-      {/* v0.30a — trial-type filter chips. Three buttons
-          (All / Best / Bulk); the active one is highlighted.
-          Local state, no IPC. Resets on remount. */}
+      {/* v0.30a —— trial-type 过滤 chips。三个按钮
+          (All / Best / Bulk),当前激活的高亮。
+          本地 state,无 IPC。重挂时重置。 */}
       <div
         className="flex items-center gap-1 text-[10px]"
         data-testid="promote-history-filter"
@@ -241,16 +231,16 @@ export function PromoteHistory({
             onSelectToggle={
               onSelectionChange
                 ? (jobId: string) => {
-                    // Limit to 3 selected. If the user
-                    // adds a 4th, drop the oldest.
+                    // 最多选 3 个。如果用户
+                    // 添加第 4 个,则丢掉最早那个。
                     const next = new Set(selectedForCompare ?? new Set());
                     if (next.has(jobId)) {
                       next.delete(jobId);
                     } else {
                       if (next.size >= 3) {
-                        // Drop the oldest (the first
-                        // inserted — Set preserves
-                        // insertion order)
+                        // 丢掉最早的(第一个
+                        // 插入的 —— Set 保留
+                        // 插入顺序)
                         const first = next.values().next().value;
                         if (first !== undefined) next.delete(first);
                       }
@@ -263,14 +253,12 @@ export function PromoteHistory({
           />
         ))
       )}
-      {/* v0.40b — the comparison selection is now
-          managed at the ModelLab level (so the
-          "Compare" button can sit next to the
-          "View archive" button in the Card footer).
-          The PromoteHistory component itself doesn't
-          render the checkbox — ModelLab injects it
-          via the existing entry-level props, or via
-          a separate row. See v0.40b for the integration. */}
+      {/* v0.40b —— 对比选择现在在 ModelLab 层面管理
+          (这样 "Compare" 按钮可以与 Card 底部的
+          "View archive" 按钮并排)。
+          PromoteHistory 组件本身不渲染 checkbox —— ModelLab
+          通过 entry 级别的现有 props,或通过单独的行注入。
+          集成方式见 v0.40b。 */}
     </div>
   );
 }
@@ -294,7 +282,7 @@ function HistoryRow({
 }) {
   const { t } = useT();
   const color = brierColor(entry.best_brier);
-  // v0.20c — confirm before rollback (irreversible).
+  // v0.20c —— 回滚前确认(不可逆)。
   const [confirming, setConfirming] = useState(false);
   const isThisRowPending = isPending && pendingVersion === entry.model_version;
 
@@ -306,10 +294,9 @@ function HistoryRow({
       data-active={isActive}
       data-selected={isSelected}
     >
-      {/* v0.40b — checkbox for multi-model comparison.
-          Only shown if `onSelectToggle` is provided
-          (i.e. the parent enables the comparison
-          feature). */}
+      {/* v0.40b —— 多 model 对比用的 checkbox。
+          仅当 `onSelectToggle` 提供了才会显示
+          (即父组件启用对比功能)。 */}
       {onSelectToggle && (
         <input
           type="checkbox"
@@ -332,14 +319,13 @@ function HistoryRow({
               {t('promote.history.active')}
             </BadgePill>
           )}
-          {/* v0.24a — per-trial badge. The model version
-              already has a `-t{N}` suffix for bulk-promoted
-              trials, but the user has to look carefully to
-              see it. A small explicit badge makes the trial
-              source immediately visible.
-              "best" → the auto-picked best trial
-              "trial N" → a bulk-promoted specific trial
-              missing trial_index → treat as best (v0.18 back-compat) */}
+          {/* v0.24a —— per-trial 徽章。model version
+              对 bulk-promoted trial 已经有 `-t{N}`
+              后缀,但用户得仔细看才能注意到。
+              一个小的显式徽章让 trial 来源一眼可见。
+              "best" → 自动选出的 best trial
+              "trial N" → bulk 路径下 promote 的某个 trial
+              缺失 trial_index → 视为 best(v0.18 向后兼容) */}
           {entry.trial_index != null ? (
             <BadgePill
               variant="accent"
@@ -357,12 +343,10 @@ function HistoryRow({
               {t('promote.history.trial_best')}
             </BadgePill>
           )}
-          {/* v0.41a — small "i" icon with a tooltip showing
-              the per-promotion reason. The icon is the
-              discoverable affordance; the native `title`
-              attribute is the a11y baseline. Older
-              entries without `reason` get a generic
-              "Promoted" tooltip. */}
+          {/* v0.41a —— 小 "i" 图标,tooltip 显示
+              per-promotion 原因。该图标是显眼的可发现元素;
+              原生 `title` 属性是 a11y 基线。
+              旧 entry(无 `reason`)展示通用 "Promoted" tooltip。 */}
           <span
             className="text-[10px] text-muted cursor-help"
             data-testid="promote-history-reason-icon"
@@ -389,10 +373,10 @@ function HistoryRow({
           {entry.best_brier !== null ? entry.best_brier.toFixed(3) : '—'}
         </div>
       </div>
-      {/* v0.20c — Rollback button. Disabled if this row
-          IS the active model (no point rolling back to
-          the current model). Shows a confirmation
-          dialog before doing the actual rollback. */}
+      {/* v0.20c —— Rollback 按钮。如果该行
+          就是 active model,则禁用(回滚到当前
+          model 没意义)。点击后弹确认框,
+          确认后才真正执行 rollback。 */}
       {!isActive && (
         <Button
           data-testid="promote-history-rollback"

@@ -1,16 +1,16 @@
-// v0.92 — Settings.tsx branches round 2 (+6 tests, fn 72.6→75%).
+// v0.92 — Settings.tsx 分支第 2 轮（+6 个测试，fn 72.6→75%）。
 //
-// Targets the top Card save() and reset() handlers (lines 96-113
-// of Settings.tsx) and the `dirty` state computation. The
-// v0.89d attempt failed because the top buttons lacked testids;
-// v0.92 added `prefs-save-btn` / `prefs-reset-btn` testids.
+// 聚焦顶部 Card 的 save() 与 reset() 处理器
+// （Settings.tsx 的 96-113 行）以及 `dirty` 状态的计算。
+// v0.89d 的尝试因顶部按钮缺少 testid 而失败；
+// v0.92 新增了 `prefs-save-btn` / `prefs-reset-btn` testid。
 //
-// Coverage targets:
-//   - save() iterates draft via Object.entries (5 fields)
-//   - reset() calls prefs.reset() + setDraft(...) + toast.info
-//   - dirty state: initial false, true after toggle
-//   - Save button enabled when dirty, disabled otherwise
-//   - reset() restores all 5 fields to prefs.* values
+// 覆盖目标：
+//   - save() 通过 Object.entries 遍历 draft（5 个字段）
+//   - reset() 调用 prefs.reset() + setDraft(...) + toast.info
+//   - dirty 状态：初始为 false，toggle 后为 true
+//   - Save 按钮在 dirty 时启用，否则禁用
+//   - reset() 把 5 个字段全部还原为 prefs.* 的值
 
 // @vitest-environment happy-dom
 
@@ -19,7 +19,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-// Mock the IPC layer (Settings has many IPCs — stub all)
+// Mock IPC 层（Settings 用了许多 IPC —— 全部 stub）
 vi.mock('@/ipc', () => ({
   getAuditRetention: vi.fn().mockResolvedValue({ days: 90 }),
   setAuditRetention: vi.fn().mockResolvedValue(undefined),
@@ -79,7 +79,7 @@ vi.mock('@/ipc', () => ({
   onAutoPromoteFinished: vi.fn().mockReturnValue(Promise.resolve(() => {})),
 }));
 
-// Mock prefs store with a controllable in-memory value
+// Mock prefs store，使用可控的内存值
 const mockSetPref = vi.fn();
 const mockReset = vi.fn();
 const mockPrefsState = {
@@ -181,18 +181,18 @@ describe('Settings — v0.92 top Card save/reset (top of page)', () => {
 
   it('top Save button iterates draft and calls setPref for each field', async () => {
     render(wrap());
-    // First make the form dirty by toggling copyTradingEnabled
-    // The data-testid wraps a Toggle (role="switch"). Click the switch directly.
+    // 首先通过切换 copyTradingEnabled 让表单变 dirty
+    // data-testid 包裹了 Toggle（role="switch"）。直接点击 switch。
     const copyTradingCard = await screen.findByTestId('copy-trading-toggle');
     const copyTradingSwitch = copyTradingCard.querySelector('[role="switch"]') as HTMLElement;
     expect(copyTradingSwitch).toBeTruthy();
     fireEvent.click(copyTradingSwitch);
-    // Then click top Save
+    // 然后点击顶部 Save
     const saveBtn = await screen.findByTestId('prefs-save-btn');
     fireEvent.click(saveBtn);
     await waitFor(() => {
-      // 5 fields should be persisted: defaultMinEdgePct, defaultAllocationCapUsdc,
-      // copyTradingEnabled, notificationsEnabled, advancedStats
+      // 5 个字段应被持久化：defaultMinEdgePct、defaultAllocationCapUsdc、
+      // copyTradingEnabled、notificationsEnabled、advancedStats
       expect(mockSetPref).toHaveBeenCalledWith('defaultMinEdgePct', expect.anything());
       expect(mockSetPref).toHaveBeenCalledWith('defaultAllocationCapUsdc', expect.anything());
       expect(mockSetPref).toHaveBeenCalledWith('copyTradingEnabled', true);
@@ -218,22 +218,22 @@ describe('Settings — v0.92 top Card save/reset (top of page)', () => {
 
   it('top Reset button reverts form to prefs values (next save is no-op)', async () => {
     render(wrap());
-    // Make dirty
+    // 让表单变 dirty
     const copyTradingCard = await screen.findByTestId('copy-trading-toggle');
     const copyTradingSwitch = copyTradingCard.querySelector('[role="switch"]') as HTMLElement;
     fireEvent.click(copyTradingSwitch);
-    // Verify save is enabled
+    // 验证 Save 已启用
     await waitFor(() => {
       const saveBtn = screen.getByTestId('prefs-save-btn');
       expect(saveBtn).not.toBeDisabled();
     });
-    // Click reset
+    // 点击 reset
     const resetBtn = await screen.findByTestId('prefs-reset-btn');
     fireEvent.click(resetBtn);
     await waitFor(() => {
       expect(mockReset).toHaveBeenCalled();
     });
-    // After reset, form should not be dirty (save disabled again)
+    // reset 后，表单不应再 dirty（save 重新 disabled）
     await waitFor(() => {
       const saveBtn = screen.getByTestId('prefs-save-btn');
       expect(saveBtn).toBeDisabled();

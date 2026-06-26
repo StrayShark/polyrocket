@@ -1,13 +1,13 @@
 /**
- * Command palette UI (v0.9c).
+ * 命令面板 UI(v0.9c)。
  *
- * Modal with a search input + a scrollable list of filtered commands.
- * Keyboard navigation:
- *   - `↑` / `↓` to move the highlight
- *   - `Enter` to execute
- *   - `Esc` to close
+ * 带搜索输入与可滚动过滤命令列表的 modal。
+ * 键盘导航:
+ *   - `↑` / `↓` 移动高亮项
+ *   - `Enter` 执行
+ *   - `Esc` 关闭
  *
- * Selecting a command runs its `action()` then closes the palette.
+ * 选择命令后会执行其 `action()` 然后关闭面板。
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -29,19 +29,19 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Reset state when opened
+  // 打开时重置状态
   useEffect(() => {
     if (open) {
       setQuery('');
       setHighlight(0);
-      // Focus the input on next frame
+      // 下一帧聚焦输入框
       setTimeout(() => inputRef.current?.focus(), 0);
     }
   }, [open]);
 
   const filtered = useMemo(() => filterCommands(commands, query, 10), [commands, query]);
 
-  // Keep highlight in range
+  // 保持 highlight 在合理范围内
   useEffect(() => {
     if (highlight >= filtered.length) {
       setHighlight(Math.max(0, filtered.length - 1));
@@ -72,7 +72,7 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
 
   return (
     <Modal open={open} onClose={onClose} size="md">
-      <div className="-m-4">  {/* Edge-to-edge inside modal */}
+      <div className="-m-4">  {/* 在 modal 内部贴边 */}
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
           <Search className="w-4 h-4 text-muted shrink-0" />
           <input
@@ -137,7 +137,7 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
   );
 }
 
-/** Hook so AppShell can manage its own dialog state. */
+/** AppShell 用于管理自身对话框状态的 hook。 */
 export function useCommandPalette() {
   const [open, setOpen] = useState(false);
   return {

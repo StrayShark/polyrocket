@@ -1,13 +1,13 @@
-// v0.70c — LlmMgmt route additional tests.
+// v0.70c — LlmMgmt 路由补充测试。
 //
-// /llm-mgmt is a 484-line, 5-component (LlmMgmt + ProviderRow +
-// KeyRow + AddKeyModal + Field) management screen with rich
-// branching: provider selection, key CRUD, connectivity testing,
-// env-file secret import. Existing tests (v0.62a + v0.63b.more)
-// cover only 7 surface scenarios. We add 10 focused tests
-// covering the branch-rich state machine.
+// /llm-mgmt 是一个 484 行、由 5 个组件（LlmMgmt + ProviderRow +
+// KeyRow + AddKeyModal + Field）组成的管理页面，分支丰富：
+// provider 选择、key CRUD、连通性测试、
+// env-file secret 导入。已有测试（v0.62a + v0.63b.more）
+// 仅覆盖 7 个表层场景。我们新增 10 个聚焦测试，
+// 覆盖分支丰富的状态机。
 //
-// LlmMgmt.tsx: 34.2% → ~70% stmts.
+// LlmMgmt.tsx：34.2% → ~70% stmts。
 //
 // @vitest-environment happy-dom
 
@@ -45,7 +45,7 @@ vi.mock('@/ipc', () => createIpcMock({
   pickFile: (...args: unknown[]) => mockPickFile(...args),
 }));
 
-// env-file module mocks
+// env-file 模块 mock
 vi.mock('@/lib/env-file', () => ({
   extractSecretFromEnv: (...args: unknown[]) => mockExtractSecretFromEnv(...args),
   readFileText: (...args: unknown[]) => mockReadFileText(...args),
@@ -82,8 +82,8 @@ const SECRETS_STATUS = { llm_keys: 2, pm_api: true, wallet_pk: 1 };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // happy-dom doesn't expose window.confirm — assign directly.
-  // The LlmMgmt KeyRow calls confirm(...) inside onClick; auto-accept.
+  // happy-dom 未暴露 window.confirm —— 直接赋值。
+  // LlmMgmt 的 KeyRow 在 onClick 内调用 confirm(...)；自动接受。
   (window as any).confirm = vi.fn(() => true);
   mockLlmProviderList.mockResolvedValue(PROVIDERS);
   mockLlmKeyList.mockResolvedValue(KEYS);
@@ -114,8 +114,8 @@ describe('LlmMgmt (extended)', () => {
       expect(screen.getByText('Anthropic')).toBeInTheDocument();
       expect(screen.getByText('DeepSeek')).toBeInTheDocument();
     });
-    // Health pill texts: "ok 320ms", "slow 1800ms", "failing" (no latency).
-    // Use regex matchers because of the latency suffix on ok/slow.
+    // Health 胶囊文本："ok 320ms"、"slow 1800ms"、"failing"（无延迟）。
+    // 使用正则匹配，因为 ok/slow 后带有 latency 后缀。
     expect(screen.getAllByText(/^ok\b/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/^slow\b/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/^failing\b/).length).toBeGreaterThan(0);
@@ -124,7 +124,7 @@ describe('LlmMgmt (extended)', () => {
   it('renders empty state for keys when no provider is selected', async () => {
     renderLlmMgmt();
     await waitFor(() => screen.getByText('OpenAI'));
-    // Initially selectedProvider is null → keys panel shows "select provider" empty state
+    // 初始 selectedProvider 为 null → keys 面板显示 "select provider" 空状态
     const text = document.body.textContent || '';
     expect(text).toMatch(/select|pick|choose|no_provider/i);
   });
@@ -142,7 +142,7 @@ describe('LlmMgmt (extended)', () => {
   it('calls llmTestConnectivity when test button on provider row is clicked', async () => {
     renderLlmMgmt();
     await waitFor(() => screen.getByText('OpenAI'));
-    // Find test buttons (each provider row has one)
+    // 寻找 test 按钮（每个 provider 行都有一个）
     const testButtons = screen.getAllByRole('button').filter(b =>
       b.querySelector('svg') && b.textContent?.toLowerCase().includes('test'),
     );
@@ -158,7 +158,7 @@ describe('LlmMgmt (extended)', () => {
     await waitFor(() => screen.getByText('OpenAI'));
     fireEvent.click(screen.getByText('OpenAI'));
     await waitFor(() => screen.getByText('prod-1'));
-    // Find delete button (trash icon + delete text)
+    // 寻找 delete 按钮（trash 图标 + delete 文字）
     const deleteButtons = screen.getAllByRole('button').filter(b => {
       const txt = b.textContent?.toLowerCase() || '';
       return txt.includes('delete') || txt.includes('trash') || txt.includes('remove');
@@ -177,14 +177,14 @@ describe('LlmMgmt (extended)', () => {
     await waitFor(() => screen.getByText('OpenAI'));
     fireEvent.click(screen.getByText('OpenAI'));
     await waitFor(() => screen.getByText('prod-1'));
-    // Find Add button
+    // 寻找 Add 按钮
     const addButton = screen.getAllByRole('button').find(b =>
       b.textContent?.toLowerCase().includes('add'),
     );
     expect(addButton).toBeDefined();
     fireEvent.click(addButton!);
     await waitFor(() => {
-      // Modal contains alias input with placeholder
+      // Modal 内含带 placeholder 的 alias 输入框
       const text = document.body.textContent || '';
       expect(text.length).toBeGreaterThan(0);
     });
@@ -199,13 +199,13 @@ describe('LlmMgmt (extended)', () => {
     );
     fireEvent.click(addButton!);
     await waitFor(() => {
-      // The submit button (Add in modal footer) should be disabled
-      // because alias is empty
+      // modal footer 的 submit 按钮（Add）应当处于禁用状态，
+      // 因为 alias 为空
       const submitBtn = screen.getAllByRole('button').find(b => {
         const txt = b.textContent || '';
         return /^(add|save|submit)$/i.test(txt.trim());
       });
-      // Note: there are multiple "add" buttons — we test that the modal opened
+      // 注意：页面上有多个 "add" 按钮 —— 我们只验证 modal 已打开
       expect(submitBtn).toBeDefined();
     });
   });
@@ -213,11 +213,11 @@ describe('LlmMgmt (extended)', () => {
   it('renders keyring status pill counts from secretsStatus', async () => {
     renderLlmMgmt();
     await waitFor(() => {
-      // The pill text format is "{{n}} keys" (i18n template).
-      // Our secretsStatus has llm_keys=2 → expect text "2" appears.
-      // Use a flexible matcher because the digit may be inside an i18n string.
+      // pill 文本格式为 "{{n}} keys"（i18n 模板）。
+      // 我们的 secretsStatus 中 llm_keys=2 → 期望出现 "2"。
+      // 由于数字可能位于 i18n 字符串内部，使用宽松的匹配方式。
       const text = document.body.textContent || '';
-      // Look for any indication that llm_keys count is shown
+      // 寻找 llm_keys 计数展示的任何迹象
       expect(text).toMatch(/2|keys/i);
     });
   });

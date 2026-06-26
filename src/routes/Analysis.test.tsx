@@ -1,10 +1,10 @@
-// v0.62a.2 — Analysis component tests.
+// v0.62a.2 — Analysis 组件测试。
 //
-// /analysis is the LLM fan-out analysis page.
-// Today 0% coverage. This file covers:
-//   1. Initial render with empty data
-//   2. Market id input + Run button
-//   3. Recommendation accept/reject flow
+// /analysis 是 LLM 扇出分析页面。
+// 当前覆盖率 0%。本文件覆盖：
+//   1. 空数据初始渲染
+//   2. 市场 id 输入 + Run 按钮
+//   3. 推荐接受/拒绝流程
 
 // @vitest-environment happy-dom
 
@@ -51,7 +51,7 @@ describe('Analysis', () => {
     renderAnalysis();
     await waitFor(() => {
       const buttons = screen.getAllByRole('button');
-      // Run / Accept / Reject / Refresh / etc.
+      // Run / Accept / Reject / Refresh 等。
       expect(buttons.length).toBeGreaterThan(0);
     });
   });

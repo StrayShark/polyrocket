@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react';
 import { Pill } from './Pill';
 
 describe('Pill (v0.119 enhanced — backward-compat)', () => {
-  // ---- backward-compat (existing API) ----
+  // ---- 向后兼容(现有 API)----
 
   it('renders default neutral kind with children', () => {
     render(<Pill>default</Pill>);
@@ -26,7 +26,7 @@ describe('Pill (v0.119 enhanced — backward-compat)', () => {
     expect(container.querySelector('span')!.className).toContain('bg-accent');
   });
 
-  // ---- v0.119 new API: shape variant ----
+  // ---- v0.119 新增 API:形状变体 ----
 
   it('default shape is square (4px rounded) — backward compat', () => {
     const { container } = render(<Pill>x</Pill>);
@@ -40,7 +40,7 @@ describe('Pill (v0.119 enhanced — backward-compat)', () => {
     expect(container.querySelector('span')!.className).not.toMatch(/rounded( |$)/);
   });
 
-  // ---- v0.119 new API: uppercase variant ----
+  // ---- v0.119 新增 API:大写变体 ----
 
   it('uppercase=false keeps original 10px font-medium', () => {
     const { container } = render(<Pill>x</Pill>);
@@ -58,11 +58,11 @@ describe('Pill (v0.119 enhanced — backward-compat)', () => {
     expect(span.className).toContain('text-xs');
     expect(span.className).toContain('font-semibold');
     expect(span.className).toContain('tracking-caption-uppercase');
-    // uppercase uses wider padding (px-2.5 vs px-1.5)
+    // uppercase 使用更宽的内边距(px-2.5 vs px-1.5)
     expect(span.className).toContain('px-2.5');
   });
 
-  // ---- combinations ----
+  // ---- 组合 ----
 
   it('combines shape="pill" + uppercase=true + variant="bull"', () => {
     const { container } = render(

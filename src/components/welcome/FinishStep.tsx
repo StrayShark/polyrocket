@@ -1,10 +1,9 @@
-// v0.53b — FinishStep (Step 6 of 6).
+// v0.53b —— FinishStep (Step 6 of 6)。
 //
-// Read-only summary of what was just configured.
-// Highlights missing items so the user can go
-// back and add them. The Next button here is the
-// "Finish" button — clicking it sets
-// welcome.done=true and navigates to /dashboard.
+// 对刚才所配置内容的只读摘要。
+// 高亮缺失项,让用户可以返回补充。
+// 此处的 Next 按钮是 "Finish" 按钮 ——
+// 点击后设置 welcome.done=true 并跳转至 /dashboard。
 
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { useT } from '@/lib/i18n';

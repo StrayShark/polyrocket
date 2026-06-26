@@ -1,18 +1,18 @@
-// v0.57b — History page component tests.
+// v0.57b —— History 页面组件测试。
 //
-// The History page lists the user's placed bets
-// (real-mode + paper) with v0.50a (Type + post-only
-// badge) + v0.51b (Fill: slippage + partial +
-// TTF) columns. Today the page has 2 data-testids
-// (bet-post-only-{id}, bet-partial-{id}) but no
-// tests.
+// History 页面列出用户的已下注 bet
+//（real-mode + paper），包含 v0.50a（Type + post-only
+// 徽章）+ v0.51b（Fill：slippage + partial +
+// TTF）列。目前页面有 2 个 data-testid
+//（bet-post-only-{id}、bet-partial-{id}）但没有
+// 测试。
 //
-// This file covers the rendering of:
-//   1. The empty state (no bets)
-//   2. A populated table with the v0.51b Fill
-//      column showing slippage coloring
-//   3. The post-only badge
-//   4. The partial fill badge
+// 本文件覆盖以下渲染：
+//   1. 空状态（无 bet）
+//   2. 包含 v0.51b Fill 列的已填充表格
+//      （展示 slippage 着色）
+//   3. post-only 徽章
+//   4. partial fill 徽章
 
 // @vitest-environment happy-dom
 
@@ -48,16 +48,14 @@ describe('History (v0.57b)', () => {
   it('renders the empty state when no bets', async () => {
     vi.mocked(ipc.listBets).mockResolvedValue([]);
     render(wrap(<History />));
-    // Just verify the page renders without
-    // crashing. The empty state is a Card
-    // with the no-bets message. We don't pin
-    // a specific testid because the empty
-    // path uses EmptyState, not a custom one.
-    // v0.119 — Card now uses `rounded-card` (12px) per
-    // Cursor spec, replacing old `rounded-lg` (8px).
+    // 仅验证页面能渲染而不崩溃。空状态是一个
+    // 带无投注消息的 Card。我们不绑定特定 testid，
+    // 因为空状态路径使用 EmptyState 而非自定义 testid。
+    // v0.119 — Card 现在按 Cursor 规范使用 `rounded-card`（12px），
+    // 取代原来的 `rounded-lg`（8px）。
     await waitFor(() => {
-      // 3+ Card children or any visible Card
-      // header.
+      // 至少 3 个 Card 子元素或任意可见的
+      // Card 头。
       expect(
         document.querySelector('.rounded-card') !== null,
       ).toBeTruthy();

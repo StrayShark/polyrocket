@@ -1,12 +1,12 @@
-// v0.87b — Copy.tsx additional tests targeting the remaining uncovered
-// branches: addTargetMut.onError, minEdgePct clamping (non-numeric input),
-// clipboard copy button, paper-mode banner with n=0, and addTargetMut success.
+// v0.87b — Copy.tsx 补充测试，覆盖剩余未覆盖的
+// 分支：addTargetMut.onError、minEdgePct 夹紧（非数字输入）、
+// 剪贴板复制按钮、n=0 时的 paper 模式横幅以及 addTargetMut 成功。
 //
-// v0.63b + v0.67a existing tests cover:
-//   - List rendering (empty/populated/loading/error)
-//   - AddTargetModal flows (open/close/submit)
+// v0.63b + v0.67a 已有测试覆盖：
+//   - 列表渲染（空/已填充/加载中/错误）
+//   - AddTargetModal 流程（打开/关闭/提交）
 //
-// Coverage target: Copy.tsx 79.54% → 85%+ stmts, branches 86.84% → 90%+.
+// 覆盖目标：Copy.tsx 79.54% → 85%+ 语句，分支 86.84% → 90%+。
 
 // @vitest-environment happy-dom
 
@@ -65,13 +65,13 @@ describe('Copy branches (v0.87b)', () => {
   it('addTargetMut.onError → toast.error (line 249)', async () => {
     mockAddCopyTarget.mockRejectedValueOnce(new Error('ipc failure'));
     renderCopy();
-    // Open Add modal
+    // 打开 Add modal
     const addBtn = await screen.findByText('Add target');
     fireEvent.click(addBtn);
-    // Fill valid address
+    // 填入合法地址
     const input = await screen.findByPlaceholderText(/0x/i);
     fireEvent.change(input, { target: { value: '0x' + 'a'.repeat(40) } });
-    // Submit
+    // 提交
     const submitBtn = screen.getByRole('button', { name: /^Add$/ });
     fireEvent.click(submitBtn);
     await waitFor(() => {
@@ -86,18 +86,18 @@ describe('Copy branches (v0.87b)', () => {
     renderCopy();
     const addBtn = await screen.findByText('Add target');
     fireEvent.click(addBtn);
-    // Find the min edge slider/input. It's a number input with min=0 max=50 step=1.
-    // The exact selector depends on the Field component; for now we look for
-    // any number input that has step=1 in the modal.
+    // 寻找 min edge slider/input。它是 min=0 max=50 step=1 的 number 输入。
+    // 具体选择器依赖 Field 组件；目前我们查找 modal 中
+    // 任一带 step=1 的 number 输入。
     const modalNumberInputs = document.querySelectorAll('input[type="number"]');
-    // Pick the one with min=0 max=50
+    // 挑选 min=0 max=50 的那个
     const minEdgeInput = Array.from(modalNumberInputs).find(
       (el) => (el as HTMLInputElement).max === '50',
     ) as HTMLInputElement | undefined;
     expect(minEdgeInput).toBeTruthy();
-    // Type something that becomes NaN — e.g. empty string
+    // 输入会变成 NaN —— 例如空字符串
     fireEvent.change(minEdgeInput!, { target: { value: '' } });
-    // The state should be 0 (clamped via Math.max(0, Math.min(50, NaN || 0)) = 0)
+    // state 应为 0（通过 Math.max(0, Math.min(50, NaN || 0)) = 0 夹紧）
     expect((minEdgeInput as HTMLInputElement).value).toBe('0');
   });
 
@@ -108,8 +108,8 @@ describe('Copy branches (v0.87b)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('copy-paper-mode-banner')).toBeInTheDocument();
     });
-    // Banner should mention 0 fills
-    // Banner text is split by t() interpolation; check the container text
+    // Banner 应包含 0 fills
+    // Banner 文本由 t() 插值拆分；检查容器文本
       const banner = screen.getByTestId('copy-paper-mode-banner');
       expect(banner.textContent).toMatch(/paper mode|模拟盘/);
   });
@@ -121,7 +121,7 @@ describe('Copy branches (v0.87b)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('copy-paper-mode-banner')).toBeInTheDocument();
     });
-    // Banner should mention 3 fills
+    // Banner 应包含 3 fills
     const banner = screen.getByTestId('copy-paper-mode-banner');
       expect(banner.textContent).toMatch(/paper mode|模拟盘/);
   });
@@ -132,7 +132,7 @@ describe('Copy branches (v0.87b)', () => {
       label: 'trader1', enabled: true, allocation_cap: null, min_edge: 0.05,
       created_at: Date.now(),
     }]);
-    // Mock navigator.clipboard
+    // 模拟 navigator.clipboard
     const writeTextMock = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', {
       value: { writeText: writeTextMock },
@@ -143,7 +143,7 @@ describe('Copy branches (v0.87b)', () => {
     await waitFor(() => {
       expect(screen.getByText('trader1')).toBeInTheDocument();
     });
-    // Find the copy button (it has title="Copy full address")
+    // 寻找 copy 按钮（其 title="Copy full address"）
     const copyBtn = screen.getByTitle('Copy full address');
     fireEvent.click(copyBtn);
     await waitFor(() => {
@@ -166,13 +166,13 @@ describe('Copy branches (v0.87b)', () => {
         </QueryClientProvider>
       </MemoryRouter>,
     );
-    // Open Add modal
+    // 打开 Add modal
     const addBtn = await screen.findByText('Add target');
     fireEvent.click(addBtn);
-    // Fill valid address
+    // 填入合法地址
     const input = await screen.findByPlaceholderText(/0x/i);
     fireEvent.change(input, { target: { value: '0x' + 'b'.repeat(40) } });
-    // Submit
+    // 提交
     const submitBtn = screen.getByRole('button', { name: /^Add$/ });
     fireEvent.click(submitBtn);
     await waitFor(() => {

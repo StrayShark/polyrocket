@@ -1,9 +1,9 @@
-// v0.62a.2 — LlmMgmt component tests (more coverage).
+// v0.62a.2 — LlmMgmt 组件测试（更多覆盖）。
 //
-// /llm-mgmt is the LLM provider/key manager.
-// Today 17% coverage. This file covers:
-//   1. Add provider modal opens
-//   2. List providers section renders
+// /llm-mgmt 是 LLM 提供商/密钥管理页面。
+// 当前覆盖率 17%。本文件覆盖：
+//   1. 打开 Add provider 弹窗
+//   2. 渲染 List providers 部分
 
 // @vitest-environment happy-dom
 

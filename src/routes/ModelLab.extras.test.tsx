@@ -1,13 +1,14 @@
-// v0.71a — ModelLab route additional tests (round 2).
+// v0.71a —— ModelLab 路由补充测试（第二轮）。
 //
-// ModelLab.tsx is 792 lines, the LARGEST route. After
-// v0.65a's 10 tests, it sits at 52.1% stmts / 37.1% branches.
-// We add 10 more focused tests for the auto-promote listener,
-// weightsQuery compare-modal branch, backtest single-select,
-// last-candidate state machine, and the skipped-pref OS
-// notification path.
+// ModelLab.tsx 共 792 行，是最大的路由。在
+// v0.65a 的 10 个测试之后，它位于
+// 52.1% 语句 / 37.1% 分支。我们再增加 10 个测试，
+// 重点测试 auto-promote 监听器、
+// weightsQuery compare-modal 分支、backtest 单选、
+// last-candidate 状态机以及
+// skipped-pref OS 通知路径。
 //
-// Coverage target: 52.1% → ~75% stmts.
+// 覆盖目标：52.1% → 约 75% 语句。
 //
 // @vitest-environment happy-dom
 
@@ -54,7 +55,7 @@ vi.mock('@/ipc', () => createIpcMock({
   sidecarPredict: (...args: unknown[]) => msp(...args),
 }));
 
-// Default prefs (override per test for autoPromoteNotify)
+// 默认 prefs（针对 autoPromoteNotify 在每个测试中覆盖）
 const { mockPrefsState } = vi.hoisted(() => {
   const state: Record<string, unknown> = {
     autoPromoteAfterTrain: false,
@@ -93,7 +94,7 @@ beforeEach(() => {
   mockPrefsState.autoPromoteNotify = false;
   mockPrefsState.autoPromoteSkippedNotify = false;
   mockPrefsState.notificationsEnabled = true;
-  // Default IPC mocks
+  // 默认 IPC mocks
   mlp.mockResolvedValue([
     {
       model_version: 'v1', brier_score: 0.20, n_calls: 100,
@@ -109,7 +110,7 @@ beforeEach(() => {
   msn.mockResolvedValue(undefined);
   lph.mockResolvedValue({ ok: true, entries: [], count: 0, message: '' });
   lpha.mockResolvedValue({ ok: true, total: 0, entries: [] });
-  // TrainStarted returns an unsub fn; AutoPromoteFinished too.
+  // TrainStarted 返回 unsub fn；AutoPromoteFinished 同理。
   ots.mockResolvedValue(() => {});
   oaf.mockResolvedValue(() => {});
 });
@@ -123,7 +124,7 @@ describe('ModelLab (extended round 2)', () => {
   });
 
   it('auto-promote promoted=true triggers success toast (no OS notification when pref off)', async () => {
-    // Capture the AutoPromoteFinished callback
+    // 捕获 AutoPromoteFinished 回调
     let capturedCb: ((e: any) => void) | null = null;
     oaf.mockImplementation((cb: any) => {
       capturedCb = cb;
@@ -131,9 +132,9 @@ describe('ModelLab (extended round 2)', () => {
     });
     renderModelLab();
     await waitFor(() => expect(capturedCb).toBeTruthy());
-    // Fire the event
+    // 触发事件
     (capturedCb as any)({ promoted: true, model_version: 'logistic-v2', message: null });
-    // OS notification should NOT have been called (pref off)
+    // OS 通知不应被调用（pref 关闭）
     expect(msn).not.toHaveBeenCalled();
   });
 
@@ -161,7 +162,7 @@ describe('ModelLab (extended round 2)', () => {
     renderModelLab();
     await waitFor(() => expect(capturedCb).toBeTruthy());
     (capturedCb as any)({ promoted: false, model_version: null, message: 'candidate not better' });
-    // No OS notification — autoPromoteSkippedNotify is false
+    // 无 OS 通知 —— autoPromoteSkippedNotify 为 false
     expect(msn).not.toHaveBeenCalled();
   });
 
@@ -183,14 +184,14 @@ describe('ModelLab (extended round 2)', () => {
   it('weightsQuery is disabled when no entries selected for compare', async () => {
     renderModelLab();
     await waitFor(() => screen.getAllByRole('button').length > 0);
-    // Without opening Compare modal, lpha should NOT be called yet
+    // 不打开 Compare 模态框，lpha 不应被调用
     expect(lpha).not.toHaveBeenCalled();
   });
 
   it('opens Compare modal and queries history + archive when clicked', async () => {
     renderModelLab();
     await waitFor(() => screen.getAllByRole('button').length > 0);
-    // Find the Compare button by text content
+    // 通过文本内容查找 Compare 按钮
     const compareBtn = screen.getAllByRole('button').find(b =>
       b.textContent?.toLowerCase().includes('compare') ||
       b.textContent?.includes('比较'),
@@ -212,9 +213,9 @@ describe('ModelLab (extended round 2)', () => {
     );
     if (backtestBtn) {
       fireEvent.click(backtestBtn);
-      // The backtest modal opens with empty target
+      // backtest 模态框以空 target 打开
       await waitFor(() => {
-        // Should find some "backtest" related content
+        // 应找到一些 "backtest" 相关内容
         const text = document.body.textContent || '';
         expect(text.length).toBeGreaterThan(0);
       });
@@ -266,7 +267,7 @@ describe('ModelLab (extended round 2)', () => {
     });
     renderModelLab();
     await waitFor(() => expect(capturedCb).toBeTruthy());
-    // The TrainStarted listener should be registered
+    // TrainStarted 监听器应已被注册
     expect(capturedCb).toBeTruthy();
   });
 });

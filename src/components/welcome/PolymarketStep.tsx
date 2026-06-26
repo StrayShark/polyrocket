@@ -1,15 +1,15 @@
-// v0.53b + v0.68f — PolymarketStep (Step 5 of 6).
+// v0.53b + v0.68f — PolymarketStep (Step 5 of 6)。
 //
-// Two sub-cards:
-//   1. CLOB API credentials (api_key / secret /
-//      passphrase). 3 fields, all required. The
-//      keyring aliases are surfaced inline.
-//   2. Trading wallet (optional). Address +
-//      private key.
+// 两个子卡片:
+//   1. CLOB API 凭证 (api_key / secret /
+//      passphrase)。3 个字段,全部必填。keyring
+//      别名会内联展示。
+//   2. 交易钱包(可选)。地址 +
+//      私钥。
 //
-// Each sub-card has its own save + skip. Skipping
-// the wallet is normal — many users only use
-// mode-A jump bets and don't need a key in keyring.
+// 每个子卡片都有自己的 save + skip。Skip
+// 钱包很常见 —— 很多用户只用 mode-A
+// jump bets,不需要 keyring 中的 key。
 
 import { useState, useCallback, useEffect } from 'react';
 import { Card } from '@/components/base/Card';
@@ -53,10 +53,11 @@ function ClobCard({
   welcome: ReturnType<typeof useWelcomeStore.getState>;
 }) {
   const { t } = useT();
-  // v0.119 — env-only mode. Backend reads POLYMARKET_API_KEY /
-  // POLYMARKET_API_SECRET / POLYMARKET_API_PASSPHRASE directly from
-  // process env (no OS keyring). Detect on mount so the welcome
-  // banner can skip this step when env is configured.
+  // v0.119 — env-only 模式。后端直接从
+  // process env 读取 POLYMARKET_API_KEY /
+  // POLYMARKET_API_SECRET / POLYMARKET_API_PASSPHRASE
+  // (不存 OS keyring)。挂载时检测,
+  // 当 env 已配置时 welcome 横幅可跳过此步。
   const [envConfigured, setEnvConfigured] = useState<boolean | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -79,8 +80,8 @@ function ClobCard({
       description={t('welcome.pm_clob_desc')}
     >
       {envConfigured === true ? (
-        // Env has all 3 vars set — backend will read them. Just show
-        // confirmation, no UI input needed.
+        // Env 中 3 个变量已全部设置 —— 后端会读取它们。
+        // 只显示确认,无需 UI 输入。
         <div
           data-testid="welcome-pm-already-configured"
           className="flex items-center justify-between gap-3 rounded-md border border-bull/30 bg-bull/10 px-3 py-2.5"
@@ -101,10 +102,10 @@ function ClobCard({
           </Button>
         </div>
       ) : (
-        // v0.119 — env-only mode: no password form, no save button.
-        // Show the user exactly which env vars to fill in `~/global_env/.env`
-        // (or project `.env`) to make Polymarket trading work. The
-        // backend reads them directly via process env — no OS keyring.
+        // v0.119 — env-only 模式: 没有密码表单,没有 save 按钮。
+        // 向用户准确展示需要在 `~/global_env/.env`(或项目 `.env`)
+        // 中填写哪些 env 变量,才能让 Polymarket 交易生效。Backend
+        // 通过 process env 直接读取 —— 无需 OS keyring。
         <div
           data-testid="welcome-pm-env-info"
           className="space-y-2 rounded-md border border-border bg-surface-2/30 px-3 py-2.5"
@@ -129,7 +130,7 @@ function ClobCard({
             size="sm"
             onClick={() => {
               welcome.setConfigured('polymarketApi', true);
-              setAlreadyConfigured(true);
+              setEnvConfigured(true);
               toast.success(t('welcome.pm_already_saved'));
             }}
           >
@@ -165,12 +166,11 @@ function WalletCard({
     setResult(null);
     try {
       await polyrocketWalletSetPk(alias.trim() || 'primary', pk.trim());
-      // The polyrocket_wallet_set_pk IPC currently
-      // takes (alias, pk). The address comes from
-      // the keyring alias derivation. For v0.53b
-      // we just trust the alias + pk pair; the
-      // wallet page shows the address derived from
-      // the keyring entry.
+      // polyrocket_wallet_set_pk IPC 当前
+      // 接收 (alias, pk)。Address 由
+      // keyring alias 派生而来。v0.53b 我们
+      // 直接信任 alias + pk 对;wallet 页面
+      // 会展示从 keyring entry 派生的 address。
       welcome.setConfigured('walletPk', true);
       setResult({ ok: true, message: t('welcome.wallet_saved') });
       toast.success(t('welcome.wallet_saved'));

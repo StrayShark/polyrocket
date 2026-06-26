@@ -1,13 +1,13 @@
-// v0.70e — Wallets route additional tests.
+// v0.70e —— Wallets 路由附加测试。
 //
-// /wallets is a 329-line, 4-component (Wallets + WalletCard +
-// AddWalletModal + Field) screen. Existing test (v0.63b) is
-// 7 tests covering basic rendering + invalid address. We add
-// 10 focused tests covering the branch-rich state machine:
-// copy-to-clipboard, import-from-file, validation (0x + 42),
-// chain selector, type toggle, refresh spin.
+// /wallets 是一个 329 行、4 组件（Wallets + WalletCard +
+// AddWalletModal + Field）的页面。已有测试（v0.63b）共
+// 7 个用例覆盖基础渲染 + 无效地址。我们新增
+// 10 个聚焦测试，覆盖分支密集的状态机：
+// 复制到剪贴板、从文件导入、地址校验（0x + 42）、
+// chain 选择器、类型切换、refresh 旋转。
 //
-// Wallets.tsx: 45.8% → ~75% stmts.
+// Wallets.tsx：45.8% → ~75% stmts。
 //
 // @vitest-environment happy-dom
 
@@ -29,7 +29,7 @@ vi.mock('@/ipc', () => createIpcMock({
   pickFile: (...args: unknown[]) => mpf(...args),
 }));
 
-// env-file + wallet-file mocks
+// env-file + wallet-file 的 mocks
 vi.mock('@/lib/env-file', () => ({
   readFileText: vi.fn().mockResolvedValue('{}'),
 }));
@@ -37,8 +37,8 @@ vi.mock('@/lib/wallet-file', () => ({
   extractAddressFromJson: vi.fn().mockReturnValue('0x1234567890123456789012345678901234567890'),
 }));
 
-// happy-dom doesn't have clipboard — stub it.
-// Use defineProperty because navigator.clipboard is read-only.
+// happy-dom 没有 clipboard —— 在此 stub。
+// 因为 navigator.clipboard 是只读，所以使用 defineProperty。
 Object.defineProperty(navigator, 'clipboard', {
   value: {
     writeText: vi.fn().mockResolvedValue(undefined),
@@ -92,7 +92,7 @@ describe('Wallets (extended)', () => {
     mlw.mockResolvedValue([]);
     renderWallets();
     await waitFor(() => {
-      // Empty state with "add first" action button
+      // 带 "add first" 操作按钮的空状态
       const text = document.body.textContent || '';
       expect(text.length).toBeGreaterThan(0);
     });
@@ -101,10 +101,10 @@ describe('Wallets (extended)', () => {
   it('renders 2 wallet cards in grid layout', async () => {
     renderWallets();
     await waitFor(() => {
-      // Main wallet label visible
+      // 主钱包 label 可见
       expect(screen.getByText('main')).toBeInTheDocument();
     });
-    // Second wallet — label is null, so shows fallback text
+    // 第二个钱包 —— label 为 null，因此显示兜底文本
     const text = document.body.textContent || '';
     expect(text).toMatch(/0x1234|0xabcd/);
   });
@@ -112,7 +112,7 @@ describe('Wallets (extended)', () => {
   it('copies address to clipboard when copy icon is clicked', async () => {
     renderWallets();
     await waitFor(() => screen.getByText('main'));
-    // Find all copy buttons (one per wallet card)
+    // 查找所有 copy 按钮（每张钱包卡一个）
     const copyButtons = document.querySelectorAll('button[title*="opy" i], button[title*="复制" i]');
     expect(copyButtons.length).toBeGreaterThan(0);
     fireEvent.click(copyButtons[0]);
@@ -132,7 +132,7 @@ describe('Wallets (extended)', () => {
     expect(addButton).toBeDefined();
     fireEvent.click(addButton!);
     await waitFor(() => {
-      // Modal opens — address input appears
+      // Modal 打开 —— 地址输入框出现
       const inputs = screen.getAllByRole('textbox');
       expect(inputs.length).toBeGreaterThan(0);
     });
@@ -146,11 +146,11 @@ describe('Wallets (extended)', () => {
     );
     fireEvent.click(addButton!);
     await waitFor(() => screen.getAllByRole('textbox').length > 0);
-    // Type invalid address (no 0x)
+    // 输入无效地址（无 0x）
     const addressInput = screen.getAllByRole('textbox')[0] as HTMLInputElement;
     fireEvent.change(addressInput, { target: { value: 'not-an-address' } });
     await waitFor(() => {
-      // The submit Add button in modal footer should be disabled
+      // modal footer 的 submit Add 按钮应处于 disabled
       const submitBtn = screen.getAllByRole('button').find(b =>
         b.textContent?.trim().toLowerCase() === 'add' && b.hasAttribute('disabled'),
       );
@@ -204,14 +204,14 @@ describe('Wallets (extended)', () => {
     );
     fireEvent.click(addButton!);
     await waitFor(() => screen.getAllByRole('textbox').length > 0);
-    // Find the smart button — text contains 'smart' or '智能'
+    // 查找 smart 按钮 —— 文本包含 'smart' 或 '智能'
     const smartBtn = screen.getAllByRole('button').find(b =>
       b.textContent?.toLowerCase().includes('smart'),
     );
     if (smartBtn) {
       fireEvent.click(smartBtn);
       await waitFor(() => {
-        // After click, smart button should have accent class
+        // 点击后，smart 按钮应具有 accent class
         expect(smartBtn.className).toContain('accent');
       });
     }
@@ -229,7 +229,7 @@ describe('Wallets (extended)', () => {
     fireEvent.change(addressInput, {
       target: { value: '0x1234567890123456789012345678901234567890' },
     });
-    // Find the modal footer Add button (not the main page button)
+    // 查找 modal footer 的 Add 按钮（非主页面按钮）
     await waitFor(() => {
       const modalAddBtns = screen.getAllByRole('button').filter(b =>
         b.textContent?.trim().toLowerCase() === 'add' && !b.hasAttribute('disabled'),
@@ -257,8 +257,8 @@ describe('Wallets (extended)', () => {
     const importBtn = screen.getByTestId('wallet-import-from-file');
     fireEvent.click(importBtn);
     await waitFor(() => {
-      // The extractAddressFromJson mock returns a 0x...42 char address,
-      // which gets set into the address input.
+      // extractAddressFromJson mock 返回 0x...42 字符地址，
+      // 该地址被设置到地址输入框中。
       expect(mpf).toHaveBeenCalled();
       const addressInput = screen.getAllByRole('textbox')[0] as HTMLInputElement;
       expect(addressInput.value).toMatch(/^0x[0-9a-f]{40}$/);

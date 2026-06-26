@@ -1,23 +1,23 @@
 /**
- * BadgePill (v0.119 — Cursor-merge).
+ * BadgePill (v0.119 — Cursor 合并)。
  *
- * Small uppercase badge following Cursor's `badge-pill` spec:
- *   - background: surface-strong (or accent/15 / bull/15 / bear/15)
- *   - text: ink (or accent / bull / bear)
- *   - typography: caption-uppercase (11px / 600 / +0.88px tracking / UPPERCASE)
- *   - rounded: pill (9999px)
- *   - padding: 4px 10px
+ * 按照 Cursor 的 `badge-pill` 规范实现的小号大写徽章:
+ *   - 背景:surface-strong(或 accent/15 / bull/15 / bear/15)
+ *   - 文字:ink(或 accent / bull / bear)
+ *   - 排版:caption-uppercase(11px / 600 / +0.88px 字距 / UPPERCASE)
+ *   - 圆角:pill(9999px)
+ *   - 内边距:4px 10px
  *
- * Use cases (v0.119):
- *   - Version badge ("v0.119")
- *   - Status badge ("LIVE", "BETA", "NEW")
- *   - Edge badge ("+7.6%", "-3.2%") — use bull/bear variant
- *   - Category tag (rare)
+ * 使用场景(v0.119):
+ *   - 版本徽章("v0.119")
+ *   - 状态徽章("LIVE"、"BETA"、"NEW")
+ *   - 边际徽章("+7.6%"、"-3.2%")— 使用 bull/bear 变体
+ *   - 分类标签(较少使用)
  *
- * v0.119 — replaces ad-hoc uppercase pill patterns scattered across UI.
- * Backward-compatible with existing `Pill` component (different API):
- *   - `Pill` (existing): 4px rounded, 10px font-medium, 6 kinds (bull/bear/warning/accent/neutral/muted)
- *   - `BadgePill` (new): pill (9999px) rounded, 11px caption-uppercase, 5 variants
+ * v0.119 — 替换散落在 UI 中各处零散的大写 pill 样式。
+ * 与现有 `Pill` 组件保持向后兼容(API 不同):
+ *   - `Pill`(现有):4px 圆角,10px font-medium,6 种(bull/bear/warning/accent/neutral/muted)
+ *   - `BadgePill`(新增):pill(9999px)圆角,11px caption-uppercase,5 种变体
  */
 
 import type { HTMLAttributes, ReactNode } from 'react';

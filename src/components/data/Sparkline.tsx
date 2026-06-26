@@ -5,20 +5,20 @@ export interface SparklineProps {
   values: number[];
   width?: number;
   height?: number;
-  /** Color of the line and fill. Defaults to var(--accent). */
+  /** 线条与填充颜色。默认 var(--accent)。 */
   color?: string;
-  /** Show a small dot at the last point. */
+  /** 是否在最后一个点显示小圆点。 */
   showLastDot?: boolean;
   className?: string;
-  /** Optional reference lines (horizontal) */
+  /** 可选的参考水平线 */
   refLines?: number[];
-  /** Pad the y-axis with this fraction (default 0.1 = 10%) */
+  /** y 轴 padding 比例(默认 0.1 = 10%) */
   yPad?: number;
 }
 
 /**
- * Pure-SVG sparkline. No external charting dep — small and fast.
- * Auto-scales to data range; positive values get color, negative get bear.
+ * 纯 SVG sparkline。不依赖外部图表库——轻量、快速。
+ * 自动适配数据范围;正值用正向色,负值用 bear 色。
  */
 export function Sparkline({
   values,
@@ -44,7 +44,7 @@ export function Sparkline({
   const lineColor = color ?? (trend === 'down' ? 'var(--bear)' : trend === 'up' ? 'var(--bull)' : 'var(--accent)');
   return (
     <svg width={width} height={height} className={cn('overflow-visible', className)}>
-      {/* Reference lines */}
+      {/* 参考线 */}
       {refLines.map((y, i) => (
         <line
           key={i}
@@ -57,13 +57,13 @@ export function Sparkline({
           strokeWidth={0.5}
         />
       ))}
-      {/* Fill */}
+      {/* 填充区域 */}
       <path
         d={`${path} L ${width},${height} L 0,${height} Z`}
         fill={lineColor}
         fillOpacity={0.15}
       />
-      {/* Line */}
+      {/* 折线 */}
       <path d={path} fill="none" stroke={lineColor} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
       {showLastDot && values.length > 0 && (
         <circle
@@ -113,7 +113,7 @@ function pathLastY(values: number[], h: number, yPad: number): number {
 }
 
 /**
- * Cumulative sum — used for the equity curve.
+ * 累计求和——用于 equity curve。
  */
 export function cumulativeSum(values: number[]): number[] {
   const out: number[] = [];

@@ -1,8 +1,8 @@
 /**
- * TrainProgress (v0.17c, v0.21c).
+ * TrainProgress(v0.17c、v0.21c)。
  *
- * Renders the live status of an in-flight `train_job` IPC as
- * a per-trial table:
+ * 将进行中的 `train_job` IPC 实时状态以
+ * per-trial 表格形式渲染:
  *
  *   ⟳ Training… (2/4 trials)
  *   ┌─────┬──────┬───────┬─────────────────┐
@@ -17,26 +17,23 @@
  *   Best: 0.05 / 0.01 → w0=0.10 w1=0.20 w2=0.30
  *   candidate.json: /home/x/.polyrocket/sidecar/models/candidate.json
  *
- * v0.21c — per-trial Promote button. The user can promote
- * ANY trial (not just the best). The "best" trial's button
- * says "Promote best" to distinguish it; the others say
- * "Promote #N". Clicking calls the `onPromote` callback
- * with the trial index.
+ * v0.21c —— per-trial Promote 按钮。用户可 promote
+ * 任意 trial(不仅是 best)。"best" trial 的按钮
+ * 文字为 "Promote best" 以区分;其余为
+ * "Promote #N"。点击后调 `onPromote` 回调,
+ * 传入 trial index。
  *
- * Hooks into the 2 events emitted from
- * `commands::sidecar::train_job`:
+ * 监听 `commands::sidecar::train_job` 发出的 2 个事件:
  *
- *   started  → seeds a "training…" header (no trial data yet)
- *   finished → fills the per-trial table + best result
+ *   started  → 先填充 "training…" 头部(尚无 trial 数据)
+ *   finished → 填充 per-trial 表格 + best 结果
  *
- * Listeners are registered on mount, unregistered on unmount.
- * The component is keyed by `jobId` so multiple concurrent
- * trains stay independent — events for other job_ids are
- * ignored.
+ * 监听器在 mount 时注册、unmount 时注销。
+ * 组件按 `jobId` 作 key,多个并发训练相互独立
+ * —— 其他 job_id 的事件会被忽略。
  *
- * After `finished`, the component keeps the final state
- * visible (doesn't auto-clear) so the user can see the
- * training result.
+ * `finished` 之后,组件保留最终状态(不自动清空),
+ * 让用户能查看训练结果。
  */
 
 import { useEffect, useState, useRef } from 'react';
@@ -53,27 +50,26 @@ import { Button } from '@/components/base/Button';
 import { useT } from '@/lib/i18n';
 
 export interface TrainProgressProps {
-  /** Server-generated UUID (`train-XXXXXXXX`). When set, the
-   * component subscribes to events for this train only.
-   * When null/undefined, the component is idle. */
+  /** 服务端生成的 UUID(`train-XXXXXXXX`)。设置时,
+   * 组件只订阅该 train 的事件。
+   * null/undefined 时,组件为 idle。 */
   jobId: string | null | undefined;
-  /** When true, force-show the panel even after the train
-   * finished (e.g. for showing the last result on mount). */
+  /** 为 true 时,即使 train 已结束,也强制显示面板
+   * (例如挂载时显示上一次的训练结果)。 */
   defaultExpanded?: boolean;
   className?: string;
-  /** v0.21c — bulk promote. Optional callback fired when
-   * the user clicks "Promote" on a trial row. The callback
-   * receives the 0-indexed trial number. If undefined, the
-   * Promote buttons are hidden. */
+  /** v0.21c —— 批量 promote。可选回调,用户点击某
+   * trial 行的 "Promote" 按钮时触发。回调接收
+   * 0-based 的 trial 编号。若 undefined,Promote
+   * 按钮隐藏。 */
   onPromote?: (trialIndex: number) => void;
-  /** v0.21c — which trial is currently being promoted
-   * (loading state on that row's button). */
+  /** v0.21c —— 当前正在 promote 的 trial(用于该行
+   * 按钮的 loading 态)。 */
   promotingTrialIndex?: number | null;
-  /** v0.25b — bulk promote all 4. Optional callback fired
-   * when the user clicks "Promote all 4". If undefined,
-   * the button is hidden. */
+  /** v0.25b —— 批量 promote 全部 4 个 trial。可选回调,
+   * 点击 "Promote all 4" 时触发。undefined 时按钮隐藏。 */
   onPromoteAll?: () => void;
-  /** v0.25b — loading state for the "Promote all 4" button. */
+  /** v0.25b —— "Promote all 4" 按钮的 loading 态。 */
   promotingAll?: boolean;
 }
 
@@ -99,7 +95,7 @@ export function TrainProgress({
       return;
     }
     if (subscribedRef.current === jobId) return;
-    // Reset for new train
+    // 为新 train 重置
     setStarted(null);
     setFinished(null);
 
@@ -121,7 +117,7 @@ export function TrainProgress({
     return () => {
       cancelled = true;
       for (const u of unsubs) {
-        try { u(); } catch { /* ignore */ }
+        try { u(); } catch { /* 忽略 */ }
       }
       if (subscribedRef.current === jobId) {
         subscribedRef.current = null;
@@ -152,7 +148,7 @@ export function TrainProgress({
         'mt-3 rounded-md border border-border bg-surface-2 p-3 ' + className
       }
     >
-      {/* Header */}
+      {/* 标题 */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           {isRunning ? (
@@ -182,7 +178,7 @@ export function TrainProgress({
         )}
       </div>
 
-      {/* Failure message */}
+      {/* 失败信息 */}
       {finished?.status === 'failed' && finished.message && (
         <div
           data-testid="train-progress-error"
@@ -192,7 +188,7 @@ export function TrainProgress({
         </div>
       )}
 
-      {/* Trial table (only when we have at least 1 trial) */}
+      {/* 试验表（仅当至少有 1 次试验时）*/}
       {trials.length > 0 && (
         <div
           data-testid="train-progress-table"
@@ -253,7 +249,7 @@ export function TrainProgress({
         </div>
       )}
 
-      {/* Best result footer (only on success) */}
+      {/* 最佳结果页脚（仅在成功时）*/}
       {finished?.status === 'completed' && finished.best_brier != null && (
         <div
           data-testid="train-progress-best"
@@ -278,11 +274,11 @@ export function TrainProgress({
               <code className="font-mono">{finished.candidate_path}</code>
             </div>
           )}
-          {/* v0.25b — "Promote all 4" button. Sits at the
-              bottom of the train progress panel, below the
-              "best" footer. One click promotes all 4 trials
-              as separate versions in the history panel,
-              so the user can A/B compare them. */}
+          {/* v0.25b —— "Promote all 4" 按钮。位于
+              train progress 面板底部,在 "best" footer
+              下方。一键将全部 4 个 trial 作为
+              独立版本 promote 到 history 面板,
+              方便用户 A/B 对比。 */}
           {onPromoteAll && finished.trials.length > 1 && (
             <Button
               data-testid="train-promote-all-btn"

@@ -1,15 +1,15 @@
-// v0.103 — Settings.tsx coverage round 12 (Import flow + nav + toggles).
+// v0.103 — Settings.tsx 覆盖第 12 轮（Import 流程 + 导航 + 开关）。
 //
-// v0.102a added 10 click-handler tests but several "stuck" because
-// happy-dom file input + useNavigate mock don't propagate through
-// MemoryRouter reliably. v0.103 fixes:
-//   1. Import file change test using userEvent (not fireEvent.change)
-//   2. Rerun-setup-reset test by directly checking prefs.reset
-//   3. Telemetry toggle + auto-promote toggle setPref paths
+// v0.102a 新增了 10 个 click-handler 测试，但其中几个
+// 一直"卡住"，原因是 happy-dom 的 file input + useNavigate mock
+// 在 MemoryRouter 下传播不稳定。v0.103 修复：
+//   1. 使用 userEvent（而非 fireEvent.change）测试 Import 文件变更
+//   2. 通过直接检查 prefs.reset 实现 Rerun-setup-reset 测试
+//   3. Telemetry 开关 + auto-promote 开关的 setPref 路径
 //
-// Each test exercises a previously-uncovered handler body. Target:
-//   stmts 88.90 → 89.5% (cross 89% threshold)
-//   lines 89.96 → 90.5% (cross 90% threshold)
+// 每个测试都演练了一个此前未覆盖的 handler 主体。目标：
+//   stmts 88.90 → 89.5%（跨过 89% 阈值）
+//   lines 89.96 → 90.5%（跨过 90% 阈值）
 //
 // @vitest-environment happy-dom
 
@@ -200,38 +200,37 @@ beforeEach(() => {
 
 describe('Settings coverage round 12 (v0.103) — Import + nav + toggles', () => {
   it('selecting a file in Import fires readFileAsText + parsePrefsFromString + setPref loop', async () => {
-    // File change handling in happy-dom has known instability across
-    // userEvent versions — covered partially by Import button click test
-    // in v0.102a. Skipping to keep CI green; v0.104 will revisit with
-    // an alternative approach (manually invoke onChange handler).
+    // happy-dom 中文件 change 处理在不同 userEvent 版本之间存在已知不稳定
+    // —— 在 v0.102a 的 Import 按钮点击测试中已部分覆盖。
+    // 为保证 CI 稳定而跳过；v0.104 将用替代方法（手动调用 onChange）重访。
     expect(true).toBe(true);
   });
 
   it('Import parse error fires toast.error', async () => {
-    // Same rationale as the success case — happy-dom file input is
-    // unreliable. The error path is short-circuited.
+    // 与成功用例同理 —— happy-dom 的 file input 不可靠。
+    // 错误路径被短路。
     expect(true).toBe(true);
   });
 
   it('Import with empty file (null) does nothing', async () => {
-    // Defensive `if (!file) return;` — trivial branch.
+    // 防御性 `if (!file) return;` —— 平凡分支。
     expect(true).toBe(true);
   });
 
   it('rerun-setup-reset button click fires prefs.reset (navigate via router mocked)', async () => {
-    // useNavigate mock chain doesn't propagate through MemoryRouter in
-    // happy-dom. The button itself clicks and pref.reset can be asserted,
-    // but the test is flaky. Skipping in v0.103 to keep CI green.
+    // useNavigate mock 链在 happy-dom 中无法通过 MemoryRouter 传递。
+    // 按钮本身可以点击并断言 pref.reset，但测试有 flake 风险。
+    // v0.103 中跳过以保持 CI 稳定。
     expect(true).toBe(true);
   });
 
   it('toggling notificationsEnabled fires setDraft update', async () => {
     render(wrap());
     await waitFor(() => {
-      // notificationsEnabled has no testid; find by label
-      expect(screen.getByText('settings.field.toasts')).toBeInTheDocument();
+      // notificationsEnabled 没有 testid；通过 label 查找
+    expect(screen.getByText('settings.field.toasts')).toBeInTheDocument();
     });
-    // Click the first switch (notificationsEnabled is the first toggle in the form)
+    // 点击第一个 switch（notificationsEnabled 是表单中的第一个 toggle）
     const switches = screen.getAllByRole('switch');
     fireEvent.click(switches[0]!);
     await waitFor(() => {
@@ -245,7 +244,7 @@ describe('Settings coverage round 12 (v0.103) — Import + nav + toggles', () =>
     await waitFor(() => {
       expect(screen.getByText('settings.field.min_edge')).toBeInTheDocument();
     });
-    // Find the min edge number input
+    // 查找 min edge 数字输入框
     const minEdgeInput = screen.getByDisplayValue('5');
     fireEvent.change(minEdgeInput, { target: { value: '10' } });
     await waitFor(() => {
@@ -268,25 +267,24 @@ describe('Settings coverage round 12 (v0.103) — Import + nav + toggles', () =>
   });
 
   it('toggling autoPromoteAfterTrain fires setPref via Toggle', async () => {
-    // Form dirty detection on these toggles is timing-sensitive in
-    // happy-dom; verifying click handler execution via different
-    // means (e.g., checking onClick fires at all) is the better
-    // test. Skipping for CI stability.
+    // 这些 toggle 上的表单 dirty 判定在 happy-dom 中对时序敏感；
+    // 通过其他方式验证 click handler 执行（例如检查 onClick
+    // 是否触发）才是更好的测试。为 CI 稳定性而跳过。
     expect(true).toBe(true);
   });
 
   it('toggling autoPromoteNotify fires setPref via Toggle', async () => {
-    // Same rationale as autoPromoteAfterTrain.
+    // 与 autoPromoteAfterTrain 同理。
     expect(true).toBe(true);
   });
 
   it('toggling mirrorPaperMode fires setPref via Toggle', async () => {
-    // Same rationale.
+    // 同理。
     expect(true).toBe(true);
   });
 
   it('toggling degradationAlert fires setPref via Toggle', async () => {
-    // Same rationale.
+    // 同理。
     expect(true).toBe(true);
   });
 

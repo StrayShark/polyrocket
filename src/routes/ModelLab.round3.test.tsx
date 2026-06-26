@@ -1,18 +1,18 @@
-// v0.75a — ModelLab round 3 tests.
+// v0.75a — ModelLab 第 3 轮测试。
 //
-// ModelLab.tsx is 792 lines with 5 tabs + 4 mutations + 3 modal
-// lifecycles. Existing tests (v0.62 + v0.65a + v0.71a) cover 21 cases.
-// We add 8 more for the remaining branches — focused on:
-//   - tab switching (Train ↔ Sweep ↔ Promote ↔ Backtest ↔ Archive)
-//   - performance empty state (best=null branch)
-//   - backtest form validation
-//   - compare selection limit (>3 entries → oldest dropped)
-//   - backtest target clear
-//   - trainJob retry button
-//   - onAutoPromoteFinished listener fires
-//   - sidecar health snapshot throw path
+// ModelLab.tsx 共 792 行，包含 5 个 tab + 4 个 mutation + 3 个 modal
+// 生命周期。已有测试（v0.62 + v0.65a + v0.71a）覆盖了 21 个用例。
+// 我们再新增 8 个测试覆盖剩余分支，重点：
+//   - tab 切换（Train ↔ Sweep ↔ Promote ↔ Backtest ↔ Archive）
+//   - performance 空态（best=null 分支）
+//   - backtest 表单校验
+//   - compare 选择上限（>3 个条目 → 丢弃最旧）
+//   - backtest 目标清空
+//   - trainJob retry 按钮
+//   - onAutoPromoteFinished 监听器触发
+//   - sidecar health snapshot 抛错路径
 //
-// Coverage target: 62% → ~73% stmts, 57% → ~70% branches.
+// 覆盖目标：62% → ~73% stmts，57% → ~70% 分支。
 //
 // @vitest-environment happy-dom
 
@@ -111,7 +111,7 @@ describe('ModelLab (round 3 — v0.75a)', () => {
     mockLlmPerformance.mockResolvedValue([]);
     renderLab();
     await waitFor(() => {
-      // No data → em-dash for KPIs (best=null branch)
+      // 无数据 → KPI 显示 em-dash（best=null 分支）
       const text = document.body.textContent || '';
       expect(text).toMatch(/—|0/);
     });
@@ -130,7 +130,7 @@ describe('ModelLab (round 3 — v0.75a)', () => {
     mockSidecarPredict.mockRejectedValue(new Error('predict crashed'));
     renderLab();
     await waitFor(() => {
-      // activeModel query should still resolve to null (catch path)
+      // activeModel query 仍应解析为 null（catch 路径）
       const text = document.body.textContent || '';
       expect(text).toBeTruthy();
     });
@@ -163,13 +163,13 @@ describe('ModelLab (round 3 — v0.75a)', () => {
       const text = document.body.textContent || '';
       expect(text).toBeTruthy();
     });
-    // Find the backtest button
+    // 寻找 backtest 按钮
     const backtestBtn = screen.getAllByRole('button').find(b =>
       /backtest/i.test(b.textContent || ''),
     );
     if (backtestBtn) {
       fireEvent.click(backtestBtn);
-      // Verify clicking didn't crash
+      // 验证点击未崩溃
       await waitFor(() => {
         expect(backtestBtn).toBeTruthy();
       });
@@ -180,7 +180,7 @@ describe('ModelLab (round 3 — v0.75a)', () => {
     renderLab();
     await waitFor(() => {
       const text = document.body.textContent || '';
-      // Should have action buttons
+      // 应当有操作按钮
       expect(text.length).toBeGreaterThan(100);
     });
   });
@@ -196,7 +196,7 @@ describe('ModelLab (round 3 — v0.75a)', () => {
     mockLlmPerformance.mockRejectedValue(new Error('llm perf failed'));
     renderLab();
     await waitFor(() => {
-      // ErrorState should render
+      // ErrorState 应被渲染
       const text = document.body.textContent || '';
       expect(text).toMatch(/something.*wrong|error|failed/i);
     });

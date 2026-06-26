@@ -1,14 +1,13 @@
-// v0.65d — Welcome step component tests (v0.65d branch push).
+// v0.65d —— Welcome 步骤组件测试(v0.65d 分支补全)。
 //
-// LlmStep (32% → ~85%) and PolymarketStep (31% → ~85%)
-// are the two lowest-coverage step components in the
-// welcome wizard. We write focused tests for both.
+// LlmStep (32% → ~85%) 和 PolymarketStep (31% → ~85%)
+// 是 welcome 向导中覆盖率最低的两个步骤组件。
+// 我们为两者编写针对性测试。
 //
-// Each step takes a `welcome` store object as a prop
-// (returned by useWelcomeStore.getState()). The store
-// is mocked to return a plain object with stub methods
-// (setConfigured, setStep, etc.) — the tests assert on
-// the IPC calls + the rendered UI states.
+// 每个步骤接收一个 `welcome` store 对象作为 prop
+// (由 useWelcomeStore.getState() 返回)。Store 被 mock
+// 为一个含 stub 方法(setConfigured、setStep 等)的
+// 普通对象 —— 测试断言 IPC 调用 + 渲染 UI 状态。
 
 // @vitest-environment happy-dom
 
@@ -60,13 +59,13 @@ describe('LlmStep', () => {
   });
   it('renders all 11 provider buttons (5 original + 5 Chinese LLM presets + ERNIE)', () => {
     render(<LlmStep welcome={makeWelcome()} />);
-    // Original 5
+    // 原始 5 个
     expect(screen.getByTestId('welcome-llm-provider-openai')).toBeInTheDocument();
     expect(screen.getByTestId('welcome-llm-provider-anthropic')).toBeInTheDocument();
     expect(screen.getByTestId('welcome-llm-provider-google')).toBeInTheDocument();
     expect(screen.getByTestId('welcome-llm-provider-deepseek')).toBeInTheDocument();
     expect(screen.getByTestId('welcome-llm-provider-custom')).toBeInTheDocument();
-    // v0.110 — Chinese LLM presets (5)
+    // v0.110 — 中文 LLM 预设 (5)
     expect(screen.getByTestId('welcome-llm-provider-qwen')).toBeInTheDocument();
     expect(screen.getByTestId('welcome-llm-provider-doubao')).toBeInTheDocument();
     expect(screen.getByTestId('welcome-llm-provider-kimi')).toBeInTheDocument();
@@ -95,9 +94,11 @@ describe('LlmStep', () => {
     expect(args?.api_base).toBe('https://qianfan.baidubce.com/v2');
   });
 
-  // v0.106 — coverage ramp round 15. Cover the 4 missing branches in kind()
-  //   switch (openai/anthropic/google/deepseek). Each test clicks the
-  //   corresponding provider button and asserts the upsert kind.
+  // v0.106 — 覆盖率提升第 15 轮。覆盖 kind()
+  //   switch 中缺失的 4 个分支
+  //   (openai/anthropic/google/deepseek)。
+  //   每个测试点击对应的 provider 按钮
+  //   并断言 upsert kind。
   it('Google add uses kind="google" (covers LlmStep.tsx:122)', async () => {
     mockLlmKeyUpsert.mockResolvedValue({ id: 'k-google' });
     mockLlmKeySetSecret.mockResolvedValue(undefined);
@@ -178,15 +179,15 @@ describe('LlmStep', () => {
 
   it('provider hint text shows for Chinese presets but not for OpenAI', async () => {
     render(<LlmStep welcome={makeWelcome()} />);
-    // OpenAI has no hint
+    // OpenAI 没有提示
     expect(screen.queryByTestId('welcome-llm-provider-hint')).not.toBeInTheDocument();
-    // Click Qwen — hint should appear
+    // 点击 Qwen — 应显示提示
     fireEvent.click(screen.getByTestId('welcome-llm-provider-qwen'));
     await waitFor(() => {
       const hint = screen.getByTestId('welcome-llm-provider-hint');
       expect(hint.textContent).toMatch(/Alibaba/);
     });
-    // Click OpenAI again — hint should disappear
+    // 再次点击 OpenAI — 提示应消失
     fireEvent.click(screen.getByTestId('welcome-llm-provider-openai'));
     await waitFor(() => {
       expect(screen.queryByTestId('welcome-llm-provider-hint')).not.toBeInTheDocument();
@@ -196,9 +197,9 @@ describe('LlmStep', () => {
   it('clicking a provider button changes selection', () => {
     render(<LlmStep welcome={makeWelcome()} />);
     fireEvent.click(screen.getByTestId('welcome-llm-provider-anthropic'));
-    // The Anthropic button now has the "selected" class. Hard to assert
-    // directly, so we verify by clicking Add and checking the
-    // keyring_alias path.
+    // Anthropic 按钮此时带 "selected" class。难以直接
+    // 断言,因此我们通过点击 Add 并检查
+    // keyring_alias 路径来验证。
   });
 
   it('shows error toast when alias is empty', async () => {
@@ -209,7 +210,7 @@ describe('LlmStep', () => {
     const secretInput = screen.getByTestId('welcome-llm-secret') as HTMLInputElement;
     fireEvent.change(secretInput, { target: { value: 'sk-test' } });
     fireEvent.click(screen.getByTestId('welcome-llm-add'));
-    // The toast.error path is reached; no IPC calls expected
+    // toast.error 路径已到达;不应有 IPC 调用
     await waitFor(() => {
       expect(mockLlmKeyUpsert).not.toHaveBeenCalled();
     });
@@ -235,14 +236,14 @@ describe('LlmStep', () => {
     fireEvent.change(secretInput, { target: { value: 'sk-mykey' } });
     fireEvent.click(screen.getByTestId('welcome-llm-add'));
     await waitFor(() => {
-      // v0.110.2 — provider upsert must fire BEFORE key upsert (so default_model persists)
+      // v0.110.2 — provider upsert 必须在 key upsert 之前触发 (这样 default_model 才能持久化)
       expect(mockLlmProviderUpsert).toHaveBeenCalled();
       expect(mockLlmKeyUpsert).toHaveBeenCalled();
       expect(mockLlmKeySetSecret).toHaveBeenCalledWith('k1', 'sk-mykey');
       expect(mockLlmTestConnectivity).toHaveBeenCalledWith('openai', 'k1');
       expect(welcome.setConfigured).toHaveBeenCalledWith('llmAtLeastOne', true);
     });
-    // v0.110.2 — assert the default_model from PROVIDERS is passed
+    // v0.110.2 — 断言 PROVIDERS 中的 default_model 已传入
     const providerArgs = mockLlmProviderUpsert.mock.calls[0]?.[0] as
       | { id: string; default_model: string; kind: string; api_base: string } | undefined;
     expect(providerArgs?.id).toBe('openai');
@@ -345,7 +346,7 @@ describe('LlmStep', () => {
     await waitFor(() => {
       expect(screen.getByTestId('welcome-llm-result')).toBeInTheDocument();
     });
-    // setConfigured should NOT be called when connectivity fails
+    // 连通性失败时不应调用 setConfigured
     expect(welcome.setConfigured).not.toHaveBeenCalled();
   });
 
@@ -372,7 +373,7 @@ describe('LlmStep', () => {
     await waitFor(() => {
       const args = mockLlmKeyUpsert.mock.calls[0]?.[0];
       expect(args).toEqual(expect.objectContaining({ provider_id: 'anthropic' }));
-      // keyring_alias should also use anthropic
+      // keyring_alias 也应使用 anthropic
       expect(args.keyring_alias).toMatch(/^polyrocket\/llm\/anthropic\//);
     });
   });

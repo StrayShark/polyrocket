@@ -1,14 +1,14 @@
-// v0.71b — Analysis route additional tests (round 2).
+// v0.71b — Analysis 路由附加测试（第 2 轮）。
 //
-// Analysis.tsx is 403 lines, 5-mutation state machine
-// (analyzeMut / recMut / decisionMut / exportCsv / onError).
-// v0.68a added 5 .more tests but the route still sits at 50.8%
-// stmts / 25.8% branches. We add 10 more tests covering
-// recMut top-recommendation selection, decisionMut IPC args,
-// exportCsv happy + disabled paths, button-disabled state,
-// expectedAnalysisRef flag flow.
+// Analysis.tsx 共 403 行，是一个 5-mutation 的状态机
+//（analyzeMut / recMut / decisionMut / exportCsv / onError）。
+// v0.68a 新增了 5 个 .more 测试，但该路由仍停留在 50.8%
+// stmts / 25.8% branches。我们再新增 10 个测试覆盖：
+// recMut 推荐选择、decisionMut IPC 参数、
+// exportCsv 正常 + disabled 路径、按钮 disabled 状态、
+// expectedAnalysisRef 标记流程。
 //
-// Coverage target: 50.8% → ~80% stmts.
+// 覆盖率目标：50.8% → 约 80% stmts。
 //
 // @vitest-environment happy-dom
 
@@ -84,7 +84,7 @@ describe('Analysis (extended round 2)', () => {
   it('disables Run button when marketId is empty', async () => {
     renderAnalysis();
     await waitFor(() => screen.getAllByRole('button').length > 0);
-    // Run button should be disabled when input is empty
+    // Run 按钮在输入为空时应处于 disabled 状态
     const runBtn = screen.getAllByRole('button').find(b =>
       b.textContent?.toLowerCase().includes('analyze') ||
       b.textContent?.toLowerCase().includes('run'),
@@ -132,7 +132,7 @@ describe('Analysis (extended round 2)', () => {
       b.textContent?.toLowerCase().includes('run'),
     );
     fireEvent.click(runBtn!);
-    // consensusSide 'YES' should appear as a ResultCard value
+    // consensusSide 为 'YES' 时应在 ResultCard 中作为值出现
     await waitFor(() => {
       expect(screen.getByText('YES')).toBeInTheDocument();
     });
@@ -149,21 +149,20 @@ describe('Analysis (extended round 2)', () => {
       b.textContent?.toLowerCase().includes('run'),
     );
     fireEvent.click(runBtn!);
-    // The mutation calls llmAnalyze and the mock rejects —
-    // the rejection is the assertion that the error path was hit.
+    // 该 mutation 调用 llmAnalyze，mock 拒绝 ——
+    // 拒绝行为即错误路径被触发的断言。
     await waitFor(() => {
       expect(mla).toHaveBeenCalledWith('mkt-err');
     });
-    // The component calls toast.error (which is in toast-store
-    // and won't show in screen without ToastViewport mounted).
-    // We assert the call happened; the toast rendering is
-    // covered by Toast.test.tsx.
+    // 组件调用 toast.error（位于 toast-store 中，
+    // 在没有挂载 ToastViewport 时不会在 screen 中显示）。
+    // 我们仅断言调用发生过；toast 渲染由 Toast.test.tsx 覆盖。
   });
 
   it('recMut picks top rec by parse_ok + confidence desc', async () => {
     renderAnalysis();
     await waitFor(() => screen.getAllByRole('textbox').length > 0);
-    // Run an analysis first to populate analyzeResult
+    // 先运行一次分析以填充 analyzeResult
     const input = screen.getAllByRole('textbox')[0] as HTMLInputElement;
     fireEvent.change(input, { target: { value: 'mkt-rec' } });
     const runBtn = screen.getAllByRole('button').find(b =>
@@ -172,14 +171,14 @@ describe('Analysis (extended round 2)', () => {
     );
     fireEvent.click(runBtn!);
     await waitFor(() => expect(screen.getByText('YES')).toBeInTheDocument());
-    // Now click "Get recommendation" button
+    // 现在点击 "Get recommendation" 按钮
     const recBtn = screen.getAllByRole('button').find(b =>
       b.textContent?.toLowerCase().includes('recommendation') ||
       b.textContent?.toLowerCase().includes('推荐'),
     );
     fireEvent.click(recBtn!);
     await waitFor(() => {
-      // Top rec is id=2 (anthropic, conf=0.85, parse_ok=true)
+      // 首选推荐是 id=2（anthropic，conf=0.85，parse_ok=true）
       expect(mlgr).toHaveBeenCalledWith(2);
     });
   });
@@ -195,8 +194,8 @@ describe('Analysis (extended round 2)', () => {
     );
     fireEvent.click(runBtn!);
     await waitFor(() => expect(screen.getByText('YES')).toBeInTheDocument());
-    // The decision buttons have text i18n'd — search for
-    // "follow" or "skip" (both are wired to decisionMut).
+    // 决策按钮的文案经过 i18n —— 搜索
+    // "follow" 或 "skip"（两者都接入 decisionMut）。
     const followBtn = screen.getAllByRole('button').find(b =>
       /follow|follow_top|skip/i.test(b.textContent || ''),
     );
@@ -225,7 +224,7 @@ describe('Analysis (extended round 2)', () => {
   it('exportCsv disabled when signals.data is null', async () => {
     renderAnalysis();
     await waitFor(() => screen.getAllByRole('button').length > 0);
-    // Find Export / CSV button — should be disabled when no signals
+    // 寻找 Export / CSV 按钮 —— 在无 signals 时应处于 disabled 状态
     const exportBtn = screen.getAllByRole('button').find(b =>
       /export|csv|download/i.test(b.textContent || ''),
     );

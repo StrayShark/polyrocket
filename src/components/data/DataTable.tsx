@@ -39,7 +39,7 @@ export interface DataTableProps<T> {
   rowKey: (row: T) => string;
   empty?: ReactNode;
   loading?: boolean;
-  /** Default page size if pagination is on. 0 = no pagination. */
+  /** 启用分页时的默认每页条数。0 = 不分页。 */
   pageSize?: number;
   onRowClick?: (row: T) => void;
   className?: string;

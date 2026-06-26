@@ -1,8 +1,8 @@
-// v0.65a — ModelLab component tests (v0.65a route 39% coverage → ~70%).
+// v0.65a —— ModelLab 组件测试（v0.65a 路由 39% 覆盖 → ~70%）。
 //
-// ModelLab has 5 tabs + lifecycle state for train/promote/auto-promote.
-// We add 9 focused tests covering the branch-rich code paths
-// beyond the v0.57b surface-level render tests.
+// ModelLab 包含 5 个 tab 以及 train/promote/auto-promote 的生命周期状态。
+// 我们新增 9 个聚焦测试，覆盖 v0.57b 表层渲染测试之外的
+// 分支丰富代码路径。
 //
 // @vitest-environment happy-dom
 
@@ -126,7 +126,7 @@ describe('ModelLab (v0.65a expand)', () => {
   it('renders performance KPIs (best brier, total calls)', async () => {
     render(wrap(<ModelLab />));
     await waitFor(() => {
-      // Best brier = 0.18 (formatted as 0.180 or 18.0%)
+      // 最佳 brier = 0.18（格式化为 0.180 或 18.0%）
       expect(document.body.textContent).toMatch(/0\.18|18%/);
     });
   });
@@ -138,7 +138,7 @@ describe('ModelLab (v0.65a expand)', () => {
     });
     fireEvent.click(screen.getByTestId('view-archive-btn'));
     await waitFor(() => {
-      // The archive modal is rendered with history entries
+      // archive 模态框以 history 条目渲染
       expect(document.body.textContent).toContain('train-a');
     });
   });
@@ -148,14 +148,14 @@ describe('ModelLab (v0.65a expand)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('view-archive-btn')).toBeInTheDocument();
     });
-    // Find Compare button (it's a sibling of View Archive)
+    // 查找 Compare 按钮（它是 View Archive 的兄弟节点）
     const compareBtn = screen.getAllByRole('button').find((b) =>
       /compare/i.test(b.textContent || ''),
     );
     if (compareBtn) {
       fireEvent.click(compareBtn);
       await waitFor(() => {
-        // The compare modal renders; just verify body changed
+        // compare 模态框已渲染；只验证 body 变化
         expect(document.body.textContent).toBeTruthy();
       });
     }
@@ -185,10 +185,10 @@ describe('ModelLab (v0.65a expand)', () => {
   });
 
   it('renders ErrorState when llmPerformance fails', async () => {
-    // v0.65a — this used to crash with "Rendered fewer hooks
-    // than expected" because ModelLab had an early return
-    // after only the first useQuery (more queries followed).
-    // Fixed: moved the early return to AFTER all hooks.
+    // v0.65a —— 这曾因 "Rendered fewer hooks than expected" 而崩溃，
+    // 因为 ModelLab 在第一个 useQuery 之后就 early return
+    //（后续还有更多 query）。
+    // 修复：将 early return 移至所有 hooks 之后。
     mockLlmPerformance.mockRejectedValue(new Error('Predict store down'));
     render(wrap(<ModelLab />));
     await waitFor(() => {
@@ -197,7 +197,7 @@ describe('ModelLab (v0.65a expand)', () => {
   });
 
   it('handles active sidecar model when snapshot.success_count > 0', async () => {
-    // sidecarHealthSnapshot returns success_count=5; sidecarPredict returns model_version
+    // sidecarHealthSnapshot 返回 success_count=5；sidecarPredict 返回 model_version
     render(wrap(<ModelLab />));
     await waitFor(() => {
       expect(screen.getByTestId('model-version-pill')).toBeInTheDocument();
@@ -211,7 +211,7 @@ describe('ModelLab (v0.65a expand)', () => {
     });
     render(wrap(<ModelLab />));
     await waitFor(() => {
-      // No active model → still renders
+      // 无活动 model → 仍能渲染
       expect(screen.getByTestId('model-version-pill')).toBeInTheDocument();
     });
   });
@@ -220,7 +220,7 @@ describe('ModelLab (v0.65a expand)', () => {
     mockSidecarHealthSnapshot.mockRejectedValue(new Error('spawn ENOENT'));
     render(wrap(<ModelLab />));
     await waitFor(() => {
-      // Page still renders despite sidecar error
+      // 即便 sidecar 出错，页面仍能渲染
       expect(screen.getByTestId('model-train-btn')).toBeInTheDocument();
     });
   });

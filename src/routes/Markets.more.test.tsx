@@ -1,13 +1,13 @@
-// v0.65d + v0.119 — Markets component tests (route 43% → ~75%, football-only).
+// v0.65d + v0.119 — Markets 组件测试（路由 43% → 约 75%，仅足球）。
 //
-// v0.119 football pivot: UI only exposes ['all', 'football'] filter
-// pills. Tests updated to use football-only data + verify non-football
-// chips don't exist.
+// v0.119 足球转向：UI 仅暴露 ['all', 'football'] 过滤
+// 胶囊。测试更新为使用仅足球的数据 + 验证非足球
+// 芯片不存在。
 //
-// The /markets route has client-side category filtering
-// + debounced search + sync mutation. We expand the
-// existing v0.62a test (3 tests) with 7 more focused
-// branch-rich tests.
+// /markets 路由包含客户端类别过滤
+// + 防抖搜索 + sync 变更。我们在
+// 现有 v0.62a 测试（3 个测试）基础上
+// 新增 7 个分支丰富的测试。
 //
 // @vitest-environment happy-dom
 
@@ -37,7 +37,7 @@ function renderMarkets() {
   );
 }
 
-// v0.119 — football-only fixtures (was crypto/politics/tech)
+// v0.119 —— football-only fixtures(此前为 crypto/politics/tech)
 const M_FootballA = {
   id: 'm1', slug: 'fifwc-arg-win', question: 'Will Argentina win?',
   category: 'football', end_date: 9999999999, active: true,
@@ -61,10 +61,10 @@ describe('Markets (v0.65d expand + v0.119 football-only)', () => {
     });
     const buttons = screen.getAllByRole('button');
     const labels = buttons.map(b => b.textContent?.trim()).filter(Boolean);
-    // Should have 'all' and 'football' only
+    // 应仅有 'all' 和 'football'
     expect(labels).toContain('all');
     expect(labels).toContain('football');
-    // Critical: non-football category pills must NOT exist
+    // 关键：非足球的类别胶囊必须不存在
     expect(labels).not.toContain('cs2');
     expect(labels).not.toContain('politics');
     expect(labels).not.toContain('crypto');
@@ -81,7 +81,7 @@ describe('Markets (v0.65d expand + v0.119 football-only)', () => {
     const footballPill = screen.getAllByRole('button').find(
       b => b.textContent?.trim() === 'football',
     );
-    // Default active state: bg-accent/15
+    // 默认 active 状态：bg-accent/15
     expect(footballPill?.className).toContain('bg-accent/15');
   });
 

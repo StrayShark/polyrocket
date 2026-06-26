@@ -1,11 +1,11 @@
-// v0.71e — LlmMgmt route additional tests (round 2).
+// v0.71e — LlmMgmt 路由补充测试（第 2 轮）。
 //
-// LlmMgmt.tsx is 484 lines, 5 components (LlmMgmt +
-// ProviderRow + KeyRow + AddKeyModal + Field). v0.70c round
-// 1 brought it from 34→57 stmts; round 2 targets AddKeyModal
-// form branches + KeyRow pill colors + ProviderRow select.
+// LlmMgmt.tsx 共 484 行，包含 5 个组件（LlmMgmt +
+// ProviderRow + KeyRow + AddKeyModal + Field）。v0.70c 第
+// 1 轮把它从 34% 提升到 57% 语句；第 2 轮聚焦
+// AddKeyModal 表单分支、KeyRow 胶囊颜色、ProviderRow 选择。
 //
-// Coverage target: 56.6% → ~80% stmts.
+// 覆盖目标：56.6% → ~80% stmts。
 //
 // @vitest-environment happy-dom
 
@@ -80,15 +80,15 @@ function renderLlmMgmt() {
 }
 
 async function openAddKeyModal() {
-  // Click OpenAI provider first to select it
+  // 先点击 OpenAI provider 以选中它
   await waitFor(() => screen.getByText('OpenAI'));
   fireEvent.click(screen.getByText('OpenAI'));
-  // Wait for keys list to render
+  // 等待 keys 列表渲染
   await waitFor(() => screen.getByText('prod-1'));
-  // Find the Add button — search by Plus icon + text. In LlmMgmt,
-  // the page-level "Add" button appears once (when a provider is
-  // selected). The modal-footer "Add" appears later. We want the
-  // page-level one.
+  // 寻找 Add 按钮 —— 通过 Plus 图标 + 文字定位。在 LlmMgmt 中，
+  // 页面级 "Add" 按钮在选中 provider 后
+  // 出现一次。modal-footer 的 "Add" 在更晚才出现。
+  // 我们要的是页面级那一个。
   await waitFor(() => {
     const btn = screen.queryByRole('button', { name: /add/i });
     if (!btn) throw new Error('Add button not found yet');
@@ -104,11 +104,11 @@ describe('LlmMgmt (extended round 2)', () => {
     await waitFor(() => screen.getByText('OpenAI'));
     fireEvent.click(screen.getByText('OpenAI'));
     await waitFor(() => screen.getByText('prod-1'));
-    // Click again to deselect
+    // 再次点击以取消选择
     fireEvent.click(screen.getByText('OpenAI'));
     await waitFor(() => {
-      // Keys panel should show "select provider" empty state again
-      // Just check that no keys are visible
+      // Keys 面板应再次显示 "select provider" 空态
+      // 这里仅校验没有任何 key 可见
       expect(screen.queryByText('prod-1')).not.toBeInTheDocument();
     });
   });
@@ -118,41 +118,41 @@ describe('LlmMgmt (extended round 2)', () => {
     await waitFor(() => screen.getByText('OpenAI'));
     fireEvent.click(screen.getByText('OpenAI'));
     await waitFor(() => screen.getByText('prod-1'));
-    // Both prod-1 (has_secret=true) and prod-2 (has_secret=false) are listed
-    // The pill text should reflect this — check via the surrounding text
+    // prod-1（has_secret=true）和 prod-2（has_secret=false）都会列出
+    // 胶囊文本应能反映这一点 —— 通过上下文文本检查
     const text = document.body.textContent || '';
-    // The "in keyring" / "no secret" labels come from i18n; check that
-    // both labels appear somewhere on the page.
+    // "in keyring" / "no secret" 文案来自 i18n；校验
+    // 这两个标签在页面中均有出现。
     expect(text).toMatch(/in keyring|no secret|keyring/);
   });
 
   it('AddKeyModal: priority clamps to [1, 100]', async () => {
     renderLlmMgmt();
     await openAddKeyModal();
-    // Find the priority number input (min=1 max=100)
+    // 寻找 priority 数字输入框（min=1 max=100）
     const numInputs = document.querySelectorAll('input[type="number"]');
     expect(numInputs.length).toBeGreaterThan(0);
     const priorityInput = numInputs[0] as HTMLInputElement;
-    expect(priorityInput.value).toBe('1'); // default
+    expect(priorityInput.value).toBe('1'); // 默认值
     fireEvent.change(priorityInput, { target: { value: '0' } });
-    // Math.max(1, ...) → clamps to 1
+    // Math.max(1, ...) → 夹紧到 1
     expect(priorityInput.value).toBe('1');
   });
 
   it('AddKeyModal: show/hide secret toggles input type', async () => {
     renderLlmMgmt();
     await openAddKeyModal();
-    // Find password input (secret field defaults to type=password)
+    // 寻找 password 输入框（secret 字段默认 type=password）
     const secretInput = document.querySelector('input[type="password"]') as HTMLInputElement;
     expect(secretInput).toBeInTheDocument();
-    // Find the show button — it's the button with Eye icon
+    // 寻找 show 按钮 —— 即带 Eye 图标的按钮
     const showBtn = screen.getAllByRole('button').find(b => {
       const txt = b.textContent || '';
       return /show|hide|显示|隐藏/.test(txt);
     });
     if (showBtn) {
       fireEvent.click(showBtn);
-      // After click, input type should change to text
+      // 点击后，输入框 type 应变为 text
       await waitFor(() => {
         const txtInput = document.querySelector('input[type="text"]');
         expect(txtInput).toBeInTheDocument();
@@ -163,10 +163,10 @@ describe('LlmMgmt (extended round 2)', () => {
   it('AddKeyModal: submit calls llmKeyUpsert with trimmed alias', async () => {
     renderLlmMgmt();
     await openAddKeyModal();
-    // Find alias input (first textbox)
+    // 寻找 alias 输入框（第一个 textbox）
     const aliasInput = screen.getAllByRole('textbox')[0] as HTMLInputElement;
     fireEvent.change(aliasInput, { target: { value: '  prod-new  ' } });
-    // Click the Add submit button in modal footer (NOT the page-level Add button)
+    // 点击 modal footer 里的 Add 提交按钮（不是页面级 Add 按钮）
     const submitBtn = screen.getAllByRole('button').find(b =>
       b.textContent?.toLowerCase().trim() === 'add' &&
       !b.hasAttribute('disabled'),
@@ -174,9 +174,9 @@ describe('LlmMgmt (extended round 2)', () => {
     if (submitBtn) {
       fireEvent.click(submitBtn);
       await waitFor(() => {
-        expect(mku).toHaveBeenCalled();
-        const callArg = (mku.mock.calls[0] as any[])?.[0];
-        // alias.trim() — leading/trailing whitespace stripped
+      expect(mku).toHaveBeenCalled();
+      const callArg = (mku.mock.calls[0] as any[])?.[0];
+      // alias.trim() —— 去除首尾空白
         expect(callArg.alias).toBe('prod-new');
       });
     }
@@ -185,10 +185,10 @@ describe('LlmMgmt (extended round 2)', () => {
   it('AddKeyModal: submit WITH secret → also calls llmKeySetSecret', async () => {
     renderLlmMgmt();
     await openAddKeyModal();
-    // Alias input
+    // Alias 输入
     const aliasInput = screen.getAllByRole('textbox')[0] as HTMLInputElement;
     fireEvent.change(aliasInput, { target: { value: 'prod-with-secret' } });
-    // Secret input (password type)
+    // Secret 输入（password 类型）
     const secretInput = document.querySelector('input[type="password"]') as HTMLInputElement;
     fireEvent.change(secretInput, { target: { value: 'sk-supersecret' } });
     const submitBtn = screen.getAllByRole('button').find(b =>
@@ -209,7 +209,7 @@ describe('LlmMgmt (extended round 2)', () => {
     await openAddKeyModal();
     const aliasInput = screen.getAllByRole('textbox')[0] as HTMLInputElement;
     fireEvent.change(aliasInput, { target: { value: 'prod-no-secret' } });
-    // Don't fill secret
+    // 不填 secret
     const submitBtn = screen.getAllByRole('button').find(b =>
       b.textContent?.toLowerCase().trim() === 'add' &&
       !b.hasAttribute('disabled'),
@@ -219,7 +219,7 @@ describe('LlmMgmt (extended round 2)', () => {
       await waitFor(() => {
         expect(mku).toHaveBeenCalled();
       });
-      // mkss should NOT have been called
+      // 不应调用 mkss
       expect(mkss).not.toHaveBeenCalled();
     }
   });
@@ -240,7 +240,7 @@ describe('LlmMgmt (extended round 2)', () => {
     await waitFor(() => screen.getByText('OpenAI'));
     fireEvent.click(screen.getByText('OpenAI'));
     await waitFor(() => screen.getByText('prod-1'));
-    // Find delete button — text contains "delete" or trash icon
+    // 寻找 delete 按钮 —— 文字包含 "delete" 或带 trash 图标
     const deleteBtns = screen.getAllByRole('button').filter(b => {
       const txt = b.textContent?.toLowerCase() || '';
       return txt.includes('delete') || txt.includes('trash') || txt.includes('remove') || txt.includes('删除');
@@ -257,7 +257,7 @@ describe('LlmMgmt (extended round 2)', () => {
   it('Test connectivity on provider row → llmTestConnectivity called', async () => {
     renderLlmMgmt();
     await waitFor(() => screen.getByText('OpenAI'));
-    // Find Test buttons (each provider row has one + each key row has one)
+    // 寻找 Test 按钮（每个 provider 行 + 每个 key 行都有一个）
     const testBtns = screen.getAllByRole('button').filter(b =>
       b.textContent?.toLowerCase().includes('test') ||
       b.textContent?.includes('测试'),

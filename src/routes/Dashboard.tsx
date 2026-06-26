@@ -1,27 +1,22 @@
-// polyrocket — Dashboard (v0.68f density).
+// polyrocket — Dashboard（v0.68f 密度）。
 //
-// /dashboard is the home page. The user lands here on
-// first run (after Welcome) and on every app open. Three
-// sections, vertically stacked:
+// /dashboard 是首页。用户首次运行（Welcome 之后）以及每次打开应用时
+// 都会进入此页。三个 section，垂直堆叠：
 //
-//   1. **KPI strip** — 4 cards: open equity, 24h PnL,
-//      active signals, win rate (7d). Pulled from
-//      `dashboard_kpis` IPC.
-//   2. **Active positions** — open bets, sorted by
-//      PnL desc. Each row links to the source market.
-//   3. **Recent signals** — top 5 by edge (desc),
-//      with mini sparkline per signal.
+//   1. **KPI 条** —— 4 张卡：open equity、24h PnL、
+//      active signals、win rate (7d)。从 `dashboard_kpis` IPC 拉取。
+//   2. **活动持仓** —— open bets，按 PnL 降序排序。
+//      每行链接到源市场。
+//   3. **最近信号** —— 按 edge 降序的 top 5，每个 signal
+//      带迷你 sparkline。
 //
-// **Why this layout**: the user should see the
-// *money* first (KPI strip), then *what's working*
-// (positions), then *what's next* (signals). The
-// sidebar provides the nav, so the dashboard
-// itself has no top-level nav.
+// **为何采用此布局**：用户应当先看到 *资金*（KPI 条），
+// 然后是 *正在盈利的*（positions），再是 *下一步*（signals）。
+// 侧边栏已提供导航，因此 dashboard 本身没有顶级导航。
 //
-// **Data freshness**: 30s `staleTime` for KPIs (cheap
-// to recompute), 60s for signals (heavier SQL).
-// Background refetch in `useQuery` keeps the page
-// "live" without manual refresh.
+// **数据新鲜度**：KPI 30s `staleTime`（重算便宜），
+// signals 60s（SQL 较重）。`useQuery` 的后台 refetch
+// 保持页面「实时」，无需手动刷新。
 
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
@@ -48,6 +43,7 @@ import { Skeleton } from '@/components/feedback/Skeleton';
 import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { WelcomeBanner } from '@/components/feedback/WelcomeBanner';
+import { CalendarView } from '@/components/football/CalendarView';
 import { fmtUsdc, fmtPct, fmtEdge, fmtRelativeTime, fmtLatency } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 
@@ -76,17 +72,15 @@ export function Dashboard() {
     queryFn: () => dashboardKpis(),
     refetchInterval: 30_000,
   });
-  // v0.45c — paper trading PnL summary. Disabled
-  // by default; only fetches when paper mode is
-  // enabled. We check the `paper_mode_enabled`
-  // field of the response to decide whether to
-  // show the card.
+  // v0.45c — paper trading PnL summary。默认禁用；
+  // 仅当 paper mode 启用时才拉取。我们检查响应的
+  // `paper_mode_enabled` 字段以决定是否显示该卡片。
   const paperPnl = useQuery({
     queryKey: ['paper-pnl-summary'],
     queryFn: () => paperPnlSummary(),
     refetchInterval: 60_000,
   });
-  // v0.50c — fill analytics (real-mode `bets`).
+  // v0.50c —— fill analytics(real-mode `bets`)。
   const fillAna = useQuery({
     queryKey: ['fill-analytics'],
     queryFn: () => fillAnalytics(),
@@ -104,7 +98,7 @@ export function Dashboard() {
   const openBets = (bets.data ?? []).filter((b) => b.status === 'open').slice(0, 5);
   const topSignals = (signals.data ?? []).slice(0, 5);
 
-  // Equity curve: cumulative PnL across settled bets (newest first → reverse)
+  // 资金曲线：已结算 bet 上的累计 PnL（最新优先 → 反转）
   const settledPnls = useMemo(() => {
     const settled = (bets.data ?? [])
       .filter((b) => b.status === 'won' || b.status === 'lost')
@@ -115,7 +109,7 @@ export function Dashboard() {
   const equityCurve = useMemo(() => cumulativeSum(settledPnls), [settledPnls]);
   const totalPnl = equityCurve.length > 0 ? equityCurve[equityCurve.length - 1] : 0;
 
-  // Calibration by edge bucket: avg signal edge per 5% bucket
+  // 按 edge 分桶校准：每个 5% 桶的平均 signal edge
   const calibrationBuckets = useMemo(() => {
     const buckets: Array<{ label: string; avgEdge: number; n: number }> = [];
     for (let lo = 0; lo < 50; lo += 5) {
@@ -131,7 +125,7 @@ export function Dashboard() {
     return buckets;
   }, [signals.data]);
 
-  // Recent activity: latest 6 audit-y events (resolved bets + new signals)
+  // 最近活动：最近 6 条类审计事件（已结算的 bets + 新 signals）
   const recentActivity = useMemo(() => {
     const items: Array<{ kind: 'bet' | 'signal'; at: number; text: string }> = [];
     for (const b of (bets.data ?? []).slice(0, 20)) {
@@ -169,14 +163,12 @@ export function Dashboard() {
 
   return (
     <div className="space-y-4">
-      {/* v0.53b — Setup-incomplete banner. Renders
-          only when the user has unfinished
-          configuration (no LLM / no PM / no wallet).
-          The "Complete" button navigates to /welcome
-          where the user picks up at the last
-          unfinished step. */}
+      {/* v0.53b — Setup-incomplete banner。仅当用户有
+          未完成的配置项（缺少 LLM / PM / wallet）时
+          才渲染。"Complete" 按钮导航至 /welcome，
+          用户在最后一个未完成的步骤继续。 */}
       <WelcomeBanner />
-      {/* Top KPIs */}
+      {/* 顶部 KPI */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiCard
           label={t('dashboard.kpi.equity')}
@@ -220,11 +212,10 @@ export function Dashboard() {
         />
       </div>
 
-      {/* v0.45c — Paper PnL card. Renders only when
-          paper mode is enabled AND there is at least
-          one paper_fill. Shows settled wins/losses
-          + realized PnL. The "what would have
-          happened" signal for the user. */}
+      {/* v0.45c — Paper PnL 卡片。仅当 paper mode 启用
+          且至少有一条 paper_fill 时才渲染。展示已结算
+          的盈亏 + 已实现 PnL。为用户提供「假设发生
+          了什么」的信号。 */}
       {paperPnl.data?.paper_mode_enabled && (
         <Card
           title={t('dashboard.paper.title')}
@@ -258,13 +249,11 @@ export function Dashboard() {
         </Card>
       )}
 
-      {/* v0.50c — Fill analytics card. Shows the
-          real-mode `bets` table aggregated: status
-          counts, win rate, realized PnL, average
-          time-to-settlement, per-order-type
-          breakdown, post-only rate. Skips when
-          there are no fills yet (avoids an empty
-          dashboard for first-run users). */}
+      {/* v0.50c — Fill analytics 卡片。展示 real-mode
+          `bets` 表的聚合：status 计数、win rate、
+          已实现 PnL、平均结算时间、按 order type
+          拆分、post-only 率。在还没有 fill 时跳过
+          （避免首次运行的用户看到空白 dashboard）。 */}
       {fillAna.data && fillAna.data.totalFills > 0 && (
         <Card
           title={t('dashboard.fill_analytics.title')}
@@ -305,8 +294,8 @@ export function Dashboard() {
               hint={t('dashboard.fill_analytics.tts_hint')}
             />
           </div>
-          {/* v0.50c — order-type breakdown row.
-              Three small tiles, one per order type. */}
+          {/* v0.50c — order-type 拆分行。
+              三个小磁贴，每个对应一种 order type。 */}
           <div
             className="mt-3 grid grid-cols-3 gap-2"
             data-testid="fill-analytics-by-order-type"
@@ -340,13 +329,11 @@ export function Dashboard() {
               })}
             </div>
           )}
-          {/* v0.51b — slippage + time-to-fill + partial.
-              All three are NULL until v0.51+ wires real
-              CLOB execution (today the deterministic stub
-              fills them with the user's exact values, so
-              slippage = 0 and ttf = 0ms). The tiles still
-              render so the layout is stable; the values
-              show as '—'. */}
+          {/* v0.51b — slippage + time-to-fill + partial。
+              这三个值在 v0.51+ 接入真实 CLOB 执行之前均为 NULL
+              （目前确定性 stub 用用户的精确值填充，因此
+              slippage = 0 且 ttf = 0ms）。磁贴仍会渲染以
+              保持布局稳定；值显示为「—」。 */}
           <div
             className="mt-3 grid grid-cols-3 gap-2"
             data-testid="fill-analytics-v51b"
@@ -398,7 +385,7 @@ export function Dashboard() {
         </Card>
       )}
 
-      {/* Charts row: equity curve + calibration */}
+      {/* 图表行：资金曲线 + 校准 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card
           title={t('dashboard.equity.title')}
@@ -462,7 +449,7 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {/* Recent activity timeline */}
+      {/* 最近活动时间线 */}
       <Card title={t('dashboard.activity.title')} description={t('dashboard.activity.desc')}>
         {recentActivity.length === 0 ? (
           <EmptyState
@@ -486,9 +473,9 @@ export function Dashboard() {
         )}
       </Card>
 
-      {/* Two columns: signals + open positions */}
+      {/* 两列：signals + open positions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Top signals */}
+        {/* 顶部 signals */}
         <Card
           title={t('dashboard.signals.title')}
           description={t('dashboard.signals.desc')}
@@ -545,7 +532,7 @@ export function Dashboard() {
           )}
         </Card>
 
-        {/* Open positions */}
+        {/* Open positions（开放持仓） */}
         <Card
           title={t('dashboard.positions.title')}
           description={t('dashboard.positions.desc')}
@@ -614,11 +601,14 @@ export function Dashboard() {
           )}
         </Card>
       </div>
+
+      {/* v0.126 — Football Schedule 日历（P0-2） */}
+      <CalendarView />
     </div>
   );
 }
 
-/** Compute the y-pixel of zero on the sparkline (for the ref line). */
+/** 计算 sparkline 上零值对应的 y 像素（用于参考线）。 */
 function heightForZero(values: number[], h: number, yPad: number): number {
   if (values.length === 0) return h / 2;
   const min = Math.min(...values);

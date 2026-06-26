@@ -1,10 +1,10 @@
-// v0.100 — Copy.tsx branches round 3 (+3 tests, +~5 stmts).
+// v0.100 — Copy.tsx 分支第 3 轮（+3 个测试，+~5 个语句）。
 //
-// Targets the TargetRow conditional branches:
-// - allocation_cap pill (renders when t.allocation_cap is set)
-// - "recent events" section (renders when events.length > 0)
-// - "Copy address" button onClick (calls navigator.clipboard.writeText
-//   + shows toast.success)
+// 针对 TargetRow 的条件分支：
+// - allocation_cap 胶囊（当 t.allocation_cap 已设置时渲染）
+// - "recent events" 区块（当 events.length > 0 时渲染）
+// - "Copy address" 按钮的 onClick（调用 navigator.clipboard.writeText
+//   并显示 toast.success）
 //
 // @vitest-environment happy-dom
 
@@ -83,7 +83,7 @@ describe('Copy (v0.100) — TargetRow branches', () => {
     await waitFor(() => {
       expect(screen.getByText('whale')).toBeInTheDocument();
     });
-    // recent events section is rendered
+    // recent events 部分已渲染
     expect(screen.getByText(/recent events/i)).toBeInTheDocument();
   });
 
@@ -95,7 +95,7 @@ describe('Copy (v0.100) — TargetRow branches', () => {
     await waitFor(() => {
       expect(screen.getByText('whale')).toBeInTheDocument();
     });
-    // No cap pill when allocation_cap is null
+    // 当 allocation_cap 为 null 时不渲染 cap 胶囊
     expect(screen.queryByText(/cap \$/)).not.toBeInTheDocument();
   });
 });

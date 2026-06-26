@@ -16,14 +16,14 @@ import { toast } from '@/stores/toast-store';
 import { cn } from '@/lib/cn';
 
 export interface PlaceBetFormProps {
-  /** Pre-fill the form for a specific market
-   * (e.g. when launched from a Signal card). */
+  /** 为特定 market 预填表单
+   * (例如从 Signal 卡片进入时)。 */
   initialMarketId?: string;
   initialSide?: BetSide;
   initialPrice?: number;
-  /** Called after a successful submit. The parent
-   * (e.g. Signals page) can use it to navigate to
-   * the Bets page or refresh a list. */
+  /** 提交成功后的回调。父组件
+   * (例如 Signals 页面)可借此跳转到
+   * Bets 页面或刷新列表。 */
   onSuccess?: (betId: string) => void;
 }
 
@@ -56,7 +56,7 @@ export interface PlaceBetFormProps {
  */
 export function PlaceBetForm(props: PlaceBetFormProps) {
   const { t } = useT();
-  // Form state
+  // 表单状态
   const [marketId, setMarketId] = useState(props.initialMarketId ?? '');
   const [side, setSide] = useState<BetSide>(props.initialSide ?? 'YES');
   const [size, setSize] = useState('10');
@@ -66,16 +66,15 @@ export function PlaceBetForm(props: PlaceBetFormProps) {
   const [stopPrice, setStopPrice] = useState('0.7');
   const [postOnly, setPostOnly] = useState(false);
   const [keyAlias, setKeyAlias] = useState('primary');
-  // UI state
+  // UI 状态
   const [validationErr, setValidationErr] = useState<string | null>(null);
   const [validationOk, setValidationOk] = useState<boolean | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // v0.52a — live validation. Whenever the form
-  // changes (debounced via the dep list), call
-  // validateOrderArgs and surface the result.
-  // The Rust side does the same validation on
-  // submit, so this is just an early-warning UX.
+  // v0.52a —— 实时校验。每当表单变化(由依赖列表 debounce),
+  // 调用 validateOrderArgs 并展示结果。
+  // Rust 端在 submit 时也会做同样校验,
+  // 所以这里只是提前告警的 UX。
   useEffect(() => {
     if (!marketId.trim()) {
       setValidationOk(null);
@@ -146,7 +145,7 @@ export function PlaceBetForm(props: PlaceBetFormProps) {
       description={t('place_bet.desc')}
     >
       <div className="space-y-3" data-testid="place-bet-form">
-        {/* Market ID + side row */}
+        {/* 市场 ID + 方向 行 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Field label={t('place_bet.market_id')}>
             <Input
@@ -176,7 +175,7 @@ export function PlaceBetForm(props: PlaceBetFormProps) {
           </Field>
         </div>
 
-        {/* Order type select */}
+        {/* 订单类型选择 */}
         <Field label={t('place_bet.order_type')}>
           <div className="flex gap-2 mt-1">
             <OrderTypeButton
@@ -203,7 +202,7 @@ export function PlaceBetForm(props: PlaceBetFormProps) {
           </div>
         </Field>
 
-        {/* Size + price row */}
+        {/* 数量 + 价格 行 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Field label={t('place_bet.size_usdc')}>
             <Input
@@ -223,7 +222,7 @@ export function PlaceBetForm(props: PlaceBetFormProps) {
           </Field>
         </div>
 
-        {/* Conditional: limit_price (Limit + StopLoss) */}
+        {/* 条件字段：limit_price（限价 + 止损）*/}
         {orderType !== 'market' && (
           <Field label={t('place_bet.limit_price')}>
             <Input
@@ -235,7 +234,7 @@ export function PlaceBetForm(props: PlaceBetFormProps) {
           </Field>
         )}
 
-        {/* Conditional: stop_price (StopLoss only) */}
+        {/* 条件字段：stop_price（仅止损）*/}
         {orderType === 'stop_loss' && (
           <Field label={t('place_bet.stop_price')}>
             <Input
@@ -247,7 +246,7 @@ export function PlaceBetForm(props: PlaceBetFormProps) {
           </Field>
         )}
 
-        {/* Conditional: post_only (Limit only) */}
+        {/* 条件字段：post_only（仅限价）*/}
         {orderType === 'limit' && (
           <div className="flex items-center gap-2">
             <Toggle
@@ -259,7 +258,7 @@ export function PlaceBetForm(props: PlaceBetFormProps) {
           </div>
         )}
 
-        {/* Key alias */}
+        {/* 密钥别名 */}
         <Field label={t('place_bet.key_alias')}>
           <Input
             data-testid="place-bet-key-alias"
@@ -269,7 +268,7 @@ export function PlaceBetForm(props: PlaceBetFormProps) {
           />
         </Field>
 
-        {/* Validation feedback */}
+        {/* 校验反馈 */}
         {validationOk === false && validationErr && (
           <div
             data-testid="place-bet-validation-error"
@@ -287,7 +286,7 @@ export function PlaceBetForm(props: PlaceBetFormProps) {
           </div>
         )}
 
-        {/* Submit */}
+        {/* 提交 */}
         <button
           type="button"
           onClick={onSubmit}

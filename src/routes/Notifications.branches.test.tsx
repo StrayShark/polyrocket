@@ -1,13 +1,13 @@
-// v0.89d — Notifications.tsx branches round (+7 tests, br 66.66→100%).
+// v0.89d —— Notifications.tsx 分支轮次（+7 个测试，br 66.66→100%）。
 //
-// The 4 kind branches (info/success/warning/error) and the body
-// present/absent branch in src/routes/Notifications.tsx:78-86 are
-// the gaps. Existing Notifications.test.tsx covers only 'info'
-// kind without body. This file adds:
-//   - success / warning / error / info kind rendering (Pill class)
-//   - body present branch (renders body text)
-//   - body absent branch (no .text-fg-secondary element)
-//   - dismiss button removes single toast
+// 4 个 kind 分支（info/success/warning/error）以及 body
+// 存在/不存在的分支位于 src/routes/Notifications.tsx:78-86，
+// 是当前的覆盖空白。已有 Notifications.test.tsx 仅覆盖了
+// 不带 body 的 'info' kind。本文件新增：
+//   - success / warning / error / info kind 的渲染（Pill class）
+//   - body 存在分支（渲染 body 文本）
+//   - body 不存在分支（无 .text-fg-secondary 元素）
+//   - dismiss 按钮移除单条 toast
 
 // @vitest-environment happy-dom
 
@@ -81,7 +81,7 @@ describe('Notifications — v0.89d branches', () => {
     await waitFor(() => {
       expect(screen.getByText('no body here')).toBeInTheDocument();
     });
-    // No .text-fg-secondary element should be rendered for body
+    // body 不应渲染 .text-fg-secondary 元素
     const bodies = document.querySelectorAll('.text-fg-secondary');
     expect(bodies.length).toBe(0);
   });

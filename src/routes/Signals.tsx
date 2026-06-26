@@ -25,7 +25,7 @@ import type { Signal } from '@/types/signal';
  *   - `side` —— all / yes / no
  *
  * **数据流**：
- *   1. mount `listActiveSignals({ limit: 200 })`
+ *   1. 挂载时调用 `listActiveSignals({ limit: 200 })`
  *   2. 客户端按 minEdgePct + side 过滤
  *   3. 表格按 |edge| desc 排
  *   4. 「Recompute」按钮调 `recomputeSignals` mutation（**当前 stub**）
@@ -159,12 +159,10 @@ export function Signals() {
       sortable: true,
       sortValue: (s) => s.computed_at,
     },
-    // v0.52b — Trade button column. Sends the user
-    // to /trade with the market / side / price
-    // pre-filled from the signal. The actual
-    // submission happens on the Trade route, so
-    // the user gets to review the args before
-    // pushing to CLOB.
+    // v0.52b — Trade 按钮列。跳转到 /trade，并从
+    // signal 预填 market / side / price。实际提交
+    // 在 Trade 路由进行，以便用户在推送到 CLOB 前
+    // 复核参数。
     {
       key: 'trade',
       header: '',
@@ -184,7 +182,7 @@ export function Signals() {
 
   return (
     <div className="space-y-4">
-      {/* KPIs */}
+      {/* KPI */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiCard
           label={t('signals.title')}
@@ -208,7 +206,7 @@ export function Signals() {
         />
       </div>
 
-      {/* Toolbar */}
+      {/* 工具栏 */}
       <Card padding="sm">
         <div className="flex items-center gap-3 flex-wrap">
           <label className="text-[11px] text-muted flex items-center gap-2">
@@ -256,12 +254,12 @@ export function Signals() {
             loading={recomputeMut.isPending}
             onClick={() => recomputeMut.mutate()}
           >
-            Recompute  // v0.13a — keep default; future use `t('signals.recompute')`
+            Recompute  // v0.13a — 保留默认值；未来使用 `t('signals.recompute')`
           </Button>
         </div>
       </Card>
 
-      {/* Table */}
+      {/* 表格 */}
       {error ? (
         <ErrorState message={String(error)} onRetry={() => refetch()} />
       ) : isLoading ? (

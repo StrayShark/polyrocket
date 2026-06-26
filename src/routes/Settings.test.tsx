@@ -1,20 +1,18 @@
 /**
- * v0.28d — AutoPromoteCard behavior tests.
+ * v0.28d — AutoPromoteCard 行为测试。
  *
- * Tests the new "Auto-run after train" toggle and
- * the new setAutoPromoteConfig push behavior on
- * margin save.
+ * 测试新的 "Auto-run after train" 开关，以及
+ * 保存 margin 时 setAutoPromoteConfig 的新推送行为。
  *
- * v0.28c added:
- *  - A Toggle for `autoPromoteAfterTrain` in the
- *    AutoPromoteCard. Toggling it pushes the new
- *    value to Rust via `setAutoPromoteConfig({enabled})`.
- *  - The existing margin Save button also pushes
- *    `{brier_margin}` to Rust in addition to
- *    updating the zustand store.
+ * v0.28c 新增：
+ *  - 在 AutoPromoteCard 中为 `autoPromoteAfterTrain`
+ *    添加 Toggle 控件。切换它会通过
+ *    `setAutoPromoteConfig({enabled})` 把新值推送到 Rust。
+ *  - 已有的 margin Save 按钮在更新 zustand store
+ *    的同时，也将 `{brier_margin}` 推送到 Rust。
  *
- * These tests mock `@/ipc` and `@/stores/prefs-store`
- * to verify the IPC is called with the right args.
+ * 这些测试通过 mock `@/ipc` 与 `@/stores/prefs-store`
+ * 来验证 IPC 是否以正确的参数被调用。
  */
 
 // @vitest-environment happy-dom
@@ -35,9 +33,8 @@ function wrap(node: React.ReactNode) {
   );
 }
 
-// Mock the IPC layer. We assert on the auto-promote
-// config push; the other IPCs used by Settings are
-// stubbed to prevent network calls.
+// Mock IPC 层。我们对 auto-promote config 的推送进行断言；
+// Settings 用到的其他 IPC 被 stub 掉，以避免实际网络调用。
 vi.mock('@/ipc', () => ({
   getAuditRetention: vi.fn().mockResolvedValue({ days: 90 }),
   setAuditRetention: vi.fn(),
@@ -45,19 +42,19 @@ vi.mock('@/ipc', () => ({
   setAutoPromoteConfig: vi.fn(),
   setTelemetryEnabled: vi.fn().mockResolvedValue(true),
   getTelemetryEnabled: vi.fn().mockResolvedValue(false),
-  // v0.49a — telemetry log file retention
+  // v0.49a — 遥测日志文件保留
   listTelemetryLogs: vi.fn().mockResolvedValue([]),
   purgeTelemetryLogs: vi.fn().mockResolvedValue(0),
-  // v0.49b — active model IPC
+  // v0.49b — 激活模型 IPC
   getActiveModel: vi.fn().mockResolvedValue(null),
-  // v0.49c — scheduler self-test
+  // v0.49c —— scheduler 自检
   schedulerSelfTestNow: vi.fn().mockResolvedValue({
     processStartedAtUnix: 1700000000,
     checkedAtUnixMs: 1700000010000,
     allHealthy: true,
     loops: [],
   }),
-  // v0.51a — CLOB feed
+  // v0.51a — CLOB 订阅源
   clobFeedStatus: vi.fn().mockResolvedValue({
     state: 'not_configured',
     totalSnapshots: 0,
@@ -65,7 +62,7 @@ vi.mock('@/ipc', () => ({
   }),
   setMirrorPaperMode: vi.fn().mockResolvedValue(true),
   getMirrorPaperMode: vi.fn().mockResolvedValue(false),
-  // v0.54b — storage migration tool
+  // v0.54b — 存储迁移工具
   getStorageInfo: vi.fn().mockResolvedValue({
     defaultPath: '/tmp/db/polyrocket.db',
     currentPath: '/tmp/db/polyrocket.db',
@@ -83,7 +80,7 @@ vi.mock('@/ipc', () => ({
     overwritten: false,
     noop: false,
   }),
-  // v0.56 — network proxy / Tor
+  // v0.56 — 网络代理 / Tor
   getProxyConfig: vi.fn().mockResolvedValue({
     enabled: false,
     url: null,
@@ -99,12 +96,10 @@ vi.mock('@/ipc', () => ({
   clearProxyConfig: vi.fn().mockResolvedValue(undefined),
 }));
 
-// Mock the prefs store with a controllable in-memory
-// value. The real store uses zustand+localStorage,
-// which is annoying to reset between tests. We
-// support both `usePrefsStore()` (no selector —
-// returns the whole state) and `usePrefsStore(sel)`
-// (with selector).
+// 用一个可控的内存值 Mock prefs store。真实 store 使用
+// zustand + localStorage，测试间重置比较麻烦。我们同时支持
+// `usePrefsStore()`（无 selector，返回整个 state）
+// 与 `usePrefsStore(sel)`（带 selector）两种调用方式。
 const mockSetPref = vi.fn();
 const mockPrefsState = {
   defaultMinEdgePct: 5,
@@ -115,7 +110,7 @@ const mockPrefsState = {
   autoPromoteBrierMargin: 0.005,
   autoPromoteAfterTrain: false,
   autoPromoteNotify: true,
-  // v0.48b — model degradation alert
+  // v0.48b — 模型降级告警
   degradationAlertNotify: true,
   setPref: mockSetPref,
   reset: vi.fn(),
@@ -127,17 +122,17 @@ vi.mock('@/stores/prefs-store', () => ({
   },
 }));
 
-// Mock the toast store to avoid side effects
+// Mock toast store 以避免副作用
 vi.mock('@/stores/toast-store', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
-// Minimal i18n shim — the real useT pulls from a
-// Zustand store. The test only checks the
-// behavior, not the strings.
+// 最小化 i18n shim——真实的 useT 从
+// Zustand store 中拉取。测试只检查
+// 行为，不检查字符串。
 vi.mock('@/lib/i18n', () => ({
   useT: () => ({ t: (k: string) => k, locale: 'en' as const }),
-  // v0.74f — AppearanceCard uses useLocaleStore + constants
+  // v0.74f — AppearanceCard 使用 useLocaleStore + 常量
   useLocaleStore: (selector?: unknown) =>
     typeof selector === 'function'
       ? selector({ locale: 'en' as const, setLocale: vi.fn() })
@@ -179,7 +174,7 @@ describe('AutoPromoteCard — v0.28c toggle + save (v0.28d)', () => {
         expect.objectContaining({ enabled: true }),
       );
     });
-    // Also updates the local zustand store
+    // 同时更新本地 zustand store
     expect(mockSetPref).toHaveBeenCalledWith(
       'autoPromoteAfterTrain',
       true,
@@ -187,7 +182,7 @@ describe('AutoPromoteCard — v0.28c toggle + save (v0.28d)', () => {
   });
 
   it('pushes { enabled: false } when the user toggles OFF', async () => {
-    // Re-mock the store to start with afterTrain=true
+    // 重新 mock store 以从 afterTrain=true 起步
     mockPrefsState.autoPromoteAfterTrain = true;
     render(wrap(<Settings />));
     const toggle = await screen.findByTestId(
@@ -215,7 +210,7 @@ describe('AutoPromoteCard — v0.28c toggle + save (v0.28d)', () => {
         expect.objectContaining({ brier_margin: 0.005 }),
       );
     });
-    // Also updates the local zustand store
+    // 同时更新本地 zustand store
     expect(mockSetPref).toHaveBeenCalledWith(
       'autoPromoteBrierMargin',
       0.005,
@@ -224,12 +219,12 @@ describe('AutoPromoteCard — v0.28c toggle + save (v0.28d)', () => {
 
   it('mounts push the current config to Rust (one-time)', async () => {
     render(wrap(<Settings />));
-    // The useEffect on mount calls setAutoPromoteConfig
-    // with the current persisted values. Wait for it.
+    // 挂载时的 useEffect 会以当前持久化的
+    // 值调用 setAutoPromoteConfig。等待它完成。
     await waitFor(() => {
       expect(setAutoPromoteConfig).toHaveBeenCalled();
     });
-    // Check it was called with both fields at least once
+    // 检查至少有一次同时携带了两个字段的调用
     const calls = vi.mocked(setAutoPromoteConfig).mock.calls;
     const fullPush = calls.find(
       (c) =>
@@ -241,7 +236,7 @@ describe('AutoPromoteCard — v0.28c toggle + save (v0.28d)', () => {
 });
 
 // =================================================================
-// =================== v0.36b — Backup & restore card =================
+// =================== v0.36b — 备份与恢复卡片 ===========================
 // =================================================================
 
 describe('Backup & restore card (v0.36b)', () => {
@@ -264,8 +259,8 @@ describe('Backup & restore card (v0.36b)', () => {
   });
 
   it('Export button triggers a download (spy on anchor click)', async () => {
-    // Spy on document.createElement to capture the
-    // anchor element used for the download
+    // 监听 document.createElement 以捕获下载用的
+    // anchor 元素
     const realCreate = document.createElement.bind(document);
     let capturedAnchor: HTMLAnchorElement | null = null;
     vi.spyOn(document, 'createElement').mockImplementation((tag) => {
@@ -278,11 +273,11 @@ describe('Backup & restore card (v0.36b)', () => {
     fireEvent.click(exportBtn);
     expect(capturedAnchor).not.toBeNull();
     expect(capturedAnchor!.download).toMatch(/^polyrocket-prefs-\d{8}\.json$/);
-    // Restore
+    // 恢复
     vi.mocked(document.createElement).mockRestore();
   });
 
-  // v0.39b — the auto-promote desktop-notification toggle
+  // v0.39b — auto-promote 桌面通知开关
   it('renders the auto-promote-notify toggle', async () => {
     render(wrap(<Settings />));
     await waitFor(() => {
@@ -299,7 +294,7 @@ describe('Backup & restore card (v0.36b)', () => {
     });
   });
 
-  // v0.42c — telemetry opt-in toggle
+  // v0.42c — 遥测 opt-in 开关
   it('renders the telemetry card with a toggle', async () => {
     render(wrap(<Settings />));
     await waitFor(() => {
@@ -323,15 +318,14 @@ describe('Backup & restore card (v0.36b)', () => {
     vi.mocked(getTelemetryEnabled).mockClear();
     vi.mocked(getTelemetryEnabled).mockResolvedValue(true);
     render(wrap(<Settings />));
-    // The mount effect calls getTelemetryEnabled
-    // and pushes the value into the prefs store if
-    // it differs.
+    // 挂载 effect 调用 getTelemetryEnabled，并在
+    // 与当前值不同时把结果推入 prefs store。
     await waitFor(() => {
       expect(getTelemetryEnabled).toHaveBeenCalled();
     });
   });
 
-  // v0.44c — paper mode toggle
+  // v0.44c — 纸面模式开关
   it('renders the mirror-paper-mode toggle', async () => {
     render(wrap(<Settings />));
     await waitFor(() => {
@@ -350,8 +344,8 @@ describe('Backup & restore card (v0.36b)', () => {
     });
   });
 
-  // v0.42e-2 — opt-in OS notification for the
-  // skipped auto-promote branch.
+  // v0.42e-2 — 为被跳过的 auto-promote 分支
+    // 提供 opt-in 的操作系统通知。
   it('renders the auto-promote-notify-skipped toggle', async () => {
     render(wrap(<Settings />));
     await waitFor(() => {
@@ -370,7 +364,7 @@ describe('Backup & restore card (v0.36b)', () => {
     });
   });
 
-  // v0.48b — model degradation alert toggle
+  // v0.48b —— model 降级告警 toggle
   it('renders the degradation-alert toggle', async () => {
     render(wrap(<Settings />));
     await waitFor(() => {
@@ -454,7 +448,7 @@ describe('Scheduler self-test card (v0.49c)', () => {
       expect(screen.getByTestId('scheduler-loop-health_probe')).toBeInTheDocument();
     });
     expect(screen.getByTestId('scheduler-overall').textContent).toContain('scheduler.all_healthy');
-    // 8 rows.
+    // 8 行。
     expect(screen.getAllByTestId(/^scheduler-loop-/).length).toBe(8);
   });
 
@@ -497,8 +491,8 @@ describe('Storage migration card (v0.54b)', () => {
       restartRequired: false,
     });
     render(wrap(<Settings />));
-    // The migration card is gated on
-    // restartRequired=true. It should not render.
+    // 迁移卡片仅在 restartRequired=true 时渲染，
+    // 因此这里不应该出现。
     expect(
       screen.queryByTestId('storage-migrate-now'),
     ).not.toBeInTheDocument();
@@ -570,10 +564,10 @@ describe('Network card (v0.56)', () => {
 
   it('Save calls setProxyConfig with the typed URL', async () => {
     const { setProxyConfig, getProxyConfig } = await import('@/ipc');
-    // Make the IPC return a config with a
-    // pre-existing URL, so the form boots
-    // pre-populated. The user can then
-    // "edit" the URL by re-typing.
+    // 让 IPC 返回一个带有
+    // 已存在 URL 的配置，以便表单
+    // 启动时已预填。然后用户
+    // 可以通过重新输入来"修改"该 URL。
     (getProxyConfig as ReturnType<typeof vi.fn>).mockResolvedValue({
       enabled: false,
       url: 'http://old-proxy:8080',

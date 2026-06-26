@@ -50,7 +50,7 @@ export function PnL() {
 
   return (
     <div className="space-y-4">
-      {/* Top KPIs (from dashboard_kpis) */}
+      {/* 顶部 KPI（来自 dashboard_kpis） */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <KpiCard
           label="Total Equity"
@@ -71,7 +71,7 @@ export function PnL() {
         />
       </div>
 
-      {/* Detailed summary (computed from bets) */}
+      {/* 详细摘要（从 bets 计算） */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiCard
           label="Total Bets"
@@ -94,7 +94,7 @@ export function PnL() {
         />
       </div>
 
-      {/* Brier Score */}
+      {/* Brier Score（Brier 分数） */}
       <Card
         title="Model calibration (Brier score)"
         description="Lower is better — measures how well predicted probabilities match actual outcomes."
@@ -121,7 +121,7 @@ export function PnL() {
         )}
       </Card>
 
-      {/* PnL by status table */}
+      {/* 按 status 分类的 PnL 表 */}
       <Card title="Breakdown" description="Counts and realized PnL by status">
         {bets.isLoading ? (
           <Skeleton className="h-20" />

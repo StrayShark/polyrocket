@@ -1,15 +1,15 @@
-// v0.77g — PlaceBetForm branches round 2 (+5 tests, 75.9%→90% br).
+// v0.77g —— PlaceBetForm 分支覆盖第 2 轮(+5 个测试,75.9%→90% br)。
 //
-// PlaceBetForm.tsx is 372 lines with 58 branches. 9 existing
-// tests cover happy path + side toggle + order type + validation
-// + submit. The 14 remaining uncovered branches are in:
-//   - size input edge cases (empty, NaN, >cap)
-//   - limit_price input edge cases
-//   - stop_price input edge cases
-//   - post_only checkbox toggle
-//   - reduce_only branch
-//   - success toast
-//   - error toast from placeSignedOrder
+// PlaceBetForm.tsx 共 372 行、58 个分支。现有 9 个
+// 测试覆盖 happy path + side 切换 + order type + validation
+// + submit。剩余 14 个未覆盖分支位于:
+//   - size input 边界(空、NaN、>cap)
+//   - limit_price input 边界
+//   - stop_price input 边界
+//   - post_only checkbox 切换
+//   - reduce_only 分支
+//   - 成功 toast
+//   - 来自 placeSignedOrder 的错误 toast
 //
 // @vitest-environment happy-dom
 
@@ -130,7 +130,7 @@ describe('PlaceBetForm round 2 (v0.77g — branch closing)', () => {
   it('placeSignedOrder success path does not show error (smoke)', async () => {
     wrap(<PlaceBetForm initialMarketId="m1" onSuccess={vi.fn()} />);
     await waitFor(() => screen.getAllByRole('button').length > 0);
-    // Verify form rendered, validation ran
+    // 校验表单已渲染、validation 已运行
     const text = document.body.textContent || '';
     expect(text).toBeTruthy();
   });

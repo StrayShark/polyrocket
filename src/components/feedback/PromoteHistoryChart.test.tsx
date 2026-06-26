@@ -1,19 +1,19 @@
 /**
- * PromoteHistoryChart component tests (v0.22a).
+ * PromoteHistoryChart 组件测试(v0.22a)。
  *
- * The chart is a self-contained SVG sparkline. It reuses
- * the `useQuery(['promote-history'], listPromoteHistory)`
- * pattern from PromoteHistory, but renders differently
- * (SVG dots + connecting line, no per-row detail).
+ * 图表是自包含的 SVG sparkline。复用
+ * `useQuery(['promote-history'], listPromoteHistory)`
+ * 模式(与 PromoteHistory 相同),但渲染方式
+ * 不同(SVG 点 + 连线,无每行详情)。
  *
- * The chart has 3 render states:
- *  1. loading     → skeleton
- *  2. error       → ErrorState
- *  3. empty       → "No brier data yet" placeholder
- *  4. populated   → SVG with dots + connecting line
+ * 图表有 4 种渲染状态:
+ *  1. 加载中     → skeleton
+ *  2. 错误       → ErrorState
+ *  3. empty       → "No brier data yet" 占位
+ *  4. populated   → 带点和连线的 SVG
  *
- * Tests here mock `@/ipc` and react-query (via QueryClient
- * wrapper). The pattern matches PromoteHistory.test.tsx.
+ * 此处测试 mock `@/ipc` 和 react-query(经 QueryClient
+ * wrapper)。模式与 PromoteHistory.test.tsx 一致。
  */
 
 // @vitest-environment happy-dom
@@ -30,7 +30,7 @@ vi.mock('@/ipc', () => ({
 import { listPromoteHistory } from '@/ipc';
 import { PromoteHistoryChart } from '@/components/feedback/PromoteHistoryChart';
 
-// Minimal i18n shim — the real useT pulls from a Zustand store.
+// 极简 i18n shim —— 真实的 useT 从 Zustand store 中拉取。
 vi.mock('@/lib/i18n', () => ({
   useT: () => ({ t: (k: string) => k, locale: 'en' as const }),
 }));
@@ -68,9 +68,9 @@ describe('PromoteHistoryChart (v0.22a)', () => {
       ok: true,
       count: 2,
       entries: [
-        // First entry: null brier (should be skipped)
+        // 第一条: null brier(应被跳过)
         { job_id: 'train-old', model_version: 'logistic-train-old', promoted_at_ms: 1_700_000_000_000, best_brier: null, best_params: null },
-        // Second entry: real brier
+        // 第二条: 真实 brier
         { job_id: 'train-aaa', model_version: 'logistic-train-aaa', promoted_at_ms: 1_700_001_000_000, best_brier: 0.18, best_params: null },
       ],
       message: null,
@@ -79,7 +79,7 @@ describe('PromoteHistoryChart (v0.22a)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('promote-history-chart')).toBeInTheDocument();
     });
-    // Only 1 dot (the null-brier entry was filtered)
+    // 仅 1 个点(null-brier 的 entry 已被过滤)
     const dots = screen.getAllByTestId('promote-history-chart-dot');
     expect(dots).toHaveLength(1);
     expect(dots[0]).toHaveAttribute('data-job-id', 'train-aaa');
@@ -183,7 +183,7 @@ describe('PromoteHistoryChart (v0.22a)', () => {
 });
 
 // =================================================================
-// ==================== v0.29a — hover tooltips =====================
+// ==================== v0.29a — 悬停提示 =====================
 // =================================================================
 
 describe('PromoteHistoryChart hover tooltips (v0.29a)', () => {
@@ -205,10 +205,10 @@ describe('PromoteHistoryChart hover tooltips (v0.29a)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('promote-history-chart')).toBeInTheDocument();
     });
-    // Each <circle> dot has a <title> child
+    // 每个 <circle> 点都有一个 <title> 子元素
     const titles = container.querySelectorAll('circle[data-testid="promote-history-chart-dot"] > title');
     expect(titles).toHaveLength(2);
-    // The first dot's title contains its model version and brier
+    // 第一个点的 title 包含其 model version 和 brier
     expect(titles[0].textContent).toMatch(/logistic-train-aaa/);
     expect(titles[0].textContent).toMatch(/Brier 0\.200/);
   });
@@ -230,7 +230,7 @@ describe('PromoteHistoryChart hover tooltips (v0.29a)', () => {
     });
     const hits = screen.getAllByTestId('promote-history-chart-hit');
     expect(hits).toHaveLength(3);
-    // Each hit has the data-hit-index attribute
+    // 每个 hit 有 data-hit-index 属性
     expect(hits[0]).toHaveAttribute('data-hit-index', '0');
     expect(hits[1]).toHaveAttribute('data-hit-index', '1');
     expect(hits[2]).toHaveAttribute('data-hit-index', '2');
@@ -251,21 +251,21 @@ describe('PromoteHistoryChart hover tooltips (v0.29a)', () => {
       expect(screen.getByTestId('promote-history-chart')).toBeInTheDocument();
     });
 
-    // No tooltip before hover
+    // hover 前不显示 tooltip
     expect(screen.queryByTestId('promote-history-chart-tooltip')).toBeNull();
 
-    // Hover the second hit area
+    // hover 第二个 hit 区域
     const hits = screen.getAllByTestId('promote-history-chart-hit');
     fireEvent.mouseEnter(hits[1]);
 
-    // Tooltip now visible with the hovered entry's data
+    // tooltip 现在可见,展示被 hover 的 entry 的数据
     const tooltip = screen.getByTestId('promote-history-chart-tooltip');
     expect(tooltip).toBeInTheDocument();
     expect(tooltip).toHaveAttribute('data-job-id', 'train-bbb');
     expect(tooltip).toHaveAttribute('data-brier', '0.18');
     expect(tooltip).toHaveAttribute('data-trial-index', '2');
 
-    // Mouse leave on the SVG hides the tooltip
+    // 在 SVG 上 mouse leave 隐藏 tooltip
     const svg = screen.getByTestId('promote-history-chart-svg');
     fireEvent.mouseLeave(svg);
     expect(screen.queryByTestId('promote-history-chart-tooltip')).toBeNull();
@@ -288,10 +288,10 @@ describe('PromoteHistoryChart hover tooltips (v0.29a)', () => {
     const hits = screen.getAllByTestId('promote-history-chart-hit');
     fireEvent.mouseEnter(hits[0]);
     const dots = screen.getAllByTestId('promote-history-chart-dot');
-    // The hovered dot is larger
+    // hover 的点更大
     expect(dots[0]).toHaveAttribute('r', '3.5');
     expect(dots[1]).toHaveAttribute('r', '2.5');
-    // The hovered dot has a stroke
+    // hover 的点带 stroke
     expect(dots[0]).toHaveAttribute('stroke-width', '1');
     expect(dots[1]).toHaveAttribute('stroke-width', '0');
   });

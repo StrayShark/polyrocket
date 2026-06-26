@@ -1,12 +1,12 @@
-// v0.78 — BankrollCard L4 component.
+// v0.78 — BankrollCard L4 组件。
 //
-// Compact summary of bankroll state:
-//   - Available (USDC) — total bankroll
-//   - Reserved (USDC)   — never allocated (safety buffer)
-//   - Allocated (USDC)  — sum of open bets
-//   - Free (USDC)       — available - reserved - allocated
+// bankroll 状态的精简概览:
+//   - Available(USDC)—— 总 bankroll
+//   - Reserved(USDC)—— 从不分配(安全 buffer)
+//   - Allocated(USDC)—— 未平仓 bet 总和
+//   - Free(USDC)—— 可用 - 预留 - 已分配
 //
-// Used in `/bankroll` route + Dashboard banner.
+// 用于 `/bankroll` 路由 + Dashboard 顶栏。
 //
 // @vitest-environment happy-dom
 
@@ -14,13 +14,13 @@ import { fmtUsdc } from '@/lib/format';
 import { Wallet, Lock, TrendingUp, Unlock } from 'lucide-react';
 
 export interface BankrollCardProps {
-  /** Total available USDC. */
+  /** 可用 USDC 总数。 */
   availableUsdc: string;
-  /** Reserved (never allocated) USDC. */
+  /** 预留(永不分配)的 USDC。 */
   reservedUsdc: string;
-  /** Already-allocated (sum of open bets) USDC. */
+  /** 已分配(未平仓 bet 求和)的 USDC。 */
   allocatedUsdc: string;
-  /** Wallet label for context. */
+  /** 用于上下文展示的钱包 label。 */
   walletLabel?: string;
 }
 

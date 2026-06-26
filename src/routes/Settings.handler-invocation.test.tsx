@@ -1,18 +1,18 @@
-// v0.102 — Settings.tsx handler invocation tests (round 11).
+// v0.102 — Settings.tsx handler 调用测试（第 11 轮）。
 //
-// v0.99-100 added render-only tests for the 4 cards. They verified
-// "renders without crash" but never fired button onClick handlers.
-// v0.92 round4 covered top Save/Reset but missed:
+// v0.99-100 新增了 4 个卡片的纯渲染测试，仅校验
+// "不崩溃" 而未触发任何按钮 onClick handler。
+// v0.92 round4 覆盖了顶部 Save/Reset，但仍遗漏：
 //
-// - 12× `setDraft({ ...draft, X: v })` in top-level pref toggle onChange
-// - `onImportClick` (fileInputRef.current?.click())
-// - `onFileSelected` body (~15 stmts: file read, parse, setPref loop,
-//   setAutoPromoteConfig, success/error toast)
-// - `rerun-setup-reset` button (reset(); navigate('/welcome'))
-// - retention save `toast.error` path
-// - telemetry toggle `setPref('telemetryEnabled', v)` + push error
+// - 顶层 pref toggle onChange 中的 12 处 `setDraft({ ...draft, X: v })`
+// - `onImportClick`（fileInputRef.current?.click()）
+// - `onFileSelected` 主体（约 15 个语句：读文件、parse、setPref 循环、
+//   setAutoPromoteConfig、成功/错误 toast）
+// - `rerun-setup-reset` 按钮（reset(); navigate('/welcome')）
+// - retention save 的 `toast.error` 路径
+// - telemetry toggle 的 `setPref('telemetryEnabled', v)` + push 错误
 //
-// This file targets each gap with fireEvent + vi.fn() verification.
+// 本文件用 fireEvent + vi.fn() 校验每个空白点。
 //
 // @vitest-environment happy-dom
 
@@ -224,33 +224,33 @@ describe('Settings handler invocation (v0.102) — coverage gaps', () => {
     await waitFor(() => {
       expect(screen.getByTestId('backup-restore-card')).toBeInTheDocument();
     });
-    // The Import button triggers fileInputRef.current?.click() — we verify
-    // by checking the file input is properly registered.
+    // Import 按钮触发 fileInputRef.current?.click() ——
+    // 我们通过检查 file input 是否已正确注册来验证。
     const fileInput = screen.getByTestId('backup-import-input');
     expect(fileInput.tagName).toBe('INPUT');
     fireEvent.click(screen.getByTestId('backup-import-btn'));
-    // Click handler ran without crashing; the file input is connected
+    // click handler 未崩溃即通过；file input 已连接
     expect(fileInput).toBeInTheDocument();
   });
 
   it('selecting a file in Import triggers parse + setPref loop', async () => {
-    // File change event test is fragile across happy-dom versions;
-    // coverage gain from this path is captured by other tests below.
-    // Skipping to avoid CI flakiness — Import onClick path is exercised
-    // by the "Import button triggers hidden file input click" test.
+    // File change 事件测试在不同 happy-dom 版本中较脆弱；
+    // 该路径的覆盖收益由下方其他测试捕获。
+    // 为避免 CI 抖动而跳过 —— Import onClick 路径已由
+    // 「Import button triggers hidden file input click」测试覆盖。
     expect(true).toBe(true);
   });
 
   it('Import error path fires toast.error', async () => {
-    // Same rationale — happy-dom file change handling is unreliable.
-    // Coverage for the error toast is captured when retention save fails.
+    // 同理 —— happy-dom file change 处理不可靠。
+    // 错误 toast 的覆盖由 retention save 失败用例捕获。
     expect(true).toBe(true);
   });
 
   it('clicking rerun-setup-reset fires prefs.reset + navigate to /welcome', async () => {
-    // rerun-setup-reset test depends on useNavigate mock propagation;
-    // skipped in v0.102 to avoid CI flakiness. Reset flow is covered by
-    // v0.92 round4's `prefs-reset-btn` test.
+    // rerun-setup-reset 测试依赖 useNavigate mock 传递；
+    // v0.102 中跳过以避免 CI flake。Reset 流程由
+    // v0.92 round4 的 `prefs-reset-btn` 测试覆盖。
     expect(true).toBe(true);
   });
 
@@ -262,7 +262,7 @@ describe('Settings handler invocation (v0.102) — coverage gaps', () => {
     const toggleCard = screen.getByTestId('copy-trading-toggle');
     const switchEl = toggleCard.querySelector('[role="switch"]') as HTMLElement;
     fireEvent.click(switchEl);
-    // Save button should become enabled (form dirty)
+    // Save 按钮应变为 enabled（表单已 dirty）
     await waitFor(() => {
       const saveBtn = screen.getByTestId('prefs-save-btn');
       expect(saveBtn).not.toBeDisabled();
@@ -284,9 +284,9 @@ describe('Settings handler invocation (v0.102) — coverage gaps', () => {
   });
 
   it('toggling telemetry fires setPref(telemetryEnabled, v)', async () => {
-    // Telemetry toggle uses different testid pattern — the existing
-    // telemetry test in `Settings.telemetry.test.tsx` (if present) covers
-    // this. v0.102 skips this redundant test.
+    // Telemetry toggle 使用不同的 testid 模式 —— 已有的
+    // `Settings.telemetry.test.tsx` 中的 telemetry 测试（如存在）已覆盖。
+    // v0.102 跳过这个重复测试。
     expect(true).toBe(true);
   });
 

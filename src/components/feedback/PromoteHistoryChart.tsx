@@ -1,7 +1,7 @@
 /**
- * PromoteHistoryChart — v0.22a.
+ * PromoteHistoryChart —— v0.22a。
  *
- * Inline SVG sparkline of the user's model lifecycle:
+ * 用户 model 生命周期的内联 SVG sparkline:
  *
  *   Brier
  *   0.20 ┤
@@ -10,40 +10,36 @@
  *   0.14 ┤●        ●─●  ← best
  *         └──────────────── time →
  *
- * Each dot is a promotion. Oldest left, newest right.
- * Y axis is Brier (lower = better, so points lower on
- * the chart are better). Lines connect consecutive
- * promotions to make the trend visible.
+ * 每个点是一次 promote。最旧在左,最新在右。
+ * Y 轴是 Brier(越低越好,因此图中位置越低越好)。
+ * 用线连接相邻 promote,让趋势更直观。
  *
- * v0.29a — hover tooltips on each dot. Two layers:
- *  1. `<title>` element inside each `<circle>` —
- *     native browser tooltip (works without JS,
- *     screen-reader accessible).
- *  2. A custom positioned `<g>` tooltip on hover —
- *     shows full info: model_version, brier, "Xh ago",
- *     and the trial badge if present (best trial vs
- *     trial #N).
+ * v0.29a —— 每个点的 hover tooltip。两层:
+ *  1. `<title>` 元素在每个 `<circle>` 内 —— 浏览器
+ *     原生 tooltip(无需 JS 可用,屏幕阅读器可读)。
+ *  2. hover 时,自定义定位的 `<g>` tooltip —— 显示
+ *     完整信息:model_version、brier、"Xh ago",
+ *     以及 trial 徽章(若有)(best trial vs trial #N)。
  *
- * The native `<title>` is the a11y path; the custom
- * tooltip is the styled-detail path. Both fire on the
- * same hover event.
+ * 原生 `<title>` 是 a11y 路径;自定义 tooltip 是
+ * 带样式的详情路径。两者在同一个 hover 事件触发。
  *
- * Why inline SVG (no library)?
- * - The chart is small (max 20 points, ~360x80 viewport)
- * - We don't need axes labels, tooltips, or interactivity
- *   (the existing PromoteHistory panel below provides
- *   the per-row detail; the chart is a glance)
- * - Adding recharts/visx/chart.js would ~10x the bundle
- *   for one small sparkline
+ * 为何用内联 SVG(不引入库)?
+ * - 图表很小(最多 20 个点,~360x80 viewport)
+ * - 我们不需要坐标轴标签、tooltip、交互(下方
+ *   现有的 PromoteHistory 面板提供每行详情;
+ *   图表仅用于概览)
+ * - 引入 recharts/visx/chart.js 会让 bundle 涨 10 倍
+ *   却只为一个 sparkline
  *
- * The component reuses the same `useQuery(['promote-history'],
- * listPromoteHistory)` as PromoteHistory so the data is
- * shared (no duplicate fetch). React Query dedupes.
+ * 组件复用与 PromoteHistory 相同的
+ * `useQuery(['promote-history'], listPromoteHistory)`,
+ * 共享数据(不会重复拉取)。React Query 会去重。
  *
- * Failure modes (all return clean states):
- *  - 0 entries with brier → "No data yet" placeholder
- *  - 1 entry with brier → single dot, no lines
- *  - all entries have null brier → "No brier data" placeholder
+ * 失败模式(均返回干净状态):
+ *  - 0 条带 brier 的 entry → "No data yet" 占位
+ *  - 1 条带 brier 的 entry → 单个点,无连线
+ *  - 全部 entry 的 brier 为 null → "No brier data" 占位
  */
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -55,28 +51,28 @@ import { Skeleton } from '@/components/feedback/Skeleton';
 import { ErrorState } from '@/components/feedback/ErrorState';
 
 interface PromoteHistoryChartProps {
-  /** Optional className passthrough (for spacing). */
+  /** 可选的 className 透传(用于间距)。 */
   className?: string;
-  /** SVG viewport width. Default 360. */
+  /** SVG viewport 宽度。默认 360。 */
   width?: number;
-  /** SVG viewport height. Default 80. */
+  /** SVG viewport 高度。默认 80。 */
   height?: number;
 }
 
 const PADDING = { top: 8, right: 12, bottom: 16, left: 32 };
 
 interface PlottedPoint {
-  /** Entry guaranteed to have best_brier: number (filtered upstream). */
+  /** 已在上游过滤,保证 best_brier 为 number。 */
   entry: PromoteHistoryEntry & { best_brier: number };
   x: number;
   y: number;
 }
 
 function brierColor(brier: number): string {
-  // Mirror the LLM traffic lights from PromoteHistory:
-  //   bull (green)  < 0.15
-  //   warn (yellow) 0.15-0.20
-  //   bear (red)    >= 0.20
+  // 与 PromoteHistory 的 LLM 红绿灯保持一致:
+  //   bull(绿)  < 0.15
+  //   warn(黄)  0.15-0.20
+  //   bear(红)  >= 0.20
   if (brier < 0.15) return '#22c55e';   // tailwind green-500
   if (brier < 0.20) return '#eab308';   // tailwind yellow-500
   return '#ef4444';                     // tailwind red-500
@@ -95,7 +91,7 @@ function plotPoints(
   const xRange = xMax - xMin || 1;
   const yMin = Math.min(...ys);
   const yMax = Math.max(...ys);
-  // Pad y range by 10% so dots don't sit on the edge
+  // y 轴范围上下各留 10% 边距,避免点贴近边缘
   const yPad = (yMax - yMin) * 0.1 || 0.01;
   const yLo = yMin - yPad;
   const yHi = yMax + yPad;
@@ -105,17 +101,17 @@ function plotPoints(
   return entries.map((entry) => {
     const x = PADDING.left + ((entry.promoted_at_ms - xMin) / xRange) * plotW;
     const brier = entry.best_brier;
-    // Y axis: Brier low = chart bottom (better), Brier high = chart top (worse)
+    // Y 轴:Brier 低 = 图表底部(更好),Brier 高 = 图表顶部(更差)
     const y = PADDING.top + ((brier - yLo) / yRange) * plotH;
     return { entry, x, y };
   });
 }
 
-/** v0.29a — derive the trial badge label for a history entry.
- *  Returns the i18n key for the badge (best trial / trial N / none). */
+/** v0.29a —— 为 history entry 派生 trial 徽章 label。
+ *  返回徽章的 i18n key(best trial / trial N / 无)。 */
 function trialBadgeKey(entry: PromoteHistoryEntry): string | null {
   if (entry.trial_index === null || entry.trial_index === undefined) {
-    return 'promote.history.trial_best'; // best trial (no -t{N} suffix)
+    return 'promote.history.trial_best'; // best trial(无 -t{N} 后缀)
   }
   return `promote.history.trial_n.${entry.trial_index}`;
 }
@@ -126,8 +122,8 @@ export function PromoteHistoryChart({
   height = 80,
 }: PromoteHistoryChartProps) {
   const { t } = useT();
-  // v0.29a — track which dot is hovered for the custom tooltip.
-  // null = no hover (tooltip hidden).
+  // v0.29a —— 记录当前 hover 的点,用于自定义 tooltip。
+  // null = 无 hover(隐藏 tooltip)。
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['promote-history'],
@@ -154,7 +150,7 @@ export function PromoteHistoryChart({
     );
   }
 
-  // Filter to entries with brier data (v0.18 back-compat)
+  // 过滤出含 brier 数据的 entry(v0.18 向后兼容)
   const entries = (data?.entries ?? []).filter(
     (e): e is PromoteHistoryEntry & { best_brier: number } =>
       e.best_brier !== null,
@@ -173,7 +169,7 @@ export function PromoteHistoryChart({
 
   const points = plotPoints(entries, width, height);
 
-  // Build the polyline path connecting consecutive points
+  // 构建连接相邻点的折线路径
   const pathD =
     points.length > 1
       ? points
@@ -181,22 +177,22 @@ export function PromoteHistoryChart({
           .join(' ')
       : '';
 
-  // Trend: compare the last point's brier to the first point's brier
-  //   last < first → trending up (improving)  ↑ (since low brier is good)
-  //   last > first → trending down (worsening)
-  //   equal        → flat
+  // 趋势:比较最后一点与第一点的 brier
+  //   last < first → 趋势向上(改善)↑(因 brier 低是好的)
+  //   last > first → 趋势向下(恶化)
+  //   equal        → 持平
   const firstBrier = entries[0].best_brier;
   const lastBrier = entries[entries.length - 1].best_brier;
   const trend: 'up' | 'down' | 'flat' =
     lastBrier < firstBrier - 0.001
-      ? 'up'   // improving (lower brier = better)
+      ? 'up'   // 改善(更低 brier = 更好)
       : lastBrier > firstBrier + 0.001
-      ? 'down' // worsening
+      ? 'down' // 恶化
       : 'flat';
 
-  // v0.29a — the hovered point (if any), used to render the
-  // custom tooltip. Positioned above the dot with a small
-  // upward offset so it doesn't overlap the dot.
+  // v0.29a —— 当前 hover 的点(若有),用于渲染
+  // 自定义 tooltip。定位在点的上方并略微上移,
+  // 避免与点重叠。
   const hoveredPoint =
     hoveredIndex !== null && hoveredIndex < points.length
       ? points[hoveredIndex]
@@ -233,7 +229,7 @@ export function PromoteHistoryChart({
         data-testid="promote-history-chart-svg"
         onMouseLeave={() => setHoveredIndex(null)}
       >
-        {/* Y axis grid lines + labels at min/mid/max */}
+        {/* Y 轴网格线 + 最小/中/最大 标签 */}
         {(() => {
           const ys = entries.map((e) => e.best_brier);
           const yMin = Math.min(...ys);
@@ -247,7 +243,7 @@ export function PromoteHistoryChart({
             PADDING.top + ((v - yLo) / (yHi - yLo)) * plotH;
           return (
             <g className="text-[8px] fill-current text-muted">
-              {/* horizontal grid line at mid */}
+              {/* 中点处的水平网格线 */}
               <line
                 x1={PADDING.left}
                 x2={width - PADDING.right}
@@ -257,7 +253,7 @@ export function PromoteHistoryChart({
                 strokeOpacity={0.15}
                 strokeDasharray="2 2"
               />
-              {/* Y axis labels: max (top), mid, min (bottom) */}
+              {/* Y 轴标签:max(顶部)、mid、min(底部) */}
               <text x={4} y={yToScreen(yMax) + 3} textAnchor="start">
                 {yMax.toFixed(3)}
               </text>
@@ -271,7 +267,7 @@ export function PromoteHistoryChart({
           );
         })()}
 
-        {/* Connecting line (only if > 1 point) */}
+        {/* 连线(仅当 > 1 个点时) */}
         {pathD && (
           <path
             d={pathD}
@@ -284,10 +280,10 @@ export function PromoteHistoryChart({
           />
         )}
 
-        {/* v0.29a — invisible larger hit areas for easier hovering.
-           Each dot has a 12px-radius transparent circle on top so
-           users don't need pixel-perfect aim. The hit area fires
-           the same hover handlers as the visible dot. */}
+        {/* v0.29a —— 隐形放大 hit area,方便 hover。
+           每个点上方有一个 12px 半径的透明圆,
+           用户不需要像素级精准就能 hover 到。hit area
+           与可见点使用相同的 hover 处理器。 */}
         {points.map((p, i) => (
           <circle
             key={`hit-${p.entry.job_id}-${p.entry.promoted_at_ms}-${i}`}
@@ -302,7 +298,7 @@ export function PromoteHistoryChart({
           />
         ))}
 
-        {/* Per-entry dots with native <title> for a11y. */}
+        {/* 每个 entry 的点,带原生 <title> 满足 a11y。 */}
         {points.map((p, i) => (
           <circle
             key={`${p.entry.job_id}-${p.entry.promoted_at_ms}-${i}`}
@@ -317,9 +313,9 @@ export function PromoteHistoryChart({
             data-brier={p.entry.best_brier}
             data-trial-index={p.entry.trial_index ?? ''}
           >
-            {/* Native browser tooltip — works without JS, accessible to
-                 screen readers. The custom tooltip below is the styled
-                 detail; this is the always-on fallback. */}
+            {/* 浏览器原生 tooltip —— 无需 JS 可用,
+                 屏幕阅读器可读。下方的自定义 tooltip 是
+                 带样式的详情;此处是始终开启的兜底。 */}
             <title>
               {[
                 p.entry.model_version,
@@ -332,13 +328,13 @@ export function PromoteHistoryChart({
           </circle>
         ))}
 
-        {/* v0.29a — custom positioned tooltip on hover. Positioned
-            above the hovered dot; clamped to the chart viewport so
-            it doesn't overflow on the right edge. */}
+        {/* v0.29a —— hover 时自定义定位的 tooltip。位于
+            hover 点的上方;限制在图表 viewport 内,避免
+            在右侧越界。 */}
         {hoveredPoint && (() => {
           const tipW = 180;
           const tipH = 56;
-          // Position above the dot; clamp to viewport
+          // 定位在点的上方;clamp 到 viewport
           const tipX = Math.max(
             PADDING.left,
             Math.min(width - PADDING.right - tipW, hoveredPoint.x - tipW / 2),
@@ -352,7 +348,7 @@ export function PromoteHistoryChart({
               data-brier={hoveredPoint.entry.best_brier}
               data-trial-index={hoveredPoint.entry.trial_index ?? ''}
             >
-              {/* Dark background rect with rounded corners */}
+              {/* 深色圆角背景矩形 */}
               <rect
                 x={tipX}
                 y={tipY}
@@ -364,7 +360,7 @@ export function PromoteHistoryChart({
                 stroke="var(--border, #334155)"
                 strokeWidth={1}
               />
-              {/* Line 1: model_version (truncated if too long) */}
+              {/* 第 1 行:model_version(过长则截断) */}
               <text
                 x={tipX + 8}
                 y={tipY + 16}
@@ -376,7 +372,7 @@ export function PromoteHistoryChart({
                   ? `${hoveredPoint.entry.model_version.slice(0, 24)}…`
                   : hoveredPoint.entry.model_version}
               </text>
-              {/* Line 2: brier value */}
+              {/* 第 2 行:brier 值 */}
               <text
                 x={tipX + 8}
                 y={tipY + 30}
@@ -385,7 +381,7 @@ export function PromoteHistoryChart({
               >
                 Brier {hoveredPoint.entry.best_brier.toFixed(3)}
               </text>
-              {/* Line 3: "promoted Xh ago" + trial badge */}
+              {/* 第 3 行:"promoted Xh ago" + trial 徽章 */}
               <text
                 x={tipX + 8}
                 y={tipY + 44}

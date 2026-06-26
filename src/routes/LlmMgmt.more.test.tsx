@@ -1,11 +1,11 @@
-// v0.63a — LlmMgmt additional tests (mutation + add flow).
+// v0.63a — LlmMgmt 补充测试（mutation + 添加流程）。
 //
-// /llm-mgmt is 21% statements. This file covers:
-//   1. Renders the providers list with the new mock
-//   2. Opens the Add provider modal
-//   3. Submits Add provider → calls llmProviderUpsert
-//   4. Renders the empty key list
-//   5. The Test button calls llmTestConnectivity
+// /llm-mgmt 语句覆盖率为 21%。本文件覆盖：
+//   1. 用新 mock 渲染 providers 列表
+//   2. 打开 Add provider 弹窗
+//   3. 提交 Add provider → 调用 llmProviderUpsert
+//   4. 渲染空 key 列表
+//   5. Test 按钮调用 llmTestConnectivity
 
 // @vitest-environment happy-dom
 
@@ -92,7 +92,7 @@ describe('LlmMgmt (more coverage)', () => {
     await waitFor(() => {
       const buttons = screen.getAllByRole('button');
       const testButtons = buttons.filter((b) => b.textContent?.toLowerCase().includes('test'));
-      // At least one Test button per provider
+      // 每个 provider 至少一个 Test 按钮
       expect(testButtons.length).toBeGreaterThanOrEqual(1);
     });
   });
@@ -119,7 +119,7 @@ describe('LlmMgmt (more coverage)', () => {
     });
     fireEvent.click(screen.getByText('OpenAI'));
     await waitFor(() => {
-      // After selecting, the Keys section shows the Add Key button
+      // 选中后，Keys section 会显示 Add Key 按钮
       const buttons = screen.getAllByRole('button');
       const addBtn = buttons.find((b) => b.textContent?.toLowerCase().includes('add'));
       expect(addBtn).toBeTruthy();

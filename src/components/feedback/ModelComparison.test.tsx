@@ -1,9 +1,8 @@
 /**
- * v0.40b — ModelComparison component tests.
+ * v0.40b —— ModelComparison 组件测试。
  *
- * The multi-model comparison modal shows 2-3 model
- * versions side-by-side. The "lowest Brier" entry
- * is highlighted as the winner.
+ * 多 model 对比 modal 并排展示 2-3 个 model
+ * 版本。"Brier 最低" 的 entry 会被高亮为获胜者。
  */
 
 // @vitest-environment happy-dom
@@ -44,7 +43,7 @@ const E3: PromoteHistoryEntry = {
 
 describe('ModelComparison (v0.40b)', () => {
   beforeEach(() => {
-    // No-op; just for symmetry with other tests
+    // 空操作;仅为与其他测试对称
   });
   afterEach(() => {
     cleanup();
@@ -66,11 +65,11 @@ describe('ModelComparison (v0.40b)', () => {
 
   it('marks the entry with the lowest Brier as the best', () => {
     render(<ModelComparison open onClose={() => {}} entries={[E1, E2, E3]} />);
-    // The "★ best" badge is shown on the best col
-    // (E3 has Brier 0.16, the lowest)
+    // "★ best" 徽章出现在 best 列上
+    // (E3 的 Brier 0.16 最低)
     const best = screen.getByTestId('model-comparison-best');
     expect(best).toBeInTheDocument();
-    // The best col is E3
+    // best 列就是 E3
     const cols = screen.getAllByTestId('model-comparison-col');
     const bestCol = cols.find((c) => c.getAttribute('data-best') === 'true');
     expect(bestCol).not.toBeNull();
@@ -81,7 +80,7 @@ describe('ModelComparison (v0.40b)', () => {
     render(<ModelComparison open onClose={() => {}} entries={[E1, E2]} />);
     const summary = screen.getByTestId('model-comparison-summary');
     expect(summary).toBeInTheDocument();
-    // The summary contains the best model_version
+    // summary 包含最佳 model_version
     expect(summary.textContent).toContain('logistic-b-t0');
     expect(summary.textContent).toContain('0.1800');
   });
@@ -94,13 +93,13 @@ describe('ModelComparison (v0.40b)', () => {
       best_brier: null,
     };
     render(<ModelComparison open onClose={() => {}} entries={[E_NO_BRIER, E2]} />);
-    // E2 (0.18) is the best
+    // E2(0.18)为 best
     const cols = screen.getAllByTestId('model-comparison-col');
     expect(cols[0]).toHaveAttribute('data-best', 'false'); // null brier
     expect(cols[1]).toHaveAttribute('data-best', 'true'); // 0.18
   });
 
-  // v0.42e-3 — weights from the archive
+  // v0.42e-3 —— 来自 archive 的权重
   it('shows weights (w0, w1, w2) when weightsByJobId has a match', () => {
     const weights = new Map<string, { w0: number; w1: number; w2: number }>();
     weights.set('a', { w0: -0.5, w1: 2.0, w2: 0.4 });
@@ -114,11 +113,11 @@ describe('ModelComparison (v0.40b)', () => {
     );
     const weightSections = screen.getAllByTestId('model-comparison-weights');
     expect(weightSections).toHaveLength(2);
-    // First entry (job_id='a') has weights
+    // 第一个 entry(job_id='a')有权重
     expect(weightSections[0].textContent).toContain('w0=-0.500');
     expect(weightSections[0].textContent).toContain('w1=2.000');
     expect(weightSections[0].textContent).toContain('w2=0.400');
-    // Second entry (job_id='b') has no weights — fallback text
+    // 第二个 entry(job_id='b')没有权重 —— 回退文本
     expect(weightSections[1].textContent).toContain('compare.weights_missing');
   });
 

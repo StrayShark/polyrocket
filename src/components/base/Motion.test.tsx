@@ -1,20 +1,19 @@
 // @vitest-environment happy-dom
 /**
- * Motion token compliance tests (v0.119 — Plan B).
+ * Motion token 合规性测试(v0.119 — Plan B)。
  *
- * Verify all base components and key feedback components use
- * polyrocket's motion tokens consistently:
+ * 验证所有基础组件以及关键反馈组件统一使用 polyrocket 的 motion tokens:
  *
- *   - transition-colors / transition-transform MUST also specify
- *     `duration-base ease-out-cubic` (or other explicit duration)
- *   - focus rings MUST use `focus-visible:` (not `focus:`)
- *   - disabled opacity MUST be 50 (not 40)
- *   - Modal has enter animations
+ *   - transition-colors / transition-transform 必须同时指定
+ *     `duration-base ease-out-cubic`(或其他明确的 duration)
+ *   - focus ring 必须使用 `focus-visible:`(而非 `focus:`)
+ *   - disabled 透明度必须为 50(而非 40)
+ *   - Modal 拥有进场动画
  *
- * These tests are defensive — they catch future regressions
- * where someone adds a `transition-colors` without specifying
- * duration/ease (falling back to Tailwind's 150ms ease-in-out
- * default which differs from polyrocket's 160ms cubic-bezier).
+ * 这些测试是防御性的——用于捕获未来出现的回归问题,
+ * 例如某处新增了 `transition-colors` 但未指定 duration/ease
+ * (会回退到 Tailwind 默认的 150ms ease-in-out,与 polyrocket 的
+ * 160ms cubic-bezier 不一致)。
  */
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -62,7 +61,7 @@ describe('Motion tokens (v0.119 Plan B)', () => {
       const { container } = render(<Input aria-label="test" />);
       const input = container.querySelector('input')!;
       expect(input.className).toContain('focus-visible:ring-accent');
-      // Should NOT have plain `focus:ring-accent`
+      // 不应使用普通的 `focus:ring-accent`
       expect(input.className).not.toMatch(/\sfocus:ring/);
     });
   });
@@ -100,9 +99,9 @@ describe('Motion tokens (v0.119 Plan B)', () => {
 
   describe('Reduced motion a11y (v0.119)', () => {
     it('globals.css has prefers-reduced-motion handler', async () => {
-      // Read the file to verify the @media rule exists.
-      // (In production builds, Tailwind purges unused CSS, but
-      // the rule is in @layer base so it stays.)
+      // 读取文件验证 @media 规则是否存在。
+      // (在生产构建中 Tailwind 会清理未使用的 CSS,但该规则
+      // 位于 @layer base 内,因此会被保留。)
       const fs = await import('node:fs/promises');
       const css = await fs.readFile(
         '/Users/dutongxue/work2/polyrocket/src/styles/globals.css',

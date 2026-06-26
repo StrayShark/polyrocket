@@ -1,26 +1,24 @@
-// polyrocket — Wallets (v0.68f density).
+// polyrocket — Wallets（v0.68f 密度）。
 //
-// /wallets is the wallet metadata manager. Two
-// concerns:
+// /wallets 是 wallet 元数据管理器。两个关注点：
 //
-//   1. **List registered wallets** — name, address,
-//      chain_id, type (eoa / smart), last_synced.
-//      Click copy icon → address copied to clipboard.
-//   2. **Add wallet** — modal with 3 fields:
-//      address (0x... 40 hex), label (optional),
-//      chain_id (137 Polygon or 80002 Amoy by default).
+//   1. **列出已注册的 wallet** —— 名称、地址、
+//      chain_id、类型（eoa / smart）、last_synced。
+//      点击复制图标 → 地址复制到剪贴板。
+//   2. **添加 wallet** —— 含 3 个字段的 modal：
+//      address（0x... 40 hex）、label（可选）、
+//      chain_id（默认 137 Polygon 或 80002 Amoy）。
 //
-// **File picker (v0.57d+)**: the "import from file"
-// button on the modal reads a JSON file (typical
-// MetaMask/Rabby export), extracts the 0x address
-// via `extractAddressFromJson`, and pre-fills the
-// address field. Saves the user from typing 42
-// hex characters.
+// **文件选择器（v0.57d+）**：modal 上的「import from file」
+// 按钮读取 JSON 文件（典型的 MetaMask/Rabby 导出），
+// 通过 `extractAddressFromJson` 提取 0x 地址，
+// 并预填 address 字段。免去用户输入 42 个
+// hex 字符的麻烦。
 //
-// **Private keys live elsewhere**: this page does
-// NOT handle private keys. Private keys go to
-// `polyrocket_wallet_set_pk` IPC at /settings, which
-// stores in OS keyring under `polyrocket/wallet/<label>`.
+// **私钥位于别处**：此页面不处理私钥。私钥通过
+// /settings 中的 `polyrocket_wallet_set_pk` IPC 提交，
+// 存储到 OS keyring 中的 `polyrocket/wallet/<label>`
+// 下。
 
 import { useState } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
@@ -46,7 +44,7 @@ import { POLYGON_MAINNET } from '@/types/wallet';
  * `/wallets` 路由 —— wallet 元数据管理。
  *
  * **数据流**：
- *   1. mount `listWallets()`
+ *   1. 挂载时调用 `listWallets()`
  *   2. 表格渲染（address / label / chain_id / wallet_type / last_synced）
  *   3. 「Add Wallet」按钮打开 Modal（手动 paste / file picker）
  *
@@ -223,12 +221,10 @@ function AddWalletModal({ onClose, onAdded }: { onClose: () => void; onAdded: ()
               invalid={address.length > 0 && !canSubmit}
               className="font-mono"
             />
-            {/* v0.57d — native file picker for
-                importing a wallet address from a
-                JSON file (the typical export
-                format from MetaMask / Rabby /
-                frame). The file must contain
-                {"address": "0x..."} somewhere. */}
+            {/* v0.57d — 原生文件选择器，用于从 JSON 文件
+                导入 wallet 地址（MetaMask / Rabby /
+                frame 的典型导出格式）。文件必须在
+                某处包含 {"address": "0x..."}。 */}
             <Button
               variant="ghost"
               size="sm"

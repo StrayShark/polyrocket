@@ -1,14 +1,14 @@
-// v0.70h — Dashboard route additional tests.
+// v0.70h — Dashboard 路由补充测试。
 //
-// /dashboard is a 632-line, 5-section home page (KPI strip /
-// Paper PnL / Active signals / Active bets / Fill analytics /
-// Recent activity). Existing test (v0.62a) is 4 surface
-// renders. We add 10 focused tests covering the branch-rich
-// derivations: brier hint thresholds, paper-mode conditional,
-// fill-analytics conditional, equity curve, calibration
-// buckets, recent activity mix.
+// /dashboard 是一个 632 行、5 个板块的首页（KPI 条 /
+// Paper PnL / 活动信号 / 活动 bet / 成交分析 /
+// 最近活动）。已有测试（v0.62a）仅含 4 个表层
+// 渲染用例。我们新增 10 个聚焦测试，覆盖分支丰富的
+// 派生逻辑：brier 提示阈值、paper-mode 条件分支、
+// 成交分析条件分支、资金曲线、calibration
+// 桶、最近活动组成。
 //
-// Dashboard.tsx: 56.7% → ~80% stmts.
+// Dashboard.tsx：56.7% → ~80% stmts。
 //
 // @vitest-environment happy-dom
 
@@ -128,7 +128,7 @@ describe('Dashboard (extended)', () => {
   it('renders KPI cards with values from data', async () => {
     renderDashboard();
     await waitFor(() => {
-      // Total equity formatted as $X
+      // Total equity 格式化为 $X
       expect(screen.getAllByText(/\$1,?234/).length).toBeGreaterThan(0);
     });
   });
@@ -137,7 +137,7 @@ describe('Dashboard (extended)', () => {
     mockDashboardKpis.mockResolvedValue(KPIS_GOOD); // brier 0.18
     renderDashboard();
     await waitFor(() => {
-      // Brier value 0.180 should appear
+      // Brier 值 0.180 应出现
       const text = document.body.textContent || '';
       expect(text).toContain('0.180');
     });
@@ -157,7 +157,7 @@ describe('Dashboard (extended)', () => {
     renderDashboard();
     await waitFor(() => {
       const text = document.body.textContent || '';
-      // Negative PnL shows as $-25 or similar
+      // 负 PnL 表现为 $-25 或类似形式
       expect(text).toMatch(/25\.00|25/);
     });
   });
@@ -165,7 +165,7 @@ describe('Dashboard (extended)', () => {
   it('hides Paper PnL card when paper_mode_enabled=false', async () => {
     mockPaperPnlSummary.mockResolvedValue(PAPER_PNL_OFF);
     renderDashboard();
-    // Wait for KPI to load
+    // 等待 KPI 加载
     await waitFor(() => {
       expect(screen.getAllByText(/\$1,?234/).length).toBeGreaterThan(0);
     });
@@ -195,7 +195,7 @@ describe('Dashboard (extended)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('fill-analytics-card')).toBeInTheDocument();
     });
-    // Each order type bucket should be rendered
+    // 应渲染每个 order type 桶
     await waitFor(() => {
       expect(screen.getByTestId('fill-analytics-bucket-gtc')).toBeInTheDocument();
       expect(screen.getByTestId('fill-analytics-bucket-fok')).toBeInTheDocument();
@@ -206,7 +206,7 @@ describe('Dashboard (extended)', () => {
   it('renders top signals list (top 5)', async () => {
     renderDashboard();
     await waitFor(() => {
-      // Signal market questions render
+      // Signal market 题目已渲染
       expect(screen.getByText('Will X happen?')).toBeInTheDocument();
       expect(screen.getByText('Will Y happen?')).toBeInTheDocument();
     });

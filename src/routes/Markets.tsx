@@ -17,12 +17,11 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { fmtUsdc, fmtDate, fmtRelativeTime } from '@/lib/format';
 import type { Market } from '@/types/market';
 
-// v0.119 — football-only product (per docs/polyrocket-football-prd.md).
-// Backend still syncs all Polymarket categories for future flexibility,
-// but UI exposes ONLY football markets. Category filter simplifies to
-// ['all', 'football'] and defaults to 'football' so the user lands on
-// the product surface immediately. 'all' is kept for debugging / power
-// users who want to see what other categories are in the DB.
+// v0.119 — 仅 football 产品（依据 docs/polyrocket-football-prd.md）。
+// 后端仍同步所有 Polymarket 分类以备未来扩展，但 UI 仅暴露 football
+// market。Category filter 简化为 ['all', 'football']，默认值为 'football'，
+// 让用户立即进入产品主界面。保留 'all' 用于调试或想查看数据库中
+// 其他分类的高级用户。
 const CATEGORIES = ['all', 'football'] as const;
 type Category = (typeof CATEGORIES)[number];
 
@@ -47,8 +46,8 @@ type Category = (typeof CATEGORIES)[number];
  */
 export function Markets() {
   const { t } = useT();
-  // v0.119 — default to football (was 'all') so product surface
-  // lands on football markets immediately.
+  // v0.119 — 默认 football（之前为 'all'），让产品主界面
+  // 立即落在 football market 上。
   const [category, setCategory] = useState<Category>('football');
   const [activeOnly, setActiveOnly] = useState(true);
   const [search, setSearch] = useState('');
@@ -67,17 +66,17 @@ export function Markets() {
       toast.success(`Synced ${n} markets`);
       queryClient.invalidateQueries({ queryKey: ['markets'] });
     },
-    // v0.124 — Tauri v2's `invoke` rejects with a plain string,
-    // not an Error instance, so `e.message` is undefined. Coerce
-    // to String so the toast body shows the actual failure reason
-    // (network error, HTTP 500, JSON parse fail, etc.).
+    // v0.124 — Tauri v2 的 `invoke` 以纯字符串 reject，
+    // 而不是 Error 实例，因此 `e.message` 为 undefined。
+    // 强制转为 String，使 toast 文案显示真实失败原因
+    // （网络错误、HTTP 500、JSON 解析失败等）。
     onError: (e: unknown) => {
-      // v0.124 — Tauri v2 wraps IPC rejections inconsistently:
-      //   - sometimes the reject value is a plain string
-      //     (AppError's `serialize_str(&to_string())`)
-      //   - sometimes it's an Error with a .message
-      //   - sometimes it's `{ message: string, code?: string }`
-      // Try them in order, fall back to String() coercion.
+      // v0.124 — Tauri v2 包装 IPC 拒绝值的方式不一致：
+      //   - 有时 reject 值是纯字符串
+      //     （AppError 的 `serialize_str(&to_string())`）
+      //   - 有时是带 .message 的 Error
+      //   - 有时是 `{ message: string, code?: string }`
+      // 依次尝试，最后回退到 String() 强制转换。
       let msg: string;
       if (typeof e === 'string') {
         msg = e;
@@ -92,7 +91,7 @@ export function Markets() {
           msg = String(e);
         }
       }
-      // Strip the "Internal: " prefix AppError prepends in to_string
+      // 去掉 AppError 在 to_string 中添加的 "Internal: " 前缀
       const cleaned = msg.replace(/^Internal:\s*/i, '').trim();
       toast.error('Sync failed', cleaned || msg);
     },
@@ -201,13 +200,13 @@ export function Markets() {
 
   return (
     <div className="space-y-4">
-      {/* Toolbar */}
+      {/* 工具栏 */}
       <Card padding="sm">
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted" />
             <Input
-              placeholder="Search question or slug…"  // v0.13a — keep default; future use `t('common.search')`
+              placeholder="Search question or slug…"  // v0.13a — 保留默认值；未来使用 `t('common.search')`
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8"
@@ -259,7 +258,7 @@ export function Markets() {
         </div>
       </Card>
 
-      {/* Table */}
+      {/* 表格 */}
       {error ? (
         <ErrorState message={String(error)} onRetry={() => refetch()} />
       ) : isLoading ? (

@@ -1,20 +1,20 @@
-// v0.73c — LlmMgmt AddKeyModal branches round 3 tests.
+// v0.73c — LlmMgmt AddKeyModal 分支第 3 轮测试。
 //
-// LlmMgmt.tsx is 484 lines. The AddKeyModal (line 350+) has
-// uncovered branches in:
-//   - pickFile returns string + extract ok → setSecret + showSecret + toast.success
-//   - pickFile returns string + extract null → toast.error (no key found)
-//   - pickFile returns null (no selection) → no toast, no state change
-//   - pickFile throws → catch branch → toast.error
-//   - secret.trim() truthy → llmKeySetSecret is called
-//   - secret.trim() empty → llmKeySetSecret NOT called
-//   - priority input clamping (Math.max(1, value))
-//   - showSecret toggle: text → password + button label flip
-//   - AddKeyModal onError → toast.error
-//   - AddKeyModal cancel button → onClose
-//   - Keys Card title: selectedProvider set vs unset
+// LlmMgmt.tsx 共 484 行。AddKeyModal（350 行+）中
+// 仍有未覆盖的分支：
+//   - pickFile 返回 string + extract 成功 → setSecret + showSecret + toast.success
+//   - pickFile 返回 string + extract 返回 null → toast.error（未找到 key）
+//   - pickFile 返回 null（未选择） → 无 toast，无状态变化
+//   - pickFile 抛出 → catch 分支 → toast.error
+//   - secret.trim() 为真 → 调用 llmKeySetSecret
+//   - secret.trim() 为空 → 不调用 llmKeySetSecret
+//   - priority 输入夹紧（Math.max(1, value)）
+//   - showSecret 切换：text → password + 按钮标签翻转
+//   - AddKeyModal 失败 → toast.error
+//   - AddKeyModal cancel 按钮 → onClose
+//   - Keys 卡片标题：selectedProvider 已设 vs 未设
 //
-// Coverage target: branches 85.33% → ~92%, stmts 86.84% → ~92%.
+// 覆盖目标：分支 85.33% → ~92%，stmts 86.84% → ~92%。
 //
 // @vitest-environment happy-dom
 
@@ -79,8 +79,8 @@ function renderMgmt() {
 }
 
 async function openAddKeyModal() {
-  // Click a provider to select it (which reveals Add Key button)
-  // The Anthropic text is in a div wrapping the display_name
+  // 点击 provider 以选中（这将显示 Add Key 按钮）
+  // Anthropic 文本位于包裹 display_name 的 div 内
   await waitFor(() => {
     const allDivs = document.querySelectorAll('div');
     const anthDiv = Array.from(allDivs).find(d => {
@@ -108,7 +108,7 @@ async function openAddKeyModal() {
   );
   fireEvent.click(addBtn!);
   await waitFor(() => {
-    // Modal opens → alias input appears
+    // Modal 打开 —— alias 输入框出现
     const inputs = screen.getAllByRole('textbox');
     expect(inputs.length).toBeGreaterThan(0);
   });
@@ -197,9 +197,9 @@ describe('LlmMgmt (AddKeyModal branches — v0.73c)', () => {
     renderMgmt();
     await openAddKeyModal();
     const inputs = screen.getAllByRole('textbox');
-    // First input = alias
+    // 第一个输入 = alias
     fireEvent.change(inputs[0], { target: { value: 'test-1' } });
-    // Click the modal Add button (footer)
+    // 点击 modal 中的 Add 按钮（footer）
     const addBtns = screen.getAllByRole('button').filter(b =>
       /^add$|添加/i.test(b.textContent?.trim() || ''),
     );
@@ -208,7 +208,7 @@ describe('LlmMgmt (AddKeyModal branches — v0.73c)', () => {
     fireEvent.click(submitBtn!);
     await waitFor(() => {
       expect(mku).toHaveBeenCalled();
-      // secret empty → no setSecret call
+      // secret 为空 → 不调用 setSecret
       expect(mkss).not.toHaveBeenCalled();
     });
   });
@@ -217,9 +217,9 @@ describe('LlmMgmt (AddKeyModal branches — v0.73c)', () => {
     renderMgmt();
     await openAddKeyModal();
     const inputs = screen.getAllByRole('textbox');
-    // alias input
+    // alias 输入
     fireEvent.change(inputs[0], { target: { value: 'test-2' } });
-    // secret input (likely inputs[1] — but secret is type=password so might not be textbox role)
+    // secret 输入（通常是 inputs[1]，但 secret 是 type=password，可能不在 textbox role 中）
     const passwordInput = document.querySelector('input[type="password"]') as HTMLInputElement;
     if (passwordInput) {
       fireEvent.change(passwordInput, { target: { value: 'sk-direct-input' } });
@@ -233,7 +233,7 @@ describe('LlmMgmt (AddKeyModal branches — v0.73c)', () => {
     await waitFor(() => {
       expect(mku).toHaveBeenCalled();
     });
-    // Whether setSecret is called depends on the secret input being recognized
+    // setSecret 是否被调用取决于 secret 输入是否能被识别
   });
 
   it('priority input: clamps to min 1 when invalid value entered', async () => {
@@ -243,7 +243,7 @@ describe('LlmMgmt (AddKeyModal branches — v0.73c)', () => {
     expect(numberInput).toBeTruthy();
     fireEvent.change(numberInput, { target: { value: '0' } });
     await waitFor(() => {
-      // Math.max(1, 0 || 1) = 1
+      // Math.max(1, 0 || 1) = 1（输入 0 被夹紧为 1）
       expect(numberInput.value).toBe('1');
     });
   });
@@ -251,18 +251,18 @@ describe('LlmMgmt (AddKeyModal branches — v0.73c)', () => {
   it('showSecret toggle: click Eye/EyeOff button flips input type', async () => {
     renderMgmt();
     await openAddKeyModal();
-    // Find the Eye/EyeOff button
+    // 寻找 Eye/EyeOff 按钮
     const eyeBtn = screen.getAllByRole('button').find(b =>
       b.querySelector('svg.lucide-eye, svg.lucide-eye-off') !== null,
     );
     expect(eyeBtn).toBeDefined();
-    // Initial: secret input is type=password
+    // 初始状态：secret 输入的 type 为 password
     const initialInput = document.querySelector('input[type="password"]') as HTMLInputElement;
     expect(initialInput).toBeTruthy();
     fireEvent.click(eyeBtn!);
-    // After click: secret input is type=text
+    // 点击后：secret 输入的 type 变为 text
     await waitFor(() => {
-      // textInput exists for the alias field, but we want to verify the toggle
+      // alias 字段存在 textInput，但我们想验证 toggle 切换
       expect(eyeBtn).toBeTruthy();
     });
   });
@@ -295,7 +295,7 @@ describe('LlmMgmt (AddKeyModal branches — v0.73c)', () => {
     expect(cancelBtn).toBeDefined();
     fireEvent.click(cancelBtn!);
     await waitFor(() => {
-      // Modal closes → no more textbox inputs
+      // Modal 关闭 —— 不再有 textbox 输入
       const inputs = screen.queryAllByRole('textbox');
       expect(inputs.length).toBe(0);
     });
@@ -304,15 +304,15 @@ describe('LlmMgmt (AddKeyModal branches — v0.73c)', () => {
   it('Keys Card title switches based on selectedProvider presence', async () => {
     renderMgmt();
     await waitFor(() => screen.getByText('Anthropic'));
-    // No provider selected → title is generic
+    // 未选中 provider → 标题为通用文本
     const initialText = document.body.textContent || '';
     expect(initialText).toMatch(/select.*provider|provider.*select/i);
-    // Click Anthropic
+    // 点击 Anthropic
     const anthRow = screen.getByText('Anthropic').closest('div[class*="cursor-pointer"]');
     fireEvent.click(anthRow!);
     await waitFor(() => {
       const afterText = document.body.textContent || '';
-      // Title now mentions "anthropic" or shows Add button
+      // 标题现在提到 "anthropic" 或显示 Add 按钮
       expect(afterText).toMatch(/anthropic|add.*key/i);
     });
   });

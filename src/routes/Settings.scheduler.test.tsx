@@ -1,8 +1,8 @@
-// v0.100 — Settings.tsx SchedulerSelfTestCard test (+3 tests, +~5 stmts).
+// v0.100 — Settings.tsx SchedulerSelfTestCard 测试（+3 个测试，+~5 个语句）。
 //
-// SchedulerSelfTestCard (Settings.tsx:1284) shows the
-// scheduler loop health (allHealthy true/false + per-loop
-// status). Existing Settings tests don't cover this card.
+// SchedulerSelfTestCard（Settings.tsx:1284）展示
+// scheduler loop 健康状态（allHealthy true/false + 各 loop
+// 状态）。已有 Settings 测试未覆盖本卡片。
 //
 // @vitest-environment happy-dom
 
@@ -178,7 +178,7 @@ describe('Settings SchedulerSelfTestCard (v0.100)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('scheduler-overall').textContent).toMatch(/some_unhealthy|unhealthy/i);
     });
-    // The mirror-poll loop should still render (even though unhealthy)
+    // mirror-poll loop 仍应渲染（即便 unhealthy）
     expect(screen.getByTestId('scheduler-loop-mirror-poll')).toBeInTheDocument();
   });
 
@@ -186,13 +186,13 @@ describe('Settings SchedulerSelfTestCard (v0.100)', () => {
     mockGetAuditRetention.mockResolvedValue({
       retain_recent_ms: 90 * 86_400_000, max_rows: 50 * 1000, min_keep_rows: 1000,
     });
-    // Never resolve → loading state persists
+    // 永不 resolve → loading 状态持续
     mockSchedulerSelfTestNow.mockReturnValue(new Promise(() => {}));
     render(wrap());
     await waitFor(() => {
       expect(screen.getByTestId('scheduler-self-test')).toBeInTheDocument();
     });
-    // Should show "common.loading" text since snap is null
+    // 因 snap 为 null，应显示 "common.loading" 文本
     expect(screen.getByTestId('scheduler-overall').textContent).toMatch(/loading/i);
   });
 });

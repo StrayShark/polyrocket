@@ -1,10 +1,10 @@
-// v0.62a.2 — Notifications component tests.
+// v0.62a.2 — Notifications 组件测试。
 //
-// /notifications is the toast list page.
-// Today 0% coverage. This file covers:
-//   1. Initial render with empty toasts
-//   2. Renders a toast when one is pushed
-//   3. Clear button works
+// /notifications 是 toast 列表页面。
+// 当前覆盖率 0%。本文件覆盖：
+//   1. 空 toast 初始渲染
+//   2. 推送一条 toast 后渲染
+//   3. Clear 按钮可用
 
 // @vitest-environment happy-dom
 

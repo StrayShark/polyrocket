@@ -1,29 +1,28 @@
-// polyrocket — LlmMgmt (v0.68f density).
+// polyrocket — LlmMgmt（v0.68f 密度）。
 //
-// /llm-mgmt is the LLM provider + key management page.
-// Two concerns, one screen:
+// /llm-mgmt 是 LLM provider + key 管理页。
+// 两个关注点，一个界面：
 //
-//   1. **Providers** — registered LLM providers (OpenAI,
-//      Anthropic, Google, DeepSeek, custom OpenAI-compatible).
-//      Each provider has a default `api_base` and a list of
-//      keys (one per alias). Health status (ok / slow / down)
-//      is shown per provider. Add via modal, delete via trash icon.
+//   1. **Providers** —— 已注册的 LLM provider（OpenAI、
+//      Anthropic、Google、DeepSeek、自定义 OpenAI-compatible）。
+//      每个 provider 有默认 `api_base` 和一组 key
+//      （每个 alias 一个）。每个 provider 显示 health 状态
+//      （ok / slow / down）。通过 modal 添加，垃圾桶图标删除。
 //
-//   2. **Keys** — per-provider key aliases. Each key has:
-//      - alias (e.g. "prod-1", "trade-A") — human label
-//      - secret — stored in OS keyring, never persisted to disk
-//      - health — last `llm_test_connectivity` result
-//      - rotation strategy (priority / round-robin)
+//   2. **Keys** —— 每个 provider 的 key alias。每个 key 包含：
+//      - alias（例如 "prod-1"、"trade-A"）—— 人类可读标签
+//      - secret —— 存储于 OS keyring，从不持久化到磁盘
+//      - health —— 上次 `llm_test_connectivity` 结果
+//      - 轮换策略（priority / round-robin）
 //
-// **Sidecar topology**: `llm_test_connectivity` runs the
-// actual API call against the key's `api_base`. The
-// response includes `latency_ms` and `error_code` for
-// circuit-breaker logic in the Rust side.
+// **Sidecar 拓扑**：`llm_test_connectivity` 针对该 key
+// 的 `api_base` 发起真实 API 调用。响应中包含 `latency_ms`
+// 和 `error_code`，供 Rust 端的熔断逻辑使用。
 //
-// **File picker for env import**: the "import from .env"
-// button on the Add Key modal reads an env-style file
-// (`KEY=VALUE` or plain `sk-...`) via `pickFile` +
-// `extractSecretFromEnv`. The keyring is then updated.
+// **用于 env 导入的文件选择器**：Add Key modal 中的
+// 「import from .env」按钮通过 `pickFile` + `extractSecretFromEnv`
+// 读取 env 格式的文件（`KEY=VALUE` 或纯 `sk-...`）。
+// 之后更新 keyring。
 
 import { useState } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
@@ -52,7 +51,7 @@ import type { LlmProvider, LlmProviderKey } from '@/types/llm';
  *   3. **Test** —— connectivity 测试 + 实时 health 更新
  *
  * **数据流**：
- *   1. mount `llmProviderList()` + `secretsStatus()`
+ *   1. 挂载时调用 `llmProviderList()` + `secretsStatus()`
  *   2. 选 provider → `llmKeyList(providerId)`
  *   3. Add/Edit key → `llmKeyUpsert` mutation（v0.57d+ file picker 路径）
  *   4. Test → `llmTestConnectivity` mutation + 立即刷新 health
@@ -106,7 +105,7 @@ export function LlmMgmt() {
 
   return (
     <div className="space-y-4">
-      {/* Keyring status */}
+      {/* Keyring 状态 */}
       <Card padding="sm">
         <div className="flex items-center gap-3 text-[11px] flex-wrap">
           <span className="text-muted">{t('llmmgmt.keyring')}</span>
@@ -132,7 +131,7 @@ export function LlmMgmt() {
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Providers */}
+        {/* Providers（提供者） */}
         <Card title={t('llmmgmt.providers.title')} description={t('llmmgmt.providers.desc')}>
           {providers.isLoading ? (
             <div className="space-y-2">
@@ -160,7 +159,7 @@ export function LlmMgmt() {
           )}
         </Card>
 
-        {/* Keys for selected provider */}
+        {/* 所选 provider 的 Keys */}
         <Card
           title={selectedProvider ? t('llmmgmt.keys.title_for', { provider: selectedProvider }) : t('llmmgmt.keys.title')}
           description={
@@ -415,15 +414,12 @@ function AddKeyModal({
             <Button variant="ghost" size="sm" iconLeft={showSecret ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />} onClick={() => setShowSecret((s) => !s)}>
               {showSecret ? t('llmmgmt.add.hide') : t('llmmgmt.add.show')}
             </Button>
-            {/* v0.57d — native file picker for
-                importing a secret from a `.env`-
-                shaped file. The file must have
-                exactly one KEY=VALUE line, with
-                the key matching the expected
-                env var for the chosen provider
-                (OPENAI_API_KEY, ANTHROPIC_API_KEY,
-                etc). The picker filters to
-                .env, .key, .txt. */}
+            {/* v0.57d — 原生文件选择器，用于从 `.env`
+                形态的文件导入 secret。文件必须正好
+                包含一行 KEY=VALUE，且 key 必须匹配所选
+                provider 对应的环境变量名
+                （OPENAI_API_KEY、ANTHROPIC_API_KEY
+                等）。选择器过滤为 .env、.key、.txt。*/}
             <Button
               variant="ghost"
               size="sm"
@@ -459,10 +455,10 @@ function AddKeyModal({
         </Field>
         <div
           className="text-[11px] text-muted pt-2 border-t border-border"
-          // v0.14a — notice text contains a `<code>` element with
-          // the keyring path; the i18n string embeds the tags
-          // directly (no React node split) so zh/en can format
-          // the same way.
+          // v0.14a — 提示文本包含一个 `<code>` 元素，
+          // 其内为 keyring 路径。i18n 字符串直接嵌入
+          // 标签（不拆分为 React 节点），以便中/英文
+          // 都能以相同方式格式化。
           dangerouslySetInnerHTML={{
             __html: t('llmmgmt.add.notice', {
               path: `polyrocket/llm/${providerId}/&lt;alias&gt;`,

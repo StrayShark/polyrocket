@@ -1,19 +1,19 @@
-// v0.75b — Settings round 2 (8 new tests).
+// v0.75b — Settings 第 2 轮（新增 8 个测试）。
 //
-// Settings.tsx is 2058 lines with 16 sub-components. The existing
-// test file (v0.49a + v0.55a + v0.58 + v0.65) covers 30 tests for
-// AutoPromote / Backup / ActiveModel / Scheduler / Rerun /
-// StorageMigration / Network cards. We add 8 more for the
-// under-covered cards:
+// Settings.tsx 共 2058 行，包含 16 个子组件。已有
+// 测试文件（v0.49a + v0.55a + v0.58 + v0.65）覆盖了 30 个测试，
+// 包括 AutoPromote / Backup / ActiveModel / Scheduler / Rerun /
+// StorageMigration / Network 卡片。我们再新增 8 个测试，
+// 覆盖以下覆盖不足的卡片：
 //
-//   - AppearanceCard (v0.74f new — theme + locale pickers)
-//   - RetentionCard (custom days input + restore default)
-//   - ClobFeedCard (v0.46 + v0.57)
-//   - ExplainabilityCard (v0.55 + v0.59 SHAP/exact toggle)
-//   - PaperModeCard — env-mode branches
-//   - NetworkCard — clear / save error paths
+//   - AppearanceCard（v0.74f 新增 —— theme + locale 选择器）
+//   - RetentionCard（自定义天数输入 + 恢复默认值）
+//   - ClobFeedCard（v0.46 + v0.57）
+//   - ExplainabilityCard（v0.55 + v0.59 SHAP/exact 切换）
+//   - PaperModeCard —— env-mode 分支
+//   - NetworkCard —— clear / save 错误路径
 //
-// Coverage target: 78.5→85% stmts, 72.9→80% branches.
+// 覆盖目标：78.5→85% stmts，72.9→80% 分支。
 //
 // @vitest-environment happy-dom
 
@@ -221,7 +221,7 @@ describe('Settings round 2 (v0.75b)', () => {
   it('renders Appearance card with theme + locale sections', async () => {
     wrap(<Settings />);
     await waitFor(() => {
-      // Appearance card has a section title + theme + locale labels
+      // Appearance 卡片含 section 标题 + theme + locale 标签
       const text = document.body.textContent || '';
       expect(text).toContain('settings.appearance.title');
     });

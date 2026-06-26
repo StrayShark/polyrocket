@@ -1,13 +1,11 @@
-// v0.59 — ExplainabilityCard SHAP/derivative
-// toggle tests.
+// v0.59 —— ExplainabilityCard SHAP/导数
+// 切换测试。
 //
-// The Settings → ExplainabilityCard now
-// has a 2-way toggle between SHAP
-// (KernelExplainer, satisfies the efficiency
-// axiom) and the v0.55 exact-decomposition
-// (derivative of p w.r.t. each feature). Both
-// flows go through the same form, just
-// different IPCs.
+// Settings → ExplainabilityCard 现在提供
+// SHAP（KernelExplainer，满足效率公理）和
+// v0.55 精确分解（p 对各特征的导数）之间的
+// 二选一切换。两种流程使用相同的表单，
+// 只是 IPC 不同。
 
 // @vitest-environment happy-dom
 
@@ -76,8 +74,7 @@ beforeEach(() => {
 describe('ExplainabilityCard SHAP/derivative toggle (v0.59)', () => {
   it('renders the SHAP + Derivative toggle buttons', async () => {
     render(wrap(<ExplainabilityCard />));
-    // Wait for getActiveModel to resolve
-    // before the test continues.
+    // 在测试继续前等待 getActiveModel 解析完成。
     await waitFor(() => {
       expect(
         screen.getByTestId('explain-method-shap'),
@@ -95,14 +92,14 @@ describe('ExplainabilityCard SHAP/derivative toggle (v0.59)', () => {
     await waitFor(() => {
       expect(ipc.shapExplain).toHaveBeenCalled();
     });
-    // The result panel is marked with
-    // data-method="shap".
+    // 结果面板带有
+    // data-method="shap" 标记。
     await waitFor(() => {
       expect(
         screen.getByTestId('explain-result').getAttribute('data-method'),
       ).toBe('shap');
     });
-    // The result panel mentions the method name.
+    // 结果面板包含方法名称。
     expect(screen.getByTestId('explain-result').textContent).toContain(
       'kernel_shap',
     );
@@ -111,18 +108,17 @@ describe('ExplainabilityCard SHAP/derivative toggle (v0.59)', () => {
   it('switching to Derivative calls explainModel (v0.55) instead', async () => {
     render(wrap(<ExplainabilityCard />));
     await waitFor(() => screen.getByTestId('explain-method-deriv'));
-    // Click the Derivative toggle.
+    // 点击 Derivative 切换按钮。
     fireEvent.click(screen.getByTestId('explain-method-deriv'));
     fireEvent.click(screen.getByTestId('explain-run'));
     await waitFor(() => {
       expect(ipc.explainModel).toHaveBeenCalled();
     });
-    // SHAP should NOT have been called.
+    // 不应调用 SHAP。
     expect(ipc.shapExplain).not.toHaveBeenCalled();
-    // Result panel shows the derivative method
-    // (we just don't print the method name
-    // for the derivative view; we set the
-    // data-method attribute).
+    // 结果面板展示 derivative 方法
+    // （我们不为 derivative 视图打印方法名称；
+    // 仅设置 data-method 属性）。
     await waitFor(() => {
       expect(
         screen.getByTestId('explain-result').getAttribute('data-method'),

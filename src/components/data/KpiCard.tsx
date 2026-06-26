@@ -1,45 +1,45 @@
-// polyrocket — KpiCard (KPI tile for dashboards, v0.66b density).
+// polyrocket — KpiCard(仪表盘上的 KPI 卡片,v0.66b 密度)。
 //
-// The atomic unit of every dashboard. Used in:
-//   - /dashboard:        4 cards (equity, open PnL, win rate, n signals)
-//   - /pnl:              4 cards (total bets, won/lost, avg win, avg loss)
-//   - /model-lab:        2 cards (best brier, total calls)
-//   - /analysis:         various signal-strength cards
+// 所有仪表盘的原子单元。使用于:
+//   - /dashboard:        4 张卡片(equity、open PnL、win rate、n signals)
+//   - /pnl:              4 张卡片(total bets、won/lost、avg win、avg loss)
+//   - /model-lab:        2 张卡片(best brier、total calls)
+//   - /analysis:         各种 signal-strength 卡片
 //
-// **Layout** (44px tall, full card width):
+// **布局**(高 44px,占满卡片宽度):
 //   ┌────────────────────────┐
-//   │ LABEL              [I] │  ← uppercase muted, optional icon
-//   │ VALUE                  │  ← 22px monospace, semibold
-//   │ delta           hint   │  ← colored delta + muted hint
+//   │ LABEL              [I] │  ← 大写 muted,可带 icon
+//   │ VALUE                  │  ← 22px 等宽,semibold
+//   │ delta           hint   │  ← 彩色 delta + muted 提示
 //   └────────────────────────┘
 //
-// **Color** is theme-agnostic; uses CSS variables.
-// `delta.positive === true` → bull, `false` → bear, `undefined` → muted.
+// **配色**与主题解耦,使用 CSS 变量。
+// `delta.positive === true` → bull,`false` → bear,`undefined` → muted。
 
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { fmtPctInt } from '@/lib/format';
 
-/** Props for the `<KpiCard>` component. */
+/** `<KpiCard>` 组件的 Props。 */
 export interface KpiCardProps {
-  /** Short uppercase label shown above the value. */
+  /** 显示在 value 上方的大写简短 label。 */
   label: string;
-  /** Pre-formatted primary value (caller does formatting). */
+  /** 已格式化好的主值(由调用方负责格式化)。 */
   value: string;
-  /** Optional secondary metric (e.g. +2.3% delta, or sub-count). */
+  /** 可选的辅助指标(例如 +2.3% delta 或子项计数)。 */
   delta?: { text: string; positive?: boolean } | null;
-  /** Lucide icon shown top-right. */
+  /** 显示在右上角的 Lucide icon。 */
   icon?: LucideIcon;
-  /** Optional sub-text shown right of the delta. */
+  /** 显示在 delta 右侧的可选 sub-text。 */
   hint?: string;
-  /** Extra Tailwind class names for the root card. */
+  /** 根卡片额外的 Tailwind class。 */
   className?: string;
 }
 
 /**
- * Render a single KPI tile. The value is **pre-formatted** by
- * the caller (we don't do any number formatting here — use
- * `fmtUsdc`, `fmtPctInt`, etc. before passing in).
+ * 渲染单个 KPI 卡片。value 由调用方**预先格式化**
+ * (此处不做任何数值格式化——传入前请使用
+ * `fmtUsdc`、`fmtPctInt` 等)。
  */
 export function KpiCard({ label, value, delta, icon: Icon, hint, className }: KpiCardProps) {
   return (
@@ -72,28 +72,27 @@ export function KpiCard({ label, value, delta, icon: Icon, hint, className }: Kp
   );
 }
 
-/** Props for `<KpiDeltaCard>` — a `<KpiCard>` that auto-computes the delta. */
+/** `<KpiDeltaCard>` 的 Props——会自动计算 delta 的 `<KpiCard>`。 */
 export interface KpiDeltaCardProps {
   label: string;
   current: number;
   previous: number;
   /**
-   * Format helper: takes a number and returns a display string.
-   * Default is `fmtPctInt` (0.1234 → "12%").
+   * 格式化函数:接收数字,返回显示字符串。
+   * 默认 `fmtPctInt`(0.1234 → "12%")。
    */
   format?: (n: number) => string;
   /**
-   * Invert the "positive" color. Use for metrics where
-   * lower is better (win rate inverted, Brier score, etc.).
+   * 反转"positive"颜色语义。用于"越低越好"的指标
+   * (win rate 取反、Brier score 等)。
    */
   inverse?: boolean;
 }
 
 /**
- * `<KpiCard>` with auto-computed delta. The delta is the
- * signed difference `current - previous`, displayed with
- * `+` / `-` prefix and colored by `positive` (which respects
- * `inverse` for "lower is better" metrics).
+ * 自动计算 delta 的 `<KpiCard>`。delta 为带符号差值
+ * `current - previous`,带 `+` / `-` 前缀展示,
+ * 并按 `positive` 着色(对"越低越好"的指标会尊重 `inverse`)。
  */
 export function KpiDeltaCard({
   label,

@@ -31,7 +31,7 @@ export function Help() {
         </div>
       </Card>
 
-      {/* Quick start */}
+      {/* 快速开始 */}
       <Card title={t('help.quick.title')} description={t('help.quick.desc')}>
         <ol className="space-y-2 text-[12px] list-decimal pl-5 marker:text-muted">
           <li>{t('help.quick.step1')}</li>
@@ -60,7 +60,7 @@ export function Help() {
         </ol>
       </Card>
 
-      {/* Concepts */}
+      {/* 概念 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Concept icon={Shield} title={t('help.concept.storage')}>
           <span dangerouslySetInnerHTML={{ __html: t('help.concept.storage_body') }} />
@@ -76,7 +76,7 @@ export function Help() {
         </Concept>
       </div>
 
-      {/* Shortcuts */}
+      {/* 快捷键 */}
       <Card title={t('help.shortcuts.title')} description={t('help.shortcuts.desc')}>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-[12px]">
           <Kbd k="⌘ K" label={t('help.shortcuts.cmdk')} />
@@ -88,7 +88,7 @@ export function Help() {
         </div>
       </Card>
 
-      {/* External */}
+      {/* 外部链接 */}
       <Card title={t('help.external.title')}>
         <div className="space-y-1.5 text-[12px]">
           <ExtLink href="https://docs.polyrocket.app" label={t('help.external.docs')} />

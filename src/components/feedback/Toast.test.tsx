@@ -1,15 +1,15 @@
-// v0.70f — ToastViewport + ToastHost component tests.
+// v0.70f —— ToastViewport + ToastHost 组件测试。
 //
-// Toast.tsx was 0% covered. It's a small (96 lines) but
-// critical feedback component — every successful IPC mutation
-// in the app shows a toast. Tests cover:
-//   - 4 kinds render with their respective KIND_CLS classes
-//   - body text renders below title when present
-//   - dismiss button calls useToastStore.dismiss(id)
-//   - empty queue renders nothing
-//   - ToastHost's useEffect initializes the store
+// Toast.tsx 之前覆盖率为 0%。它是个小(96 行)
+// 但关键的反馈组件 —— 每次成功的 IPC mutation
+// 都会显示 toast。测试覆盖:
+//   - 4 种 kind 用各自的 KIND_CLS class 渲染
+//   - body 文本在 title 之下渲染
+//   - dismiss 按钮调用 useToastStore.dismiss(id)
+//   - 空队列不渲染任何内容
+//   - ToastHost 的 useEffect 初始化 store
 //
-// Toast.tsx: 0% → ~95% stmts.
+// Toast.tsx:0% → 约 95% stmts。
 //
 // @vitest-environment happy-dom
 
@@ -19,9 +19,9 @@ import { render, screen, fireEvent } from '@testing-library/react';
 const { mockToastState, mockDismiss, mockUseToastStore } = vi.hoisted(() => {
   const toastState = { toasts: [] as any[] };
   const dismissFn = vi.fn();
-  // useToastStore is called as both a hook (selector pattern) and
-  // useToastStore.getState(). Build it as a vi.fn (callable) with
-  // a getState static method.
+  // useToastStore 既作为 hook (selector 模式) 又作为
+  // useToastStore.getState() 调用。构建为带
+  // getState 静态方法的 vi.fn (可调用)。
   const useToastStore: any = Object.assign(vi.fn(), {
     getState: vi.fn(() => ({ toasts: toastState.toasts, dismiss: dismissFn })),
   });
@@ -35,7 +35,7 @@ vi.mock('@/stores/toast-store', () => ({
 import { ToastViewport, ToastHost } from './Toast';
 
 function renderViewport() {
-  // Wire the hook impl per render to read from our mutable state.
+  // 每次渲染时把 hook 实现接到我们的可变 state 上。
   mockUseToastStore.mockImplementation((selector: any) =>
     selector({ toasts: mockToastState.toasts, dismiss: mockDismiss }),
   );
@@ -108,7 +108,7 @@ describe('ToastViewport', () => {
     ];
     renderViewport();
     expect(screen.getByText('Just title')).toBeInTheDocument();
-    // No second text-11 div with body
+    // 不带 body 时不渲染第二个 text-11 div
     expect(document.body.textContent).not.toContain('Body');
   });
 
@@ -144,7 +144,7 @@ describe('ToastViewport', () => {
 describe('ToastHost', () => {
   it('mounts ToastViewport (renders empty queue)', () => {
     render(<ToastHost />);
-    // No toasts → no buttons
+    // 无 toasts → 无按钮
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 

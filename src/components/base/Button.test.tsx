@@ -12,7 +12,7 @@ describe('Button (v0.119 Cursor-merge)', () => {
   it('defaults to variant=secondary + size=md', () => {
     const { container } = render(<Button>x</Button>);
     const btn = container.querySelector('button')!;
-    expect(btn.className).toContain('bg-surface-2'); // secondary
+    expect(btn.className).toContain('bg-surface-2'); // secondary 样式
     expect(btn.className).toContain('h-9'); // md = 36px
   });
 

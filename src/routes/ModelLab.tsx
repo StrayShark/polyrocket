@@ -34,9 +34,9 @@ import { fmtPct } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import { toast } from '@/stores/toast-store';
 import { usePrefsStore } from '@/stores/prefs-store';
-// v0.91 — extracted the train-progress state machine
-// out of ModelLab so the deferred v0.83 branch coverage
-// gap is now testable in isolation.
+// v0.91 — 将 train-progress 状态机从 ModelLab
+// 抽离出来，以便此前被推迟的 v0.83 分支覆盖率
+// 缺口现在可以独立测试。
 import { useTrainProgress } from '@/hooks/useTrainProgress';
 
 /**
@@ -66,27 +66,24 @@ export function ModelLab() {
     staleTime: 60_000,
   });
 
-  // v0.65a — moved error early-return BELOW the
-  // subsequent useQuery / useState / useEffect
-  // hooks. Previously the early return sat at
-  // line 66 (after only the first useQuery) but
-  // more useQuery / useState calls followed, so
-  // a re-render after error fired fewer hooks
-  // and React warned "Rendered fewer hooks than
-  // expected". The actual user impact is small
-  // (the page would unmount the broken state on
-  // next render anyway) but it's a rules-of-hooks
-  // violation that hides future bugs.
+  // v0.65a — 将 error 提前返回移到后续的 useQuery /
+  // useState / useEffect hooks 之后。原本的提前返回
+  // 位于第 66 行（紧跟在第一个 useQuery 之后），但后面
+  // 还有更多 useQuery / useState 调用，因此 error 后
+  // 重新渲染时触发的 hooks 数量更少，React 警告
+  // 「Rendered fewer hooks than expected」。对实际用户
+  // 的影响很小（下次渲染时页面也会卸载该损坏状态），
+  // 但这违反 hooks 规则，会掩盖未来的 bug。
 
   const total = data?.length ?? 0;
   const best = data && data.length > 0
     ? data.reduce((acc, p) => (p.brier_score < acc.brier_score ? p : acc))
     : null;
 
-  // v0.12d — the "currently active" model. We hit the sidecar
-  // with a cheap predict (m1/m2) to surface the model_version
-  // that future predict calls will use.
-  // v0.13b — also returns the brier score for the tooltip.
+  // v0.12d — 「当前活动」model。我们使用一个廉价的 predict
+  // （m1/m2）调用 sidecar，以暴露未来 predict 调用将使用的
+  // model_version。
+  // v0.13b — 同时返回 brier score 用于 tooltip。
   const activeModel = useQuery({
     queryKey: ['sidecar-active-model'],
     queryFn: async () => {
@@ -102,86 +99,73 @@ export function ModelLab() {
     staleTime: 60_000,
   });
 
-  // v0.17d — model training state. Same chicken-and-egg
-  // pattern as v0.15c Analysis page: the Rust `train_job`
-  // IPC emits `train_job:started` BEFORE returning, so we
-  // can't get the job_id from the IPC return value. We
-  // v0.91 — train progress state machine extracted into
-  // useTrainProgress hook (src/hooks/useTrainProgress.ts).
-  // The hook encapsulates the activeTrainJobId state,
-  // expectedTrainRef (for race-condition protection), and
-  // the train:started event listener subscription with
-  // strict-mode double-mount cleanup.
+  // v0.17d — model training 状态。与 v0.15c Analysis 页相同的
+  // 「鸡生蛋」模式：Rust 的 `train_job` IPC 在返回前就发出
+  // `train_job:started`，因此无法从 IPC 返回值获取 job_id。
+  // v0.91 — train progress 状态机抽取到 useTrainProgress hook
+  // （src/hooks/useTrainProgress.ts）。该 hook 封装了
+  // activeTrainJobId 状态、expectedTrainRef（用于竞态保护），
+  // 以及带有 strict-mode 双挂载清理的 train:started
+  // 事件监听器订阅。
   //
-  // Caller pattern: call markExpected() BEFORE
-  // trainMut.mutate(); the next train:started event will
-  // populate activeTrainJobId.
+  // 调用方模式：在 trainMut.mutate() 之前调用 markExpected()；
+  // 下一个 train:started 事件将填充 activeTrainJobId。
   const { activeTrainJobId, markExpected, clearActive } = useTrainProgress({
     onTrainStarted,
   });
-  // v0.34a — archive modal open state. Local state,
-  // not persisted. Resets to false on remount.
+  // v0.34a — archive modal 打开状态。本地状态，
+  // 不持久化。重新挂载时重置为 false。
   const [archiveOpen, setArchiveOpen] = useState(false);
-  // v0.40b — comparison modal open state.
+  // v0.40b — comparison modal 打开状态。
   const [compareOpen, setCompareOpen] = useState(false);
-  // v0.40b — selected entries for comparison. Set of
-  // job_ids. We limit to 3 selected; if the user
-  // selects a 4th, the oldest is dropped.
+  // v0.40b — 用于比较的选中条目。job_id 集合。
+  // 最多选 3 个；若用户选第 4 个，则丢弃最早的一个。
   const [selectedForCompare, setSelectedForCompare] = useState<Set<string>>(new Set());
-  // v0.43c — single-select for backtest. The backtest
-  // is per-model: pick one entry, click "Backtest",
-  // the modal opens with that model_version pre-filled.
+  // v0.43c — backtest 的单选。backtest 按 model 选择：
+  // 选一个条目，点击「Backtest」，
+  // modal 打开并预填该 model_version。
   const [backtestTarget, setBacktestTarget] = useState<string | null>(null);
 
-  // v0.28c — listen for `auto_promote:finished` events.
-  // When a background auto-promote completes (because
-  // `autoPromoteAfterTrain` is enabled in Settings), the
-  // Rust side emits this event. We:
-  //   1. Invalidate the queries that show the active model
-  //      and the history panel (so they re-fetch).
-  //   2. Show a toast with the result so the user knows
-  //      whether their new model was auto-promoted.
-  //   3. v0.39b — also send an OS notification (in
-  //      addition to the toast) if the
-  //      `autoPromoteNotify` pref is on.
+  // v0.28c — 监听 `auto_promote:finished` 事件。
+  // 当后台 auto-promote 完成时（因为 Settings 中开启了
+  // `autoPromoteAfterTrain`），Rust 端会发出该事件。我们：
+  //   1. 使展示 active model 和 history 面板的查询失效
+  //      （以便重新拉取）。
+  //   2. 显示带结果的 toast，让用户知道他们的新 model
+  //      是否被自动提升。
+  //   3. v0.39b — 如果 `autoPromoteNotify` 首选项开启，
+  //      还会发送一条 OS 通知（作为 toast 的补充）。
   //
-  // The listener is registered once on mount and stays
-  // alive for the lifetime of the ModelLab page. If the
-  // user navigates away and comes back, it re-registers.
-  // v0.39b — read the auto-promote-notify flag once at
-  // mount time (the listener is registered once too;
-  // toggling the flag mid-session takes effect on the
-  // next mount).
+  // 监听器在挂载时注册一次，并在 ModelLab 页面生命周期内
+  // 保持活跃。如果用户离开后再回来，会重新注册。
+  // v0.39b — 在挂载时读取一次 auto-promote-notify 标志
+  // （监听器也只注册一次；会话中切换标志会在下次挂载时
+  // 生效）。
   const autoPromoteNotify = usePrefsStore((s) => s.autoPromoteNotify);
-  // v0.42e-2 — opt-in OS notification for the
-  // "skipped" branch. Default false (most users
-  // don't want "your training didn't improve
-  // anything" pings every train). When ON, the
-  // listener sends an OS notification on
-  // `promoted === false` events with the
-  // sidecar's "reason" (e.g. "candidate not
-  // better than active").
+  // v0.42e-2 — 「skipped」分支的可选 OS 通知。
+  // 默认 false（大多数用户不希望每次训练都收到
+  // 「训练未带来改进」的提示）。开启时，监听器会
+  // 在 `promoted === false` 事件上发送 OS 通知，
+  // 内容为 sidecar 的「reason」（例如
+  // 「candidate not better than active」）。
   const autoPromoteSkippedNotify = usePrefsStore(
     (s) => s.autoPromoteSkippedNotify,
   );
-  // v0.40b — the comparison modal needs the full
-  // history data. We use a separate useQuery with
-  // the same key as the PromoteHistory panel, so
-  // react-query dedupes and shares the cache.
+  // v0.40b — comparison modal 需要完整的 history 数据。
+  // 我们使用单独的 useQuery，key 与 PromoteHistory 面板
+  // 相同，因此 react-query 会去重并共享缓存。
   const historyQuery = useQuery({
     queryKey: ['promote-history'],
     queryFn: () => listPromoteHistory(),
     staleTime: 30_000,
     enabled: compareOpen,
   });
-  // v0.42e-3 — fetch weights for the 2-3 selected
-  // entries from the archive. The in-memory history
-  // has best_params (lr, reg) but NOT weights (w0,
-  // w1, w2) — those only live in the sidecar's
-  // archive.jsonl. We pull just the selected
-  // job_ids (whitelist filter on the Rust side)
-  // so the call is bounded even with a large
-  // archive.
+  // v0.42e-3 — 从 archive 中拉取 2-3 个选中条目的
+  // weights。内存中的 history 包含 best_params（lr、reg）
+  // 但不包含 weights（w0、w1、w2）—— 它们只存储在
+  // sidecar 的 archive.jsonl 中。我们只拉取所选的
+  // job_ids（在 Rust 端进行白名单过滤），因此即使
+  // archive 很大，调用也是有限的。
   const weightsQuery = useQuery({
     queryKey: ['promote-history-archive-weights', [...selectedForCompare].sort()],
     queryFn: () =>
@@ -194,18 +178,16 @@ export function ModelLab() {
   });
   useEffect(() => {
     let cancelled = false;
-    // v0.39b — request notification permission once on
-    // mount. If the user grants, the OS notification
-    // fires for every auto-promote that completes.
-    // If denied, the in-app toast still works.
+    // v0.39b — 挂载时请求一次通知权限。如果用户授权，
+    // 每次 auto-promote 完成都会触发 OS 通知。
+    // 如果拒绝，in-app toast 仍然有效。
     requestNotificationPermission().catch(() => {
-      // No-op: best-effort. The L1 falls back to
-      // in-app toast only.
+      // No-op：best-effort。L1 仅回退到 in-app toast。
     });
     const unsub = onAutoPromoteFinished((e) => {
       if (cancelled) return;
-      // Refresh everything that depends on the active
-      // model: KPI cards, history panel, Brier chart.
+      // 刷新所有依赖 active model 的内容：
+      // KPI 卡片、history 面板、Brier 图表。
       queryClient.invalidateQueries({ queryKey: ['llm-performance'] });
       queryClient.invalidateQueries({ queryKey: ['sidecar-active-model'] });
       queryClient.invalidateQueries({ queryKey: ['promote-history'] });
@@ -214,44 +196,43 @@ export function ModelLab() {
           t('auto_promote.toast.auto_promoted'),
           e.model_version ?? undefined,
         );
-        // v0.39b — also send a real OS notification so
-        // the user knows even if they're in another app.
-        // Skipped for "skipped" events (those are normal,
-        // the user is usually still at the ModelLab page).
+        // v0.39b — 同时发送真正的 OS 通知，
+        // 即使用户在另一个应用中也能知道。
+        // 「skipped」事件不会触发（这是正常情况，
+        // 用户通常仍在 ModelLab 页面）。
         if (autoPromoteNotify) {
           sendNotification(
             'auto_promote',
             t('auto_promote.toast.auto_promoted'),
             e.model_version ?? t('auto_promote.toast.auto_promoted_body'),
           ).catch(() => {
-            // Best-effort: the in-app toast already
-            // fired, so the user has feedback.
+            // Best-effort：in-app toast 已触发，
+            // 因此用户已收到反馈。
           });
         }
       } else {
-        // Don't show an error toast for "skipped" — that's
-        // the normal case where the candidate wasn't
-        // better. Only show info-level toast for visibility.
+        // 不要为「skipped」显示 error toast ——
+        // 这属于 candidate 未更好的正常情况。
+        // 仅显示 info 级别的 toast 以便可见。
         toast.info(t('auto_promote.toast.auto_skipped'), e.message);
-        // v0.42e-2 — opt-in OS notification for the
-        // skipped branch. Off by default (most
-        // users don't want a "no improvement"
-        // ping every train). When ON, mirror the
-        // promoted-path OS notification flow.
+        // v0.42e-2 — skipped 分支的可选 OS 通知。
+        // 默认关闭（大多数用户不希望每次训练
+        // 都收到「无改进」的提示）。开启时，
+        // 与 promoted 路径的 OS 通知流程一致。
         if (autoPromoteSkippedNotify) {
           sendNotification(
             'auto_promote',
             t('auto_promote.toast.auto_skipped'),
             e.message || t('auto_promote.toast.auto_skipped_body'),
           ).catch(() => {
-            // best-effort
+            // 尽力而为
           });
         }
       }
     });
     return () => {
       cancelled = true;
-      unsub.then((u) => u()).catch(() => { /* ignore */ });
+      unsub.then((u) => u()).catch(() => { /* 忽略 */ });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -259,11 +240,10 @@ export function ModelLab() {
   const trainMut = useMutation({
     mutationFn: () => trainJob({}),
     onSuccess: (r) => {
-      // IPC returned AFTER the `finished` event fired.
-      // The TrainProgress panel already shows the final
-      // state. We just toast the summary, remember the
-      // candidate for the Promote button, and refresh
-      // any dependent queries.
+      // IPC 在 `finished` 事件触发之后才返回。
+      // TrainProgress 面板已显示最终状态。我们
+      // 只需 toast 显示摘要、记录 candidate 以便
+      // Promote 按钮使用，并刷新依赖查询。
       if (r.status === 'completed') {
         toast.success(
           t('train.toast.completed'),
@@ -271,8 +251,8 @@ export function ModelLab() {
             ? t('train.toast.brier', { value: r.best_brier.toFixed(3) })
             : '',
         );
-        // v0.18c — remember the candidate so the user
-        // can promote it without re-entering the job_id.
+        // v0.18c — 记录 candidate，使用户无需重新
+        // 输入 job_id 即可 promote。
         setLastCandidate({
           jobId: r.job_id,
           candidatePath: r.candidate_path,
@@ -282,25 +262,23 @@ export function ModelLab() {
         toast.error(t('train.toast.failed'), r.message ?? undefined);
         setLastCandidate(null);
       }
-      // v0.91 — use hook's clearActive() instead of direct setState.
+      // v0.91 — 使用 hook 的 clearActive() 而非直接 setState。
       clearActive();
       queryClient.invalidateQueries({ queryKey: ['llm-performance'] });
       queryClient.invalidateQueries({ queryKey: ['sidecar-active-model'] });
     },
     onError: (e: Error) => {
       toast.error(t('train.toast.failed'), e.message);
-      // v0.91 — use hook's clearActive() instead of direct setState.
+      // v0.91 — 使用 hook 的 clearActive() 而非直接 setState。
       clearActive();
     },
   });
 
-  // v0.18c — remember the last successful train so the
-  // Promote button can pass the right `job_id` (race-
-  // condition protection: the Python sidecar refuses
-  // to promote a candidate from a different job, so
-  // we capture the job_id at train time and pass it
-  // to promote to ensure we're promoting the model
-  // we just trained, not some older one).
+  // v0.18c — 记录最近一次成功的 train，以便 Promote
+  // 按钮传递正确的 `job_id`（竞态保护：Python sidecar
+  // 拒绝 promote 来自其他 job 的 candidate，因此我们
+  // 在 train 时捕获 job_id 并传递给 promote，确保
+  // promote 的是我们刚刚训练的 model，而不是某个较早的）。
   const [lastCandidate, setLastCandidate] = useState<{
     jobId: string;
     candidatePath: string | null;
@@ -308,9 +286,9 @@ export function ModelLab() {
   } | null>(null);
 
   const promoteMut = useMutation({
-    // v0.21c — bulk promote: accept an optional trial_index.
-    // The variables param is the trial_index (or undefined for
-    // the default "promote the best" behavior).
+    // v0.21c — bulk promote：接受可选 trial_index。
+    // variables 参数是 trial_index（或者未定义表示
+    // 默认「promote the best」行为）。
     mutationFn: (trialIndex?: number) =>
       promoteModel({
         ...(lastCandidate ? { job_id: lastCandidate.jobId } : {}),
@@ -326,12 +304,12 @@ export function ModelLab() {
       } else {
         toast.error(t('promote.toast.failed'), r.message ?? undefined);
       }
-      // Refresh the active-model probe so the
-      // ModelVersionPill updates to the new version.
+      // 刷新 active-model 探针，使 ModelVersionPill
+      // 更新到新版本。
       queryClient.invalidateQueries({ queryKey: ['sidecar-active-model'] });
       queryClient.invalidateQueries({ queryKey: ['llm-performance'] });
-      // v0.19c — refresh the promote-history panel so the
-      // new entry appears at the top.
+      // v0.19c — 刷新 promote-history 面板，
+      // 使新条目出现在顶部。
       queryClient.invalidateQueries({ queryKey: ['promote-history'] });
     },
     onError: (e: Error) => {
@@ -339,12 +317,11 @@ export function ModelLab() {
     },
   });
 
-  // v0.23b — auto-promote if better. One-click action:
-  // the Python sidecar compares Brier scores and either
-  // promotes (if candidate is at least the margin better)
-  // or no-ops with a clear "skipped" reason.
-  // v0.23c — the margin is now user-configurable via
-  // Settings (default 0.005).
+  // v0.23b — 若更优则自动 promote。一键操作：
+  // Python sidecar 比较 Brier score，要么 promote
+  // （如果 candidate 至少优于 margin），要么以
+  // 明确的「skipped」原因 no-op。
+  // v0.23c — margin 现在可通过 Settings 配置（默认 0.005）。
   const autoPromoteBrierMargin = usePrefsStore(
     (s) => s.autoPromoteBrierMargin,
   );
@@ -362,16 +339,15 @@ export function ModelLab() {
           t('promote.toast.auto_promoted', { delta: `+${delta}` }),
         );
         setLastCandidate(null);
-        // Refresh the active-model probe so the
-        // ModelVersionPill updates to the new version.
+        // 刷新 active-model 探针，使 ModelVersionPill
+        // 更新到新版本。
         queryClient.invalidateQueries({ queryKey: ['sidecar-active-model'] });
         queryClient.invalidateQueries({ queryKey: ['llm-performance'] });
         queryClient.invalidateQueries({ queryKey: ['promote-history'] });
       } else if (r.skipped) {
-        // v0.23b — skipped: candidate wasn't meaningfully
-        // better. The reason field has the comparison
-        // numbers; we show a short toast with the delta
-        // and margin.
+        // v0.23b — skipped：candidate 没有显著更优。
+        // reason 字段包含对比数字；我们显示一个带
+        // delta 和 margin 的简短 toast。
         const delta = r.active_brier != null && r.candidate_brier != null
           ? (r.active_brier - r.candidate_brier).toFixed(3)
           : '?';
@@ -391,21 +367,20 @@ export function ModelLab() {
     },
   });
 
-  // v0.25b — bulk promote all 4 trials. One click
-  // promotes every trial in the candidate as a
-  // separate version in the history panel. Useful
-  // for A/B comparison: the user can see how all 4
-  // trials perform on real markets, then rollback
-  // to the winner via the v0.20c Rollback button.
+  // v0.25b — 批量 promote 全部 4 个 trial。单击即可
+  // 将 candidate 中的每个 trial promote 为 history 面板中
+  // 的独立版本。便于 A/B 对比：用户可查看全部 4 个 trial
+  // 在真实市场的表现，然后通过 v0.20c Rollback 按钮
+  // 回滚至胜出者。
   const promoteAllMut = useMutation({
     mutationFn: () => promoteAllTrials(),
     onSuccess: (r) => {
       if (r.ok) {
-        // All 4 promoted
+        // 全部 4 个已 promote
         toast.success(t('promote.toast.all_promoted', { count: r.count }));
         setLastCandidate(null);
       } else {
-        // Partial success: some promoted, some failed
+        // 部分成功：部分 promote、部分失败
         const ok = r.results.filter((x) => x.promoted).length;
         if (ok > 0) {
           toast.info(
@@ -417,7 +392,7 @@ export function ModelLab() {
         }
         setLastCandidate(null);
       }
-      // Refresh everything that depends on the active model
+      // 刷新所有依赖 active model 的内容
       queryClient.invalidateQueries({ queryKey: ['sidecar-active-model'] });
       queryClient.invalidateQueries({ queryKey: ['llm-performance'] });
       queryClient.invalidateQueries({ queryKey: ['promote-history'] });
@@ -506,25 +481,23 @@ export function ModelLab() {
               loading={trainMut.isPending}
               disabled={trainMut.isPending}
               onClick={() => {
-                // v0.17d — same pattern as v0.15c: the train_job
-                // IPC emits `started` BEFORE returning, so we
-                // listen for the next `started` event and
-                // capture the id. The flag ensures we only
-                // capture events triggered by THIS click.
-                // v0.91 — use hook's markExpected() instead of
-                // direct ref mutation.
+                // v0.17d — 与 v0.15c 相同的模式：train_job
+                // IPC 在返回前发出 `started`，因此我们监听
+                // 下一个 `started` 事件并捕获 id。该标志确保
+                // 仅捕获由本次点击触发的事件。
+                // v0.91 — 使用 hook 的 markExpected() 而非
+                // 直接修改 ref。
                 markExpected();
                 trainMut.mutate();
               }}
             >
               {trainMut.isPending ? t('modellab.runs.training') : t('modellab.runs.train')}
             </Button>
-            {/* v0.18c — Promote button. Only enabled when
-                there's a successful candidate from a
-                recent train (lastCandidate is non-null). The
-                button passes the candidate's job_id so the
-                Python sidecar refuses to promote a different
-                job (race-condition protection). */}
+            {/* v0.18c — Promote 按钮。仅在最近一次 train
+                有成功的 candidate（lastCandidate 非 null）
+                时启用。按钮传递 candidate 的 job_id，使
+                Python sidecar 拒绝 promote 不同 job
+                （竞态保护）。 */}
             {lastCandidate && (
               <Button
                 data-testid="model-promote-btn"
@@ -538,12 +511,11 @@ export function ModelLab() {
                 {promoteMut.isPending ? t('promote.btn.promoting') : t('promote.btn.promote')}
               </Button>
             )}
-            {/* v0.23b — Auto-promote if better. One-click
-                action: the Python sidecar compares the
-                candidate's brier to the active's brier
-                and either promotes (if candidate is at
-                least the default 0.005 better) or no-ops
-                with a clear "skipped" reason. */}
+            {/* v0.23b — 若更优则自动 promote。一键操作：
+                Python sidecar 将 candidate 的 brier 与
+                active 的 brier 比较，要么 promote
+                （若 candidate 至少优于默认 0.005），
+                要么以明确的「skipped」原因 no-op。 */}
             {lastCandidate && (
               <Button
                 data-testid="model-auto-promote-btn"
@@ -566,42 +538,41 @@ export function ModelLab() {
           </div>
         }
       >
-        {/* v0.17d — live progress panel. Subscribes to the 2
-            `train_job:*` events. Mounts when the user clicks
-            Train and the next `started` event fires. */}
+        {/* v0.17d — 实时进度面板。订阅 2 个 `train_job:*`
+            事件。当用户点击 Train 且下一个 `started`
+            事件触发时挂载。 */}
         {activeTrainJobId && (
           <TrainProgress
             key={activeTrainJobId}
             jobId={activeTrainJobId}
             className="mt-0"
-            // v0.21c — per-trial Promote buttons. The
-            // promoteMut now accepts an optional trial_index;
-            // we pass the row's index to bulk-promote that
-            // specific trial. The button on the "best" row
-            // (rendered with `isBest=true` inside the component)
-            // shows "Promote best" for clarity.
+            // v0.21c — per-trial Promote 按钮。
+            // promoteMut 现在接受可选 trial_index；
+            // 我们传入该行的 index 以批量 promote
+            // 该特定 trial。「best」行上的按钮
+            // （组件内部以 `isBest=true` 渲染）
+            // 显示「Promote best」以保持清晰。
             onPromote={(trialIndex) => promoteMut.mutate(trialIndex)}
             promotingTrialIndex={
-              // promoteMut.variables is the trial_index
-              // passed to mutate(); null when not pending.
-              // Type-cast to number|null since variables
-              // is unknown by default.
+              // promoteMut.variables 是传入 mutate()
+              // 的 trial_index；未 pending 时为 null。
+              // 类型转换为 number|null，因为 variables
+              // 默认为 unknown。
               promoteMut.isPending && typeof promoteMut.variables === 'number'
                 ? promoteMut.variables
                 : null
             }
-            // v0.25b — bulk promote all 4. One click
-            // promotes all 4 trials as separate versions
-            // in the history panel. The "Promote all 4"
-            // button appears at the bottom of the train
-            // progress panel (TrainProgress component).
+            // v0.25b — 批量 promote 全部 4 个。单击即可
+            // 将 4 个 trial 作为 history 面板中的独立版本
+            // 全部 promote。「Promote all 4」按钮显示在
+            // train 进度面板（TrainProgress 组件）底部。
             onPromoteAll={() => promoteAllMut.mutate()}
             promotingAll={promoteAllMut.isPending}
           />
         )}
-        {/* v0.18c — Last-candidate hint. Shown when the user
-            has a successful train that hasn't been promoted
-            yet. Tells the user what they're about to promote. */}
+        {/* v0.18c — Last-candidate 提示。当用户有成功的
+            train 尚未 promote 时显示。告知用户即将
+            promote 的内容。 */}
         {!activeTrainJobId && lastCandidate && (
           <div
             data-testid="model-last-candidate"
@@ -630,22 +601,17 @@ export function ModelLab() {
         )}
       </Card>
 
-      {/* v0.19c — Promotion history. Shows the last 20
-          promoted models, newest first. The currently
-          active model is NOT in this list (use the
-          ModelVersionPill at the top of the page for
-          that).
-          v0.20c — passes the active model version so
-          the row can be marked as "active" and the
-          Rollback button can be hidden for the active
-          row (you can't roll back to the active
-          model). */}
-      {/* v0.22b — Brier over time sparkline. Sits above
-          the per-row PromoteHistory panel. The two share
-          the same react-query key so they load together
-          (no duplicate fetch). The chart gives the user
-          a glance-level view ("trending down = good");
-          the panel below provides per-row detail. */}
+      {/* v0.19c — Promotion history。展示最近 20 个已 promote 的
+          model，最新优先。当前 active model 不在该列表中
+          （请使用页面顶部的 ModelVersionPill）。
+          v0.20c — 传入 active model version，以便将该行标记
+          为「active」，并隐藏 active 行的 Rollback 按钮
+          （无法回滚到 active model）。 */}
+      {/* v0.22b — Brier 随时间变化的 sparkline。位于
+          per-row PromoteHistory 面板上方。两者共享同一个
+          react-query key，因此一起加载（无重复拉取）。
+          图表为用户提供概览（「下降趋势 = 好」）；
+          下方面板提供 per-row 详情。 */}
       <Card
         title={t('promote.chart.title')}
         description=""
@@ -662,10 +628,9 @@ export function ModelLab() {
           selectedForCompare={selectedForCompare}
           onSelectionChange={setSelectedForCompare}
         />
-        {/* v0.34a — "View archive" + v0.40b "Compare (N)"
-            buttons. The Compare button is enabled when
-            2-3 entries are selected; clicking opens
-            the ModelComparison modal. */}
+        {/* v0.34a — 「View archive」 + v0.40b 「Compare (N)」
+            按钮。当选中 2-3 个条目时 Compare 按钮启用；
+            点击打开 ModelComparison modal。 */}
         <div className="mt-2 flex items-center justify-end gap-2">
           {selectedForCompare.size >= 2 && (
             <Button
@@ -690,42 +655,36 @@ export function ModelLab() {
         </div>
       </Card>
 
-      {/* v0.34a — archive modal. Renders only when
-          archiveOpen is true; the component itself
-          handles the open prop. The modal is mounted
-          at the page level so the trigger button can
-          be inside a Card without z-index issues. */}
+      {/* v0.34a — archive modal。仅当 archiveOpen 为 true 时
+          渲染；组件本身处理 open prop。Modal 在页面级别
+          挂载，因此触发按钮可以在 Card 内而不会出现
+          z-index 问题。 */}
       <PromoteHistoryArchive
         open={archiveOpen}
         onClose={() => setArchiveOpen(false)}
       />
 
-      {/* v0.40b — multi-model comparison modal. We
-          use a separate useQuery (historyQuery) to
-          fetch the data when the modal opens. We
-          pass the selected entries (matched by
-          job_id) to the modal. */}
+      {/* v0.40b — multi-model comparison modal。我们使用
+          单独的 useQuery（historyQuery）在 modal 打开时
+          拉取数据。将选中的条目（按 job_id 匹配）传给
+          modal。 */}
       <ModelComparison
         open={compareOpen}
         onClose={() => setCompareOpen(false)}
         entries={(() => {
           const allEntries = historyQuery.data?.entries ?? [];
-          // Match the user's selection (job_ids) and
-          // preserve the in-memory order (oldest first
-          // from the Python side; reverse for the
-          // modal — newer at the top, matching the
-          // panel display).
+          // 匹配用户的选择（job_ids）并保留内存中
+          // 的顺序（Python 端为最旧优先；为 modal
+          // 反转 —— 最新在顶部，与面板显示一致）。
           const reversed = [...allEntries].reverse();
           return reversed.filter((e) => selectedForCompare.has(e.job_id));
         })()}
-        // v0.42e-3 — pass the archive-weights map so
-        // the modal can show w0/w1/w2 alongside the
-        // best_params it already shows. The map is
-        // keyed by job_id; entries without an archive
-        // match fall back to "(no weights)" — typical
-        // for in-memory entries that haven't fallen
-        // off the 20-cap yet, but those also won't
-        // have weights until they DO fall off.
+        // v0.42e-3 — 传入 archive-weights map，使 modal
+        // 能在已展示的 best_params 之外显示 w0/w1/w2。
+        // 该 map 以 job_id 为 key；没有 archive 匹配
+        // 的条目回退为「(no weights)」—— 这对尚未从
+        // 20 上限淘汰的内存中条目很常见，但这些条目
+        // 在真正被淘汰之前也不会有 weights。
         weightsByJobId={(() => {
           const map = new Map<
             string,
@@ -739,12 +698,10 @@ export function ModelLab() {
         weightsLoading={weightsQuery.isLoading}
       />
 
-      {/* v0.43c — backtest modal. Opens when the
-          user clicks the "Backtest" button (visible
-          when exactly one entry is selected in
-          PromoteHistory). The target job_id is
-          looked up against the in-memory history
-          inside the modal. */}
+      {/* v0.43c — backtest modal。当用户点击「Backtest」
+          按钮（在 PromoteHistory 中恰好选中一个条目时
+          可见）时打开。目标 job_id 在 modal 内部与
+          内存 history 中查找。 */}
       <BacktestReport
         open={backtestTarget !== null}
         onClose={() => setBacktestTarget(null)}

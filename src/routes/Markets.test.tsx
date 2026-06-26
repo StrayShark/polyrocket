@@ -1,13 +1,13 @@
-// v0.62a + v0.119 — Markets component tests (football-only).
+// v0.62a + v0.119 —— Markets 组件测试（仅足球）。
 //
-// v0.119 product pivot: polyrocket 只做足球市场预测
-// (see docs/polyrocket-football-prd.md). Markets page UI is locked
-// to football — only ['all', 'football'] filter pills, default
-// category is 'football'. These tests verify the football-only
-// surface.
+// v0.119 产品方向调整：polyrocket 只做足球市场预测
+// (see docs/polyrocket-football-prd.md)。Markets 页面 UI 锁定
+// 为足球 —— 只有 ['all', 'football'] 过滤胶囊，默认
+// category 为 'football'。这些测试验证仅足球的
+// 界面。
 //
-// The /markets route is the user's market browser — search /
-// filter / sync to refresh.
+// /markets 路由是用户的市场浏览器 —— search /
+// filter / sync 即可刷新。
 
 // @vitest-environment happy-dom
 
@@ -52,7 +52,7 @@ describe('Markets (v0.119 football-only)', () => {
   it('shows sync button', async () => {
     renderMarkets();
     await waitFor(() => {
-      // The Sync button exists in the toolbar
+      // Sync 按钮存在于工具栏中
       const buttons = screen.getAllByRole('button');
       expect(buttons.length).toBeGreaterThan(0);
     });
@@ -63,10 +63,10 @@ describe('Markets (v0.119 football-only)', () => {
     await waitFor(() => {
       const buttons = screen.getAllByRole('button');
       const labels = buttons.map((b) => b.textContent?.trim()).filter(Boolean);
-      // Should have 'all' and 'football' only — no cs2/politics/crypto/tech/other
+      // 应仅有 'all' 和 'football' —— 没有 cs2/politics/crypto/tech/other
       expect(labels).toContain('all');
       expect(labels).toContain('football');
-      // Critical: non-football pills must NOT exist
+      // 关键：非足球胶囊不应存在
       expect(labels).not.toContain('cs2');
       expect(labels).not.toContain('politics');
       expect(labels).not.toContain('crypto');
@@ -80,7 +80,7 @@ describe('Markets (v0.119 football-only)', () => {
     await waitFor(() => {
       const buttons = screen.getAllByRole('button');
       const footballPill = buttons.find((b) => b.textContent === 'football');
-      // Football pill should have the active class (bg-accent/15)
+      // Football 胶囊应具有 active class（bg-accent/15）
       expect(footballPill).toBeTruthy();
       expect(footballPill?.className).toContain('bg-accent/15');
     });
@@ -92,7 +92,7 @@ describe('Markets (v0.119 football-only)', () => {
       const buttons = screen.getAllByRole('button');
       const allPill = buttons.find((b) => b.textContent === 'all');
       if (allPill) fireEvent.click(allPill);
-      // After clicking, 'all' pill should be active
+      // 点击后，'all' 胶囊应处于 active 状态
       const allPillAfter = buttons.find((b) => b.textContent === 'all');
       expect(allPillAfter?.className).toContain('bg-accent/15');
     });

@@ -1,24 +1,24 @@
-// v0.83a — ModelLab eventListeners tests (branches 57% → 65%).
+// v0.83a — ModelLab eventListeners 测试（分支 57% → 65%）。
 //
-// ModelLab has 2 main useEffect listeners that drive most of the
-// event-driven branches in the file (53 of 86 missed branches come
-// from these 2 listeners + their callbacks):
+// ModelLab 有 2 个主要的 useEffect 监听器，它们驱动了文件中
+// 绝大多数事件驱动的分支（86 个未覆盖分支中有 53 个来自
+// 这 2 个监听器及其回调）：
 //
-//   1. `onTrainStarted` (L127-140) — captures the next train job id
-//      if expectedTrainRef is true (set right before a click on the
-//      Train button). Has a `cancelled` guard for unmount races.
+//   1. `onTrainStarted`（L127-140）—— 当 expectedTrainRef 为 true
+//      （在用户点击 Train 按钮前设置）时，捕获下一个 train job id。
+//      设有 `cancelled` 守卫以避免 unmount 竞态。
 //
-//   2. `onAutoPromoteFinished` (L211-260) — invalidates 3 queries
-//      on every event; shows toast.success/info/error depending on
-//      `e.promoted` / `autoPromoteNotify` / `autoPromoteSkippedNotify`.
+//   2. `onAutoPromoteFinished`（L211-260）—— 每次事件触发
+//      都会失效 3 个 query；根据
+//      `e.promoted` / `autoPromoteNotify` / `autoPromoteSkippedNotify`
+//      显示 toast.success/info/error。
 //
-// This file covers 6 branches that the existing round 1+2+3 tests
-// miss. The pattern is to capture the listener registration callback
-// at `vi.mock` setup time, then invoke it directly with crafted events
-// to assert side effects.
+// 本文件覆盖已有 1+2+3 轮测试未涉及的 6 个分支。模式是
+// 在 `vi.mock` setup 阶段捕获监听器注册时的回调，
+// 之后用构造好的事件直接调用以断言副作用。
 //
-// Coverage target: ModelLab branches 57.2% → 65% (+8pp).
-// 7 new tests. Total ModelLab tests: 39 → 46.
+// 覆盖目标：ModelLab 分支 57.2% → 65%（+8pp）。
+// 新增 7 个测试。ModelLab 测试总数：39 → 46。
 //
 // @vitest-environment happy-dom
 
@@ -29,9 +29,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createIpcMock, createPrefsStoreMock } from '@/test-mocks';
 import { useToastStore } from '@/stores/toast-store';
 
-// Captured listener callbacks. The IPC mock lets us
-// grab them at registration time and invoke later
-// with crafted events.
+// 捕获的监听器回调。IPC mock 允许我们在注册时
+// 抓取它们，稍后用构造好的事件触发。
 let trainStartedCb: ((e: { job_id: string; ts_ms: number }) => void) | null = null;
 let autoPromoteFinishedCb:
   | ((e: {
@@ -122,7 +121,7 @@ describe('ModelLab event listeners (v0.83a)', () => {
     await waitFor(() => {
       expect(trainStartedCb).not.toBeNull();
     });
-    // Listener exists — the autoPromote listener too
+    // 监听器存在 —— autoPromote 监听器同理
     expect(autoPromoteFinishedCb).not.toBeNull();
   });
 
@@ -130,26 +129,26 @@ describe('ModelLab event listeners (v0.83a)', () => {
     const { unmount } = render(wrap(<ModelLab />));
     await waitFor(() => expect(trainStartedCb).not.toBeNull());
     unmount();
-    // After unmount, the cleanup ran `cancelled = true`. Invoking
-    // the captured callback now should be a no-op (no React warning,
-    // no crash). The cancelled guard (L130) returns early.
+    // unmount 后，cleanup 会把 `cancelled` 设为 true。此时
+    // 触发捕获的回调应当为 no-op（无 React warning，
+    // 无 crash）。cancelled 守卫（L130）会提前返回。
     expect(() => {
       trainStartedCb?.({ job_id: 'post-unmount', ts_ms: Date.now() });
     }).not.toThrow();
   });
 
   it('onTrainStarted: expectedTrainRef.current=false branch — setActiveTrainJobId NOT called', async () => {
-    // Capture the rendered TrainProgress to verify it's NOT shown.
-    // expectedTrainRef defaults to false on mount; an external event
-    // (e.g. from a different page) should NOT trigger TrainProgress.
+    // 捕获渲染出的 TrainProgress 以验证其未出现。
+    // expectedTrainRef 默认为 false；外部事件
+    // （例如来自其他页面的事件）不应触发 TrainProgress。
     render(wrap(<ModelLab />));
     await waitFor(() => expect(trainStartedCb).not.toBeNull());
-    // Fire a train:started event WITHOUT clicking Train first
+    // 在未点击 Train 的情况下触发 train:started 事件
     trainStartedCb?.({ job_id: 'orphan-train', ts_ms: Date.now() });
-    // The TrainProgress component (L130-131 path) should NOT be
-    // mounted — it requires expectedTrainRef.current === true.
+    // TrainProgress 组件（L130-131 路径）不应被
+    // 挂载 —— 它需要 expectedTrainRef.current === true。
     await new Promise((r) => setTimeout(r, 50));
-    // No model-train-progress element should be in the DOM
+    // DOM 中不应有 model-train-progress 元素
     expect(document.querySelector('[data-testid="model-train-progress"]')).toBeNull();
   });
 
@@ -164,7 +163,7 @@ describe('ModelLab event listeners (v0.83a)', () => {
       </MemoryRouter>,
     );
     await waitFor(() => expect(autoPromoteFinishedCb).not.toBeNull());
-    // Fire a promoted event
+    // 触发 promoted 事件
     autoPromoteFinishedCb?.({
       promoted: true,
       model_version: 'logistic-train-new',
@@ -172,13 +171,13 @@ describe('ModelLab event listeners (v0.83a)', () => {
       candidate_brier: 0.15,
     });
     await waitFor(() => {
-      // 3 query invalidations
+      // 3 个 query 失效
       const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
       expect(calls.some((c) => c.includes('llm-performance'))).toBe(true);
       expect(calls.some((c) => c.includes('sidecar-active-model'))).toBe(true);
       expect(calls.some((c) => c.includes('promote-history'))).toBe(true);
     });
-    // Toast success
+    // 触发 Toast success
     await waitFor(() => {
       const { toasts } = useToastStore.getState();
       const succ = toasts.find((t) => t.kind === 'success');
@@ -196,35 +195,35 @@ describe('ModelLab event listeners (v0.83a)', () => {
     });
     await waitFor(() => {
       const { toasts } = useToastStore.getState();
-      // The skipped branch uses toast.info (not error)
+      // skipped 分支使用 toast.info（而非 error）
       const info = toasts.find((t) => t.kind === 'info');
       expect(info).toBeTruthy();
     });
   });
 
   it('onAutoPromoteFinished: promoted=true + autoPromoteNotify=true → sendNotification called', async () => {
-    // prefs mock has autoPromoteNotify=true, so the OS notification
-    // path should fire.
+    // prefs mock 中 autoPromoteNotify=true，因此 OS 通知
+    // 路径应触发。
     render(wrap(<ModelLab />));
     await waitFor(() => expect(autoPromoteFinishedCb).not.toBeNull());
     autoPromoteFinishedCb?.({
       promoted: true,
       model_version: 'logistic-train-notify',
     });
-    // Wait for the listener microtask + sendNotification call
+    // 等待监听器 microtask + sendNotification 调用
     await new Promise((r) => setTimeout(r, 100));
-    // The sendNotification mock is in createIpcMock; it should be called
-    // (it's the default mock fn from test-mocks). We don't need to
-    // import it explicitly since it's via vi.mock('@/ipc').
+    // sendNotification mock 在 createIpcMock 中；它应当被调用
+    // （它来自 test-mocks 的默认 mock fn）。我们无需
+    // 显式 import，因为它是通过 vi.mock('@/ipc') 注册的。
   });
 
   it('onAutoPromoteFinished: cancelled branch — callback after unmount is a no-op', async () => {
     const { unmount } = render(wrap(<ModelLab />));
     await waitFor(() => expect(autoPromoteFinishedCb).not.toBeNull());
     unmount();
-    // After unmount, the cleanup set cancelled=true. Invoking the
-    // callback now should not throw, not invalidate queries, not
-    // show toasts.
+    // unmount 后，cleanup 会把 cancelled 设为 true。此时
+    // 触发回调不应抛错、不应失效 query、
+    // 不应显示 toast。
     expect(() => {
       autoPromoteFinishedCb?.({
         promoted: true,
@@ -234,7 +233,7 @@ describe('ModelLab event listeners (v0.83a)', () => {
   });
 });
 
-// v0.83a — keep the cleanup between tests for hermetic runs.
+// v0.83a —— 测试间保持 cleanup,以获得隔离运行。
 afterEach(() => {
   cleanup();
 });

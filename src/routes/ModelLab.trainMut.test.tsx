@@ -1,19 +1,20 @@
-// v0.83c — ModelLab trainMut onSuccess/onError branches (branches 71.8% → 74%).
+// v0.83c — ModelLab trainMut onSuccess/onError 分支（分支 71.8% → 74%）。
 //
-// trainMut (L265-303) has 4 reachable branches:
-//   1. r.status === 'completed' + best_brier != null  → toast with brier detail
-//   2. r.status === 'completed' + best_brier == null  → toast with empty detail
-//   3. r.status !== 'completed' (e.g. 'failed')       → toast.error + setLastCandidate(null)
-//   4. onError (mock throws)                          → toast.error + setActiveTrainJobId(null)
+// trainMut（L265-303）共有 4 个可达分支：
+//   1. r.status === 'completed' + best_brier != null  → 带 brier 详情的 toast
+//   2. r.status === 'completed' + best_brier == null  → 详情为空的 toast
+//   3. r.status !== 'completed'（如 'failed'）        → toast.error + setLastCandidate(null)
+//   4. onError（mock 抛出）                            → toast.error + setActiveTrainJobId(null)
 //
-// All 4 also run `setActiveTrainJobId(null)` (line 297) and 2 query invalidations
-// (lines 298-299). The 2 invalidations are NOT in the activeTrainJobId listener
-// path — they happen unconditionally after a train, regardless of result.
+// 4 个分支都会执行 `setActiveTrainJobId(null)`（第 297 行）以及
+// 2 次 query 失效（第 298-299 行）。这 2 次失效不在
+// activeTrainJobId 监听器路径内 —— 它们在每次 train 之后
+// 无条件触发，与结果无关。
 //
-// Pattern: mock `trainJob` to return a custom response, click Train, assert toasts
-// and that `lastCandidate` is set/cleared appropriately. The promoteAllMut
-// branches live in TrainProgress (which requires the strict-mode mount dance)
-// and are deferred to a later round.
+// 模式：mock `trainJob` 返回自定义响应，点击 Train，断言 toast
+// 以及 `lastCandidate` 是否被相应设置/清空。promoteAllMut
+// 分支位于 TrainProgress 中（它需要 strict-mode mount 步骤），
+// 留待后续轮次处理。
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
@@ -111,7 +112,7 @@ describe('ModelLab trainMut branches (v0.83c)', () => {
       const succ = toasts.find((t) => t.kind === 'success');
       expect(succ).toBeTruthy();
     });
-    // lastCandidate set → model-last-candidate testid visible
+    // lastCandidate 已设置 → model-last-candidate testid 可见
     await screen.findByTestId('model-last-candidate', {}, { timeout: 3000 });
   });
 
@@ -146,11 +147,11 @@ describe('ModelLab trainMut branches (v0.83c)', () => {
       const { toasts } = useToastStore.getState();
       const err = toasts.find((t) => t.kind === 'error');
       expect(err).toBeTruthy();
-      // detail may be undefined in the store; check title or detail
+      // detail 在 store 中可能为 undefined；检查 title 或 detail
       const text = `${err?.title ?? ''} ${err?.body ?? ''}`;
       expect(text).toMatch(/Training failed/);
     });
-    // lastCandidate should NOT be set → model-last-candidate testid absent
+    // lastCandidate 不应被设置 → model-last-candidate testid 缺失
     expect(screen.queryByTestId('model-last-candidate')).toBeNull();
   });
 

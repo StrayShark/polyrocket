@@ -1,7 +1,7 @@
-// v0.62a — LlmPerf component tests.
+// v0.62a — LlmPerf 组件测试。
 //
-// /llm-perf is the LLM performance analytics
-// page. Today 0% coverage.
+// /llm-perf 是 LLM 性能分析
+// 页面。当前覆盖率 0%。
 
 // @vitest-environment happy-dom
 

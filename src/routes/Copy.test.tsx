@@ -1,15 +1,15 @@
-// v0.63b — Copy component tests (route 25% coverage → ~80%).
+// v0.63b — Copy 组件测试（路由 25% 覆盖 → ~80%）。
 //
-// /copy is the copy-trading center. We cover:
-//   1. Renders page with empty list
-//   2. Shows Add button
-//   3. Renders paper-mode banner when getMirrorPaperMode returns true
-//   4. Renders targets list with watching pill + min edge pill
-//   5. Renders paused pill when target.enabled = false
-//   6. Renders allocation cap pill when set
-//   7. Renders events list under a target
-//   8. Error state when listCopyTargets fails
-//   9. Opens Add modal (no submit yet)
+// /copy 是跟单中心。我们覆盖：
+//   1. 渲染空列表页面
+//   2. 显示 Add 按钮
+//   3. 当 getMirrorPaperMode 返回 true 时渲染 paper-mode 横幅
+//   4. 渲染带 watching pill + min edge pill 的目标列表
+//   5. 当 target.enabled = false 时渲染 paused pill
+//   6. 已设置时渲染 allocation cap pill
+//   7. 渲染某个 target 下的 events 列表
+//   8. listCopyTargets 失败时的错误态
+//   9. 打开 Add modal（尚未提交）
 //
 // @vitest-environment happy-dom
 
@@ -101,7 +101,7 @@ describe('Copy', () => {
     mockListPaperFills.mockReset();
     mockGetMirrorPaperMode.mockReset();
     mockAddCopyTarget.mockReset();
-    // Default: empty / no paper mode
+    // 默认：空 / 无 paper 模式
     mockRecentCopyEvents.mockResolvedValue([]);
     mockListPaperFills.mockResolvedValue([]);
     mockGetMirrorPaperMode.mockResolvedValue(false);
@@ -138,7 +138,7 @@ describe('Copy', () => {
     await waitFor(() => {
       expect(screen.getByTestId('copy-paper-mode-banner')).toBeInTheDocument();
     });
-    // Banner has [PAPER] prefix
+    // Banner 带有 [PAPER] 前缀
     expect(screen.getByText('[PAPER]')).toBeInTheDocument();
   });
 
@@ -146,13 +146,13 @@ describe('Copy', () => {
     mockListCopyTargets.mockResolvedValue([T_WATCHING]);
     renderCopy();
     await waitFor(() => {
-      // T_WATCHING has label 'Whale #1'
+      // T_WATCHING 的 label 为 'Whale #1'
       expect(screen.getByText('Whale #1')).toBeInTheDocument();
     });
-    // "watching" pill (pill body)
+    // "watching" 胶囊（pill body）
     expect(screen.getByText(/watching/i)).toBeInTheDocument();
-    // min edge 5% pill — text may be split across spans, so
-    // we check that "min edge" and "5%" both appear in document
+    // min edge 5% 胶囊 —— 文本可能被切分到多个 span 中，因此
+    // 我们检查 "min edge" 与 "5%" 同时出现于 document 中
     await waitFor(() => {
       expect(document.body.textContent).toMatch(/min edge/);
       expect(document.body.textContent).toMatch(/5%/);
@@ -173,10 +173,10 @@ describe('Copy', () => {
     await waitFor(() => {
       expect(screen.getByText('Capped')).toBeInTheDocument();
     });
-    // cap $1500 pill — text is split by fmtUsdc; check body
+    // cap $1500 胶囊 —— 文本由 fmtUsdc 分割；检查主体
     await waitFor(() => {
       expect(document.body.textContent).toMatch(/cap/);
-      // fmtUsdc(1500) formats to "1,500" (with comma) or "1500"
+      // fmtUsdc(1500) 格式化为 "1,500"（带逗号）或 "1500"
       expect(document.body.textContent).toMatch(/1,?500/);
     });
   });
@@ -196,9 +196,9 @@ describe('Copy', () => {
     await waitFor(() => {
       expect(screen.getByText('Whale #1')).toBeInTheDocument();
     });
-    // events heading
+    // events 标题
     expect(screen.getByText(/recent events/i)).toBeInTheDocument();
-    // YES and NO pills rendered
+    // YES 和 NO 胶囊已渲染
     await waitFor(() => {
       expect(screen.getAllByText('YES').length).toBeGreaterThan(0);
       expect(screen.getAllByText('NO').length).toBeGreaterThan(0);
@@ -209,8 +209,8 @@ describe('Copy', () => {
     mockListCopyTargets.mockRejectedValue(new Error('RPC timeout'));
     renderCopy();
     await waitFor(() => {
-      // The error string appears in ErrorState (and possibly a toast).
-      // We use getAllByText and check at least one match.
+      // 错误字符串出现在 ErrorState 中（也可能出现在 toast 中）。
+      // 我们使用 getAllByText 并检查至少一个匹配。
       expect(screen.getAllByText(/RPC timeout/i).length).toBeGreaterThan(0);
     });
   });

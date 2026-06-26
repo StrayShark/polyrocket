@@ -26,7 +26,7 @@ const STATUS_FILTERS: Array<BetStatus | 'all'> = ['all', 'open', 'won', 'lost', 
  *   3. **Table** —— `DataTable` 渲染（市场、方向、价格、size、PnL、状态、时间）
  *
  * **数据流**：
- *   1. mount `listBets({ limit: 500 })`
+ *   1. 挂载时调用 `listBets({ limit: 500 })`
  *   2. 客户端按 status 过滤
  *   3. `staleTime: 30_000` 30s 内不重拉
  *
@@ -186,9 +186,9 @@ export function History() {
           <span className="text-muted">—</span>
         ),
     },
-    // v0.52c — Order type column. Shows
-    // market / limit / stop_loss with a colored
-    // pill. Post-only rows show a small badge.
+    // v0.52c — Order type 列。以彩色 Pill 展示
+    // market / limit / stop_loss。Post-only 行
+    // 显示一个小徽章。
     {
       key: 'order_type',
       header: 'Type',
@@ -222,10 +222,9 @@ export function History() {
       sortable: true,
       sortValue: (b) => b.order_type ?? 'market',
     },
-    // v0.52c — Fill column. Shows fill_price vs
-    // price when both are non-null; otherwise
-    // shows '—' for pre-v0.51b rows. Slippage is
-    // computed inline.
+    // v0.52c — Fill 列。当 fill_price 和 price
+    // 均非空时显示二者；否则为 v0.51b 之前的行
+    // 显示「—」。滑点（slippage）内联计算。
     {
       key: 'fill',
       header: 'Fill',

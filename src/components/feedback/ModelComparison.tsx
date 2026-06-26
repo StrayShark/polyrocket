@@ -1,34 +1,30 @@
 /**
- * v0.40a — Multi-model comparison modal.
+ * v0.40a —— 多 model 对比 modal。
  *
- * Lets the user compare 2-3 model versions from
- * the promote history side-by-side. Shows:
+ * 让用户并排比较 promote history 中的 2-3 个 model 版本,
+ * 展示:
  *   - model_version
- *   - promoted_at (relative)
- *   - best_brier (colored)
- *   - trial badge (best / trial N)
- *   - best_params (lr, reg) — from in-memory history
- *   - weights (w0, w1, w2) — v0.42e-3, from archive
+ *   - promoted_at(相对时间)
+ *   - best_brier(带颜色)
+ *   - trial 徽章(best / trial N)
+ *   - best_params(lr、reg)—— 来自内存 history
+ *   - weights(w0、w1、w2)—— v0.42e-3,来自 archive
  *
- * The user selects entries in the PromoteHistory
- * panel (via checkboxes), then clicks "Compare
- * (N)" which opens this modal.
+ * 用户在 PromoteHistory 面板(通过 checkbox)选择若干 entry,
+ * 然后点击 "Compare (N)" 打开本 modal。
  *
- * The "lowest Brier wins" convention: the row
- * with the smallest `best_brier` is highlighted
- * as the best (green border). This is the same
- * convention as the live Brier badge in
- * PromoteHistory (green < 0.15, yellow 0.15-0.20,
- * red > 0.20).
+ * "Brier 最低者胜出" 的约定:best_brier 最小的行
+ * 作为最佳高亮(绿色边框)。这与 PromoteHistory
+ * 中实时 Brier 徽章的约定一致
+ * (绿色 < 0.15,黄色 0.15-0.20,红色 > 0.20)。
  *
- * v0.42e-3 — the parent passes a `weightsByJobId`
- * map (sourced from the sidecar's archive.jsonl
- * via listPromoteHistoryArchive). The map is keyed
- * by job_id; entries without a match (typically
- * because they haven't fallen off the 20-cap yet
- * and don't have an archive entry) show
- * "(no weights)" with a small spinner while the
- * archive query is in-flight.
+ * v0.42e-3 —— 父组件传入 `weightsByJobId` 映射
+ * (来自 sidecar 的 archive.jsonl,通过
+ * listPromoteHistoryArchive 获取)。映射以
+ * job_id 为 key;未匹配到的 entry(通常是因为
+ * 它们还没有从 20-cap 中淘汰,没有 archive 记录)
+ * 显示 "(no weights)",archive 查询进行中
+ * 时会显示小 spinner。
  */
 import { Trophy, X } from 'lucide-react';
 import { Modal } from '@/components/feedback/Modal';
@@ -38,20 +34,18 @@ import { useT } from '@/lib/i18n';
 import type { PromoteHistoryEntry } from '@/ipc';
 
 interface ModelComparisonProps {
-  /** Whether the modal is open. */
+  /** modal 是否打开。 */
   open: boolean;
-  /** Called when the user closes the modal. */
+  /** 用户关闭 modal 时的回调。 */
   onClose: () => void;
-  /** The 2-3 entries to compare. The caller is
-   *  responsible for limiting to 2-3. */
+  /** 待比较的 2-3 个 entry。调用方负责将数量限制在 2-3。 */
   entries: PromoteHistoryEntry[];
-  /** v0.42e-3 — per-entry weights (w0, w1, w2) from
-   * the archive. Optional; missing entries show
-   * "(no weights)" or a loading state. */
+  /** v0.42e-3 —— 每个 entry 的权重(w0、w1、w2),来自
+   * archive。可选;缺失的 entry 显示 "(no weights)"
+   * 或 loading 态。 */
   weightsByJobId?: Map<string, { w0: number; w1: number; w2: number }>;
-  /** v0.42e-3 — true while the archive query is
-   * in-flight. When true and an entry has no
-   * weights yet, show a small spinner. */
+  /** v0.42e-3 —— archive 查询进行中时为 true。
+   * 当为 true 且某 entry 暂未获得权重时,展示小 spinner。 */
   weightsLoading?: boolean;
 }
 
@@ -70,8 +64,8 @@ export function ModelComparison({
   weightsLoading,
 }: ModelComparisonProps) {
   const { t } = useT();
-  // Find the entry with the lowest Brier (best).
-  // We use this to highlight the "winner".
+  // 找出 Brier 最低的 entry(best)。
+  // 用来高亮"获胜者"。
   const best = entries.reduce<PromoteHistoryEntry | null>((acc, e) => {
     if (e.best_brier === null) return acc;
     if (acc === null) return e;
@@ -94,8 +88,7 @@ export function ModelComparison({
       <div
         className="grid gap-2"
         style={{
-          // CSS grid with N equal columns where N is
-          // the number of entries (2 or 3)
+          // CSS grid,N 个等宽列,N 即 entry 数量(2 或 3)
           gridTemplateColumns: `repeat(${entries.length}, minmax(0, 1fr))`,
         }}
         data-testid="model-comparison"
@@ -143,13 +136,11 @@ export function ModelComparison({
                     {e.best_brier !== null ? e.best_brier.toFixed(4) : '—'}
                   </span>
                 </div>
-                {/* v0.40a — best_params (lr, reg) is
-                    available on the in-memory history;
-                    weights (w0, w1, w2) are only on the
-                    archive (v0.33). For the comparison
-                    we show best_params here, and the
-                    user can use the archive modal to see
-                    full weights. */}
+                {/* v0.40a —— best_params(lr、reg) 在
+                    内存 history 中可用;weights(w0、w1、w2)
+                    仅在 archive(v0.33)中可用。对比中
+                    这里展示 best_params,用户可通过
+                    archive modal 查看完整权重。 */}
                 {e.best_params ? (
                   <>
                     <div className="text-[10px] text-muted">
@@ -170,15 +161,13 @@ export function ModelComparison({
                     (no params; pre-v0.18 entry)
                   </div>
                 )}
-                {/* v0.42e-3 — weights (w0, w1, w2) from
-                    the archive. Sourced via
-                    listPromoteHistoryArchive with a
-                    job_ids whitelist (parent passes
-                    the result). Missing entries are
-                    in-memory ones that haven't
-                    fallen off the 20-cap yet — they
-                    don't have an archive row, so
-                    there's no weight to show. */}
+                {/* v0.42e-3 —— 来自 archive 的
+                    weights(w0、w1、w2)。通过带
+                    job_ids 白名单的
+                    listPromoteHistoryArchive 拉取
+                    (结果由父组件传入)。缺失的 entry
+                    是尚未从 20-cap 中淘汰的内存记录,
+                    没有 archive 行,因此没有权重可展示。 */}
                 <div
                   className="text-[10px] text-muted border-t border-border/40 pt-1 mt-1"
                   data-testid="model-comparison-weights"
@@ -211,7 +200,7 @@ export function ModelComparison({
           );
         })}
       </div>
-      {/* Best-of summary at the bottom */}
+      {/* 底部的 Best-of 摘要 */}
       {best && (
         <div
           className="mt-3 p-2 rounded bg-bull/10 border border-bull text-[11px]"

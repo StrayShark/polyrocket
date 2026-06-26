@@ -1,18 +1,18 @@
-// v0.72b — Wallets round 2 additional tests.
+// v0.72b —— Wallets 第 2 轮附加测试。
 //
-// Wallets.tsx is 329 lines with 4 components (Wallets + WalletCard
-// + AddWalletModal + Field). Existing tests (v0.63b + v0.70e) cover
-// 19 cases. We add 8 more covering the remaining branches:
-//   - Cancel button closes modal without calling mutation
-//   - import file path: pickFile returns null (no selection)
-//   - import file path: extractAddressFromJson returns null → toast.error
-//   - import file path: pickFile throws → catch branch toast.error
-//   - chain_id selector changes value (137 ↔ 80002)
-//   - wallet_type toggle: eoa→smart roundtrip
-//   - WalletCard last_synced_at = null → no last-synced border line
-//   - addWallet onError → toast.error
+// Wallets.tsx 共 329 行，包含 4 个组件（Wallets + WalletCard
+// + AddWalletModal + Field）。已有测试（v0.63b + v0.70e）共
+// 19 个用例。我们新增 8 个用例覆盖剩余分支：
+//   - Cancel 按钮关闭模态框，不调用 mutation
+//   - 导入文件路径：pickFile 返回 null（无选择）
+//   - 导入文件路径：extractAddressFromJson 返回 null → toast.error
+//   - 导入文件路径：pickFile 抛出 → catch 分支 toast.error
+//   - chain_id 选择器改变值（137 ↔ 80002）
+//   - wallet_type 切换：eoa→smart 来回切换
+//   - WalletCard last_synced_at = null → 无 last-synced 边框行
+//   - addWallet 失败 → toast.error
 //
-// Coverage target: 79.16% → ~88% stmts.
+// 覆盖率目标：79.16% → ~88% stmts。
 //
 // @vitest-environment happy-dom
 
@@ -84,9 +84,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   mlw.mockResolvedValue(WALLETS);
   maw.mockImplementation((args) => Promise.resolve({ id: 'new-w', ...args }));
-  // default: extract returns a valid address
+  // 默认：extract 返回一个有效地址
   mockExtractAddress.mockReturnValue('0x1234567890123456789012345678901234567890');
-  // clear toast store between tests
+  // 在测试间清空 toast store
   useToastStore.setState({ toasts: [] });
 });
 
@@ -102,7 +102,7 @@ describe('Wallets (round 2 — v0.72b)', () => {
     expect(cancelBtn).toBeDefined();
     fireEvent.click(cancelBtn!);
     await waitFor(() => {
-      // Modal closes — address input disappears
+      // Modal 关闭 —— address 输入框消失
       expect(screen.queryAllByRole('textbox').length).toBe(0);
     });
     expect(maw).not.toHaveBeenCalled();
@@ -119,7 +119,7 @@ describe('Wallets (round 2 — v0.72b)', () => {
     await waitFor(() => {
       expect(mpf).toHaveBeenCalled();
     });
-    // No toast, no address set
+    // 无 toast，无 address 设置
     const { toasts } = useToastStore.getState();
     expect(toasts.length).toBe(0);
   });
@@ -137,7 +137,7 @@ describe('Wallets (round 2 — v0.72b)', () => {
       const { toasts } = useToastStore.getState();
       const err = toasts.find(t => t.kind === 'error');
       expect(err).toBeTruthy();
-      // i18n key 'wallets.add.import_no_address' → 'No 0x address found...'
+      // i18n key 'wallets.add.import_no_address' 解析为 'No 0x address found...'
       expect(err?.title || err?.body).toMatch(/no.0x.address|address/i);
     });
   });
@@ -154,7 +154,7 @@ describe('Wallets (round 2 — v0.72b)', () => {
       const { toasts } = useToastStore.getState();
       const err = toasts.find(t => t.kind === 'error');
       expect(err).toBeTruthy();
-      // catch branch uses toast.error(String(err)) → body
+      // catch 分支使用 toast.error(String(err)) → body
       const text = err?.title || err?.body || '';
       expect(text).toMatch(/dialog cancelled/i);
     });
@@ -178,7 +178,7 @@ describe('Wallets (round 2 — v0.72b)', () => {
     await waitFor(() => screen.getByText('main'));
     openAddModal();
     await waitFor(() => screen.getAllByRole('textbox').length > 0);
-    // Find the smart button
+    // 找到 smart 按钮
     const smartBtn = screen.getAllByRole('button').find(b =>
       /smart/i.test(b.textContent || ''),
     );
@@ -187,7 +187,7 @@ describe('Wallets (round 2 — v0.72b)', () => {
     await waitFor(() => {
       expect(smartBtn!.className).toContain('accent');
     });
-    // Toggle back to eoa
+    // 切换回 eoa
     const eoaBtn = screen.getAllByRole('button').find(b =>
       /eoa/i.test(b.textContent || '') && !/smart/i.test(b.textContent || ''),
     );
@@ -200,9 +200,9 @@ describe('Wallets (round 2 — v0.72b)', () => {
   it('WalletCard with last_synced_at = null omits the last-synced line', async () => {
     renderWallets();
     await waitFor(() => screen.getByText('main'));
-    // w2 has last_synced_at=null — should NOT render "last synced" text
-    // for w2. The check is structural: query for the unique label
-    // fallback text "no_label" (rendered when w.label is null)
+    // w2 的 last_synced_at=null —— 不应渲染 "last synced" 文本
+    // 对 w2。检查是结构性的：查询唯一的 label
+    // fallback 文本 "no_label"（当 w.label 为 null 时渲染）
     expect(screen.getAllByText(/no.label|无标签/i).length).toBeGreaterThan(0);
   });
 

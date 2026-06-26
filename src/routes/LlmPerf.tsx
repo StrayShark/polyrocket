@@ -16,10 +16,10 @@ import { useT } from '@/lib/i18n';
  * `/llm-perf` 路由 —— LLM performance 详情。
  *
  * **5 个 section**：
- *   1. KPI row（avg Brier / avg win rate / total cost / n calls）
- *   2. By-confidence histogram
- *   3. By-prompt comparison table
- *   4. Cost-vs-Brier scatter
+ *   1. KPI 行（平均 Brier / 平均胜率 / 总成本 / 调用次数）
+ *   2. 按置信度直方图
+ *   3. 按 prompt 对比表
+ *   4. 成本 vs Brier 散点图
  *   5. Export CSV 按钮
  *
  * **数据流**：
@@ -56,7 +56,7 @@ export function LlmPerf() {
         />
       </div>
 
-      {/* By confidence bucket */}
+      {/* 按 confidence 分桶 */}
       <Card title={t('llmperf.bucket.title')} description={t('llmperf.bucket.desc')}>
         {byConf.isLoading ? (
           <Skeleton className="h-24" />
@@ -83,7 +83,7 @@ export function LlmPerf() {
         )}
       </Card>
 
-      {/* By prompt version */}
+      {/* 按 prompt version 分组 */}
       <Card title={t('llmperf.prompt.title')} description={t('llmperf.prompt.desc')}>
         {byPrompt.isLoading ? (
           <Skeleton className="h-20" />
@@ -105,7 +105,7 @@ export function LlmPerf() {
         )}
       </Card>
 
-      {/* Cost efficiency */}
+      {/* 成本效率 */}
       <Card
         title={t('llmperf.cost.title')}
         description={t('llmperf.cost.desc')}

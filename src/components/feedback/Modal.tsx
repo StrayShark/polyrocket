@@ -1,21 +1,21 @@
 /**
- * L1 — Modal with focus trap (v0.10c).
+ * L1 —— 带焦点陷阱的 Modal(v0.10c)。
  *
- * A11y requirements for a true modal:
- *   1. focus moves into the modal when it opens
- *   2. Tab/Shift+Tab cycle through focusable elements inside
- *      the modal (never escape to the page behind)
- *   3. Esc closes the modal
- *   4. focus is restored to the trigger element on close
- *   5. The modal has role="dialog" + aria-modal="true"
+ * 真正的 modal 需要满足的 a11y 要求:
+ *   1. 打开时焦点移入 modal 内
+ *   2. Tab/Shift+Tab 在 modal 内可聚焦元素间循环
+ *      (不能跳出到背后页面)
+ *   3. Esc 关闭 modal
+ *   4. 关闭时焦点恢复到触发元素
+ *   5. modal 拥有 role="dialog" + aria-modal="true"
  *
- * Replaces the v0.5c Modal which only handled #3.
+ * 替代 v0.5c 仅处理 #3 的 Modal。
  *
- * v0.119 — added enter/exit animation:
- *   - Backdrop fades in/out (`animate-modal-backdrop` 160ms)
- *   - Dialog scales + fades (`animate-modal-dialog` 160ms)
- *   - On `prefers-reduced-motion`, the @media rule in globals.css
- *     shortens animation-duration to 0.01ms (effectively instant)
+ * v0.119 —— 新增进场/离场动画:
+ *   - Backdrop 淡入淡出(`animate-modal-backdrop` 160ms)
+ *   - Dialog 缩放 + 淡入(`animate-modal-dialog` 160ms)
+ *   - 在 `prefers-reduced-motion` 下,globals.css 中的 @media
+ *     规则会把 animation-duration 缩短到 0.01ms(基本瞬时)
  */
 
 import { useEffect, useRef, type ReactNode } from 'react';
@@ -46,17 +46,17 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
   const dialogRef = useRef<HTMLDivElement>(null);
   const lastFocusRef = useRef<HTMLElement | null>(null);
 
-  // 1. Save previous focus + focus first focusable on open
-  // 2. Set up focus trap (Tab/Shift+Tab cycle)
-  // 3. Restore focus on close
+  // 1. 保存之前的焦点 + 打开时聚焦首个可聚焦元素
+  // 2. 设置焦点陷阱(Tab/Shift+Tab 循环)
+  // 3. 关闭时恢复焦点
   useEffect(() => {
     if (!open) return;
 
-    // Remember what was focused before
+    // 记住打开前被聚焦的元素
     lastFocusRef.current = document.activeElement as HTMLElement | null;
 
-    // Move focus into the modal
-    // We do it on a microtask so the element is in the DOM
+    // 将焦点移入 modal
+    // 通过微任务执行,确保元素已经在 DOM 中
     queueMicrotask(() => {
       const dialog = dialogRef.current;
       if (!dialog) return;
@@ -72,7 +72,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
         return;
       }
       if (e.key !== 'Tab') return;
-      // Focus trap: cycle within the dialog
+      // 焦点陷阱:在 dialog 内循环
       const dialog = dialogRef.current;
       if (!dialog) return;
       const focusables = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE))
@@ -100,7 +100,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('keydown', onKey);
-      // Restore focus to the trigger
+      // 将焦点恢复到触发元素
       if (lastFocusRef.current && document.body.contains(lastFocusRef.current)) {
         lastFocusRef.current.focus();
       }

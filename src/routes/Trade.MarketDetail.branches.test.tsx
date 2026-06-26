@@ -1,14 +1,14 @@
-// v0.89b — Trade.tsx + MarketDetail.tsx branches round (+9 tests,
-// Trade 66.66→100%, MarketDetail 72.72→95%).
+// v0.89b —— Trade.tsx + MarketDetail.tsx 分支轮次（+9 个测试，
+// Trade 66.66→100%，MarketDetail 72.72→95%）。
 //
-// Trade.tsx (v0.52) had only 1 test covering basic render. URL param
-// parsing branches (`params.get('side')`, `price ? parseFloat : undefined`)
-// were uncovered. v0.89b adds 2 tests with different URL params.
+// Trade.tsx（v0.52）仅有 1 个测试覆盖基础渲染。URL 参数
+// 解析分支（`params.get('side')`、`price ? parseFloat : undefined`）
+// 未被覆盖。v0.89b 新增 2 个使用不同 URL 参数的测试。
 //
-// MarketDetail.tsx (v0.77c round 2) had 5 tests covering loading /
-// error / found / signals-filtered / signals-empty. Market status pill
-// 3-way branch (resolved / active / inactive) and signal edge color
-// (>0 bull / <=0 bear) were uncovered.
+// MarketDetail.tsx（v0.77c 第 2 轮）有 5 个测试覆盖
+// loading / error / found / signals-filtered / signals-empty。
+// Market 状态胶囊的三路分支（resolved / active / inactive）
+// 以及 signal edge 颜色（>0 bull / <=0 bear）未被覆盖。
 //
 // @vitest-environment happy-dom
 
@@ -37,8 +37,8 @@ vi.mock('@/lib/format', () => ({
   fmtConfidence: (v: number) => v.toFixed(2),
 }));
 
-// NOTE: don't mock @/lib/i18n — let real i18n run so the i18n keys
-// resolve to actual translations (e.g. 'marketdetail.active' → 'active').
+// 注意：不要 mock @/lib/i18n — 让真正的 i18n 运行，使 i18n 键
+// 解析为实际翻译（例如 'marketdetail.active' → 'active'）。
 
 vi.mock('@/stores/toast-store', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
@@ -47,19 +47,19 @@ vi.mock('@/stores/toast-store', () => ({
 import { Trade } from '@/routes/Trade';
 import { MarketDetail } from '@/routes/MarketDetail';
 
-// Force cleanup between tests so React act() warnings don't accumulate
+// 在测试间强制清理，避免 React act() 警告累积
 afterEach(() => {
   cleanup();
 });
 
-// -------- Trade.tsx tests --------
+// -------- Trade.tsx 测试 --------
 
 describe('v0.89b — Trade.tsx URL param branches', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('renders with no URL params (all initial* undefined)', () => {
+  it('无 URL 参数时渲染（所有 initial* 为 undefined）', () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
     render(
       <QueryClientProvider client={qc}>
@@ -71,7 +71,7 @@ describe('v0.89b — Trade.tsx URL param branches', () => {
     expect(document.body.textContent).toBeTruthy();
   });
 
-  it('renders with full URL params (market, side, price)', () => {
+  it('完整 URL 参数时渲染（market, side, price）', () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
     render(
       <QueryClientProvider client={qc}>
@@ -84,7 +84,7 @@ describe('v0.89b — Trade.tsx URL param branches', () => {
   });
 });
 
-// -------- MarketDetail.tsx tests --------
+// -------- MarketDetail.tsx 测试 --------
 
 const SAMPLE_MARKET_ACTIVE = {
   id: 'm_active',
@@ -155,7 +155,7 @@ describe('v0.89b — MarketDetail.tsx status pill + edge color branches', () => 
     mockListMarkets.mockResolvedValue([SAMPLE_MARKET_ACTIVE]);
     mockListActiveSignals.mockResolvedValue([]);
     wrapMarket('/markets/m_active');
-    // i18n key 'marketdetail.active' → 'active' (lowercase per src/lib/i18n.ts:745)
+    // i18n 键 'marketdetail.active' → 'active'（小写，参见 src/lib/i18n.ts:745）
     const pill = await screen.findByText('active');
     expect(pill).toBeTruthy();
   });
@@ -172,7 +172,7 @@ describe('v0.89b — MarketDetail.tsx status pill + edge color branches', () => 
     mockListMarkets.mockResolvedValue([SAMPLE_MARKET_RESOLVED]);
     mockListActiveSignals.mockResolvedValue([]);
     wrapMarket('/markets/m_resolved');
-    // Resolved branch shows market.outcome ?? 'resolved' — YES wins
+    // Resolved 分支展示 market.outcome ?? 'resolved' —— YES 胜出
     const pill = await screen.findByText('YES');
     expect(pill).toBeTruthy();
   });
@@ -209,10 +209,10 @@ describe('v0.89b — MarketDetail.tsx status pill + edge color branches', () => 
       { ...SAMPLE_SIGNAL_NEGATIVE, market_id: 'm_other' },
     ]);
     wrapMarket('/markets/m_active');
-    // Wait for market detail to render, then check no signal cards
+    // 等待 market detail 渲染，然后检查无 signal 卡片
     await screen.findByText('active');
-    // marketSignals filtered to 0 → EmptyState renders "No signals yet"
-    // Use a flexible check since i18n key is 'signals.empty' with no default in our mock
+    // marketSignals 过滤后为 0 → EmptyState 渲染 "No signals yet"
+    // 使用宽松检查，因为 i18n key 是 'signals.empty' 且 mock 中无默认值
     await waitFor(() => {
       expect(document.body.textContent).toMatch(/signals/i);
     }, { timeout: 2000 });

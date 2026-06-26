@@ -1,14 +1,14 @@
-// v0.71d — LlmPerf route additional tests.
+// v0.71d — LlmPerf 路由补充测试。
 //
-// LlmPerf.tsx is 168 lines with 4 concurrent queries
-// (llmPerformance / llmStatsByConfidence / llmStatsByPrompt
-// / llmStatsCostEfficiency) + CSV export mutation. Existing
-// test (v0.62a) is 1 surface render. We add 10 tests covering
-// the branch-rich paths: KPI positive/negative delta, by-conf
-// bar color (bull vs bear), by-prompt rendering, cost-eff ROI
-// sign, CSV export success/error toast, CSV preview <details>.
+// LlmPerf.tsx 共 168 行，包含 4 个并发 query
+// （llmPerformance / llmStatsByConfidence / llmStatsByPrompt
+// / llmStatsCostEfficiency）+ CSV 导出 mutation。已有
+// 测试（v0.62a）只有 1 个表层渲染。我们新增 10 个测试，覆盖
+// 分支丰富的路径：KPI 正/负 delta、by-conf
+// 柱状颜色（bull vs bear）、by-prompt 渲染、cost-eff ROI
+// 符号、CSV 导出成功/错误 toast、CSV 预览 <details>。
 //
-// Coverage target: 52% → ~85% stmts.
+// 覆盖目标：52% → ~85% stmts。
 //
 // @vitest-environment happy-dom
 
@@ -98,7 +98,7 @@ describe('LlmPerf (extended)', () => {
   it('renders empty state for by-confidence when data is empty', async () => {
     msbc.mockResolvedValue([]);
     renderLlmPerf();
-    // findByText waits up to 1s by default
+    // findByText 默认等待最多 1s
     const emptyText = await screen.findByText(/no data|暂无数据/i, {}, { timeout: 3000 });
     expect(emptyText).toBeInTheDocument();
   });
@@ -106,7 +106,7 @@ describe('LlmPerf (extended)', () => {
   it('renders by-confidence buckets with bull/bear colors', async () => {
     renderLlmPerf();
     await waitFor(() => {
-      // The bucket label format is "0-10%", "10-20%", etc.
+      // 桶标签格式为 "0-10%"、"10-20%" 等。
       // (b.bucket * 10).toFixed(0) + '-' + (b.bucket * 10 + 10).toFixed(0) + '%'
       const text = document.body.textContent || '';
       expect(text).toMatch(/0-10%|10-20%|50-60%|80-90%/);
@@ -126,7 +126,7 @@ describe('LlmPerf (extended)', () => {
     await waitFor(() => {
       expect(screen.getByText('openai')).toBeInTheDocument();
     });
-    // ROI row shows "ROI +0.15" type text
+    // ROI 行展示 "ROI +0.15" 类文本
     const text = document.body.textContent || '';
     expect(text).toMatch(/ROI.*\+0\.15|ROI.*\+0\.22/);
   });
@@ -137,7 +137,7 @@ describe('LlmPerf (extended)', () => {
     await waitFor(() => {
       expect(screen.getByText('cheap-llm')).toBeInTheDocument();
     });
-    // Negative ROI: text-bear, no +
+    // 负 ROI：text-bear，无 + 前缀
     const text = document.body.textContent || '';
     expect(text).toMatch(/ROI.*-0\.05/);
   });
@@ -146,8 +146,8 @@ describe('LlmPerf (extended)', () => {
     msce.mockResolvedValue(COST_EFF_POS);
     renderLlmPerf();
     await waitFor(() => screen.getByText('openai'));
-    // avg ROI = (0.15+0.22)/2 = 0.185 → positive → "profitable"
-    // Look for delta text containing "profitable" or similar
+    // avg ROI = (0.15+0.22)/2 = 0.185 → 正值 → "profitable"
+    // 寻找含 "profitable" 等字样的 delta 文本
     const text = document.body.textContent || '';
     expect(text).toMatch(/profitable|positive|profit/i);
   });

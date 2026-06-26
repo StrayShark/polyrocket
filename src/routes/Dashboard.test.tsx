@@ -1,24 +1,20 @@
-// v0.57b — Dashboard component tests.
+// v0.57b —— Dashboard 组件测试。
 //
-// The Dashboard is the user's home page. It
-// shows the paper P&L card, the fill analytics
-// card (v0.50c), the active model summary
-// (v0.49b), the welcome banner (v0.53b), the
-// scheduler self-test (v0.49c), and the recent
-// bets / signals rollups.
+// Dashboard 是用户的首页。展示：
+// paper P&L 卡片、成交分析卡片（v0.50c）、
+// 活动模型摘要（v0.49b）、欢迎横幅（v0.53b）、
+// 调度器自检（v0.49c）以及最近
+// bets / signals 汇总。
 //
-// Today the Dashboard has 8 data-testids but
-// no tests. This file covers:
-//   1. Welcome banner renders when secrets
-//      are missing
-//   2. Paper PnL card renders (zero state +
-//      populated state)
-//   3. Fill analytics card renders with the
-//      v0.51b fields
-//   4. Active model card renders (uses
-//      getActiveModel IPC)
-//   5. Scheduler self-test card renders the
-//      8 loop rows
+// 目前 Dashboard 有 8 个 data-testid 但
+// 还没有测试。本文件覆盖：
+//   1. 缺少 secrets 时渲染欢迎横幅
+//   2. 渲染 Paper PnL 卡片（零状态 +
+//      已填充状态）
+//   3. 渲染成交分析卡片（v0.51b 字段）
+//   4. 渲染活动模型卡片（使用
+//      getActiveModel IPC）
+//   5. 调度器自检卡片渲染 8 个 loop 行
 
 // @vitest-environment happy-dom
 
@@ -104,9 +100,9 @@ describe('Dashboard (v0.57b)', () => {
     render(wrap(<Dashboard />));
     await waitFor(() => {
       expect(screen.getByTestId('fill-analytics-card')).toBeInTheDocument();
-      // v0.51b — fill analytics now shows the
-      // new columns (avg slippage, avg TTF,
-      // partial rate)
+      // v0.51b — 成交分析现在显示新列
+      //（平均滑点、平均成交耗时、
+      // 部分成交率）
       expect(screen.getByTestId('fill-analytics-v51b')).toBeInTheDocument();
     });
   });
@@ -114,8 +110,8 @@ describe('Dashboard (v0.57b)', () => {
   it('Welcome banner does NOT render when all 3 secrets are set', async () => {
     render(wrap(<Dashboard />));
     await waitFor(() => {
-      // secretsStatus mock returns all set,
-      // so the banner should be hidden.
+      // secretsStatus mock 返回全部已设置，
+      // 因此横幅应被隐藏。
       expect(
         screen.queryByTestId('welcome-banner'),
       ).not.toBeInTheDocument();

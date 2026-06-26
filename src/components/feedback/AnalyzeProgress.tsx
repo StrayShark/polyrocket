@@ -1,30 +1,28 @@
 /**
- * AnalyzeProgress (v0.15c).
+ * AnalyzeProgress (v0.15c)。
  *
- * Renders the live status of an in-flight `llm_analyze` IPC as a
- * per-provider status grid:
+ * 将一个进行中的 `llm_analyze` IPC 实时状态渲染为按 provider
+ * 排列的状态网格:
  *
  *   Anthropic    ✓  1.2s   $0.04
  *   OpenAI       ⏳ running…
  *   Google       ✗  rate_limit
  *   DeepSeek     ·  pending
  *
- * Hooks into the 4 events emitted from `commands::llm::llm_analyze`
- * (see `domain::llm::progress` + `ipc.ts::onAnalyzeStarted` etc.):
+ * 监听 `commands::llm::llm_analyze` 发出的 4 类事件
+ * (见 `domain::llm::progress` 与 `ipc.ts::onAnalyzeStarted` 等):
  *
- *   started        → seeds the initial "pending" grid
- *   provider_done   → updates the matching provider's status
- *   consensus_done  → updates the header (consensus preview)
- *   finished        → marks the overall run as done
+ *   started        → 初始化 "pending" 网格
+ *   provider_done   → 更新对应 provider 的状态
+ *   consensus_done  → 更新头部(consensus 预览)
+ *   finished        → 标记整体运行结束
  *
- * Listeners are registered on mount, unregistered on unmount. The
- * grid is keyed by `analysisId` so multiple concurrent analyzes
- * (e.g. across panels) stay independent — events for other
- * analysis_ids are ignored.
+ * 监听器在挂载时注册,卸载时注销。网格以 `analysisId`
+ * 为 key,保证多个并发分析(例如跨面板)互相独立——
+ * 其他 analysis_id 的事件会被忽略。
  *
- * After `finished`, the component keeps the final state visible
- * (doesn't auto-clear) so the user can see which provider failed
- * even after the analyze is done.
+ * `finished` 之后,组件保留最终状态(不会自动清除),
+ * 方便用户在分析完成后也能看到哪个 provider 失败。
  */
 
 import { useEffect, useState, useRef } from 'react';
@@ -50,13 +48,11 @@ type ProviderStatus =
   | { kind: 'failed'; error_kind: string; error_message: string | null; latency_ms: number };
 
 export interface AnalyzeProgressProps {
-  /** UUID string. When set, the component will subscribe to events
-   * for this analysis only. When null/undefined, the component
-   * is idle (renders nothing). */
+  /** UUID 字符串。设置后组件将只订阅此 analysis 的事件;
+   * 为 null/undefined 时组件处于空闲态(不渲染任何内容)。 */
   analysisId: string | null | undefined;
-  /** Optional: when true, force-show the grid even after the
-   * analyze finished (e.g. for showing the final state of the
-   * last analyze on mount). Default false. */
+  /** 可选:为 true 时,即便分析已完成也强制展示网格
+   * (例如在挂载时显示上次分析的最终状态)。默认 false。 */
   defaultExpanded?: boolean;
   className?: string;
 }
@@ -75,7 +71,7 @@ export function AnalyzeProgress({
 
   useEffect(() => {
     if (!analysisId) {
-      // Idle state — clear
+      // 空闲态——清空
       setStarted(null);
       setProviders({});
       setConsensus(null);
@@ -84,10 +80,10 @@ export function AnalyzeProgress({
       return;
     }
     if (subscribedRef.current === analysisId) {
-      // Already subscribed for this analysis
+      // 已订阅此 analysis
       return;
     }
-    // Reset for new analysis
+    // 为新 analysis 重置
     setStarted(null);
     setProviders({});
     setConsensus(null);
@@ -99,7 +95,7 @@ export function AnalyzeProgress({
     onAnalyzeStarted((e) => {
       if (cancelled || e.analysis_id !== analysisId) return;
       setStarted(e);
-      // Seed pending grid
+      // 初始化 pending 网格
       const seed: Record<string, ProviderStatus> = {};
       for (const id of e.providers) seed[id] = { kind: 'pending' };
       setProviders(seed);
@@ -135,7 +131,7 @@ export function AnalyzeProgress({
     return () => {
       cancelled = true;
       for (const u of unsubs) {
-        try { u(); } catch { /* ignore */ }
+        try { u(); } catch { /* 忽略 */ }
       }
       if (subscribedRef.current === analysisId) {
         subscribedRef.current = null;
@@ -143,8 +139,7 @@ export function AnalyzeProgress({
     };
   }, [analysisId]);
 
-  // Don't render anything until we have an event for this analysis,
-  // or if explicitly expanded with a finished result.
+  // 在收到本 analysis 的事件(或带有 finished 结果且显式展开)之前不渲染任何内容。
   if (!analysisId) return null;
   if (!started && !defaultExpanded) return null;
   if (!started && defaultExpanded && !finished) return null;
@@ -157,13 +152,13 @@ export function AnalyzeProgress({
   const nOk = providerList.filter(([, s]) => s.kind === 'ok').length;
   const nFailed = providerList.filter(([, s]) => s.kind === 'failed').length;
 
-  // v0.119 — Cursor TimelinePill mapping for the analysis header.
-  // Maps the overall LLM analysis pipeline to one of 5 Cursor pastel
-  // stages so the user sees the current phase of the agent timeline.
-  //   - not started / all pending → "Thinking" (planning queries)
-  //   - any running or in-flight   → "Reading"  (LLM is generating)
-  //   - all providers done, awaiting consensus → "Editing"
-  //   - finished event             → "Done"
+  // v0.119 — 分析头部的 Cursor TimelinePill 映射。
+  // 将整个 LLM 分析流程映射到 5 种 Cursor pastel 阶段之一,
+  // 让用户感知到 agent timeline 当前所处的阶段。
+  //   - 未开始 / 全部 pending → "Thinking"(规划 query)
+  //   - 任一 provider running 或进行中 → "Reading"(LLM 正在生成)
+  //   - 所有 provider 结束,等待 consensus → "Editing"
+  //   - 收到 finished 事件 → "Done"
   const nRunning = providerList.filter(([, s]) => s.kind === 'running').length;
   const allPending = providerList.length > 0 && nDone === 0 && nRunning === 0;
   const timelineStage = finished
@@ -203,8 +198,8 @@ export function AnalyzeProgress({
                   total: providerList.length,
                 })}
           </span>
-          {/* v0.119 — Cursor TimelinePill showing overall LLM stage.
-              Per Cursor spec, pastels are scoped to timeline UI only. */}
+          {/* v0.119 —— Cursor TimelinePill,展示整体 LLM 阶段。
+              按 Cursor 规范,pastel 配色仅用于 timeline UI。 */}
           <TimelinePill stage={timelineStage} />
           {finished && (
             <BadgePill

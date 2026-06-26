@@ -21,15 +21,15 @@ const VARIANT: Record<ButtonVariant, string> = {
 };
 
 const SIZE: Record<ButtonSize, string> = {
-  // xs: 24px — only for inline tag-style buttons (badges, breadcrumbs).
+  // xs:24px — 仅用于行内标签样式的按钮(徽章、面包屑)。
   xs: 'h-6 px-2 text-[11px] gap-1',
-  // sm: 32px — Cursor min touch target.
+  // sm:32px — Cursor 最小触摸目标。
   sm: 'h-8 px-2.5 text-[12px] gap-1.5',
-  // md: 36px — polyrocket default (dense desktop).
+  // md:36px — polyrocket 默认尺寸(桌面端紧凑布局)。
   md: 'h-9 px-3 text-body-sm gap-1.5',
-  // lg: 40px — matches Cursor button-primary.
+  // lg:40px — 对齐 Cursor button-primary。
   lg: 'h-10 px-4 text-[14px] gap-2',
-  // xl: 44px — matches Cursor button-download (large CTA / hero).
+  // xl:44px — 对齐 Cursor button-download(大型 CTA / 焦点位)。
   xl: 'h-11 px-5 text-[15px] gap-2.5',
 };
 

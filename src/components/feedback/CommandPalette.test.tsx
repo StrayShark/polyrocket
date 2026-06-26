@@ -1,11 +1,11 @@
-// v0.77b — CommandPalette branches round 1 (+8 tests, 0%→100% stmts, 0%→100% br).
+// v0.77b — CommandPalette 分支覆盖第 1 轮(+8 个测试,0%→100% 语句,0%→100% 分支)。
 //
-// CommandPalette.tsx is 148 lines with 22 branches. The branches
-// cover: open/close lifecycle, query filter, highlight range,
-// ArrowUp/ArrowDown/Enter/Escape keys, mouse enter hover, empty
-// state, shortcut rendering, action() invocation.
+// CommandPalette.tsx 共 148 行,22 个分支。这些分支覆盖:
+// open/close 生命周期、query 过滤、高亮范围、ArrowUp/ArrowDown/
+// Enter/Escape 键、mouse enter hover、空状态、shortcut 渲染、
+// action() 调用。
 //
-// Coverage target: 0/22 → 22/22 branches = 100% br.
+// 覆盖率目标:0/22 → 22/22 分支 = 100% 分支。
 //
 // @vitest-environment happy-dom
 
@@ -31,7 +31,7 @@ beforeEach(() => {
 describe('CommandPalette (v0.77b — full coverage)', () => {
   it('renders nothing visible when closed', () => {
     wrap(<CommandPalette open={false} onClose={() => {}} commands={SAMPLE_CMDS} />);
-    // Modal renders but input is not in document tree when closed
+    // 关闭时 Modal 渲染但 input 不在 document tree 中
     expect(screen.queryByTestId('palette-input')).toBeFalsy();
   });
 
@@ -73,7 +73,7 @@ describe('CommandPalette (v0.77b — full coverage)', () => {
   it('ArrowUp moves highlight up', async () => {
     wrap(<CommandPalette open={true} onClose={() => {}} commands={SAMPLE_CMDS} />);
     const input = await waitFor(() => screen.getByTestId('palette-input'));
-    // Move down first, then up
+    // 先向下,再向上
     fireEvent.keyDown(input, { key: 'ArrowDown' });
     fireEvent.keyDown(input, { key: 'ArrowUp' });
     expect(screen.getByTestId('palette-item-cmd1').getAttribute('data-highlighted')).toBe('true');

@@ -1,16 +1,16 @@
-// v0.106 — StepProgress.tsx coverage ramp round 15.
+// v0.106 — StepProgress.tsx 覆盖率提升第 15 轮。
 //
-// Target: cover the 2 uncovered branches at lines 32 and 37
-// (from coverage report at v0.105-final).
+// 目标: 覆盖第 32 和 37 行未覆盖的 2 个分支
+// (来自 v0.105-final 覆盖率报告)。
 //
-// Lines 32: `isPast && 'bg-accent'` — fires when i < currentIndex.
-// Lines 37: `data-state={isCurrent ? 'current' : isPast ? 'past' : 'future'}` —
-//   the `isPast` branch fires when i < currentIndex but i !== currentIndex
-//   (currentIndex = 0 means no past).
+// 第 32 行: `isPast && 'bg-accent'` — 当 i < currentIndex 时触发。
+// 第 37 行: `data-state={isCurrent ? 'current' : isPast ? 'past' : 'future'}` —
+//   当 i < currentIndex 且 i !== currentIndex 时触发 `isPast` 分支
+//   (currentIndex = 0 时无 past)。
 //
-// Strategy: render with current set to a middle step (currentIndex = 2),
-// so we have: 2 past dots, 1 current dot, 3 future dots. All 3 class states
-// covered.
+// 策略: 用中间步骤作为 current 渲染 (currentIndex = 2),
+// 此时: 2 个 past 点, 1 个 current 点, 3 个 future 点。
+// 全部 3 种 class 状态均覆盖。
 
 // @vitest-environment happy-dom
 
@@ -33,7 +33,7 @@ describe('StepProgress round 15', () => {
 
   it('marks past dots with state="past" (covers line 32/37 isPast branch)', () => {
     render(<StepProgress current="llm" steps={STEPS} />);
-    // Steps before 'llm' (currentIndex=3): 'welcome', 'storage', 'theme' → past
+    // 'llm'(currentIndex=3)之前的步骤:'welcome'、'storage'、'theme' → past
     expect(screen.getByTestId('welcome-step-dot-welcome').getAttribute('data-state')).toBe('past');
     expect(screen.getByTestId('welcome-step-dot-storage').getAttribute('data-state')).toBe('past');
     expect(screen.getByTestId('welcome-step-dot-theme').getAttribute('data-state')).toBe('past');
@@ -46,7 +46,7 @@ describe('StepProgress round 15', () => {
 
   it('marks future dots with state="future"', () => {
     render(<StepProgress current="llm" steps={STEPS} />);
-    // Steps after 'llm': 'polymarket', 'finish' → future
+    // 'llm' 之后的步骤:'polymarket'、'finish' → future
     expect(screen.getByTestId('welcome-step-dot-polymarket').getAttribute('data-state')).toBe('future');
     expect(screen.getByTestId('welcome-step-dot-finish').getAttribute('data-state')).toBe('future');
   });

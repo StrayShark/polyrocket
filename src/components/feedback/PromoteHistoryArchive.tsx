@@ -1,38 +1,34 @@
 /**
- * PromoteHistoryArchive — v0.34a.
+ * PromoteHistoryArchive —— v0.34a。
  *
- * Modal that shows the FULL promote history (not just
- * the in-memory last 20). Reads from the Python
- * sidecar's `archive.jsonl` via the v0.33b
- * `list_promote_history_archive` IPC.
+ * 显示**完整** promote history(不仅仅是
+ * 内存中最近 20 条)的 modal。通过 v0.33b 的
+ * `list_promote_history_archive` IPC,读取
+ * Python sidecar 的 `archive.jsonl`。
  *
- * Why this exists:
- *   - The Python sidecar's `promotion_history[]` is
- *     capped at 20 entries (v0.19a). When the 21st
- *     promote happens, the oldest is silently dropped.
- *   - v0.33a made the dropped entries durable by
- *     writing them to `archive.jsonl` before the cap
- *     takes effect.
- *   - v0.33b added the `list_promote_history_archive`
- *     IPC.
- *   - v0.34a (this file) is the L1 UI for reading
- *     the archive.
+ * 为什么需要这个组件:
+ *   - Python sidecar 的 `promotion_history[]` 在
+ *     v0.19a 限制为 20 条。第 21 次 promote 时,
+ *     最旧的会被静默丢弃。
+ *   - v0.33a 让被丢弃的 entry 在 cap 生效前
+ *     写入 `archive.jsonl` 实现持久化。
+ *   - v0.33b 新增了 `list_promote_history_archive`
+ *     IPC。
+ *   - v0.34a(本文件)是 L1 用于读取 archive 的 UI。
  *
- * The component is a Modal opened by a "View archive"
- * button (typically placed near the existing
- * PromoteHistory panel on the ModelLab page).
+ * 本组件是 Modal,由 "View archive" 按钮打开
+ * (通常放在 ModelLab 页面现有 PromoteHistory
+ * 面板附近)。
  *
- * Render states:
- *  1. loading  → skeleton rows
- *  2. error    → ErrorState
- *  3. empty    → "no archive yet" message
- *  4. populated → table of entries with prev/next
- *     pagination buttons
+ * 渲染状态:
+ *  1. loading  → skeleton 行
+ *  2. 错误    → ErrorState
+ *  3. empty    → "no archive yet" 提示
+ *  4. populated → 含 prev/next 分页按钮的 entry 表格
  *
- * Pagination: offset/limit, page size = 25 (capped at
- * 1000 by the Rust IPC). The user can navigate with
- * Prev/Next buttons or close + reopen to reset to
- * page 0.
+ * 分页:offset/limit,page size = 25(由 Rust IPC
+ * 限制上限 1000)。用户可通过 Prev/Next 按钮
+ * 翻页,或关闭后重新打开回到第 0 页。
  */
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -48,9 +44,9 @@ import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
 
 interface PromoteHistoryArchiveProps {
-  /** Whether the modal is open. */
+  /** modal 是否打开。 */
   open: boolean;
-  /** Called when the user closes the modal. */
+  /** 用户关闭 modal 时调用。 */
   onClose: () => void;
 }
 
@@ -65,8 +61,8 @@ function brierColor(brier: number | null): 'bull' | 'warn' | 'bear' | 'muted' {
 
 export function PromoteHistoryArchive({ open, onClose }: PromoteHistoryArchiveProps) {
   const { t } = useT();
-  // v0.34a — pagination state (offset-based; user can
-  // navigate with Prev/Next buttons)
+  // v0.34a —— 分页 state(基于 offset;用户可
+  // 通过 Prev/Next 按钮翻页)
   const [offset, setOffset] = useState(0);
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['promote-history-archive', offset],
@@ -76,11 +72,11 @@ export function PromoteHistoryArchive({ open, onClose }: PromoteHistoryArchivePr
     staleTime: 30_000,
   });
 
-  // Reset offset when the modal opens (so the user
-  // always starts at the newest entries)
-  // We use a key trick: the parent passes a new `key`
-  // each time it opens, but that's the parent's call.
-  // For simplicity, we just reset on close.
+  // modal 打开时重置 offset(让用户始终
+  // 从最新 entry 开始)
+  // 采用 key trick:父组件每次打开时传新 `key`,
+  // 但这取决于父组件。
+  // 为简单起见,我们在关闭时重置。
   const handleClose = () => {
     setOffset(0);
     onClose();
@@ -90,7 +86,7 @@ export function PromoteHistoryArchive({ open, onClose }: PromoteHistoryArchivePr
   const total = data?.total ?? 0;
   const noArchive = data?.message?.includes('no archive yet') ?? false;
 
-  // Compute page bounds
+  // 计算页边界
   const startIdx = total === 0 ? 0 : offset + 1;
   const endIdx = Math.min(offset + entries.length, total);
   const hasPrev = offset > 0;

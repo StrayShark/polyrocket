@@ -1,11 +1,10 @@
-// v0.78 — /bankroll route (L3).
+// v0.78 — /bankroll 路由（L3）。
 //
-// Pulls active signals + computes a bankroll allocation preview.
-// Shows BankrollCard + AllocationTable + config sliders + apply
-// button. The "apply" step is v0.78e (writes to bets table).
+// 拉取活动信号并计算资金分配预览。展示 BankrollCard + AllocationTable
+// + 配置滑块 + 应用按钮。"apply" 步骤是 v0.78e（写入 bets 表）。
 //
-// For v0.78c the apply button is a no-op (toast "coming soon") so
-// the user can see the deterministic allocation before commit.
+// 对于 v0.78c，apply 按钮是 no-op（toast "coming soon"），
+// 用户可以在提交前看到确定性的分配。
 
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -59,8 +58,8 @@ export function Bankroll() {
   });
 
   const bankrollUsdc = useMemo(() => {
-    // v0.78c — use the input as bankroll. v0.78e reads from
-    // bankroll_snapshot (which sums wallet balance minus open bets).
+    // v0.78c — 使用输入值作为资金。v0.78e 从 bankroll_snapshot
+    // 读取（即钱包余额减去未结算投注的总和）。
     return bankrollInput || '0';
   }, [bankrollInput]);
 
@@ -78,7 +77,7 @@ export function Bankroll() {
     enabled: !!signalsQuery.data && parseFloat(bankrollUsdc) > 0,
   });
 
-  // v0.78e — apply mutation writes to allocation_batches
+  // v0.78e — apply mutation 写入 allocation_batches
   const applyMut = useMutation({
     mutationFn: (result: AllocationResult) => {
       if (!activeWallet) throw new Error('no active wallet');
@@ -86,10 +85,10 @@ export function Bankroll() {
     },
     onSuccess: (batchId) => {
       toast.success('Allocation applied', `Batch ${batchId.slice(0, 8)}…`);
-      // Also persist the config for this wallet
+      // 同时为该钱包持久化配置
       if (activeWallet?.id) {
         setBankrollConfig(activeWallet.id, config).catch(() => {
-          /* config persist is best-effort */
+          /* config 持久化是尽力而为 */
         });
       }
       queryClient.invalidateQueries({ queryKey: ['bankroll-batches'] });

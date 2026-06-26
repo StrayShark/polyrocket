@@ -1,14 +1,14 @@
-// v0.63b — Wallets component tests (route 14% coverage → ~75%).
+// v0.63b —— Wallets 组件测试（路由 14% 覆盖率 → ~75%）。
 //
-// /wallets is the wallet metadata manager. We cover:
-//   1. Renders page with empty list → EmptyState
-//   2. Renders wallet cards with mixed data (EOA + smart, last_synced set + unset)
-//   3. Copy-to-clipboard on address click
-//   4. Open Add modal — submit button disabled until valid 0x address
-//   5. Submit valid address → addWallet mutation called
-//   6. Switch chain (polygon → amoy) + type (eoa → smart)
-//   7. File-import path: pickFile returns path → readFileText → extractAddressFromJson
-//   8. Error state when listWallets fails
+// /wallets 是钱包元数据管理器。我们覆盖：
+//   1. 渲染带空列表的页面 → EmptyState
+//   2. 渲染混合数据的钱包卡（EOA + smart，last_synced 已设置 + 未设置）
+//   3. 点击地址复制到剪贴板
+//   4. 打开 Add 模态框 —— 提交按钮在有效 0x 地址前保持 disabled
+//   5. 提交有效地址 → 调用 addWallet mutation
+//   6. 切换 chain（polygon → amoy）+ type（eoa → smart）
+//   7. 文件导入路径：pickFile 返回路径 → readFileText → extractAddressFromJson
+//   8. listWallets 失败时的错误状态
 //
 // @vitest-environment happy-dom
 
@@ -83,8 +83,8 @@ describe('Wallets', () => {
     mockListWallets.mockResolvedValue([]);
     renderWallets();
     await waitFor(() => {
-      // Page renders — body has content. Multiple "Add" matches
-      // (EmptyState + Card header), so we just check truthy.
+      // 页面渲染 —— body 含内容。"Add" 多处匹配
+      //（EmptyState + Card header），因此仅检查 truthy。
       expect(document.body.textContent).toBeTruthy();
     });
   });
@@ -93,7 +93,7 @@ describe('Wallets', () => {
     mockListWallets.mockResolvedValue([]);
     renderWallets();
     await waitFor(() => {
-      // EmptyState title is wallets.empty
+      // EmptyState 标题为 wallets.empty
       expect(document.body.textContent).toBeTruthy();
     });
   });
@@ -102,16 +102,16 @@ describe('Wallets', () => {
     mockListWallets.mockResolvedValue([MOCK_WALLET_EOA, MOCK_WALLET_SMART]);
     renderWallets();
     await waitFor(() => {
-      // Label is shown verbatim; "Treasury" comes from MOCK_WALLET_EOA
+      // Label 按原样显示；"Treasury" 来自 MOCK_WALLET_EOA
       expect(screen.getByText('Treasury')).toBeInTheDocument();
     });
-    // EOA Pill
+    // EOA 胶囊
     await waitFor(() => {
       expect(screen.getAllByText('eoa').length).toBeGreaterThan(0);
     });
-    // chain pills
+    // chain 胶囊
     expect(screen.getAllByText(/chain 137|chain 80002/).length).toBe(2);
-    // last_synced on the EOA but not smart
+    // EOA 上有 last_synced，智能合约上没有
     expect(screen.getByText(/last_synced|last sync/i)).toBeTruthy();
   });
 
@@ -125,8 +125,8 @@ describe('Wallets', () => {
 
   it('copies address to clipboard when copy icon is clicked', async () => {
     mockListWallets.mockResolvedValue([MOCK_WALLET_EOA]);
-    // happy-dom doesn't expose `navigator.clipboard` for assignment.
-    // Install the API on the navigator via defineProperty.
+    // happy-dom 未暴露 `navigator.clipboard` 供赋值。
+    // 通过 defineProperty 在 navigator 上安装该 API。
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', {
       value: { writeText },
@@ -137,7 +137,7 @@ describe('Wallets', () => {
     await waitFor(() => {
       expect(screen.getByText('Treasury')).toBeInTheDocument();
     });
-    // Find the copy button (it's a <button> with a lucide-copy svg child)
+    // 查找 copy 按钮（它是带有 lucide-copy svg 子元素的 <button>）
     const copyBtn = document.querySelector('button.lucide-copy')
       ? document.querySelector('button.lucide-copy')!.closest('button')
       : document.querySelector('button[title*="Copy" i]');
@@ -154,13 +154,13 @@ describe('Wallets', () => {
     await waitFor(() => {
       expect(document.body.textContent).toBeTruthy();
     });
-    // Click "Add" or "Add wallet" (i18n key returns the key as fallback)
+    // 点击 "Add" 或 "Add wallet"（i18n key 作为兜底返回 key 本身）
     const addBtn = screen.getAllByRole('button').find((b) =>
       /add wallet|wallets\.add|add target/i.test(b.textContent || ''),
     );
     expect(addBtn).toBeTruthy();
     fireEvent.click(addBtn!);
-    // Modal should render — address input visible
+    // 应渲染 Modal——地址输入可见
     await waitFor(() => {
       const inputs = document.querySelectorAll('input');
       expect(inputs.length).toBeGreaterThan(0);

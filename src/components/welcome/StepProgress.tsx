@@ -1,9 +1,8 @@
-// v0.53b — StepProgress component.
+// v0.53b —— StepProgress 组件。
 //
-// Renders the 6-dot progress indicator at the top
-// of the Welcome route. Dots are filled in as the
-// user advances; the current step is highlighted
-// with an accent-colored ring.
+// 在 Welcome 路由顶部渲染 6 点进度指示。
+// 用户推进时点会填充;当前步骤用
+// accent 色 ring 高亮。
 
 import type { WelcomeStep } from '@/stores/welcome-store';
 import { cn } from '@/lib/cn';

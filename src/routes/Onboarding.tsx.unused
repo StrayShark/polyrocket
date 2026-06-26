@@ -44,7 +44,7 @@ export function Onboarding() {
   const setTheme = useThemeStore((s) => s.setTheme);
   const push = useToastStore((s) => s.push);
 
-  // Auto-redirect if already done
+  // 如果已完成则自动重定向
   useEffect(() => {
     if (onb.done) navigate('/dashboard', { replace: true });
   }, [onb.done, navigate]);
@@ -74,7 +74,7 @@ export function Onboarding() {
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-bg">
       <div className="w-full max-w-2xl space-y-4">
-        {/* Progress */}
+        {/* 进度 */}
         <div className="flex items-center gap-1.5">
           {STEPS.map((s, i) => (
             <div

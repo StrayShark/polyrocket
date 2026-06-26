@@ -1,10 +1,10 @@
-// v0.99 — Settings.tsx RetentionCard test (+4 tests, +~10 stmts).
+// v0.99 — Settings.tsx RetentionCard 测试（+4 个测试，+~10 个语句）。
 //
-// RetentionCard (Settings.tsx:439) is a self-contained card
-// for the audit retention policy. It has 3 NumberHintField
-// inputs (days, max rows, min keep), a Save button, and a
-// Purge now button. All interactions use the `retention-*`
-// testids added in earlier rounds.
+// RetentionCard（Settings.tsx:439）是一个用于
+// audit 保留策略的自包含卡片。它包含 3 个 NumberHintField
+// 输入（days、max rows、min keep）、一个 Save 按钮，
+// 以及一个 Purge now 按钮。所有交互均使用前几轮
+// 新增的 `retention-*` testid。
 //
 // @vitest-environment happy-dom
 
@@ -23,7 +23,7 @@ vi.mock('@/ipc', () => ({
   getAuditRetention: (...args: unknown[]) => mockGetAuditRetention(...args),
   setAuditRetention: (...args: unknown[]) => mockSetAuditRetention(...args),
   purgeAuditLogNow: (...args: unknown[]) => mockPurgeAuditLogNow(...args),
-  // Settings uses many other IPCs — stub them all
+  // Settings 还会用到其他 IPC —— 一并 stub 掉
   setAutoPromoteConfig: vi.fn().mockResolvedValue(undefined),
   getAutoPromoteConfig: vi.fn().mockResolvedValue({ enabled: false, brier_margin: 0.005, min_improvement_pct: 1.0 }),
   getRetentionPolicy: vi.fn().mockResolvedValue({ retain_days: 90, max_rows_k: 50, min_keep: 1000 }),
@@ -157,7 +157,7 @@ describe('Settings RetentionCard (v0.99)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('audit-retention-card')).toBeInTheDocument();
     });
-    // The 3 NumberHintField inputs render with default values
+    // 3 个 NumberHintField 输入以默认值渲染
     expect(screen.getByDisplayValue('90')).toBeInTheDocument();
     expect(screen.getByDisplayValue('50')).toBeInTheDocument();
     expect(screen.getByDisplayValue('1000')).toBeInTheDocument();
@@ -176,7 +176,7 @@ describe('Settings RetentionCard (v0.99)', () => {
     await waitFor(() => {
       expect(mockSetAuditRetention).toHaveBeenCalled();
     });
-    // Should be called with retain_recent_ms = 90 days * 86_400_000
+    // 应使用 retain_recent_ms = 90 天 * 86_400_000 调用
     const call = mockSetAuditRetention.mock.calls[0][0];
     expect(call.retain_recent_ms).toBe(90 * 86_400_000);
     expect(call.max_rows).toBe(50 * 1000);

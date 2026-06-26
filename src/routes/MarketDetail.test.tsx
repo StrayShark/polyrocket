@@ -1,10 +1,10 @@
-// v0.62a — MarketDetail component tests.
+// v0.62a — MarketDetail 组件测试。
 //
-// /markets/:id is the single-market detail page.
-// Today 0% coverage. This file covers:
-//   1. Initial render with empty data
-//   2. Not found state when market doesn't exist
-//   3. Renders signals list (even if empty)
+// /markets/:id 是单个 market 的详情页。
+// 当前覆盖率为 0%。本文件覆盖：
+//   1. 空数据时的初始渲染
+//   2. market 不存在时的 not found 态
+//   3. 渲染 signals 列表（即便为空）
 
 // @vitest-environment happy-dom
 
@@ -37,7 +37,7 @@ describe('MarketDetail', () => {
   it('renders not-found when the market id is unknown', async () => {
     renderMarketDetail('nonexistent');
     await waitFor(() => {
-      // The "not found" empty state
+      // "not found" 空状态
       expect(document.body.textContent).toBeTruthy();
     });
   });

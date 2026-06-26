@@ -1,22 +1,22 @@
-// v0.72a — Brief route additional tests.
+// v0.72a — Brief 路由补充测试。
 //
-// Brief.tsx is 181 lines with 8-entry brief list + rescore/dismiss
-// mutations + filter chips (rank/edge/category) + dismissed pill.
-// Existing test (v0.62a + v0.63a) covers 4 surface cases (mount +
-// refresh + dismiss + rescore). We add 10 tests covering the
-// 5 state branches:
-//   - error state with retry (line 60)
-//   - loading state with 4 Skeletons (lines 98-103)
-//   - empty state with EmptyState + "Generate" CTA (lines 104-114)
-//   - refresh (ghost) button calls useQuery.refetch, not mutation (line 80)
-//   - rescore onSuccess → toast.success + invalidates query (lines 42-48)
-//   - rescore onError → toast.error with message (line 49)
-//   - dismiss onSuccess → toast.info + invalidates query (lines 53-58)
-//   - card with dismissed=true shows "Dismissed" pill (lines 131-133)
-//   - card without edge/confidence (null fields, lines 142-149)
-//   - consensus_side 'NO' → bear pill rendering (line 151)
+// Brief.tsx 有 181 行，包含 8 条 brief 列表 + rescore/dismiss
+// mutations + 筛选 chips（rank/edge/category）+ dismissed pill。
+// 已有测试（v0.62a + v0.63a）覆盖了 4 个表层用例（mount +
+// refresh + dismiss + rescore）。我们新增 10 个测试，覆盖以下
+// 5 个状态分支：
+//   - 错误态（含 retry，第 60 行）
+//   - 加载态（4 个 Skeleton，第 98-103 行）
+//   - 空态（含 EmptyState + "Generate" CTA，第 104-114 行）
+//   - refresh（ghost）按钮调用 useQuery.refetch，而非 mutation（第 80 行）
+//   - rescore onSuccess → toast.success + 失效 query（第 42-48 行）
+//   - rescore onError → 带 message 的 toast.error（第 49 行）
+//   - dismiss onSuccess → toast.info + 失效 query（第 53-58 行）
+//   - dismissed=true 的卡片显示 "Dismissed" pill（第 131-133 行）
+//   - 不含 edge/confidence 的卡片（字段为 null，第 142-149 行）
+//   - consensus_side='NO' → bear pill 渲染（第 151 行）
 //
-// Coverage target: 78.26% → ~88% stmts.
+// 覆盖目标：78.26% → ~88% stmts。
 //
 // @vitest-environment happy-dom
 
@@ -102,7 +102,7 @@ describe('Brief (extended — v0.72a)', () => {
     mockGet.mockReturnValue(new Promise(() => {})); // never resolves
     const { container } = renderBrief();
     await waitFor(() => {
-      // Skeleton component renders div with animate-pulse class
+      // Skeleton 组件渲染带有 animate-pulse 类的 div
       const skeletons = container.querySelectorAll('.animate-pulse');
       expect(skeletons.length).toBeGreaterThanOrEqual(4);
     });
@@ -112,14 +112,14 @@ describe('Brief (extended — v0.72a)', () => {
     mockGet.mockResolvedValue([]);
     renderBrief();
     await waitFor(() => {
-      // EmptyState component + "Generate" CTA
+      // EmptyState 组件 + "Generate" CTA
       expect(screen.getByText(/Generate|生成/i)).toBeInTheDocument();
     });
     const genBtn = screen.getAllByRole('button').find(b =>
       /generate|生成/i.test(b.textContent || ''),
     );
     expect(genBtn).toBeTruthy();
-    // Click Generate — should trigger refreshMut
+    // 点击 Generate —— 应触发 refreshMut
     fireEvent.click(genBtn!);
     await waitFor(() => {
       expect(mockRefresh).toHaveBeenCalled();
@@ -136,7 +136,7 @@ describe('Brief (extended — v0.72a)', () => {
     expect(refreshBtn).toBeTruthy();
     fireEvent.click(refreshBtn!);
     await waitFor(() => {
-      // Ghost "Refresh" only refetches cache; mutation should NOT be called
+      // ghost "Refresh" 仅重拉缓存；不应调用 mutation
       expect(mockRefresh.mock.calls.length).toBe(callsBefore);
     });
   });
@@ -151,7 +151,7 @@ describe('Brief (extended — v0.72a)', () => {
     await waitFor(() => {
       expect(mockRefresh).toHaveBeenCalled();
     });
-    // Toast store should have received success
+    // Toast store 应已接收到 success
     const { toasts } = useToastStore.getState();
     expect(toasts.length).toBeGreaterThan(0);
     const success = toasts.find(t => t.kind === 'success');
@@ -193,21 +193,21 @@ describe('Brief (extended — v0.72a)', () => {
   it('renders dismissed pill for entries with dismissed=true', async () => {
     renderBrief();
     await waitFor(() => screen.getByText(/ETH stay above 4k/i));
-    // m2 has dismissed=true — should render a "Dismissed" pill
+    // m2 的 dismissed=true —— 应渲染 "Dismissed" 胶囊
     expect(screen.getAllByText(/dismissed/i).length).toBeGreaterThan(0);
   });
 
   it('handles entries with null edge/confidence (no edge/conf line)', async () => {
     renderBrief();
     await waitFor(() => screen.getByText(/Fed cut rates/i));
-    // m3 has edge=null + confidence=null + consensus_side=null
-    // The row should still render but the edge / confidence / consensus
-    // Pill section should not produce text for m3.
-    // Easiest check: m3 question text is in the document, but no
-    // "+12.0%" appears next to it (m1 has +12.0%, m3 has nothing).
+    // m3 的 edge=null + confidence=null + consensus_side=null
+    // 该行仍应渲染，但 m3 的 edge / confidence / consensus
+    // Pill 部分不应产生文本。
+    // 最简单的检查：m3 question 文本在 document 中，但其旁
+    // 不应出现 "+12.0%"（m1 有 +12.0%，m3 没有）。
     const fedRow = screen.getByText(/Fed cut rates/i).closest('div');
     expect(fedRow).toBeTruthy();
-    // m3 row contains neither "+12.0%" edge nor "75.0%" confidence text
+    // m3 行既不包含 "+12.0%" 的 edge，也不包含 "75.0%" 的 confidence 文本
     const fedRowText = fedRow?.textContent || '';
     expect(fedRowText).not.toMatch(/\+12\.0%/);
     expect(fedRowText).not.toMatch(/75\.0%/);
@@ -216,8 +216,8 @@ describe('Brief (extended — v0.72a)', () => {
   it('renders NO consensus as bear pill (different from YES bull)', async () => {
     renderBrief();
     await waitFor(() => screen.getByText(/ETH stay above 4k/i));
-    // m2 has consensus_side='NO' → bear pill
-    // The pill text contains both side letter + strength %
+    // m2 的 consensus_side='NO' → bear pill
+    // 该 pill 文本同时包含 side 字母与强度 %
     const noText = screen.getAllByText(/NO/);
     expect(noText.length).toBeGreaterThan(0);
   });

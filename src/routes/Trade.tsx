@@ -1,7 +1,6 @@
-// v0.52 — Trade route. Standalone page hosting
-// the PlaceBetForm. Users navigate here to
-// manually place a bet. The form is also opened
-// from Signal cards (in v0.52b).
+// v0.52 — Trade 路由。托管 PlaceBetForm 的独立页。
+// 用户导航至此手动下单。v0.52b 起该表单也可从
+// Signal 卡片打开。
 
 import { useSearchParams } from 'react-router-dom';
 import { Card } from '@/components/base/Card';
@@ -24,8 +23,8 @@ import type { BetSide } from '@/types/bet';
 export function Trade() {
   const { t } = useT();
   const [params] = useSearchParams();
-  // The Signals page links here with query params
-  // to pre-fill the form. v0.52b wires this up.
+  // Signals 页面通过 query 参数链接到此处以预填表单。
+  // v0.52b 起实现这一链接。
   const marketId = params.get('market') ?? undefined;
   const side = (params.get('side') as BetSide | null) ?? undefined;
   const price = params.get('price');

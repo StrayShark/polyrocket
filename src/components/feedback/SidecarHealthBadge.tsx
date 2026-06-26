@@ -1,12 +1,12 @@
 /**
- * Sidecar health badge (v0.10d).
+ * Sidecar 健康徽章(v0.10d)。
  *
- * Small pill in the topbar showing the most recent probe status:
- *   - "ok"      → green dot + "Sidecar OK"
- *   - "failed"  → red dot + "Sidecar DOWN"
- *   - "unknown" → gray dot + "Sidecar —"
+ * 顶栏中的小徽章,显示最近一次 probe 状态:
+ *   - "ok"      → 绿点 + "Sidecar OK"
+ *   - "failed"  → 红点 + "Sidecar DOWN"
+ *   - "unknown" → 灰点 + "Sidecar —"
  *
- * Polls the IPC every 30s. Click to force a probe.
+ * 每 30s 轮询一次 IPC。点击强制重新 probe。
  */
 
 import { useState } from 'react';
@@ -34,7 +34,7 @@ function dotColor(snap: SidecarHealthSnapshot | undefined): keyof typeof COLORS 
   return 'ok';
 }
 
-// Standalone helper so we can also call it from the click handler.
+// 独立的辅助函数,也可在 click handler 中调用。
 function statusOf(snap: SidecarHealthSnapshot | undefined): keyof typeof COLORS {
   return dotColor(snap);
 }

@@ -1,10 +1,10 @@
-// v0.99 — Settings.tsx ClobFeedCard test (+3 tests, +~6 stmts).
+// v0.99 — Settings.tsx ClobFeedCard 测试（+3 个测试，+~6 个语句）。
 //
-// ClobFeedCard (Settings.tsx:1199) shows the CLOB feed
-// status (not_configured / configured / connected) with
-// a Refresh button. Existing Settings tests don't cover
-// this card. The branches are the 3 status colors and the
-// error / loading / loaded UI states.
+// ClobFeedCard（Settings.tsx:1199）展示 CLOB feed
+// 状态（not_configured / configured / connected）并提供
+// Refresh 按钮。已有 Settings 测试未覆盖
+// 本卡片。相关分支为 3 种状态颜色，以及
+// error / loading / loaded 三种 UI 状态。
 //
 // @vitest-environment happy-dom
 
@@ -21,7 +21,7 @@ const { mockGetAuditRetention, mockClobFeedStatus } = vi.hoisted(() => ({
 vi.mock('@/ipc', () => ({
   getAuditRetention: (...args: unknown[]) => mockGetAuditRetention(...args),
   clobFeedStatus: (...args: unknown[]) => mockClobFeedStatus(...args),
-  // Settings uses many other IPCs — stub them all
+  // Settings 还会用到其他 IPC —— 一并 stub 掉
   setAuditRetention: vi.fn().mockResolvedValue(undefined),
   purgeAuditLogNow: vi.fn().mockResolvedValue(undefined),
   setAutoPromoteConfig: vi.fn().mockResolvedValue(undefined),

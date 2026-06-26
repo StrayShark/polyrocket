@@ -24,7 +24,7 @@ import type { AuditEntry } from '@/types/shared';
  *
  * **filter 维度**：
  *   - `actionFilter` —— `action` column prefix（`"pm."` / `"wallet."` / `"llm."` 等）
- *   - `search` —— fuzzy match `actor` / `target` / `action`
+ *   - `search` —— 模糊匹配 `actor` / `target` / `action`
  *
  * **性能**：`staleTime: 30_000` 30s 内不重拉。L1 「Settings → Audit」有 v0.42b
  * 之后的 retention 设置（`set_audit_retention` IPC）。
@@ -41,7 +41,7 @@ export function Audit() {
     staleTime: 30_000,
   });
 
-  // Pull unique action prefixes for filter chips
+  // 提取唯一的 action 前缀用于过滤芯片
   const actions = useMemo(() => {
     const set = new Set<string>();
     (data ?? []).forEach((e) => {

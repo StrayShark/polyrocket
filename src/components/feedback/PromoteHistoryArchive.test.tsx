@@ -1,22 +1,21 @@
 /**
- * v0.34a — PromoteHistoryArchive component tests.
+ * v0.34a —— PromoteHistoryArchive 组件测试。
  *
- * The archive modal is the L1 UI for reading the
- * Python sidecar's `archive.jsonl` file (via the
- * v0.33b `list_promote_history_archive` IPC). The
- * tests cover:
- *  1. Empty state (no archive file yet)
- *  2. Populated state with a single page
- *  3. Pagination: prev/next buttons work
- *  4. Per-row: trial badge, brier color, time
- *  5. Close button resets offset
+ * archive modal 是读取 Python sidecar 的
+ * `archive.jsonl`(经 v0.33b `list_promote_history_archive`
+ * IPC)的 L1 UI。测试覆盖:
+ *  1. 空状态(尚无 archive 文件)
+ *  2. 单页的已填充状态
+ *  3. 分页:prev/next 按钮可用
+ *  4. 每行:trial 徽章、brier 颜色、时间
+ *  5. close 按钮重置 offset
  *
- * Pattern matches the existing PromoteHistory.test.tsx:
- *   - happy-dom environment
- *   - mock @/ipc (only the archive IPC is needed)
- *   - mock @/lib/i18n with `(k) => k` passthrough
- *   - wrap in QueryClientProvider
- *   - the Modal is a real Modal (not stubbed)
+ * 模式与现有 PromoteHistory.test.tsx 一致:
+ *   - happy-dom 环境
+ *   - mock @/ipc(只需 archive IPC)
+ *   - mock @/lib/i18n 为 `(k) => k` 透传
+ *   - 包在 QueryClientProvider 中
+ *   - Modal 走真实实现(不 stub)
  */
 
 // @vitest-environment happy-dom
@@ -60,8 +59,8 @@ describe('PromoteHistoryArchive (v0.34a)', () => {
       message: 'no archive yet; archive is created on first overflow',
     });
     render(wrap(<PromoteHistoryArchive open onClose={() => {}} />));
-    // The empty state shows the EmptyState component, not
-    // the rows container. Wait for the empty title to appear.
+    // 空状态显示 EmptyState 组件,而不是
+    // rows 容器。等待空状态标题出现。
     await waitFor(() => {
       expect(screen.getByText('promote.archive.empty_title')).toBeInTheDocument();
     });
@@ -85,7 +84,7 @@ describe('PromoteHistoryArchive (v0.34a)', () => {
     });
     const rows = screen.getAllByTestId('promote-history-archive-row');
     expect(rows).toHaveLength(3);
-    // Total is reported
+    // Total 已报告
     expect(screen.getByTestId('promote-history-archive')).toHaveAttribute('data-total', '3');
   });
 
@@ -126,19 +125,19 @@ describe('PromoteHistoryArchive (v0.34a)', () => {
       message: null,
     });
     render(wrap(<PromoteHistoryArchive open onClose={() => {}} />));
-    // Wait for the first batch of rows to render
+    // 等待第一批 rows 渲染
     await waitFor(() => {
       expect(screen.getAllByTestId('promote-history-archive-row').length).toBe(25);
     });
-    // Initial call: offset=0
+    // 初始调用: offset=0
     expect(vi.mocked(listPromoteHistoryArchive).mock.calls[0]?.[0]?.offset).toBe(0);
-    // Click next
+    // 点击 next
     fireEvent.click(screen.getByTestId('promote-history-archive-next'));
-    // Wait for the next call to be made
+    // 等待下一次调用
     await waitFor(() => {
       expect(vi.mocked(listPromoteHistoryArchive).mock.calls.length).toBeGreaterThan(1);
     });
-    // The latest call should have offset=25
+    // 最新的调用应有 offset=25
     const calls = vi.mocked(listPromoteHistoryArchive).mock.calls;
     expect(calls[calls.length - 1]?.[0]?.offset).toBe(25);
   });
@@ -160,13 +159,13 @@ describe('PromoteHistoryArchive (v0.34a)', () => {
       message: null,
     });
     render(wrap(<PromoteHistoryArchive open onClose={() => {}} />));
-    // Wait for the first batch of rows to render
+    // 等待第一批 rows 渲染
     await waitFor(() => {
       expect(screen.getAllByTestId('promote-history-archive-row').length).toBe(25);
     });
-    // First page → prev disabled (offset=0, hasPrev=false)
+    // 第一页 → prev 禁用 (offset=0, hasPrev=false)
     expect(screen.getByTestId('promote-history-archive-prev')).toBeDisabled();
-    // First page, but total=50 > 25 → next enabled
+    // 第一页,但 total=50 > 25 → next 启用
     expect(screen.getByTestId('promote-history-archive-next')).not.toBeDisabled();
   });
 
@@ -178,7 +177,7 @@ describe('PromoteHistoryArchive (v0.34a)', () => {
       message: null,
     });
     render(wrap(<PromoteHistoryArchive open={false} onClose={() => {}} />));
-    // Wait a tick to let any effects run
+    // 等待一拍让任何 effect 执行
     await new Promise((r) => setTimeout(r, 50));
     expect(listPromoteHistoryArchive).not.toHaveBeenCalled();
   });

@@ -46,11 +46,10 @@ export function Copy() {
     staleTime: 30_000,
   });
 
-  // v0.44c — paper-mode banner. Show [PAPER] at the
-  // top of the Copy page when the user has paper
-  // mode enabled, so they don't accidentally
-  // believe live trades are happening. Also fetch
-  // the paper_fills count for a quick stat.
+  // v0.44c — paper-mode banner。当用户启用了 paper
+  // mode 时，在 Copy 页面顶部显示 [PAPER]，避免用户
+  // 误以为正在进行真实交易。同时获取 paper_fills
+  // 数量以显示一个快速统计。
   const { data: paperMode } = useQuery({
     queryKey: ['mirror-paper-mode'],
     queryFn: () => getMirrorPaperMode(),
@@ -89,11 +88,10 @@ export function Copy() {
         </div>
       </Card>
 
-      {/* v0.44c — paper mode banner. Renders only
-          when paper mode is on. Surfaces the count
-          of paper_fills accumulated so far so the
-          user can see "yes, the system is
-          capturing my hypothetical trades". */}
+      {/* v0.44c — paper mode banner。仅在 paper mode
+          开启时渲染。展示迄今为止累积的 paper_fills
+          数量，让用户看到「是的，系统正在记录
+          我的模拟交易」。*/}
       {paperMode && (
         <div
           className="rounded-md border border-accent/40 bg-accent/5 p-2.5 flex items-center gap-2"
@@ -113,7 +111,7 @@ export function Copy() {
         </div>
       )}
 
-      {/* Auto-trigger mirror panel — derived client-side from L3 should_mirror() */}
+      {/* 自动触发 mirror 面板 —— 由 L3 should_mirror() 在客户端派生 */}
       <Card
         title="Mirror activity"
         description="Live mirror decisions derived from copy events + market signals (client-side L3 mirror)"

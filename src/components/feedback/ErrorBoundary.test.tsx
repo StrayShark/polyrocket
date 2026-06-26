@@ -6,19 +6,19 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { QueryError } from './QueryError';
 import { classifyError } from '@/lib/invoke-safe';
 
-// Component that always throws — used to test ErrorBoundary.
+// 总是抛出错误的组件——用于测试 ErrorBoundary。
 function Bomb({ message = 'boom' }: { message?: string }): ReactNode {
   throw new Error(message);
 }
 
-// Component that renders fine.
+// 正常渲染的组件。
 function Safe(): ReactNode {
   return <div data-testid="safe">ok</div>;
 }
 
 describe('ErrorBoundary', () => {
-  // happy-dom + console.error noise: silence the expected React error logs
-  // so the test runner output stays clean.
+  // happy-dom + console.error 噪声:屏蔽预期的 React 错误日志,
+  // 让测试运行器的输出保持整洁。
   const origError = console.error;
   beforeAll(() => { console.error = vi.fn(); });
   afterAll(() => { console.error = origError; });
@@ -39,12 +39,12 @@ describe('ErrorBoundary', () => {
         <Bomb message="database error: out of space" />
       </ErrorBoundary>,
     );
-    // Recovery panel copy
+    // 恢复面板文案
     expect(screen.getByText(/Something went wrong/i)).toBeInTheDocument();
-    // The error is classified and the kind+message are rendered
+    // 错误已被分类,kind+message 已渲染
     expect(screen.getByText(/db/i)).toBeInTheDocument();
     expect(screen.getByText(/out of space/i)).toBeInTheDocument();
-    // The Try again button is present
+    // Try again 按钮存在
     expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
   });
 

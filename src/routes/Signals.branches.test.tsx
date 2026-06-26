@@ -1,9 +1,9 @@
-// v0.93 — Signals.tsx branches round 2 (+7 tests, fn 72.7→~85%).
+// v0.93 — Signals.tsx 分支第二轮（+7 测试，fn 72.7 → 约 85%）。
 //
-// Targets the column cell branches, KpiCard delta branches,
-// Recompute success/error branches, and the empty-state
-// "no-match" description branch. Existing tests cover the
-// surface-level filter/mutation flow.
+// 目标：列单元格分支、KpiCard delta 分支、
+// Recompute 成功/错误分支以及
+// 空状态 "no-match" 描述分支。已有测试覆盖
+// 表层的过滤/变更流程。
 
 // @vitest-environment happy-dom
 
@@ -59,7 +59,7 @@ describe('Signals (v0.93) — branches round 2', () => {
     mls.mockResolvedValue(SAMPLE);
     renderSignals();
     await waitFor(() => screen.getByText('Will X happen?'));
-    // signal-trade-1 corresponds to id=1 which is bullish (edge=0.15)
+    // signal-trade-1 对应 id=1，是 bullish（edge=0.15）
     const tradeLink = screen.getByTestId('signal-trade-1') as HTMLAnchorElement;
     expect(tradeLink.getAttribute('href')).toContain('side=YES');
     expect(tradeLink.getAttribute('href')).toContain('market=m1');
@@ -70,7 +70,7 @@ describe('Signals (v0.93) — branches round 2', () => {
     mls.mockResolvedValue(SAMPLE);
     renderSignals();
     await waitFor(() => screen.getByText('Will Y happen?'));
-    // signal-trade-2 corresponds to id=2 which is bearish (edge=-0.10)
+    // signal-trade-2 对应 id=2，是 bearish（edge=-0.10）
     const tradeLink = screen.getByTestId('signal-trade-2') as HTMLAnchorElement;
     expect(tradeLink.getAttribute('href')).toContain('side=NO');
     expect(tradeLink.getAttribute('href')).toContain('market=m2');
@@ -81,7 +81,7 @@ describe('Signals (v0.93) — branches round 2', () => {
     mls.mockResolvedValue(SAMPLE);
     renderSignals();
     await waitFor(() => screen.getByText('Will X happen?'));
-    // 2 bullish out of 3 = 67%
+    // 3 个中 2 个 bullish = 67%
     expect(document.body.textContent).toMatch(/67%/);
   });
 
@@ -89,18 +89,18 @@ describe('Signals (v0.93) — branches round 2', () => {
     mls.mockResolvedValue([]);
     renderSignals();
     await waitFor(() => {
-      // No percentage text (other than "min edge 5%" hint) when total is 0
-      // Specifically, the bullish/bearish deltas would be 0/0
-      const text = document.body.textContent || '';
-      // Should NOT contain the bullish "X%" delta format
-      expect(text).not.toMatch(/Bullish\d+%/);
+      // 当 total=0 时不出现百分比文本（"min edge 5%" 提示除外）
+    // 具体而言，bullish/bearish delta 应为 0/0
+    const text = document.body.textContent || '';
+    // 不应包含 bullish "X%" delta 格式
+    expect(text).not.toMatch(/Bullish\d+%/);
       expect(text).not.toMatch(/Bearish\d+%/);
     });
   });
 
   it('Recompute success toast differs for n > 0 vs n === 0', async () => {
     mls.mockResolvedValue(SAMPLE);
-    // First run: n > 0
+    // 首次运行：n > 0
     mrs.mockResolvedValue(5);
     renderSignals();
     await waitFor(() => screen.getByText('Will X happen?'));
@@ -137,11 +137,11 @@ describe('Signals (v0.93) — branches round 2', () => {
     mls.mockResolvedValue(SAMPLE);
     renderSignals();
     await waitFor(() => screen.getByText('Will X happen?'));
-    // Bump minEdgePct to a value nothing matches (e.g. 50)
+    // 将 minEdgePct 调高到没有匹配项的值（例如 50）
     const input = screen.getByDisplayValue('5') as HTMLInputElement;
     fireEvent.change(input, { target: { value: '50' } });
     await waitFor(() => {
-      // No-match hint (not the "no signals at all" empty state)
+      // No-match 提示（非"完全没有 signal"空状态）
       expect(document.body.textContent).toMatch(/No signals match|min edge|threshold/i);
     });
   });

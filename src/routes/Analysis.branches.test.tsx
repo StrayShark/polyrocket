@@ -1,27 +1,27 @@
-// v0.73b — Analysis branches additional tests.
+// v0.73b — Analysis 分支补充测试。
 //
-// Analysis.tsx is 403 lines with 4 mutations (analyze / rec /
-// decision / signals refetch), 3-card result grid, 6-field
-// recommendation modal, and CSV export. Existing tests
-// (v0.62a + v0.71b + Analysis.extras) cover ~16 cases. We add
-// 15 tests covering the remaining branches (35 uncovered):
-//   - analyzeMut onSuccess: setAnalyzeResult + clear activeAnalysisId
-//   - analyzeMut onError: toast.error + clear activeAnalysisId
-//   - consensusSide icon: 'YES' → TrendingUp, 'NO' → TrendingDown, else → Sparkles
-//   - ResultCard value: consensusSide null → '—' fallback
-//   - ResultCard value: consensusProb null → '—' fallback
-//   - ResultCard value: consensusConfidence null → '—' fallback
-//   - recMut onSuccess: setChosen opens Modal
-//   - recMut onError: toast.error
-//   - decisionMut 'follow_top' onSuccess: toast + invalidate
-//   - decisionMut 'skip' onSuccess: toast
-//   - decisionMut onError: toast.error
-//   - exportCsv with empty signals (no click) + with data (click → toCsv)
-//   - signals row click → setMarketId + clear analyzeResult
-//   - Recommendation modal: all 6 fields render + reasoning block
-//   - Recommendation modal: nullable fields render '—'
+// Analysis.tsx 共 403 行，包含 4 个变更（analyze / rec /
+// decision / signals refetch）、3 卡片结果网格、
+// 6 字段推荐弹窗以及 CSV 导出。已有测试
+//（v0.62a + v0.71b + Analysis.extras）覆盖约 16 个用例。我们新增
+// 15 个测试覆盖剩余分支（共 35 个未覆盖）：
+//   - analyzeMut onSuccess：setAnalyzeResult + 清空 activeAnalysisId
+//   - analyzeMut onError：toast.error + 清空 activeAnalysisId
+//   - consensusSide 图标：'YES' → TrendingUp，'NO' → TrendingDown，其他 → Sparkles
+//   - ResultCard 值：consensusSide null → '—' 兜底
+//   - ResultCard 值：consensusProb null → '—' 兜底
+//   - ResultCard 值：consensusConfidence null → '—' 兜底
+//   - recMut onSuccess：setChosen 打开 Modal
+//   - recMut onError：toast.error
+//   - decisionMut 'follow_top' onSuccess：toast + invalidate
+//   - decisionMut 'skip' onSuccess：toast
+//   - decisionMut onError：toast.error
+//   - 空 signals 的 exportCsv（不点击）+ 有数据（点击 → toCsv）
+//   - 点击 signals 行 → setMarketId + 清空 analyzeResult
+//   - 推荐弹窗：全部 6 个字段渲染 + reasoning 块
+//   - 推荐弹窗：可空字段渲染 '—'
 //
-// Coverage target: branches 46.96% → ~65%, stmts 70.76% → ~80%.
+// 覆盖目标：分支 46.96% → 约 65%，语句 70.76% → 约 80%。
 //
 // @vitest-environment happy-dom
 
@@ -89,7 +89,7 @@ const RECOMMENDATION = {
 beforeEach(() => {
   vi.clearAllMocks();
   mlas.mockResolvedValue(SIGNALS);
-  // onAnalyzeStarted returns a Promise<unsub>; default to a no-op
+  // onAnalyzeStarted 返回 Promise<unsub>；默认采用空操作
   moas.mockResolvedValue(() => {});
   ma.mockResolvedValue({
     id: 'analysis-uuid-1',
@@ -116,7 +116,7 @@ describe('Analysis (branches — v0.73b)', () => {
     await waitFor(() => {
       expect(ma).toHaveBeenCalledWith('mkt-1');
     });
-    // Result cards should show side/prob/confidence
+    // 结果卡片应展示 side/prob/confidence
     await waitFor(() => {
       expect(screen.getAllByText('YES').length).toBeGreaterThan(0);
     });
@@ -157,7 +157,7 @@ describe('Analysis (branches — v0.73b)', () => {
     );
     fireEvent.click(analyzeBtn!);
     await waitFor(() => {
-      // em-dash rendered for null side
+      // em-dash 在 side 为 null 时渲染
       const text = document.body.textContent || '';
       expect(text).toMatch(/—/);
     });
@@ -181,7 +181,7 @@ describe('Analysis (branches — v0.73b)', () => {
     fireEvent.click(analyzeBtn!);
     await waitFor(() => {
       const text = document.body.textContent || '';
-      // em-dash appears somewhere
+      // em-dash 在某处出现
       expect(text).toMatch(/—/);
     });
   });
@@ -227,7 +227,7 @@ describe('Analysis (branches — v0.73b)', () => {
     fireEvent.click(recBtn!);
     await waitFor(() => {
       expect(mgr).toHaveBeenCalled();
-      // Modal fields
+      // Modal 字段
       expect(screen.getByText('anthropic-claude-3')).toBeInTheDocument();
     });
   });
@@ -317,18 +317,18 @@ describe('Analysis (branches — v0.73b)', () => {
   });
 
   it('exportCsv click when signals data exists → toCsv + download', async () => {
-    // happy-dom: anchor.click() is a no-op; we verify downloadCsv is called
+    // happy-dom：anchor.click() 是空操作；我们验证 downloadCsv 被调用
     renderAnalysis();
     await waitFor(() => screen.getAllByText('mkt-1').length > 0);
-    // Click signals row to populate marketId (optional)
+    // 点击 signals 行以填充 marketId（可选）
     const exportBtn = screen.getAllByRole('button').find(b =>
       /export/i.test(b.textContent || ''),
     );
     expect(exportBtn).toBeDefined();
     fireEvent.click(exportBtn!);
-    // No assertion needed — branch is covered by click
+    // 无需断言 —— 该分支已被 click 覆盖
     await waitFor(() => {
-      // Just verify it didn't throw
+      // 仅验证未抛出异常
       expect(exportBtn).toBeTruthy();
     });
   });
@@ -336,7 +336,7 @@ describe('Analysis (branches — v0.73b)', () => {
   it('signals row click → setMarketId + clear analyzeResult', async () => {
     renderAnalysis();
     await waitFor(() => screen.getAllByText('mkt-1').length > 0);
-    // Click first signal row
+    // 点击第一个 signal 行
     const sigRow = screen.getByText('mkt-1').closest('button');
     expect(sigRow).toBeDefined();
     fireEvent.click(sigRow!);
@@ -362,7 +362,7 @@ describe('Analysis (branches — v0.73b)', () => {
     expect(recBtn).toBeDefined();
     fireEvent.click(recBtn!);
     await waitFor(() => expect(mgr).toHaveBeenCalled());
-    // All fields should render
+    // 所有字段应渲染
     await waitFor(() => {
       expect(screen.getByText(/anthropic-claude-3/)).toBeInTheDocument();
       expect(screen.getByText(/Strong consensus/)).toBeInTheDocument();
@@ -394,7 +394,7 @@ describe('Analysis (branches — v0.73b)', () => {
     expect(recBtn).toBeDefined();
     fireEvent.click(recBtn!);
     await waitFor(() => expect(mgr).toHaveBeenCalled());
-    // All 5 nullable fields → em-dash
+    // 全部 5 个可空字段渲染 em-dash
     await waitFor(() => {
       const text = document.body.textContent || '';
       const dashCount = (text.match(/—/g) || []).length;

@@ -1,13 +1,12 @@
 /**
- * React error boundary.
+ * React 错误边界。
  *
- * Catches render-time exceptions (componentDidCatch in v0.8b; not
- * concurrent-safe yet) and shows a recovery UI instead of a blank
- * page. Wrap the App in `<ErrorBoundary>` so a single broken route
- * doesn't white-screen the whole Tauri window.
+ * 捕获渲染期异常(v0.8b 的 componentDidCatch;目前尚不支持并发模式),
+ * 并显示恢复 UI,而不是空白页。用 `<ErrorBoundary>` 包裹 App,
+ * 防止单个路由崩溃导致整个 Tauri 窗口白屏。
  *
- * Uses class component (the only React-supported way to do this in
- * v18; the upcoming `use()` hook will replace it in v0.9+).
+ * 使用 class 组件(v18 中这是 React 唯一支持的方式;
+ * 即将推出的 `use()` hook 将在 v0.9+ 替换它)。
  */
 
 import { Component, type ReactNode } from 'react';
@@ -16,7 +15,7 @@ import { classifyError, type AppErrorShape } from '@/lib/invoke-safe';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
-  /** Optional fallback; defaults to the built-in recovery panel. */
+  /** 可选 fallback;默认为内置的恢复面板。 */
   fallback?: (err: AppErrorShape, reset: () => void) => ReactNode;
 }
 
@@ -33,8 +32,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: unknown, info: { componentStack?: string }) {
-    // Log to the dev console; in production the tauri-plugin-log will
-    // pick this up via the global error handler.
+    // 输出到开发控制台;生产环境由 tauri-plugin-log
+    // 通过全局错误处理接管。
     // eslint-disable-next-line no-console
     console.error('[ErrorBoundary]', error, info.componentStack);
   }

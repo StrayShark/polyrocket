@@ -1,8 +1,8 @@
-// v0.100 — Settings.tsx BackupRestoreCard test (+2 tests, +~6 stmts).
+// v0.100 — Settings.tsx BackupRestoreCard 测试（+2 个测试，+~6 个语句）。
 //
-// BackupRestoreCard (Settings.tsx:812) is the prefs export/import
-// card. Existing Settings tests don't cover the BackupRestoreCard.
-// This file targets the export button + import flow.
+// BackupRestoreCard（Settings.tsx:812）用于导出/导入
+// 偏好。已有 Settings 测试未覆盖 BackupRestoreCard。
+// 本文件针对 export 按钮 + import 流程。
 //
 // @vitest-environment happy-dom
 
@@ -173,8 +173,7 @@ describe('Settings BackupRestoreCard (v0.100)', () => {
     render(wrap());
     const btn = await screen.findByTestId('backup-export-btn');
     expect(btn).toBeInTheDocument();
-    // Verify the onClick is bound by checking the button
-    // is not disabled and has the role of a clickable button.
+    // 通过检查按钮未禁用且具有可点击按钮的角色来验证 onClick 已绑定。
     expect((btn as HTMLButtonElement).tagName).toBe('BUTTON');
   });
 });

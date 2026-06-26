@@ -1,11 +1,11 @@
-// v0.77c — MarketDetail branches round 2 (+5 tests, 31.8%→80% br).
+// v0.77c — MarketDetail 分支第 2 轮（+5 个测试，31.8%→80% br）。
 //
-// MarketDetail.tsx is 182 lines. Existing test (v0.62a) only covers
-// "not found" state. v8 coverage reports 15 uncovered branches
-// covering: loading skeleton, error banner, success state, signals
-// filter, link rendering, price chart branches.
+// MarketDetail.tsx 共 182 行。已有测试（v0.62a）仅覆盖
+// "not found" 状态。v8 coverage 报告有 15 个未覆盖分支，
+// 涉及：加载 skeleton、错误横幅、成功态、signals
+// 过滤、链接渲染、价格图分支。
 //
-// Coverage target: 31.8% br → ~80% br.
+// 覆盖目标：31.8% br → ~80% br。
 //
 // @vitest-environment happy-dom
 
@@ -86,7 +86,7 @@ describe('MarketDetail round 2 (v0.77c — branch closing)', () => {
     mockListMarkets.mockReturnValue(new Promise(() => {})); // never resolves
     mockListActiveSignals.mockReturnValue(new Promise(() => {}));
     renderDetail('m1');
-    // Skeleton renders placeholder
+    // Skeleton 渲染占位符
     const skeletons = document.querySelectorAll('.animate-pulse, [class*="skeleton"]');
     expect(skeletons.length).toBeGreaterThanOrEqual(0); // just verify no crash
   });
@@ -116,7 +116,7 @@ describe('MarketDetail round 2 (v0.77c — branch closing)', () => {
     mockListActiveSignals.mockResolvedValue([SIGNAL_X, SIGNAL_Y]);
     renderDetail('m1');
     await waitFor(() => {
-      // SIGNAL_X (market_id m1) should appear, SIGNAL_Y (market_id m2) should not
+      // SIGNAL_X (market_id m1) 应出现，SIGNAL_Y (market_id m2) 不应出现
       const text = document.body.textContent || '';
       expect(text).toBeTruthy();
     });

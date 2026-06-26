@@ -1,10 +1,10 @@
-// v0.62a — Signals component tests.
+// v0.62a —— Signals 组件测试。
 //
-// /signals is the active-signal list. Today 0%
-// coverage. This file covers:
-//   1. Initial render with empty data
-//   2. Recompute button (stub) renders
-//   3. Min-edge filter input is editable
+// /signals 是活动 signal 列表。目前 0%
+// 覆盖率。本文件覆盖：
+//   1. 使用空数据的初始渲染
+//   2. 渲染 Recompute 按钮（stub）
+//   3. Min-edge 过滤输入可编辑
 
 // @vitest-environment happy-dom
 
@@ -35,7 +35,7 @@ describe('Signals', () => {
   it('renders the page', async () => {
     renderSignals();
     await waitFor(() => {
-      // Multiple elements match "/signals/i" (h2 + nav link)
+      // 多处元素匹配 "/signals/i"（h2 + 导航链接）
       expect(screen.getAllByText(/signals/i).length).toBeGreaterThan(0);
     });
   });

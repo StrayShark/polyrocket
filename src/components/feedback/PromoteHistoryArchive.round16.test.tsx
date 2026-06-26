@@ -1,14 +1,14 @@
-// v0.116 — PromoteHistoryArchive.tsx coverage ramp.
+// v0.116 —— PromoteHistoryArchive.tsx 覆盖提升。
 //
-// Target: cover the 3 uncovered branches at lines 84-85, 125, 157
-// (from coverage report at v0.106+final).
+// 目标:覆盖 3 个未触及的分支,在 84-85、125、157 行
+// (来自 v0.106+final 的覆盖率报告)。
 //
-// Lines 84-85: setOffset(0) + onClose() in handleClose
-// Line 125: setOffset(Math.max(0, offset - PAGE_SIZE)) — prev page button
-// Line 157: ErrorState onRetry={() => refetch()}
+// 84-85 行:handleClose 中的 setOffset(0) + onClose()
+// 125 行:setOffset(Math.max(0, offset - PAGE_SIZE))—— prev 翻页按钮
+// 157 行:ErrorState onRetry={() => refetch()}
 //
-// The prev/next/close buttons are clickable in tests; we render with
-// mock data, click the buttons, assert state changes.
+// 测试中可点击 prev/next/close 按钮;我们用 mock 数据渲染,
+// 点击按钮后断言 state 变化。
 
 // @vitest-environment happy-dom
 
@@ -29,7 +29,7 @@ vi.mock('@/ipc', () => ({
   listPromoteArchive: (...args: unknown[]) => mockListPromoteArchive(...args),
 }));
 
-// Mock useQuery so we control data/loading/error states.
+// Mock useQuery 以便控制 data/loading/error 状态。
 vi.mock('@tanstack/react-query', async () => {
   const actual = await vi.importActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
   return {
@@ -80,9 +80,9 @@ describe('PromoteHistoryArchive round 16', () => {
   it('renders error state with retry button (covers line 155-157 branch)', () => {
     makeQ({ error: 'fetch failed' });
     renderArchive({ open: true, onClose: vi.fn() });
-    // ErrorState retry button uses t('error.retry') or similar — look for any button
+    // ErrorState retry 按钮使用 t('error.retry') 等 —— 查找任何按钮
     const buttons = screen.getAllByRole('button');
-    // First button is typically the retry button in ErrorState layout
+    // 第一个按钮通常是 ErrorState 布局中的 retry 按钮
     const retryButton = buttons.find((b) => b.textContent && /retry|重试|try again/i.test(b.textContent));
     expect(retryButton).toBeDefined();
     fireEvent.click(retryButton!);
@@ -92,7 +92,7 @@ describe('PromoteHistoryArchive round 16', () => {
   it('renders empty state when total=0 (covers line 159 branch)', () => {
     makeQ({ entries: [], total: 0 });
     renderArchive({ open: true, onClose: vi.fn() });
-    // Empty state shows "no archive" message
+    // 空状态显示 "no archive" 提示
     expect(screen.queryByText(/no archive/i)).toBeInTheDocument();
   });
 
@@ -100,18 +100,18 @@ describe('PromoteHistoryArchive round 16', () => {
     makeQ({ entries: [], total: 0 });
     const onClose = vi.fn();
     renderArchive({ open: true, onClose });
-    // First click prev (offset goes from 0 to 0 due to Math.max, but the call path is exercised)
+    // 第一次点击 prev(offset 由 Math.max 保持为 0,但调用路径被执行)
     const prevButton = screen.getByTestId('promote-history-archive-prev');
     fireEvent.click(prevButton);
-    // We don't have a way to directly assert offset (it's internal state),
-    // but the branch was exercised by the click.
+    // 我们没有办法直接断言 offset(它是内部 state),
+    // 但通过点击该分支已被执行。
   });
 
   it('clicking close button calls onClose + resets offset (covers lines 84-85)', () => {
     makeQ({ entries: [], total: 0 });
     const onClose = vi.fn();
     renderArchive({ open: true, onClose });
-    // Modal close button has aria-label="close" (per Modal.tsx:127)
+    // Modal close 按钮带有 aria-label="close"(参考 Modal.tsx:127)
     const closeButton = screen.getByLabelText('close');
     fireEvent.click(closeButton);
     expect(onClose).toHaveBeenCalled();

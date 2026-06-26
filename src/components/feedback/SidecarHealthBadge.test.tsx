@@ -1,11 +1,11 @@
-// v0.77a — SidecarHealthBadge branches round 1 (+6 tests, 0%→100% stmts, 0%→100% br).
+// v0.77a — SidecarHealthBadge 分支第 1 轮 (+6 tests, 0%→100% stmts, 0%→100% br)。
 //
-// SidecarHealthBadge.tsx is 82 lines with 13 branches (3 status ×
-// 2 success/fail + busy/click handlers). 0% coverage currently —
-// no existing test mounts it. We add 6 tests covering all status
-// branches + click behavior.
+// SidecarHealthBadge.tsx 共 82 行、13 个分支 (3 个状态 ×
+// 2 个成功/失败 + busy/click 处理函数)。当前 0% 覆盖率 —
+// 现有测试均未挂载它。我们新增 6 个测试
+// 覆盖所有状态分支 + click 行为。
 //
-// Coverage target: 0/13 → 13/13 branches = 100% br.
+// 覆盖率目标: 0/13 → 13/13 分支 = 100% br。
 //
 // @vitest-environment happy-dom
 

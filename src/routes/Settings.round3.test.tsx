@@ -1,13 +1,13 @@
-// v0.77f — Settings branches round 3 (+6 tests, 74.5%→78% br).
+// v0.77f — Settings 分支第 3 轮（+6 个测试，74.5%→78% br）。
 //
-// Settings.tsx is 2058 lines. 38 existing tests cover most cards
-// (AutoPromote / Backup / Telemetry / PaperMode / SkippedNotify /
+// Settings.tsx 共 2058 行。已有 38 个测试覆盖了大部分卡片
+// （AutoPromote / Backup / Telemetry / PaperMode / SkippedNotify /
 // DegradationAlert / ActiveModel / Scheduler / Rerun /
-// StorageMigration / Network). The 48 remaining uncovered branches
-// are in: RetentionCard clamp/validation, AutoPromoteCard Brier
-// margin, Telemetry purge error path, ActiveModelCard retry.
+// StorageMigration / Network）。剩余 48 个未覆盖分支
+// 位于：RetentionCard 夹紧/校验、AutoPromoteCard Brier
+// margin、Telemetry purge 错误路径、ActiveModelCard retry。
 //
-// We add 6 tests for the under-tested paths.
+// 我们为这些测试不足的路径新增 6 个测试。
 //
 // @vitest-environment happy-dom
 
@@ -186,10 +186,10 @@ describe('Settings round 3 (v0.77f — branch closing)', () => {
       const text = document.body.textContent || '';
       expect(text).toMatch(/retention|days/i);
     });
-    // Find the days input
+    // 寻找 days 输入
     const inputs = document.querySelectorAll('input[type="number"], input[type="text"]');
     if (inputs.length > 0) {
-      // Change first numeric input to 0 (should clamp to 1)
+      // 将第一个数字输入改为 0（应被夹紧到 1）
       fireEvent.change(inputs[0], { target: { value: '0' } });
     }
   });

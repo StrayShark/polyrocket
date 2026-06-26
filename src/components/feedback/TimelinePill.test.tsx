@@ -72,7 +72,7 @@ describe('TimelinePill (v0.119 Cursor-merge)', () => {
     for (const stage of stages) {
       const { container, unmount } = render(<TimelinePill stage={stage} />);
       const pill = container.querySelector('[data-testid="timeline-pill"]')!;
-      // Extract just bg-* class
+      // 仅提取 bg-* class
       const match = pill.className.match(/bg-timeline-\w+/);
       if (match) seen.add(match[0]);
       unmount();

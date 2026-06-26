@@ -1,8 +1,8 @@
-// v0.79c — BankrollConfigCard in Settings (+3 tests).
+// v0.79c — Settings 中的 BankrollConfigCard（+3 个测试）。
 //
-// Tests that the read-only bankroll config card renders
-// with current config values, the "Open /bankroll" link,
-// and graceful fallback when no wallet is set.
+// 验证只读 bankroll config 卡片能
+// 用当前 config 值、"Open /bankroll" 链接进行渲染，
+// 并在未设置 wallet 时优雅回退。
 //
 // @vitest-environment happy-dom
 
@@ -67,7 +67,7 @@ vi.mock('@/stores/toast-store', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
-// Mock many of the IPCs that Settings uses
+// Mock Settings 使用的多个 IPC
 vi.mock('@/ipc', () => ({
   listWallets: () => mockListWallets(),
   getBankrollConfig: (...args: unknown[]) => Promise.resolve(mockGetBankrollConfig(...args)),
@@ -110,8 +110,8 @@ vi.mock('@/ipc', () => ({
   rerunWelcome: vi.fn(),
 }));
 
-// Note: full Settings test setup is complex. For v0.79c
-// we just verify the BankrollConfigCard's IPC calls.
+// 注：完整 Settings 测试设置较为复杂。在 v0.79c 中
+// 我们仅校验 BankrollConfigCard 的 IPC 调用。
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -130,8 +130,8 @@ beforeEach(() => {
 
 describe('v0.79c — BankrollConfigCard in Settings', () => {
   it('renders config items with formatted values', async () => {
-    // Test the BankrollConfigCard component directly via dynamic
-    // import, since mounting full Settings is complex.
+    // 通过 dynamic import 直接测试 BankrollConfigCard 组件，
+    // 因为挂载完整的 Settings 较为复杂。
     const { BankrollConfigCard } = await import('@/routes/Settings');
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
     render(
@@ -144,7 +144,7 @@ describe('v0.79c — BankrollConfigCard in Settings', () => {
     await waitFor(() => {
       expect(screen.getByTestId('bankroll-config-card')).toBeTruthy();
     });
-    // Check that all 6 config values are displayed
+    // 校验 6 个 config 值均已显示
     const card = screen.getByTestId('bankroll-config-card');
     expect(card.textContent).toContain('Kelly multiplier');
     expect(card.textContent).toContain('Max per signal');
@@ -167,7 +167,7 @@ describe('v0.79c — BankrollConfigCard in Settings', () => {
     await waitFor(() => {
       expect(screen.getByTestId('bankroll-config-go')).toBeTruthy();
     });
-    // Just verify the button is clickable (doesn't crash)
+    // 仅校验按钮可点击（不崩溃）
     screen.getByTestId('bankroll-config-go').click();
   });
 

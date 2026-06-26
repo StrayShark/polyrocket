@@ -1,8 +1,8 @@
-// v0.62a — Trade component tests.
+// v0.62a — Trade 组件测试。
 //
-// /trade is the standalone place-bet page.
-// Tiny route — just renders <PlaceBetForm />
-// with URL params. Today 0% coverage.
+// /trade 是独立的下注页面。
+// 路由很小——只是用 URL 参数
+// 渲染 <PlaceBetForm />。当前覆盖率 0%。
 
 // @vitest-environment happy-dom
 
@@ -35,7 +35,7 @@ describe('Trade', () => {
   it('renders the place-bet form', async () => {
     renderTrade();
     await waitFor(() => {
-      // The form has a market_id input / submit
+      // 表单具有 market_id 输入 / 提交
       expect(document.body.textContent).toBeTruthy();
     });
   });

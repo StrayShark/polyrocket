@@ -1,28 +1,28 @@
 /**
- * TimelinePill (v0.119 — Cursor-merge).
+ * TimelinePill(v0.119 —— Cursor 合并)。
  *
- * Stage marker for LLM analysis lifecycle, scoped to in-product agent
- * timeline visualizations (per Cursor design rule: pastels only on timeline UI,
- * never as system action colors).
+ * LLM 分析生命周期的阶段标记,限定在产品内
+ * agent timeline 可视化场景(遵循 Cursor 设计规则:
+ * pastel 颜色只用于 timeline UI,绝不用作系统 action 色)。
  *
- * Maps to Cursor's 5 timeline tokens:
- *   - thinking → peach  (#dfa88f)
- *   - grep     → mint   (#9fc9a2)
- *   - read     → blue   (#9fbbe0)
- *   - edit     → lavender (#c0a8dd)
- *   - done     → gold   (#c08532, white text)
+ * 对应 Cursor 的 5 个 timeline token:
+ *   - thinking → 桃色(#dfa88f)
+ *   - grep     → 薄荷色(#9fc9a2)
+ *   - read     → 蓝色(#9fbbe0)
+ *   - edit     → 淡紫色(#c0a8dd)
+ *   - done     → gold(#c08532,白色文字)
  *
- * Style (Cursor `caption-uppercase` spec — implemented as Tailwind utility
- * composition to keep twMerge happy):
- *   - 11px (`text-xs`) / 600 (`font-semibold`) / +0.88px tracking /
- *     UPPERCASE (`uppercase`)
- *   - padding: 4px 10px (`px-2.5`)
- *   - rounded: pill 9999px (`rounded-pill`)
+ * 排版(Cursor `caption-uppercase` 规范 —— 以 Tailwind 工具类
+ * 组合实现,以让 twMerge 正常工作):
+ *   - 11px(`text-xs`)/ 600(`font-semibold`)/ +0.88px 字距 /
+ *     UPPERCASE(`uppercase`)
+ *   - 内边距:4px 10px(`px-2.5`)
+ *   - 圆角:pill 9999px(`rounded-pill`)
  *
- * Use cases (v0.119):
- *   - `/analysis` page — LLM analysis progress
- *   - `/brief` page — Today's Edge: "ANALYSIS DONE" pill
- *   - `/football/fixtures/:id` — "MODEL GENERATED" stage marker
+ * 使用场景(v0.119):
+ *   - `/analysis` 页面 —— LLM analysis 进度
+ *   - `/brief` 页面 —— Today's Edge:"ANALYSIS DONE" 徽章
+ *   - `/football/fixtures/:id` —— "MODEL GENERATED" 阶段标记
  */
 
 import { cn } from '@/lib/cn';
@@ -31,7 +31,7 @@ export type TimelineStage = 'thinking' | 'grep' | 'read' | 'edit' | 'done';
 
 export interface TimelinePillProps {
   stage: TimelineStage;
-  /** Optional override label (otherwise derived from stage). */
+  /** 可选的自定义 label(默认从 stage 派生)。 */
   label?: string;
   className?: string;
 }
@@ -49,7 +49,7 @@ const STAGE_CLASSES: Record<TimelineStage, string> = {
   grep: 'bg-timeline-grep text-fg',
   read: 'bg-timeline-read text-fg',
   edit: 'bg-timeline-edit text-fg',
-  // `done` uses bg text (white text on gold, closest to Cursor's `on-primary` rule).
+  // `done` 使用 bg 文字(白字配 gold,最接近 Cursor 的 `on-primary` 规则)。
   done: 'bg-timeline-done text-bg',
 };
 
@@ -60,7 +60,7 @@ export function TimelinePill({ stage, label, className }: TimelinePillProps) {
       data-testid="timeline-pill"
       data-stage={stage}
       className={cn(
-        // text-xs = 11px, font-semibold = 600, tracking-caption-uppercase = 0.88px
+        // text-xs = 11px, font-semibold = 600, tracking-caption-uppercase = 0.88px (Tailwind 值注释)
         'inline-flex items-center h-5 px-2.5 rounded-pill text-xs font-semibold tracking-caption-uppercase uppercase whitespace-nowrap border border-transparent',
         STAGE_CLASSES[stage],
         className,

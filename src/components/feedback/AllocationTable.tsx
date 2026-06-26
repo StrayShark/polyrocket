@@ -1,13 +1,13 @@
-// v0.78 — AllocationTable L4 component.
+// v0.78 — AllocationTable L4 组件。
 //
-// Renders an `AllocationResult.per_market` array as a table:
-//   - market_id (truncated)
-//   - side (Yes/No pill)
-//   - size_usdc
-//   - kelly_pct (with %)
-//   - confidence
-//   - expected_roi
-//   - capped_reason (badge if any)
+// 将 `AllocationResult.per_market` 数组渲染成表格:
+//   - market_id(截断显示)
+//   - side（Yes/No 胶囊）
+//   - size_usdc(USDC 金额)
+//   - kelly_pct(带 %)
+//   - confidence(置信度)
+//   - expected_roi(预期 ROI)
+//   - capped_reason(若有则展示 badge)
 //
 // @vitest-environment happy-dom
 

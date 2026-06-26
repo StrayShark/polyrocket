@@ -1,31 +1,31 @@
-// v0.54c — L1 component tests for the 6 welcome
-// step components + the WelcomeBanner.
+// v0.54c — L1 组件测试,覆盖 6 个 welcome
+// step 组件 + WelcomeBanner。
 //
-// The existing vitest suite (377 tests at v0.53)
-// only had 1 test for the welcome flow (Settings
-// → RerunSetupCard renders). This file fills in
-// real coverage for:
+// 现有的 vitest 套件(v0.53 时 377 个测试)
+// 仅包含 1 个针对 welcome 流程的测试
+// (Settings → RerunSetupCard 渲染)。本文件
+// 填补真正的覆盖:
 //
-//   1. WelcomeStep — locale switcher + 3 value
-//      props + Get Started button.
-//   2. StorageStep — default vs custom mode,
-//      Browse button (uses pickDirectory), Apply
-//      button calls setStoragePath / reset.
-//   3. ThemeStep — 3 themes render + clicking a
-//      theme sets useThemeStore.theme.
-//   4. LlmStep — 5 providers render + Alias +
-//      Secret + Test connectivity.
-//   5. PolymarketStep — CLOB + wallet sub-cards,
-//      Save / Skip.
-//   6. FinishStep — read-only summary with the
-//      numbers + Finish button.
-//   7. WelcomeBanner — renders for half-configured
-//      users, hidden when secrets are all set.
+//   1. WelcomeStep — locale 切换 + 3 个 value
+//      props + Get Started 按钮。
+//   2. StorageStep — default vs custom 模式,
+//      Browse 按钮(用 pickDirectory),Apply
+//      按钮调用 setStoragePath / reset。
+//   3. ThemeStep — 渲染 3 个主题 + 点击主题
+//      设置 useThemeStore.theme。
+//   4. LlmStep — 渲染 5 个 provider + Alias +
+//      Secret + Test 连通性。
+//   5. PolymarketStep — CLOB + wallet 子卡片,
+//      Save / Skip 按钮。
+//   6. FinishStep — 包含数字的只读 summary
+//      + Finish 按钮。
+//   7. WelcomeBanner — 为半配置用户渲染,
+//      所有 secret 已设置时隐藏。
 //
-// All tests use a fresh QueryClient per render
-// and mock @/ipc. They run under happy-dom so
-// the components' use of `window` / `localStorage`
-// doesn't blow up.
+// 所有测试每次渲染都使用全新的 QueryClient
+// 并 mock @/ipc。它们在 happy-dom 下运行,
+// 因此组件对 `window` / `localStorage` 的
+// 使用不会出错。
 
 // @vitest-environment happy-dom
 
@@ -34,8 +34,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-// Mock @/ipc — every test re-defines this with
-// its own resolved values via vi.mocked(...).
+// Mock @/ipc —— 每个测试通过 vi.mocked(...) 用自己的
+// resolved 值重新定义。
 vi.mock('@/ipc', () => ({
   getStorageInfo: vi.fn(),
   setStoragePath: vi.fn(),
@@ -67,8 +67,8 @@ vi.mock('@/ipc', () => ({
   }),
 }));
 
-// Mock the theme store so we can read the
-// current theme + assert the setter.
+// Mock theme store 以便读取当前主题
+// 并断言 setter。
 const mockSetTheme = vi.fn();
 vi.mock('@/stores/theme-store', () => ({
   useThemeStore: Object.assign(
@@ -101,10 +101,10 @@ function wrap(node: React.ReactNode) {
 }
 
 function makeWelcomeStore() {
-  // Fresh welcome-store state per test. We
-  // return the FULL store state (not a partial
-  // mock) so components that read
-  // `welcome.configured.*` don't blow up.
+  // 每个测试都使用全新的 welcome-store 状态。
+  // 我们返回完整的 store state(而非
+  // 部分 mock),这样读取
+  // `welcome.configured.*` 的组件不会出错。
   useWelcomeStore.getState().reset();
   return useWelcomeStore.getState();
 }
@@ -115,7 +115,7 @@ beforeEach(() => {
 });
 
 // =================================================================
-// 1. WelcomeStep
+// 1. WelcomeStep 测试
 // =================================================================
 
 describe('WelcomeStep (v0.54c)', () => {
@@ -130,10 +130,10 @@ describe('WelcomeStep (v0.54c)', () => {
     expect(
       screen.getByTestId('welcome-step-welcome-title'),
     ).toBeInTheDocument();
-    // The 3 value-prop cards all have data-testid
-    // set by WelcomeStep's value-prop loop. We
-    // assert on the first one to confirm the
-    // loop ran.
+    // 3 个 value-prop 卡片都由 WelcomeStep 的
+    // value-prop loop 设置 data-testid。我们
+    // 断言第一个来确认
+    // loop 已执行。
     expect(
       screen.getByTestId('welcome-step-welcome-vp-0'),
     ).toBeInTheDocument();
@@ -141,7 +141,7 @@ describe('WelcomeStep (v0.54c)', () => {
 });
 
 // =================================================================
-// 2. StorageStep
+// 2. StorageStep 测试
 // =================================================================
 
 describe('StorageStep (v0.54c)', () => {
@@ -179,7 +179,7 @@ describe('StorageStep (v0.54c)', () => {
     });
     vi.mocked(ipc.resetStoragePath).mockResolvedValue(undefined);
     const welcome = makeWelcomeStore();
-    // Spy on setConfigured to assert side-effect.
+    // spy setConfigured 以断言副作用。
     const setConfiguredSpy = vi.spyOn(welcome, 'setConfigured');
     render(wrap(<StorageStep welcome={welcome} />));
     await waitFor(() => screen.getByTestId('welcome-storage-apply'));
@@ -194,12 +194,10 @@ describe('StorageStep (v0.54c)', () => {
   });
 
   it('Apply on custom mode calls setStoragePath with the typed value', async () => {
-    // Pre-seed `isCustom: true` so the form
-    // boots in custom mode. The
-    // <ModeCard onClick={...}> is racy in
-    // happy-dom (div onClick doesn't always
-    // fire), but the conditional path input
-    // is what we care about.
+    // 预填 `isCustom: true` 让表单启动时进入
+    // custom 模式。<ModeCard onClick={...}> 在
+    // happy-dom 下有竞态(div onClick 不总触发),
+    // 但我们关心的是条件路径输入框。
     vi.mocked(ipc.getStorageInfo).mockResolvedValue({
       defaultPath: '/tmp/db/polyrocket.db',
       currentPath: '/Volumes/external/polyrocket',
@@ -217,7 +215,7 @@ describe('StorageStep (v0.54c)', () => {
         screen.getByTestId('welcome-storage-path-input') as HTMLInputElement,
     )) as HTMLInputElement;
     expect(input.value).toBe('/Volumes/external/polyrocket');
-    // Change the path and click Apply.
+    // 修改路径并点击 Apply。
     fireEvent.change(input, {
       target: { value: '/Volumes/external/polyrocket-v2' },
     });
@@ -230,10 +228,9 @@ describe('StorageStep (v0.54c)', () => {
   });
 
   it('Apply on custom mode auto-runs migrateStoragePath (v0.58a)', async () => {
-    // v0.58a — the Storage step now auto-migrates
-    // any existing data to the new path, so the
-    // user doesn't have to click "Copy existing
-    // data" in Settings separately.
+    // v0.58a —— Storage 步骤现在会自动把已有
+    // 数据迁移到新路径,用户不必再在
+    // Settings 中单独点 "Copy existing data"。
     vi.mocked(ipc.getStorageInfo).mockResolvedValue({
       defaultPath: '/tmp/db/polyrocket.db',
       currentPath: '/Volumes/external/polyrocket',
@@ -259,8 +256,8 @@ describe('StorageStep (v0.54c)', () => {
         '/Volumes/external/polyrocket-v3',
       );
     });
-    // The migrate call should follow setStoragePath
-    // with the same path + overwrite=false.
+    // migrate 调用应跟随 setStoragePath,使用相同
+    // 路径 + overwrite=false。
     await waitFor(() => {
       expect(ipc.migrateStoragePath).toHaveBeenCalledWith(
         '/Volumes/external/polyrocket-v3',
@@ -270,7 +267,7 @@ describe('StorageStep (v0.54c)', () => {
   });
 
   it('Browse button calls pickDirectory and populates the input', async () => {
-    // Same pre-seed trick: boot in custom mode.
+    // 同样的预填技巧: 在 custom 模式启动。
     vi.mocked(ipc.getStorageInfo).mockResolvedValue({
       defaultPath: '/tmp/db/polyrocket.db',
       currentPath: '/Volumes/external/polyrocket',
@@ -299,14 +296,14 @@ describe('StorageStep (v0.54c)', () => {
 });
 
 // =================================================================
-// 3. ThemeStep
+// 3. ThemeStep 测试
 // =================================================================
 
 describe('ThemeStep (v0.54c)', () => {
   it('renders all 3 themes + clicking sets useThemeStore.theme', () => {
     render(wrap(<ThemeStep />));
-    // The 3 theme cards use the testid
-    // `welcome-theme-${th.id}` (set by ThemeStep).
+    // 3 个主题卡片使用 testid
+    // `welcome-theme-${th.id}` (由 ThemeStep 设置)。
     expect(
       screen.getByTestId('welcome-theme-dark'),
     ).toBeInTheDocument();
@@ -322,35 +319,34 @@ describe('ThemeStep (v0.54c)', () => {
 });
 
 // =================================================================
-// 4. LlmStep
+// 4. LlmStep 测试
 // =================================================================
 
 describe('LlmStep (v0.54c)', () => {
   it('renders the heading + Add provider button', () => {
     const welcome = makeWelcomeStore();
     render(wrap(<LlmStep welcome={welcome} />));
-    // Add provider button uses testid
-    // `welcome-llm-add`.
+    // Add provider 按钮使用 testid `welcome-llm-add`。
     expect(screen.getByTestId('welcome-llm-add')).toBeInTheDocument();
   });
 });
 
 // =================================================================
-// 5. PolymarketStep
+// 5. PolymarketStep 测试
 // =================================================================
 
-describe('PolymarketStep (v0.54c)', () => {
-  it('renders CLOB + wallet sub-cards with Save and Skip', () => {
+describe('PolymarketStep (v0.54c + v0.119 + v0.126)', () => {
+  it('renders CLOB + wallet sub-cards with env-only mode and wallet form', () => {
     const welcome = makeWelcomeStore();
     render(wrap(<PolymarketStep welcome={welcome} />));
-    // The 2 sub-cards use the testid prefix
-    // `welcome-pm-` (CLOB creds) and
-    // `welcome-wallet-` (wallet key).
+    // v0.119 —— ClobCard 已改为 env-only 模式,不再有 save/skip 按钮。
+    // 现在 ClobCard 显示 env 变量列表 + 「已填好 — 继续」按钮
+    // (testid: welcome-pm-mark-saved)。WalletCard 仍保留 save + skip。
     expect(
-      screen.getByTestId('welcome-pm-save'),
+      screen.getByTestId('welcome-pm-env-info'),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId('welcome-pm-skip'),
+      screen.getByTestId('welcome-pm-mark-saved'),
     ).toBeInTheDocument();
     expect(
       screen.getByTestId('welcome-wallet-save'),
@@ -362,7 +358,7 @@ describe('PolymarketStep (v0.54c)', () => {
 });
 
 // =================================================================
-// 6. FinishStep
+// 6. FinishStep 测试
 // =================================================================
 
 describe('FinishStep (v0.54c)', () => {
@@ -371,8 +367,7 @@ describe('FinishStep (v0.54c)', () => {
     useWelcomeStore.getState().setConfigured('polymarketApi', true);
     const welcome = makeWelcomeStore();
     render(wrap(<FinishStep welcome={welcome} />));
-    // The summary panel uses the testid
-    // `welcome-finish-summary`.
+    // summary 面板使用 testid `welcome-finish-summary`。
     expect(
       screen.getByTestId('welcome-finish-summary'),
     ).toBeInTheDocument();
@@ -380,7 +375,7 @@ describe('FinishStep (v0.54c)', () => {
 });
 
 // =================================================================
-// 7. WelcomeBanner
+// 7. WelcomeBanner 测试
 // =================================================================
 
 describe('WelcomeBanner (v0.54c)', () => {

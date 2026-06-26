@@ -1,19 +1,17 @@
 /**
- * PromoteModel state machine tests (v0.18d).
+ * PromoteModel 状态机测试（v0.18d）。
  *
- * v0.18c introduced a `lastCandidate` state in ModelLab
- * that tracks the most recently trained model so the
- * Promote button knows which `job_id` to pass (race-
- * condition protection). The transitions are:
+ * v0.18c 在 ModelLab 中引入了 `lastCandidate` 状态，用于
+ * 跟踪最近一次训练完成的模型，以便 Promote 按钮知道要传
+ * 哪个 `job_id`（竞态保护）。状态转移为：
  *
  *   null         ────train completed────►  { jobId, ... }
  *   { jobId }    ────promote succeeded──►  null
  *   { jobId }    ────train completed────►  { newJobId, ... }  (overwrite)
  *   { jobId }    ────promote failed─────►  { jobId }  (keep)
  *
- * This test extracts the transition logic into a pure
- * function and tests it in isolation. (The actual state
- * is React useState, but the transitions are pure.)
+ * 本测试将状态转移逻辑提取为纯函数并隔离测试。
+ * （实际状态是 React useState，但转移本身是纯函数。）
  */
 
 import { describe, expect, it } from 'vitest';
@@ -30,31 +28,30 @@ type Action =
   | { kind: 'promote_succeeded' }
   | { kind: 'promote_failed' };
 
-/** Pure reducer for the lastCandidate state. v0.18c wires
- * this into ModelLab via setLastCandidate. */
+/** lastCandidate 状态的纯 reducer。v0.18c 通过 setLastCandidate
+ * 将其接入 ModelLab。 */
 function lastCandidateReducer(
   state: LastCandidate | null,
   action: Action,
 ): LastCandidate | null {
   switch (action.kind) {
     case 'train_completed':
-      // Train succeeded → set the new candidate (overwriting
-      // any prior one).
+      // 训练成功 → 设置新的 candidate（覆盖之前任一 candidate）。
       return {
         jobId: action.jobId,
         candidatePath: action.candidatePath,
         bestBrier: action.bestBrier,
       };
     case 'train_failed':
-      // Train failed → keep the existing candidate (or stay null).
-      // (The toast still fires; the user can retry.)
+      // 训练失败 → 保留已有 candidate（或维持 null）。
+      // （toast 仍会触发；用户可重试。）
       return state;
     case 'promote_succeeded':
-      // Promote succeeded → clear (the model is now active;
-      // no more candidate to promote).
+      // Promote 成功 → 清空（模型现已激活；
+      // 没有 candidate 可再 promote）。
       return null;
     case 'promote_failed':
-      // Promote failed → keep the candidate (the user can retry).
+      // Promote 失败 → 保留 candidate（用户可重试）。
       return state;
   }
 }

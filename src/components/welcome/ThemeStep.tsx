@@ -1,9 +1,9 @@
-// v0.53b — ThemeStep (Step 3 of 6).
+// v0.53b — ThemeStep (Step 3 of 6)。
 //
-// Pick a theme. The L1 already has 3 themes (dark /
-// light / matrix). The Welcome step is the same
-// as the Theme card on Settings, but rendered in
-// the welcome layout.
+// 选择主题。L1 已经有 3 种主题 (dark /
+// light / matrix)。Welcome 步骤与 Settings 上的
+// Theme 卡片相同,但采用 welcome
+// 布局渲染。
 
 import { useEffect } from 'react';
 import { useThemeStore, type Theme } from '@/stores/theme-store';
@@ -22,16 +22,14 @@ export function ThemeStep() {
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
 
-  // v0.53b — once the user enters the theme step,
-  // mark theme as configured. (The actual theme
-  // may have been set earlier from the topbar; this
-  // is just a "we walked past this step" marker.)
+  // v0.53b —— 用户进入 theme 步骤时标记 theme 为已配置。
+  // (实际主题可能已从顶栏设置过;此处只是
+  // "我们走过这一步" 的标记。)
   useEffect(() => {
-    // No-op marker; the welcome-store update
-    // happens via the Next button handler in
-    // Welcome.tsx (or via direct calls when the
-    // user picks a theme). For now the per-step
-    // configured flag is a separate concern.
+    // no-op 标记;welcome-store 更新由
+    // Welcome.tsx 中的 Next 按钮处理(或用户
+    // 选主题时的直接调用)。当前每步的
+    // configured flag 是独立考虑。
   }, []);
 
   return (

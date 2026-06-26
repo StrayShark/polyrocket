@@ -36,7 +36,7 @@ import {
   clearProxyConfig, // v0.56
   setMirrorPaperMode,
   getMirrorPaperMode,
-  // v0.78 — bankroll allocation (M11)
+  // v0.78 —— bankroll 分配(M11)
   getBankrollConfig,
   type AuditRetentionView,
   type SetAuditRetentionArgs,
@@ -69,28 +69,25 @@ export function Settings() {
     advancedStats: prefs.advancedStats,
   });
 
-  // v0.28c — push the auto-promote config to Rust on
-  // mount of the Settings page. This is the bridge
-  // between the L1 zustand store (source of truth for
-  // the UI) and the Rust `AppState.auto_promote` field
-  // (consumer for `train_job`).
+  // v0.28c — 在 Settings 页挂载时将 auto-promote 配置
+  // 推送到 Rust。这是 L1 zustand store（UI 的单一
+  // 数据源）与 Rust 的 `AppState.auto_promote` 字段
+  // （`train_job` 的消费者）之间的桥接。
   //
-  // We also re-push whenever the user changes the
-  // config (handled in the AutoPromoteCard). On mount
-  // alone is enough to cover the common case: "user
-  // opens Settings for the first time, the L1 store
-  // has the persisted value, we push it to Rust".
+  // 我们也会在用户更改配置时重新推送（在 AutoPromoteCard
+  // 中处理）。仅在挂载时推送已足够覆盖常见场景：
+  // 「用户首次打开 Settings，L1 store 持有持久化的
+  // 值，我们将其推送到 Rust」。
   useEffect(() => {
     setAutoPromoteConfig({
       enabled: prefs.autoPromoteAfterTrain,
       brier_margin: prefs.autoPromoteBrierMargin,
     }).catch(() => {
-      // Sidecar is not always available; the L1 store
-      // is the source of truth, Rust will re-read on
-      // the next Settings mount.
+      // Sidecar 并不总是可用；L1 store 是单一数据源，
+      // Rust 会在下次 Settings 挂载时重新读取。
     });
-    // Run once on mount. Re-runs would re-push the
-    // same values; harmless but wasteful.
+    // 仅在挂载时运行一次。重新运行只会重新推送相同的
+    // 值；无害但浪费。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -132,14 +129,14 @@ export function Settings() {
         </div>
       </Card>
 
-      {/* v0.74f — appearance settings (theme + language).
-       *       Moved from sidebar footer (AppShell) per user feedback
-       *       "language switch, theme switch should be in Settings".
-       *       Positioned right after the page title so users
-       *       find the most basic UI preference immediately. */}
+      {/* v0.74f — 外观设置（主题 + 语言）。
+       *       根据用户反馈「语言切换、主题切换应该在 Settings 中」，
+       *       从侧边栏底部（AppShell）迁移至此。
+       *       位置紧跟页面标题之后，让用户能够
+       *       立即找到最基本的 UI 偏好。 */}
       <AppearanceCard />
 
-      {/* Trading defaults */}
+      {/* 交易默认值 */}
       <Card title={t('settings.section.trading')} description={t('settings.section.trading_desc')}>
         <div className="space-y-3">
           <NumberField
@@ -161,7 +158,7 @@ export function Settings() {
         </div>
       </Card>
 
-      {/* Notifications */}
+      {/* 通知 */}
       <Card title={t('settings.section.notifications')} description={t('settings.section.notifications_desc')}>
         <ToggleRow
           icon={Bell}
@@ -172,7 +169,7 @@ export function Settings() {
         />
       </Card>
 
-      {/* Copy trading */}
+      {/* Copy trading（跟单交易） */}
       <Card title={t('settings.section.copy')} description={t('settings.section.copy_desc')}>
         <ToggleRow
           data-testid="copy-trading-toggle"
@@ -184,7 +181,7 @@ export function Settings() {
         />
       </Card>
 
-      {/* Advanced */}
+      {/* 高级 */}
       <Card title={t('settings.section.advanced')} description={t('settings.section.advanced_desc')}>
         <ToggleRow
           data-testid="advanced-stats-toggle"
@@ -208,86 +205,80 @@ export function Settings() {
           </div>
           <div
             className="pt-2 text-[10px]"
-            // v0.14b — the env_note string embeds two `<code>` tags
-            // (POLYROCKET_ENV=dev, POLYROCKET_KEYRING_ONLY=0). The
-            // markup is identical in en and zh so dangerouslySetInnerHTML
-            // keeps the locales in sync.
+            // v0.14b —— env_note 字符串嵌入两个 `<code>` 标签
+            //（POLYROCKET_ENV=dev、POLYROCKET_KEYRING_ONLY=0）。
+            // 中英文 markup 完全相同，因此使用
+            // dangerouslySetInnerHTML 以保持 locale 同步。
             dangerouslySetInnerHTML={{ __html: t('settings.storage.env_note') }}
           />
         </div>
       </Card>
 
-      {/* v0.13c — audit retention policy (per-user override) */}
+      {/* v0.13c — 审计保留策略（用户级覆盖） */}
       <RetentionCard />
 
-      {/* v0.23c — auto-promote margin */}
+      {/* v0.23c — 自动提升 margin */}
       <AutoPromoteCard />
 
-      {/* v0.36b — export/import of UI prefs */}
+      {/* v0.36b — UI 偏好的导入/导出 */}
       <BackupRestoreCard />
 
-      {/* v0.53b — re-run setup. Lets the user
-          revisit /welcome at any time to finish
-          or reconfigure. Useful when secrets were
-          rotated or the user wants to switch
-          storage path. */}
+      {/* v0.53b — 重新运行 setup。允许用户随时
+          重新访问 /welcome 以完成或重新配置。
+          当密钥被轮换或用户想要切换存储路径
+          时非常有用。 */}
       <RerunSetupCard />
 
-      {/* v0.42c — opt-in lifecycle telemetry */}
+      {/* v0.42c — opt-in 生命周期遥测 */}
       <TelemetryCard />
 
-      {/* v0.49b — active model summary card. Shows
-          the current active model's training metrics
-          (version, Brier, mtime) and surfaces the
-          on-disk path. Goes through `getActiveModel`
-          IPC, so it's the same view Rust sees. */}
+      {/* v0.49b — active model 摘要卡片。展示
+          当前 active model 的训练指标
+          （version、Brier、mtime）并显示磁盘
+          路径。通过 `getActiveModel` IPC 获取，
+          与 Rust 看到的视图一致。 */}
       <ActiveModelCard />
 
-      {/* v0.55 — model explainability. Lets the
-          user pick a sample (price + age) and see
-          the per-feature contribution to the
-          active model's prediction. Surfaces the
-          SHAP-like decomposition of the 3-feature
-          logistic model. */}
+      {/* v0.55 — model 可解释性。让用户选择一个
+          样本（price + age）并查看对 active model
+          预测的逐特征贡献。展示 3 特征 logistic
+          model 的类 SHAP 分解。 */}
       <ExplainabilityCard />
 
-      {/* v0.56 — network proxy / Tor support.
-          Configures `POLYROCKET_PROXY` for the
-          shared reqwest::Client + the sidecar
-          child process. Restart required for
-          changes to take effect. */}
+      {/* v0.56 — 网络代理 / Tor 支持。
+          为共享的 reqwest::Client 和 sidecar
+          子进程配置 `POLYROCKET_PROXY`。
+          更改需要重启才能生效。 */}
       <NetworkCard />
 
-      {/* v0.49c — scheduler self-test. Row of
-          green/red dots per loop. Calls
-          `schedulerSelfTestNow` IPC which reads
-          the per-loop atomic last-tick counters. */}
+      {/* v0.49c — 调度器自检。每个 loop 一行
+          绿/红点。调用 `schedulerSelfTestNow`
+          IPC 读取每个 loop 的原子 last-tick
+          计数器。 */}
       <SchedulerSelfTestCard />
 
-      {/* v0.51a — CLOB feed status. Reads env
-          var credentials + DB row counts; shows
-          whether the real CLOB feed is
-          configured and how many snapshots are
-          cached locally. */}
+      {/* v0.51a — CLOB feed 状态。读取环境
+          变量凭据 + DB 行数；展示真实 CLOB feed
+          是否已配置以及本地缓存了多少快照。 */}
       <ClobFeedCard />
 
-      {/* v0.44c — paper trading mode toggle */}
+      {/* v0.44c — paper trading 模式切换 */}
       <PaperModeCard />
 
-      {/* v0.48b — model degradation alert toggle */}
+      {/* v0.48b — model 降级告警切换 */}
       <DegradationAlertCard />
 
-      {/* v0.54b — storage path migration tool. Lets
-          the user copy polyrocket.db + logs/ to a
-          new path before restart. The "Restart
-          required" flag from getStorageInfo gates
-          the visibility of the migration button. */}
+      {/* v0.54b — 存储路径迁移工具。让用户在
+          重启前将 polyrocket.db + logs/ 复制到
+          新路径。getStorageInfo 返回的
+          「Restart required」标志决定迁移按钮
+          是否可见。 */}
       <StorageMigrationCard />
 
-      {/* v0.79c — bankroll allocation config. Read-only summary
-         that links to /bankroll for editing. We don't duplicate
-         the slider UI here because the Bankroll page already
-         has the full editor + apply flow. */}
+      {/* v0.79c — bankroll 分配配置。只读摘要，
+         链接到 /bankroll 进行编辑。我们不在此处
+         复制滑块 UI，因为 Bankroll 页面已有完整
+         的编辑器 + apply 流程。 */}
       <BankrollConfigCard />
     </div>
   );
@@ -355,39 +346,37 @@ function ToggleRow({
 }
 
 // =================================================================
-// ============== v0.13c — Audit retention panel ===================
+// ============== v0.13c — Audit retention 面板 ===================
 // =================================================================
 
-/** Card that lets the user override the audit-log retention
- *  policy. Defaults (from `RetentionPolicy::default()`) are shown
- *  with `(default)` tag in the hint; any non-default value triggers
- *  a Save that calls `set_audit_retention` IPC, which immediately
- *  purges under the new policy. */
+/** 允许用户覆盖 audit-log 保留策略的卡片。
+ *  默认值（来自 `RetentionPolicy::default()`）在 hint 中以
+ *  `(default)` 标签展示；任何非默认值都会触发 Save，
+ *  进而调用 `set_audit_retention` IPC，该调用会立即按新
+ *  策略执行清理。 */
 function AppearanceCard() {
-  // v0.74f — moved from sidebar (AppShell.tsx footer). The user
-  // feedback was: "language switch, theme switch should be in
-  // Settings" — these are not ambient context, they're
-  // preferences the user wants to find and change deliberately.
-  // Putting them in the sidebar footer implied "you might want
-  // to switch this right now" which is the wrong call to action.
+  // v0.74f — 从侧边栏（AppShell.tsx 底部）迁移而来。
+  // 用户反馈：「语言切换、主题切换应该在 Settings 中」
+  // —— 这些不是环境背景，而是用户希望找到并主动
+  // 修改的偏好。放在侧边栏底部暗示「你现在可能想
+  // 切换」，这并非正确的行动号召。
   //
-  // **Two independent settings, one card**:
-  //   - Theme: 3-way segmented (Dark / Light / Matrix), persisted
-  //   - Language: 2-way dropdown (English / 简体中文), persisted
-  // Both go through their own zustand stores with persist
-  // middleware; the page never needs Save — changes are
-  // immediate. The card is therefore "stateless" (no
-  // draft / save / reset).
+  // **两个独立设置，一张卡片**：
+  //   - Theme：3 段分段控件（Dark / Light / Matrix），持久化
+  //   - Language：2 向下拉（English / 简体中文），持久化
+  // 两者各自通过带 persist middleware 的 zustand store；
+  // 页面永远不需要 Save —— 更改立即生效。因此该卡片
+  // 是「无状态」的（无 draft / save / reset）。
   const { t } = useT();
   return (
     <Card title={t('settings.appearance.title')} description={t('settings.appearance.desc')}>
       <div className="space-y-4">
-        {/* Theme picker */}
+        {/* Theme 选择器 */}
         <div>
           <div className="text-[11px] text-muted mb-1.5">{t('settings.appearance.theme_label')}</div>
           <ThemeSwitcher />
         </div>
-        {/* Language picker — inline buttons (we only have 2 locales) */}
+        {/* Language 选择器 —— 内联按钮（仅 2 种 locale） */}
         <div>
           <div className="text-[11px] text-muted mb-1.5">{t('settings.appearance.language_label')}</div>
           <LocalePicker />
@@ -398,11 +387,10 @@ function AppearanceCard() {
 }
 
 /**
- * `LocalePicker` — internal 2-way locale picker. Uses inline
- * buttons instead of a dropdown because we only support 2
- * locales (`en`, `zh`) and segmented control beats dropdown
- * on click count at 2 options. Mirrors the pattern from
- * `ThemeSwitcher`.
+ * `LocalePicker` —— 内部 2 向 locale 选择器。使用内联按钮
+ * 而非下拉，因为仅支持 2 种 locale（`en`、`zh`），且
+ * 2 个选项时分段控件比下拉点击次数更少。复刻
+ * `ThemeSwitcher` 的模式。
  */
 function LocalePicker() {
   const locale = useLocaleStore((s) => s.locale);
@@ -449,7 +437,7 @@ function RetentionCard() {
   const [minKeep, setMinKeep] = useState<string>('1000');
   const [initialized, setInitialized] = useState(false);
 
-  // Sync local form state once the query resolves
+  // 查询解析完成后同步本地表单状态
   if (query.data && !initialized) {
     const r = query.data;
     setRetainDays(String(Math.round(r.retain_recent_ms / 86_400_000)));
@@ -602,26 +590,23 @@ function NumberHintField({
 }
 
 // =================================================================
-// =============== v0.23c — Auto-promote margin panel ===============
+// =============== v0.23c — Auto-promote margin 面板 ===============
 // =================================================================
 
-/** Card that lets the user configure the Brier margin
- *  for the auto-promote-if-better action.
+/** 允许用户配置 auto-promote-if-better 操作的 Brier margin
+ *  的卡片。
  *
- *  The margin is stored in the UI prefs store (zustand +
- *  localStorage). It's a simple float; no IPC needed.
- *  Range: 0.001 (very aggressive) to 1.0 (effectively
- *  disabled). Default 0.005. */
+ *  该 margin 存储在 UI prefs store（zustand + localStorage）中。
+ *  它是一个简单浮点数；无需 IPC。范围：0.001（非常激进）到
+ *  1.0（实际上禁用）。默认 0.005。 */
 function AutoPromoteCard() {
   const { t } = useT();
   const margin = usePrefsStore((s) => s.autoPromoteBrierMargin);
   const afterTrain = usePrefsStore((s) => s.autoPromoteAfterTrain);
   const notifyOnAutoPromote = usePrefsStore((s) => s.autoPromoteNotify);
-  // v0.42e-2 — opt-in OS notification for the
-  // "skipped" branch (i.e. the candidate wasn't
-  // better than the active model). Most users
-  // don't want this — it's the common case —
-  // so default is off.
+  // v0.42e-2 — 「skipped」分支（即 candidate 不优于
+  // active model）的可选 OS 通知。大多数用户不需要
+  // 此通知 —— 这是常见情况 —— 因此默认关闭。
   const notifyOnAutoPromoteSkipped = usePrefsStore(
     (s) => s.autoPromoteSkippedNotify,
   );
@@ -629,38 +614,35 @@ function AutoPromoteCard() {
   const [value, setValue] = useState<number>(margin);
   const [saved, setSaved] = useState(false);
 
-  // Sync local form state when the persisted margin changes
-  // (e.g. on mount, or after a reset). useState with a
-  // function-form initializer is intentional: it runs only
-  // on the first render, not on every state change.
+  // 当持久化的 margin 改变时同步本地表单状态
+  // （例如挂载时或重置后）。使用函数形式初始化
+  // 的 useState 是有意的：它仅在首次渲染时运行，
+  // 而非每次状态变化。
   useState(() => {
     setValue(margin);
   });
 
-  // v0.28c — when the user toggles "Auto-run after train",
-  // push the new value to Rust immediately (no Save
-  // button needed for a binary toggle). The Rust side
-  // reads `auto_promote.enabled` inside `train_job` to
-  // decide whether to spawn the worker.
+  // v0.28c — 当用户切换「Auto-run after train」时，
+  // 立即将新值推送到 Rust（二值切换不需要 Save
+  // 按钮）。Rust 端在 `train_job` 内部读取
+  // `auto_promote.enabled` 以决定是否启动 worker。
   const onAfterTrainToggle = (next: boolean) => {
     setPref('autoPromoteAfterTrain', next);
     setAutoPromoteConfig({ enabled: next }).catch(() => {
-      // Sidecar is not always available; the L1 store
-      // is the source of truth, Rust will re-read on
-      // the next Settings mount.
+      // Sidecar 并不总是可用；L1 store 是单一数据源，
+      // Rust 会在下次 Settings 挂载时重新读取。
     });
   };
 
-  // v0.39b — when the user toggles the desktop notification
-  // flag, update the prefs store only (no Rust push
-  // needed — the notification is L1-only, Rust doesn't
-  // know about it).
+  // v0.39b — 当用户切换桌面通知标志时，仅更新
+  // prefs store（无需推送到 Rust —— 通知仅限 L1，
+  // Rust 不知道它）。
   const onNotifyToggle = (next: boolean) => {
     setPref('autoPromoteNotify', next);
   };
 
-  // v0.42e-2 — opt-in OS notification on the
-  // "skipped" branch. Off by default.
+  // v0.42e-2 — 「skipped」分支的可选 OS 通知。
+  // 默认关闭。
   const onNotifySkippedToggle = (next: boolean) => {
     setPref('autoPromoteSkippedNotify', next);
   };
@@ -671,10 +653,10 @@ function AutoPromoteCard() {
       return;
     }
     setPref('autoPromoteBrierMargin', value);
-    // v0.28c — also push the new margin to Rust so the
-    // next train's auto-promote worker uses it.
+    // v0.28c — 同时将新的 margin 推送到 Rust，以便
+    // 下次 train 的 auto-promote worker 使用它。
     setAutoPromoteConfig({ brier_margin: value }).catch(() => {
-      // Same as above: best-effort push.
+      // 同上：best-effort 推送。
     });
     setSaved(true);
     toast.success(t('auto_promote.margin.saved'));
@@ -698,9 +680,8 @@ function AutoPromoteCard() {
             {t('auto_promote.after_train.desc')}
           </p>
         </div>
-        {/* v0.39b — desktop notification toggle. Sits
-            below "Auto-run after train" so the user
-            sees the related options together. */}
+        {/* v0.39b — 桌面通知切换。位于「Auto-run after train」
+            之下，以便用户同时看到相关选项。 */}
         <div>
           <Toggle
             data-testid="auto-promote-notify-toggle"
@@ -712,10 +693,9 @@ function AutoPromoteCard() {
             {t('auto_promote.notify.desc')}
           </p>
         </div>
-        {/* v0.42e-2 — opt-in OS notification for the
-            "skipped" branch. Off by default. Sits
-            below the main notify toggle so the two
-            are visually grouped. */}
+        {/* v0.42e-2 — 「skipped」分支的可选 OS 通知。
+            默认关闭。位于主通知开关之下，使两者
+            在视觉上分组。 */}
         <div>
           <Toggle
             data-testid="auto-promote-notify-skipped-toggle"
@@ -759,19 +739,15 @@ function AutoPromoteCard() {
   );
 }
 
-/** v0.36b — Backup & restore card. Lets the user
- *  export their UI prefs to a JSON file, and
- *  import from a JSON file. Useful for:
- *   - Sharing a preferred config with other users
- *   - Backup before a re-install
- *   - Replicating the same config across machines
+/** v0.36b — 备份与恢复卡片。允许用户将 UI 偏好导出为
+ *  JSON 文件，并从 JSON 文件导入。用于：
+ *   - 与其他用户分享首选配置
+ *   - 重装前的备份
+ *   - 在多台机器间复制相同配置
  *
- *  The export triggers a browser download. The
- *  import opens a file picker. On import, the
- *  prefs are validated; on success, the prefs
- *  store is updated and a toast is shown. On
- *  failure, an error toast with the message is
- *  shown.
+ *  导出触发浏览器下载。导入打开文件选择器。导入时
+ *  偏好会被验证；成功时更新 prefs store 并显示 toast；
+ *  失败时显示带错误信息的 error toast。
  */
 function RerunSetupCard() {
   const { t } = useT();
@@ -816,9 +792,8 @@ function BackupRestoreCard() {
   const [importing, setImporting] = useState(false);
 
   const onExport = () => {
-    // Snapshot the current prefs (excluding the
-    // setPref/reset functions). The download utility
-    // serializes the rest.
+    // 快照当前偏好（不包括 setPref/reset 函数）。
+    // 下载工具会序列化其余字段。
     const snapshot: UiPrefs = {
       defaultMinEdgePct: prefs.defaultMinEdgePct,
       defaultAllocationCapUsdc: prefs.defaultAllocationCapUsdc,
@@ -838,7 +813,7 @@ function BackupRestoreCard() {
   };
 
   const onImportClick = () => {
-    // Trigger the hidden file input
+    // 触发隐藏的文件输入
     fileInputRef.current?.click();
   };
 
@@ -849,21 +824,21 @@ function BackupRestoreCard() {
     try {
       const text = await readFileAsText(file);
       const newPrefs = parsePrefsFromString(text);
-      // Apply each pref. We use setPref for each
-      // field so the store's zustand middleware
-      // persists them to localStorage.
+      // 应用每个偏好。我们对每个字段使用 setPref，
+      // 以便 store 的 zustand middleware 将它们
+      // 持久化到 localStorage。
       for (const k of Object.keys(newPrefs) as (keyof UiPrefs)[]) {
         prefs.setPref(k, newPrefs[k]);
       }
-      // v0.36b — also push the auto-promote config
-      // to Rust so the next train's auto-promote
-      // worker uses the imported values.
+      // v0.36b — 同时将 auto-promote 配置推送到
+      // Rust，以便下次 train 的 auto-promote worker
+      // 使用导入的值。
       setAutoPromoteConfig({
         enabled: newPrefs.autoPromoteAfterTrain,
         brier_margin: newPrefs.autoPromoteBrierMargin,
       }).catch(() => {
-        // Best-effort; the L1 store is the source
-        // of truth, Rust re-reads on next mount.
+        // Best-effort；L1 store 是单一数据源，
+        // Rust 在下次挂载时重新读取。
       });
       toast.success(t('prefs.backup.imported'));
     } catch (err) {
@@ -871,9 +846,8 @@ function BackupRestoreCard() {
       toast.error(t('prefs.backup.import_failed'), message);
     } finally {
       setImporting(false);
-      // Clear the input so the user can re-select
-      // the same file (the change event would
-      // otherwise not fire)
+      // 清空 input 以便用户重新选择同一文件
+      // （否则 change 事件不会再次触发）
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -903,8 +877,8 @@ function BackupRestoreCard() {
         >
           {t('prefs.backup.import')}
         </Button>
-        {/* Hidden file input; clicking the Import
-            button triggers a click on this input. */}
+        {/* 隐藏的文件 input；点击 Import 按钮
+            会在此 input 上触发一次 click。 */}
         <input
           ref={fileInputRef}
           type="file"
@@ -919,25 +893,22 @@ function BackupRestoreCard() {
 }
 
 // =================================================================
-// ============== v0.42c — Telemetry opt-in card ===================
+// ============== v0.42c — Telemetry opt-in 卡片 ===================
 // =================================================================
 
-/** v0.42c — opt-in lifecycle telemetry.
+/** v0.42c — opt-in 生命周期遥测。
  *
- *  When ON, every Rust lifecycle event (train started /
- *  completed / failed, promote completed, scheduler
- *  tick, etc.) writes one NDJSON line to stderr. Capture
- *  with `polyrocket 2> telemetry.log`.
+ *  开启时，每个 Rust 生命周期事件（train started /
+ *  completed / failed、promote completed、scheduler tick 等）
+ *  都会向 stderr 写入一行 NDJSON。可通过
+ *  `polyrocket 2> telemetry.log` 捕获。
  *
- *  Default OFF. The user can flip this in Settings and
- *  the change takes effect immediately (the L1 pushes
- *  the new value to Rust via `setTelemetryEnabled`).
+ *  默认关闭。用户可在 Settings 中切换，更改会立即生效
+ *  （L1 通过 `setTelemetryEnabled` 将新值推送到 Rust）。
  *
- *  No PII, no model weights, no secrets. The events
- *  are coarse-grained lifecycle markers (job_id,
- *  loop_name, latency_ms) — see
- *  `src-tauri/src/infra/telemetry.rs` for the full
- *  event schema.
+ *  无 PII，无 model weights，无 secrets。事件是粗粒度的
+ *  生命周期标记（job_id、loop_name、latency_ms）——
+ *  完整事件 schema 见 `src-tauri/src/infra/telemetry.rs`。
  */
 function TelemetryCard() {
   const { t } = useT();
@@ -945,11 +916,10 @@ function TelemetryCard() {
   const setPref = usePrefsStore((s) => s.setPref);
   const [pushed, setPushed] = useState(false);
 
-  // v0.42c — on mount, ask Rust what the current
-  // effective state is. This handles the case where
-  // the env var POLYROCKET_TELEMETRY=1 was set at
-  // startup (the L1 store starts as false; Rust
-  // starts as true; the toggle should reflect that).
+  // v0.42c — 挂载时询问 Rust 当前生效的状态。这用于
+  // 处理启动时设置了环境变量 POLYROCKET_TELEMETRY=1
+  // 的情况（L1 store 启动为 false；Rust 启动为 true；
+  // 切换控件应反映这一情况）。
   useEffect(() => {
     getTelemetryEnabled()
       .then((v) => {
@@ -958,8 +928,8 @@ function TelemetryCard() {
         }
       })
       .catch(() => {
-        // Sidecar may be down during boot; default
-        // stays as the L1 store value.
+        // 启动时 sidecar 可能宕机；默认值
+        // 保持为 L1 store 的值。
       });
   }, [setPref]);
 
@@ -971,7 +941,7 @@ function TelemetryCard() {
         setTimeout(() => setPushed(false), 1500);
       })
       .catch(() => {
-        // best-effort; user can re-toggle.
+        // 尽力而为；用户可重新切换。
         toast.error(t('telemetry.push_failed'));
       });
   };
@@ -993,10 +963,9 @@ function TelemetryCard() {
             {t('telemetry.hint')}
           </p>
         </div>
-        {/* v0.42c — capture hint. The user has to
-            know how to actually capture the stream
-            once telemetry is on. The text is in the
-            i18n catalog (telemetry.capture_hint). */}
+        {/* v0.42c — capture 提示。一旦开启遥测，用户必须
+            知道如何实际捕获流。文案位于 i18n catalog
+            （telemetry.capture_hint）中。 */}
         <div className="text-[10px] text-muted bg-surface-2 rounded px-2 py-1.5 font-mono">
           {t('telemetry.capture_hint')}
         </div>
@@ -1009,26 +978,24 @@ function TelemetryCard() {
           </span>
         )}
 
-        {/* v0.49a — on-disk session files. v0.49a
-            persists events to a per-session JSONL file
-            (one per process start). The user can see
-            the inventory and purge old files. */}
+        {/* v0.49a — 磁盘上的会话文件。v0.49a 将事件
+            持久化到每个会话的 JSONL 文件（每次进程
+            启动一个文件）。用户可以查看清单并清除
+            旧文件。 */}
         <TelemetryLogList enabled={enabled} />
       </div>
     </Card>
   );
 }
 
-/** v0.49a — sub-component: list the on-disk telemetry
- *  session files and let the user purge the old ones.
+/** v0.49a — 子组件：列出磁盘上的遥测会话文件并允许
+ *  用户清除旧文件。
  *
- *  We always render the section, even when telemetry is
- *  off, because the file might still be there from a
- *  previous session (the log dir is created on first
- *  emit; before that the list is empty).
+ *  我们始终渲染该 section，即使遥测关闭，因为文件可能
+ *  仍存在于上一次会话（log 目录在首次 emit 时创建；
+ *  此前列表为空）。
  *
- *  v0.62c — exported so tests can render it in
- *  isolation. Default: `enabled=true`.
+ *  v0.62c — 导出以便测试可独立渲染。默认 `enabled=true`。
  */
 export function TelemetryLogList({ enabled = true }: { enabled?: boolean }) {
   const { t } = useT();
@@ -1080,10 +1047,8 @@ export function TelemetryLogList({ enabled = true }: { enabled?: boolean }) {
     return d.toISOString().slice(0, 16).replace('T', ' ');
   };
 
-  // v0.62c — total size + count summary at the top
-  // of the list. Helps the user gauge how much disk
-  // telemetry is using without scrolling through the
-  // full list.
+  // v0.62c — 列表顶部的总大小 + 数量摘要。帮助用户
+  // 估算遥测占用了多少磁盘空间，无需滚动查看完整列表。
   const totalBytes = logs.reduce((s, l) => s + l.sizeBytes, 0);
   const currentCount = logs.filter((l) => l.isCurrent).length;
 
@@ -1113,9 +1078,8 @@ export function TelemetryLogList({ enabled = true }: { enabled?: boolean }) {
           </button>
         </div>
       </div>
-      {/* v0.62c — disk usage summary. The user can
-          see at a glance how much telemetry is on
-          disk without scrolling. */}
+      {/* v0.62c — 磁盘用量摘要。用户可一眼看出遥测
+          在磁盘上占用了多少空间，无需滚动。 */}
       <div
         className="text-[10px] text-muted"
         data-testid="telemetry-logs-summary"
@@ -1167,34 +1131,29 @@ export function TelemetryLogList({ enabled = true }: { enabled?: boolean }) {
 }
 
 // =================================================================
-// ============== v0.44c — Paper trading mode card =================
+// ============== v0.44c — Paper trading mode 卡片 =================
 // =================================================================
 
-/** v0.44c — paper trading mode toggle.
+/** v0.44c — paper trading mode 切换。
  *
- *  When ON, the mirror executor's picked orders
- *  go to the `paper_fills` table instead of `bets`,
- *  and the CLOB sign_order step is skipped. The
- *  decision logic (sizing, exposure caps,
- *  frequency) is unchanged. The user can validate
- *  their config without risking real money.
+ *  开启时，mirror executor 选择的订单会写入 `paper_fills`
+ *  表而非 `bets`，且跳过 CLOB sign_order 步骤。决策逻辑
+ *  （sizing、exposure caps、frequency）不变。用户可
+ *  在不冒真实资金风险的情况下验证其配置。
  *
- *  Default OFF. The L1 pushes the value to Rust
- *  on Settings mount and on every toggle via
- *  `setMirrorPaperMode`.
+ *  默认关闭。L1 在 Settings 挂载时以及每次切换时通过
+ *  `setMirrorPaperMode` 将值推送到 Rust。
  */
 
 // ================================================================
-// ============ v0.49b — Active model summary card =================
+// ============ v0.49b — Active model 摘要卡片 =====================
 // ================================================================
 
-/** v0.51a — CLOB feed status card. Shows whether
- *  the real order-book feed is configured
- *  (POLYROCKET_CLOB_API_KEY + SECRET + PASSPHRASE
- *  env vars) and how many snapshots are cached
- *  locally. The live WebSocket listener lands
- *  in v0.51+; v0.51a only lays down the schema +
- *  IPCs + this card.
+/** v0.51a — CLOB feed 状态卡片。展示真实订单簿 feed
+ *  是否已配置（POLYROCKET_CLOB_API_KEY + SECRET +
+ *  PASSPHRASE 环境变量）以及本地缓存了多少快照。
+ *  v0.51+ 中将上线实时 WebSocket 监听器；v0.51a 仅
+ *  落地 schema + IPC + 此卡片。
  */
 function ClobFeedCard() {
   const { t } = useT();
@@ -1273,13 +1232,11 @@ function ClobFeedCard() {
 }
 
 
-/** v0.49c — scheduler self-test. Reads the
- *  process-global atomic counters in
- *  `infra::scheduler::self_test` and renders a row
- *  of green/red dots per loop. Refresh button
- *  forces a re-poll. Loops that have never
- *  ticked (still in their initial stagger sleep)
- *  are rendered yellow with "starting...".
+/** v0.49c — 调度器自检。读取 `infra::scheduler::self_test`
+ *  中的进程全局原子计数器，并为每个 loop 渲染一行
+ *  绿/红点。Refresh 按钮强制重新拉取。尚未 tick 的
+ *  loop（仍处于初始 stagger 休眠）以黄色渲染并显示
+ *  「starting...」。
  */
 function SchedulerSelfTestCard() {
   const { t } = useT();
@@ -1308,8 +1265,8 @@ function SchedulerSelfTestCard() {
 
   useEffect(() => {
     refresh();
-    // Auto-poll every 30s so the dots update without
-    // a manual click. Cheap (atomic reads).
+    // 每 30s 自动轮询，使圆点无需手动点击即可更新。
+    // 廉价（原子读）。
     const id = setInterval(refresh, 30_000);
     return () => clearInterval(id);
   }, [refresh]);
@@ -1385,20 +1342,18 @@ function SchedulerSelfTestCard() {
   );
 }
 
-/** v0.49b — read-only card showing what the
- *  Rust side considers the "current" model.
+/** v0.49b — 只读卡片，展示 Rust 端视为「当前」的 model。
  *
- *  The data comes from `getActiveModel` IPC, which
- *  reads `<sidecar model dir>/active.json`. This is
- *  the same view the v0.48a degradation detector
- *  sees (v0.49b refactored both to share the helper).
+ *  数据来自 `getActiveModel` IPC，该 IPC 读取
+ *  `<sidecar model dir>/active.json`。这与 v0.48a
+ *  降级检测器看到的视图一致（v0.49b 重构两者共享
+ *  该 helper）。
  *
- *  Pre-first-promote state: `null` is shown with a
- *  "no model promoted yet" hint.
+ *  首次 promote 之前的状态：`null` 与「no model promoted
+ *  yet」提示一起显示。
  *
- *  The card is NOT a control — there's no promote
- *  action here. Promotion happens on the Model Lab
- *  page; this card is just an at-a-glance summary.
+ *  该卡片不是控件 —— 此处没有 promote 操作。
+ *  Promote 在 Model Lab 页面进行；该卡片仅为快速摘要。
  */
 function ActiveModelCard() {
   const { t } = useT();
@@ -1538,9 +1493,8 @@ function PaperModeCard() {
   const setPref = usePrefsStore((s) => s.setPref);
   const [pushed, setPushed] = useState(false);
 
-  // v0.44c — on mount, ask Rust what the current
-  // effective state is (in case the env var set
-  // it at startup).
+  // v0.44c — 挂载时询问 Rust 当前生效的状态（以防
+  // 环境变量在启动时设置了它）。
   useEffect(() => {
     getMirrorPaperMode()
       .then((v) => {
@@ -1549,7 +1503,7 @@ function PaperModeCard() {
         }
       })
       .catch(() => {
-        // best-effort
+        // 尽力而为
       });
   }, [setPref]);
 
@@ -1596,17 +1550,14 @@ function PaperModeCard() {
 }
 
 // =================================================================
-// ============== v0.48b — Model degradation alert card ============
+// ============== v0.48b — Model 降级告警卡片 =====================
 // =================================================================
 
-/** v0.48b — opt-in OS notification for model
- *  degradation alerts. The 7th scheduler loop
- *  runs every hour, computes the live Brier of
- *  the FALLBACK model on recent resolved
- *  markets, and emits a telemetry event with
- *  `alert=true` when live > train + threshold.
- *  When this pref is on, the L1 fires a real OS
- *  notification on those events. Default ON.
+/** v0.48b — model 降级告警的可选 OS 通知。第 7 个调度
+ *  loop 每小时运行一次，计算 FALLBACK model 在最近
+ *  已结算 market 上的实时 Brier，并在 live > train +
+ *  阈值时发出 `alert=true` 的遥测事件。当此偏好开启时，
+ *  L1 在这些事件上触发真正的 OS 通知。默认开启。
  */
 function DegradationAlertCard() {
   const { t } = useT();
@@ -1633,17 +1584,14 @@ function DegradationAlertCard() {
   );
 }
 
-// v0.54b — storage migration tool. Surfaces the
-// "Restart required" state from getStorageInfo
-// and gives the user a one-click "Copy existing
-// data to new path" button. After the migration
-// completes, the next launch already finds the
-// data at the new location (no empty-DB surprise).
-// v0.79c — bankroll allocation config card. Read-only summary
-// that calls `get_bankroll_config` and shows the current values.
-// The actual editing happens in /bankroll (which has the
-// slider UI + apply-allocation flow). This card is a
-// "where is my config" pointer.
+// v0.54b — 存储迁移工具。展示 getStorageInfo 中的
+// 「Restart required」状态，并为用户提供一键「Copy
+// existing data to new path」按钮。迁移完成后，下次
+// 启动即可在新位置找到数据（不会出现空白 DB 的意外）。
+// v0.79c — bankroll 分配配置卡片。只读摘要，
+// 调用 `get_bankroll_config` 并显示当前值。
+// 实际编辑在 /bankroll（拥有滑块 UI + apply-allocation
+// 流程）进行。该卡片是「我的配置在哪里」的指引。
 export function BankrollConfigCard() {
   const { t } = useT();
   const walletsQuery = useQuery({
@@ -1748,11 +1696,9 @@ function StorageMigrationCard() {
     }
   }, [info.data, overwrite, qc, t]);
 
-  // The card is only relevant when the user has
-  // picked a custom path AND the active session
-  // is still on the default path (restart
-  // required). Otherwise there's nothing to
-  // migrate.
+  // 该卡片仅在用户选择了自定义路径且当前会话
+  // 仍在默认路径上（需要重启）时才有意义。
+  // 否则没有需要迁移的内容。
   const visible = info.data?.restartRequired ?? false;
   if (!visible) return null;
 
@@ -1796,15 +1742,13 @@ function StorageMigrationCard() {
   );
 }
 
-// v0.55 — model explainability. Lets the user
-// pick a sample (price + age) and see the
-// per-feature contribution to the active model's
-// prediction. Surfaces the SHAP-like
-// decomposition of the 3-feature logistic model.
-// v0.59 — ExplainabilityCard is exported for
-// the dedicated test (src/routes/
-// ExplainabilityCard.test.tsx). It's also
-// used internally by Settings as before.
+// v0.55 — model 可解释性。让用户选择一个样本
+// （price + age）并查看对 active model 预测的
+// 逐特征贡献。展示 3 特征 logistic model 的
+// 类 SHAP 分解。
+// v0.59 — ExplainabilityCard 导出供专门的测试
+// （src/routes/ExplainabilityCard.test.tsx）使用。
+// 仍像之前一样在 Settings 内部使用。
 export function ExplainabilityCard() {
   const { t } = useT();
   const active = useQuery({
@@ -1814,11 +1758,9 @@ export function ExplainabilityCard() {
   });
   const [price, setPrice] = useState(0.5);
   const [age, setAge] = useState(24);
-  // v0.59 — toggle between SHAP and the v0.55
-  // exact-decomposition. SHAP is the default
-  // because it satisfies the efficiency axiom
-  // and is what users coming from
-  // shap-library / interpret-ml expect.
+  // v0.59 — 在 SHAP 和 v0.55 精确分解之间切换。
+  // SHAP 是默认值，因为它满足效率公理，
+  // 也是来自 shap-library / interpret-ml 的用户所期待的。
   const [useShap, setUseShap] = useState(true);
   const [busy, setBusy] = useState(false);
   const [derivResult, setDerivResult] = useState<Awaited<
@@ -1853,7 +1795,7 @@ export function ExplainabilityCard() {
   }, [active.data, price, age, useShap]);
 
   if (!active.data) return null;
-  // Pick the active result based on the toggle.
+  // 根据切换选择当前结果。
   const result = useShap ? shapResult : derivResult;
   return (
     <Card
@@ -1892,7 +1834,7 @@ export function ExplainabilityCard() {
             />
           </div>
         </div>
-        {/* v0.59 — SHAP vs derivative toggle. */}
+        {/* v0.59 — SHAP vs 导数 切换。 */}
         <div className="flex items-center gap-1 p-0.5 bg-surface-2 rounded-md w-fit">
           <button
             type="button"
@@ -1936,10 +1878,9 @@ export function ExplainabilityCard() {
             data-method={useShap ? 'shap' : 'derivative'}
             className="space-y-1.5 pt-2 border-t border-border"
           >
-            {/* v0.59 — when SHAP, show baseline +
-               target + efficiency diff. The
-               derivative view only shows the
-               prediction. */}
+            {/* v0.59 — 使用 SHAP 时，显示 baseline +
+               target + efficiency diff。导数视图
+               仅显示 prediction。 */}
             {useShap && shapResult && (
               <div className="text-[10px] text-muted flex items-center gap-3">
                 <span>
@@ -1963,11 +1904,10 @@ export function ExplainabilityCard() {
             )}
             <div className="space-y-1">
               {result.features.map((f) => {
-                // SHAP features use `shap_value`/
-                // `abs_shap`; derivative features
-                // use `contribution`/`abs_contribution`.
-                // Normalize to a single (value,
-                // abs) pair for rendering.
+                // SHAP features 使用 `shap_value`/
+                // `abs_shap`；导数 features 使用
+                // `contribution`/`abs_contribution`。
+                // 归一化为单个 (value, abs) 对以便渲染。
                 const fAny = f as unknown as {
                   feature: string;
                   value: number;
@@ -1989,7 +1929,7 @@ export function ExplainabilityCard() {
                       {fAny.feature}
                     </span>
                     <div className="flex-1 h-3 bg-surface-2 rounded-sm overflow-hidden relative">
-                      {/* Centered bar: positive right, negative left. */}
+                      {/* 居中条：正值向右，负值向左。 */}
                       <div
                         className={cn(
                           'absolute top-0 h-full',
@@ -2016,9 +1956,8 @@ export function ExplainabilityCard() {
                 );
               })}
             </div>
-            {/* v0.59 — surface the SHAP efficiency
-                residual so the user can sanity-
-                check the math. */}
+            {/* v0.59 — 展示 SHAP efficiency 残差，
+                让用户可以直观检查计算是否正确。 */}
             {useShap && shapResult && (
               <p className="text-[10px] text-muted pt-1">
                 {t('explain.shap_efficiency', {
@@ -2036,15 +1975,12 @@ export function ExplainabilityCard() {
   );
 }
 
-// v0.56 — network proxy / Tor configuration.
-// Lets the user route all outbound HTTP
-// (LLM clients, Polymarket CLOB, sidecar HTTP
-// if any) through a proxy. The two supported
-// schemes are http:// (HTTP CONNECT) and
-// socks5:// (e.g. Tor SOCKS5 on
-// 127.0.0.1:9050). Restart required for
-// changes to take effect (the shared
-// reqwest::Client is built at startup).
+// v0.56 — 网络代理 / Tor 配置。
+// 允许用户将所有出站 HTTP（LLM 客户端、Polymarket
+// CLOB、sidecar HTTP 等）通过代理路由。两种支持的
+// scheme 是 http://（HTTP CONNECT）和 socks5://
+// （例如 127.0.0.1:9050 上的 Tor SOCKS5）。更改需
+// 重启生效（共享的 reqwest::Client 在启动时构建）。
 function NetworkCard() {
   const { t } = useT();
   const qc = useQueryClient();
@@ -2056,7 +1992,7 @@ function NetworkCard() {
   const [url, setUrl] = useState('');
   const [enabled, setEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
-  // Sync form when the IPC returns.
+  // IPC 返回时同步表单。
   useEffect(() => {
     if (cfg.data) {
       setUrl(cfg.data.url ?? '');

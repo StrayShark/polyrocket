@@ -1,22 +1,21 @@
-// v0.87a — Audit.tsx cell renderer tests.
+// v0.87a —— Audit.tsx 单元格渲染器测试。
 //
-// Audit.tsx has 6 column definitions with inline cell renderers
-// (lines 75, 83, 91, 109). v0.62a + v0.70a + v0.72c tests render the
-// table with SAMPLE data but don't explicitly assert each cell's
-// content type. v8 coverage reports the cell arrow function bodies
-// as missed because the inline JSX execution is hard to attribute
-// to source lines.
+// Audit.tsx 有 6 个列定义，包含内联单元格渲染器
+//（第 75、83、91、109 行）。v0.62a + v0.70a + v0.72c 测试使用
+// SAMPLE 数据渲染表格，但没有显式断言每个单元格的
+// 内容类型。v8 覆盖率报告将单元格箭头函数体标记为
+// 未覆盖，因为内联 JSX 的执行很难归因到源代码行。
 //
-// These tests assert each column's cell renders the expected JSX:
-//   - `at` → fmtDateTime output (in a span with font-mono class)
-//   - `actor` → <Pill kind="muted">
-//   - `action` → <span> with the action text
-//   - `target` → <code> (when target is non-null) OR <span>— (when null)
-//   - `result` → <Pill kind="bull"|"bear"> depending on result value
+// 这些测试断言每列的单元格都渲染出预期的 JSX：
+//   - `at` → fmtDateTime 输出（在带 font-mono 类的 span 中）
+//   - `actor` → <Pill kind="muted">（渲染 actor 名称）
+//   - `action` → 包含 action 文本的 <span>
+//   - `target` → <code>（当 target 非空时）或 <span>—（当为 null 时）
+//   - `result` → 根据 result 值的 <Pill kind="bull"|"bear">
 //
-// Also covers line 174 (ErrorState on listAuditLog rejection with retry).
+// 同时覆盖第 174 行（listAuditLog 拒绝时渲染 ErrorState 并可重试）。
 //
-// Coverage target: Audit.tsx 88.37% → 90%+ stmts.
+// 覆盖率目标：Audit.tsx 88.37% → 90%+ stmts。
 
 // @vitest-environment happy-dom
 
@@ -66,9 +65,9 @@ describe('Audit cell renderers (v0.87a)', () => {
     await waitFor(() => {
       expect(screen.getByText('pm.place_bet')).toBeInTheDocument();
     });
-    // The at column renders the formatted timestamp in a span.font-mono.
-    // 1718710000000 → 2024-06-18 (something like that). The exact format
-    // depends on fmtDateTime. We check the font-mono span exists.
+    // at 列在 span.font-mono 中渲染格式化后的时间戳。
+    // 1718710000000 → 2024-06-18（类似如此）。具体格式
+    // 取决于 fmtDateTime。我们检查存在 font-mono 的 span。
     const fontMonoSpans = document.querySelectorAll('span.font-mono');
     expect(fontMonoSpans.length).toBeGreaterThan(0);
   });
@@ -86,7 +85,7 @@ describe('Audit cell renderers (v0.87a)', () => {
     mockListAuditLog.mockResolvedValueOnce(FULL_SAMPLE);
     renderAudit();
     await waitFor(() => {
-      // The action column renders inside a span with text-fg class
+      // action 列在带有 text-fg 类的 span 中渲染
       const fgSpans = document.querySelectorAll('span.text-fg.font-mono');
       expect(fgSpans.length).toBeGreaterThan(0);
     });
@@ -96,7 +95,7 @@ describe('Audit cell renderers (v0.87a)', () => {
     mockListAuditLog.mockResolvedValueOnce(FULL_SAMPLE);
     renderAudit();
     await waitFor(() => {
-      // The result column renders ok/error inside a Pill
+      // result 列在 Pill 中渲染 ok/error
       expect(screen.getByText('ok')).toBeInTheDocument();
       expect(screen.getByText('error')).toBeInTheDocument();
     });
@@ -108,8 +107,8 @@ describe('Audit cell renderers (v0.87a)', () => {
     ]);
     renderAudit();
     await waitFor(() => {
-      // target is null → renders "—" (em-dash). Multiple em-dashes may
-      // exist (e.g. payload null), so just check at least one is present.
+      // target 为 null → 渲染 "—"（em-dash）。可能存在多个 em-dash
+    // （例如 payload 为 null），因此仅检查至少存在一个。
       expect(screen.getAllByText('—').length).toBeGreaterThan(0);
     });
   });
@@ -131,8 +130,8 @@ describe('Audit cell renderers (v0.87a)', () => {
     await waitFor(() => {
       expect(screen.getByText(/audit fetch failed/)).toBeInTheDocument();
     });
-    // The ErrorState has a retry button. Click it, then make the second
-    // mock call succeed.
+    // ErrorState 有 retry 按钮。点击它，然后让第二次
+    // mock 调用成功。
     mockListAuditLog.mockResolvedValueOnce([]);
     const retryBtn = screen.getByRole('button', { name: /try again/i });
     fireEvent.click(retryBtn);

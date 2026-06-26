@@ -1,19 +1,17 @@
 // @vitest-environment happy-dom
 /**
- * TrainProgress component tests (v0.17e).
+ * TrainProgress 组件测试(v0.17e)。
  *
- * Strategy: mock `@/ipc` so the 2 `on*` listen functions
- * return no-op unlisten functions immediately. The tests
- * then render the component with a fixed `jobId` and
- * fire synthetic `started` / `finished` events, asserting
- * the structural DOM (test ids, status, table rows, best
- * highlight).
+ * 策略:mock `@/ipc` 让 2 个 `on*` 监听函数立即返回
+ * no-op 的 unlisten。然后用固定的 `jobId` 渲染组件,
+ * 触发合成的 `started` / `finished` 事件,
+ * 断言结构化 DOM(test id、status、表格行、best 高亮)。
  */
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, act } from '@testing-library/react';
 
 // ---------------------------------------------------------------------------
-// Mock `@/ipc` so we control the event stream.
+// mock `@/ipc` 以控制事件流。
 // ---------------------------------------------------------------------------
 
 type StartedCb = (e: { job_id: string; n_trials: number; epochs: number; started_at: number }) => void;
@@ -105,16 +103,16 @@ describe('TrainProgress (v0.17e)', () => {
     const grid = screen.getByTestId('train-progress');
     expect(grid).toHaveAttribute('data-running', 'false');
     expect(grid).toHaveAttribute('data-status', 'completed');
-    // Trial table: 4 rows
+    // Trial 表格: 4 行
     for (let i = 0; i < 4; i++) {
       const row = screen.getByTestId(`train-progress-row-${i}`);
       expect(row).toBeInTheDocument();
     }
-    // The best (lowest brier) is row 0
+    // 最优(最低 brier)是第 0 行
     expect(screen.getByTestId('train-progress-row-0')).toHaveAttribute('data-best', 'true');
     expect(screen.getByTestId('train-progress-row-1')).toHaveAttribute('data-best', 'false');
     expect(screen.getByTestId('train-progress-row-3')).toHaveAttribute('data-best', 'false');
-    // Best footer
+    // 最优 footer
     expect(screen.getByTestId('train-progress-best')).toBeInTheDocument();
   });
 
@@ -143,8 +141,8 @@ describe('TrainProgress (v0.17e)', () => {
     render(<TrainProgress jobId={JID} />);
     await flushListeners();
     fireStarted({ job_id: 'train-OTHER', n_trials: 4, epochs: 80, started_at: 1000 });
-    // The component is keyed to JID, not the OTHER id. So it
-    // should still be hidden.
+    // 组件以 JID 为 key,而不是 OTHER id。所以它
+    // 仍应保持隐藏。
     expect(screen.queryByTestId('train-progress')).toBeNull();
   });
 
@@ -176,7 +174,7 @@ describe('TrainProgress (v0.17e)', () => {
       message: null,
       finished_at: 4000,
     });
-    // Row 1 has the lowest brier (0.150) — it should be the best
+    // Row 1 的 brier 最低(0.150)——它应该是最优
     expect(screen.getByTestId('train-progress-row-0')).toHaveAttribute('data-best', 'false');
     expect(screen.getByTestId('train-progress-row-1')).toHaveAttribute('data-best', 'true');
     expect(screen.getByTestId('train-progress-row-2')).toHaveAttribute('data-best', 'false');
@@ -199,7 +197,7 @@ describe('TrainProgress (v0.17e)', () => {
       message: null,
       finished_at: 4000,
     });
-    // No onPromote passed → no Promote buttons
+    // 未传 onPromote → 不显示 Promote 按钮
     expect(screen.queryByTestId('train-promote-btn-0')).toBeNull();
     expect(screen.queryByTestId('train-promote-btn-1')).toBeNull();
   });
@@ -229,7 +227,7 @@ describe('TrainProgress (v0.17e)', () => {
       message: null,
       finished_at: 4000,
     });
-    // Both rows have a Promote button
+    // 两行都有 Promote 按钮
     expect(screen.getByTestId('train-promote-btn-0')).toBeInTheDocument();
     expect(screen.getByTestId('train-promote-btn-1')).toBeInTheDocument();
   });
@@ -253,7 +251,7 @@ describe('TrainProgress (v0.17e)', () => {
       message: null,
       finished_at: 4000,
     });
-    // No onPromoteAll passed → no "Promote all 4" button
+    // 未传 onPromoteAll → 不显示 "Promote all 4" 按钮
     expect(screen.queryByTestId('train-promote-all-btn')).toBeNull();
   });
 
@@ -303,7 +301,7 @@ describe('TrainProgress (v0.17e)', () => {
       message: null,
       finished_at: 4000,
     });
-    // 4 trials + onPromoteAll → button is shown
+    // 4 个 trials + onPromoteAll → 显示按钮
     expect(screen.getByTestId('train-promote-all-btn')).toBeInTheDocument();
   });
 });

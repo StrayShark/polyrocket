@@ -17,7 +17,7 @@ describe('KbdHelpDialog', () => {
     render(<KbdHelpDialog bindings={bindings} open onClose={() => {}} />);
     const dialog = screen.getByRole('dialog');
     const inDialog = within(dialog);
-    // The dialog title is now translated ("Keyboard shortcuts" in en)
+    // 对话框标题现在已被翻译(英文为 "Keyboard shortcuts")
     expect(inDialog.getByText('Keyboard shortcuts')).toBeInTheDocument();
     expect(inDialog.getByText('Go to Dashboard')).toBeInTheDocument();
     expect(inDialog.getByText('Go to Markets')).toBeInTheDocument();
@@ -45,8 +45,8 @@ describe('KbdHelpDialog', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  // v0.116 — coverage ramp round 16. Cover useKbdHelpDialog hook
-  // (lines 78-82: useState + openDialog / closeDialog).
+  // v0.116 —— 覆盖率提升第 16 轮。覆盖 useKbdHelpDialog hook
+  // (78-82 行:useState + openDialog / closeDialog)。
   it('useKbdHelpDialog: openDialog sets open=true, closeDialog sets open=false', () => {
     const { result } = renderHook(() => useKbdHelpDialog());
     expect(result.current.open).toBe(false);

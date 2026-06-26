@@ -1,10 +1,10 @@
-// v0.68a — Analysis route additional tests.
+// v0.68a — Analysis 路由附加测试。
 //
-// /analysis has a Run flow: type market_id → click Run →
-// analyze IPC → list of recommendations → Accept/Reject.
-// Existing test (v0.62a.2) covers 2 surface tests. We add
-// 4 more focused tests for the mutation + state machine.
-
+// /analysis 具有 Run 流程：输入 market_id → 点击 Run →
+// 调用 analyze IPC → 推荐列表 → 接受 / 拒绝。
+// 已有测试（v0.62a.2）覆盖 2 个表面用例。我们再新增
+// 4 个聚焦 mutation 与状态机的测试。
+//
 // @vitest-environment happy-dom
 
 import { describe, it, expect, vi } from 'vitest';
@@ -26,11 +26,11 @@ vi.mock('@/ipc', () => createIpcMock({
   llmAnalyze: (...args: unknown[]) => ma(...args),
   llmGetRecommendation: (...args: unknown[]) => mr(...args),
   recordLlmDecision: (...args: unknown[]) => md(...args),
-  // Default to [] — TanStack Query needs a defined return.
-  // Tests can override with mockResolvedValue() before render.
+  // 默认返回 [] —— TanStack Query 需要一个已定义的返回值。
+  // 测试可在 render 之前通过 mockResolvedValue() 覆盖。
   listActiveSignals: () => ms() ?? [],
-  // onAnalyzeStarted must return a Promise<UnlistenFn>.
-  // The Analysis component awaits it inside useEffect.
+  // onAnalyzeStarted 必须返回 Promise<UnlistenFn>。
+  // Analysis 组件在 useEffect 中 await 它。
   onAnalyzeStarted: async () => {
     await mo();
     return () => {}; // unlisten fn
@@ -71,7 +71,7 @@ const SAMPLE_ANALYSIS = {
       parse_ok: true, parse_error: null,
     },
   ],
-  // Various metadata fields the component expects
+  // 组件期望的多种 metadata 字段
   market_id: 'm1',
   computed_at_ms: Date.now(),
 };
@@ -93,7 +93,7 @@ describe('Analysis (v0.68a expand)', () => {
     });
     const input = document.querySelectorAll('input')[0] as HTMLInputElement;
     fireEvent.change(input, { target: { value: 'm1' } });
-    // Find Run button
+    // 寻找 Run 按钮
     const runBtn = screen.getAllByRole('button').find((b) =>
       /run|analyze|start/i.test(b.textContent || ''),
     );
@@ -117,7 +117,7 @@ describe('Analysis (v0.68a expand)', () => {
     );
     if (runBtn) {
       fireEvent.click(runBtn);
-      // Error should render somewhere — just check the page still works
+      // 错误应在某处渲染 —— 仅检查页面仍可工作
       await waitFor(() => {
         expect(document.body.textContent).toBeTruthy();
       });

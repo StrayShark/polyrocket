@@ -1,9 +1,9 @@
 /**
- * Query-error helper: turn a TanStack Query error into a consistent
- * ErrorState panel. Use in every route's error branch so the
- * "something failed" UI is identical everywhere.
+ * Query 错误辅助:把 TanStack Query 的 error 转为统一的
+ * ErrorState 面板。在每个路由的 error 分支使用,
+ * 让 "出错了" 的 UI 处处一致。
  *
- * Usage:
+ * 用法:
  *   if (query.error) return <QueryError error={query.error} onRetry={query.refetch} />;
  */
 
@@ -16,13 +16,13 @@ interface QueryErrorProps {
   onRetry?: () => void;
 }
 
-/** Best-effort coercion of any thrown value into our shape. */
+/** 尽力将任意抛出的值规整为我们的 shape。 */
 function shape(e: unknown): AppErrorShape {
   if (e && typeof e === 'object' && 'kind' in e && 'message' in e && 'hint' in e) {
     return e as AppErrorShape;
   }
   const raw = e instanceof Error ? e.message : String(e);
-  // Fall back to a synthetic unknown-error shape.
+  // 回退到一个合成的 unknown-error shape。
   return {
     kind: 'unknown',
     message: raw,

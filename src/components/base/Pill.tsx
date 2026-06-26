@@ -3,17 +3,17 @@ import { cn } from '@/lib/cn';
 
 export type PillKind = 'neutral' | 'bull' | 'bear' | 'warning' | 'accent' | 'muted';
 /**
- * v0.119 — Cursor-merge: shape variants.
- *   - "square" (default): existing 4px rounded (backward-compat)
- *   - "pill": pill (9999px) rounded per Cursor `badge-pill` spec
+ * v0.119 — Cursor 合并:形状变体。
+ *   - "square"(默认):沿用现有 4px 圆角(向后兼容)
+ *   - "pill":按 Cursor `badge-pill` 规范使用 pill(9999px)圆角
  */
 export type PillShape = 'square' | 'pill';
 
 export interface PillProps extends HTMLAttributes<HTMLSpanElement> {
   kind?: PillKind;
-  /** v0.119 — shape variant. Default "square" keeps backward compat. */
+  /** v0.119 — 形状变体。默认 "square" 以保持向后兼容。 */
   shape?: PillShape;
-  /** v0.119 — uppercase 11px caption-uppercase typography per Cursor. */
+  /** v0.119 — 按 Cursor 规范采用大写 11px caption-uppercase 排版。 */
   uppercase?: boolean;
   children: ReactNode;
 }

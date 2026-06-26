@@ -1,13 +1,13 @@
-// v0.70a — Audit route additional tests.
+// v0.70a —— Audit 路由附加测试。
 //
-// /audit is a 203-line component with many branch-rich paths:
-// filter chips (prefix derivation), debounced search, empty vs
-// empty-filter distinction, refresh button (spinning icon), and
-// table rendering with multiple column types. Existing test
-// (v0.62a) is 1 surface-level render. We add 8 focused tests
-// covering the branch-rich state machine.
+// /audit 是一个 203 行的组件，包含许多分支密集的路径：
+// 过滤芯片（前缀派生）、去抖搜索、空数据 vs
+// 空过滤区分、refresh 按钮（旋转图标）以及
+// 多种列类型的表格渲染。已有测试
+//（v0.62a）仅 1 个表面渲染。我们新增 8 个聚焦测试
+// 覆盖分支密集的状态机。
 //
-// Audit.tsx: 37.2% → ~70% stmts.
+// Audit.tsx：37.2% → ~70% stmts。
 //
 // @vitest-environment happy-dom
 
@@ -43,7 +43,7 @@ function renderAudit() {
   );
 }
 
-// Sample fixture: 6 entries spanning 4 action prefixes
+// 示例 fixture：6 条 entry 跨越 4 个 action 前缀
 const SAMPLE = [
   { id: 1, at: 1718710000000, actor: 'user1', action: 'pm.place_bet', target: 'mkt-1', result: 'ok', payload: '{"size":100}' },
   { id: 2, at: 1718710100000, actor: 'user1', action: 'pm.cancel_bet', target: 'mkt-2', result: 'ok', payload: null },
@@ -57,7 +57,7 @@ describe('Audit (extended)', () => {
   it('renders loading skeleton on initial mount', async () => {
     mla.mockReturnValue(new Promise(() => {})); // never resolves
     renderAudit();
-    // The skeleton has 6 rows; check that role="status" or generic divs are visible
+    // skeleton 共有 6 行；检查存在 role="status" 或通用 div
     expect(screen.getAllByRole('generic').length).toBeGreaterThan(0);
   });
 
@@ -65,7 +65,7 @@ describe('Audit (extended)', () => {
     mla.mockResolvedValue([]);
     renderAudit();
     await waitFor(() => {
-      // Look for i18n key fragment OR the fallback text — both should appear
+      // 查找 i18n key 片段或回退文本 —— 两者应同时出现
       expect(screen.queryAllByText(/no_writes|暂无写入|audit.empty/i).length).toBeGreaterThanOrEqual(0);
     });
   });
@@ -74,7 +74,7 @@ describe('Audit (extended)', () => {
     mla.mockResolvedValue(SAMPLE);
     renderAudit();
     await waitFor(() => {
-      // Each entry's action shows up as monospace text
+      // 每个 entry 的 action 以等宽字体文本显示
       expect(screen.getByText('pm.place_bet')).toBeInTheDocument();
       expect(screen.getByText('wallet.add')).toBeInTheDocument();
       expect(screen.getByText('llm.predict')).toBeInTheDocument();
@@ -85,8 +85,8 @@ describe('Audit (extended)', () => {
     mla.mockResolvedValue(SAMPLE);
     renderAudit();
     await waitFor(() => {
-      // pm / wallet / llm — these should appear as filter buttons
-      // The chip label format is `${prefix}.*`
+      // pm / wallet / llm —— 应作为过滤按钮出现
+      // 芯片标签格式为 `${prefix}.*`
       expect(screen.getByText('pm.*')).toBeInTheDocument();
       expect(screen.getByText('wallet.*')).toBeInTheDocument();
       expect(screen.getByText('llm.*')).toBeInTheDocument();
@@ -98,11 +98,11 @@ describe('Audit (extended)', () => {
     renderAudit();
     await waitFor(() => screen.getByText('pm.*'));
     fireEvent.click(screen.getByText('pm.*'));
-    // After filtering, only pm.* actions should be visible (2 entries: place_bet, cancel_bet)
+    // 过滤后，仅 pm.* action 可见（2 条：place_bet、cancel_bet）
     await waitFor(() => {
       expect(screen.getByText('pm.place_bet')).toBeInTheDocument();
       expect(screen.getByText('pm.cancel_bet')).toBeInTheDocument();
-      // Non-pm actions should NOT be in the table
+      // 非 pm 的 action 不应出现在表格中
       expect(screen.queryByText('wallet.add')).not.toBeInTheDocument();
       expect(screen.queryByText('llm.predict')).not.toBeInTheDocument();
     });
@@ -116,8 +116,8 @@ describe('Audit (extended)', () => {
     await waitFor(() => {
       expect(screen.queryByText('wallet.add')).not.toBeInTheDocument();
     });
-    // "all" button is i18n'd — find by structure: first button in the chip row
-    // The all chip's text contains "all" or 全部 — click whatever the first chip is
+    // "all" 按钮经过 i18n —— 通过结构查找：芯片行中的第一个按钮
+    // all 芯片的文本包含 "all" 或 全部 —— 点击任意首个芯片
     const allButton = screen.getAllByRole('button').find(b => /all|全部/i.test(b.textContent || ''));
     if (allButton) {
       fireEvent.click(allButton);
@@ -131,7 +131,7 @@ describe('Audit (extended)', () => {
     mla.mockRejectedValue(new Error('audit fetch failed'));
     renderAudit();
     await waitFor(() => {
-      // ErrorState shows the error message + retry button
+      // ErrorState 显示错误信息 + retry 按钮
       expect(screen.getByText(/audit fetch failed/)).toBeInTheDocument();
     });
   });
@@ -140,8 +140,8 @@ describe('Audit (extended)', () => {
     mla.mockResolvedValue(SAMPLE);
     renderAudit();
     await waitFor(() => {
-      // Footer format is "shown N / total M"
-      // Total should be 6, shown 6 (no filter)
+      // footer 格式为 "shown N / total M"
+      // Total 应为 6，shown 6（无过滤）
       const footer = document.body.textContent || '';
       expect(footer).toMatch(/6.*6|6 \/ 6/);
     });

@@ -1,27 +1,24 @@
-// v0.53b + v0.68f — LlmStep (Step 4 of 6).
+// v0.53b + v0.68f —— LlmStep (Step 4 of 6)。
 //
-// Add at least one LLM provider. The form mirrors
-// what /llm-mgmt does, but inside the welcome
-// layout. We invoke llmProviderUpsert +
-// llmKeySetSecret + llmTestConnectivity (the same
-// 3-step IPC chain the LLM Mgmt page uses).
+// 至少添加一个 LLM provider。表单结构与 /llm-mgmt 相同,
+// 只是嵌在 welcome 布局内。我们调用
+// llmProviderUpsert + llmKeySetSecret + llmTestConnectivity
+// (与 LLM Mgmt 页面使用的同一套 3 步 IPC 链)。
 //
-// On success: welcome.setConfigured('llmAtLeastOne', true)
+// 成功时:welcome.setConfigured('llmAtLeastOne', true)
 //
-// **Why a separate component from /llm-mgmt**: the
-// welcome layout is constrained (single column, no
-// sidebar, focus on getting to "configured"). The LLM
-// Mgmt page is the post-setup admin tool. Same IPCs,
-// different framing.
+// **为什么与 /llm-mgmt 拆成两个组件**:welcome 布局受限
+// (单列、无侧栏,聚焦于"完成配置")。
+// LLM Mgmt 页面是配置完成后的管理工具。
+// 同一套 IPC,不同的呈现方式。
 //
-// **Validation order**: alias first (non-empty),
-// then secret (non-empty), then provider.
-// Failure at any step shows an inline error and
-// does NOT call the IPC.
-// llmKeySetSecret + llmTestConnectivity (the same
-// 3-step IPC chain the LLM Mgmt page uses).
+// **校验顺序**:先 alias(非空),再 secret(非空),再 provider。
+// 任一步失败都显示内联错误,并
+// 不会调用 IPC。
+// llmKeySetSecret + llmTestConnectivity(与 LLM Mgmt 页面
+// 使用的同一套 3 步 IPC 链)。
 //
-// On success: welcome.setConfigured('llmAtLeastOne', true)
+// 成功时:welcome.setConfigured('llmAtLeastOne', true)
 
 import { useState, useCallback } from 'react';
 import { Input } from '@/components/base/Input';
@@ -39,21 +36,16 @@ import { toast } from '@/stores/toast-store';
 import { Key, Plus, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
-// v0.110 — Chinese LLM provider presets (Tier 1: OpenAI-compatible).
+// v0.110 —— 中文 LLM provider 预设 (Tier 1: OpenAI-compatible)。
 //
-// All 5 use the OpenAI `chat/completions` protocol, so they're
-// dispatched through `CustomClient(OpenaiCompat)` in
-// `src-tauri/src/domain/llm/custom.rs`. Users only need to
-// paste their API key + select the preset — no manual base URL.
+// 全部 5 个使用 OpenAI `chat/completions` 协议,
+// 因此通过 `src-tauri/src/domain/llm/custom.rs` 中的
+// `CustomClient(OpenaiCompat)` 分发。用户只需粘贴 API key
+// 并选择预设 —— 无需手动配置 base URL。
 //
-// v0.110.2 — `defaultModel` 字段: 跟踪各家最新 stable 版本。
-//   Update via §15.6 checklist in `polyrocket-llm-management.md`.
-//   Sources (researched 2026-06-22):
-//     Qwen  → https://help.aliyun.com/zh/model-studio/getting-started/models
-//     Doubao → https://www.volcengine.com/docs/82379
-//     Kimi  → https://platform.moonshot.cn/docs/intro
-//     GLM   → https://open.bigmodel.cn/cn/guide/start/model-overview
-//     MiniMax → https://api.minimax.chat/document
+// v0.110.2 —— `defaultModel` 字段:跟踪各家最新 stable 版本。
+//   通过 `polyrocket-llm-management.md` 中的 §15.6 清单更新。
+//   信息来源(2026-06-22 调研):见下方 URL。
 const PROVIDERS: Array<{
   id: 'openai' | 'anthropic' | 'google' | 'deepseek' | 'qwen' | 'doubao' | 'kimi' | 'glm' | 'MiniMax' | 'ernie' | 'custom';
   label: string;
@@ -109,19 +101,19 @@ export function LlmStep({
     setBusy(true);
     setResult(null);
     try {
-      // v0.110.2 — Step 1: upsert the provider row (with the
-      // latest default_model from PROVIDERS). This persists
-      // the `default_model` field so the Rust dispatch layer
-      // uses the latest version, not the LlmProviderDto's
-      // server-side fallback.
-      // Map provider.id → ProviderKind for the DB.
+      // v0.110.2 — Step 1: upsert provider 行 (使用
+      // PROVIDERS 中最新的 default_model)。
+      // 这会持久化 `default_model` 字段,
+      // 让 Rust dispatch 层使用最新版本,
+      // 而不是 LlmProviderDto 的服务端 fallback。
+      // 将 provider.id 映射为 DB 的 ProviderKind。
       const kind = ((): UpsertLlmProviderArgs['kind'] => {
         switch (provider.id) {
           case 'openai':    return 'openai';
           case 'anthropic': return 'anthropic';
           case 'google':    return 'google';
           case 'deepseek':  return 'deepseek';
-          // 5 Chinese (v0.110) + ERNIE (v0.111) + custom: all OpenAI-compatible
+          // 5 个中文 (v0.110) + ERNIE (v0.111) + custom: 全部 OpenAI 兼容
           default:          return 'openai_compat';
         }
       })();
@@ -136,7 +128,7 @@ export function LlmStep({
         max_retries: 2,
       };
       await llmProviderUpsert(providerUpsertArgs);
-      // Step 2: upsert the key + write to OS keyring.
+      // Step 2: upsert key + 写入 OS keyring。
       const upsertArgs: UpsertLlmKeyArgs = {
         provider_id: provider.id,
         alias: alias.trim(),
@@ -147,7 +139,7 @@ export function LlmStep({
       };
       const key = await llmKeyUpsert(upsertArgs);
       await llmKeySetSecret(key.id, secret.trim());
-      // Step 3: connectivity test against the new key.
+      // Step 3: 对新 key 进行连通性测试。
       const conn = await llmTestConnectivity(provider.id, key.id);
       if (conn.ok) {
         welcome.setConfigured('llmAtLeastOne', true);
@@ -208,7 +200,7 @@ export function LlmStep({
               </button>
             ))}
           </div>
-          {/* v0.110 — Selected provider hint (only shown for Chinese providers with hints) */}
+          {/* v0.110 — 选中 provider 的提示 (仅在有 hint 的中文 provider 上显示) */}
           {provider.hint && (
             <div
               className="text-[10px] text-muted mt-1.5 font-mono"

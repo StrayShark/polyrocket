@@ -1,15 +1,15 @@
-// v0.67a — Copy route additional tests (AddTargetModal flows).
+// v0.67a — Copy 路由补充测试（AddTargetModal 流程）。
 //
-// /copy has 3 main flows: targets list, events list,
-// AddTargetModal. The base v0.63b test (3 tests) only
-// covers the list rendering. We expand with 5 more
-// tests focused on the AddTargetModal interaction:
+// /copy 主要有 3 个流程：targets 列表、events 列表、
+// AddTargetModal。基础 v0.63b 测试（3 个用例）仅
+// 覆盖列表渲染。我们新增 5 个聚焦
+// AddTargetModal 交互的测试：
 //
-//   1. Submit button disabled until valid 0x address
-//   2. Invalid address length → button stays disabled
-//   3. Submit valid address → addCopyTarget mutation
-//   4. Submit with allocation cap → cap passed to IPC
-//   5. addCopyTarget throws → error toast
+//   1. Submit 按钮在填入合法 0x 地址前一直处于禁用状态
+//   2. 地址长度不合法 → 按钮仍然禁用
+//   3. 提交合法地址 → 触发 addCopyTarget mutation
+//   4. 提交时携带 allocation cap → cap 被传给 IPC
+//   5. addCopyTarget 抛出 → 错误 toast
 
 // @vitest-environment happy-dom
 
@@ -77,13 +77,13 @@ describe('Copy (v0.67a AddTargetModal)', () => {
     await waitFor(() => {
       expect(screen.getAllByText(/Whale #1/i).length).toBeGreaterThan(0);
     });
-    // Click the Add target button. The header has a primary "Add target" button.
+    // 点击 Add target 按钮。页头有一个 primary 的 "Add target" 按钮。
     const addBtn = screen.getAllByRole('button').find((b) =>
       /add target/i.test(b.textContent || ''),
     );
     expect(addBtn).toBeTruthy();
     fireEvent.click(addBtn!);
-    // Modal renders — input field visible
+    // Modal 渲染 —— 输入字段可见
     await waitFor(() => {
       const inputs = document.querySelectorAll('input');
       expect(inputs.length).toBeGreaterThan(0);
@@ -99,7 +99,7 @@ describe('Copy (v0.67a AddTargetModal)', () => {
       /add target/i.test(b.textContent || ''),
     );
     fireEvent.click(addBtn!);
-    // Find the Submit button (the primary "Add" inside modal footer)
+    // 寻找 Submit 按钮（modal 底部 primary 的 "Add"）
     const submitBtn = await waitFor(() => {
       const btns = screen.getAllByRole('button');
       const submit = btns.find((b) => /^Add$/i.test(b.textContent?.trim() || ''));
@@ -121,10 +121,10 @@ describe('Copy (v0.67a AddTargetModal)', () => {
     await waitFor(() => {
       expect(document.querySelectorAll('input').length).toBeGreaterThan(0);
     });
-    // Type a too-short address
+    // 输入一个过短的 address
     const inputs = document.querySelectorAll('input');
     fireEvent.change(inputs[0], { target: { value: '0xshort' } });
-    // Find submit
+    // 寻找 submit
     await waitFor(() => {
       const btns = screen.getAllByRole('button');
       const submit = btns.find((b) => /^Add$/i.test(b.textContent?.trim() || ''));
@@ -148,7 +148,7 @@ describe('Copy (v0.67a AddTargetModal)', () => {
     const inputs = document.querySelectorAll('input');
     fireEvent.change(inputs[0], { target: { value: VALID_ADDR } });
     fireEvent.change(inputs[1], { target: { value: 'My Whale' } });
-    // Submit
+    // 提交
     const submitBtn = screen.getAllByRole('button').find((b) =>
       /^Add$/i.test(b.textContent?.trim() || ''),
     );
@@ -178,7 +178,7 @@ describe('Copy (v0.67a AddTargetModal)', () => {
     });
     const inputs = document.querySelectorAll('input');
     fireEvent.change(inputs[0], { target: { value: VALID_ADDR } });
-    // Allocation cap is the 4th input (after address, label, min edge)
+    // Allocation cap 是第 4 个 input（位于 address、label、min edge 之后）
     fireEvent.change(inputs[3], { target: { value: '500' } });
     const submitBtn = screen.getAllByRole('button').find((b) =>
       /^Add$/i.test(b.textContent?.trim() || ''),

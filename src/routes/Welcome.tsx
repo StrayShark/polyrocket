@@ -1,9 +1,8 @@
-// v0.53b — Welcome route (first-run landing).
+// v0.53b — Welcome 路由（首次运行的落地页）。
 //
-// The 6-step wizard lives here. v0.53b ships the
-// route scaffold + StepProgress + the welcome
-// step + the navigation logic. v0.53c fills in
-// the remaining 5 step components.
+// 6 步向导位于此处。v0.53b 提供路由脚手架 +
+// StepProgress + welcome 步骤 + 导航逻辑。
+// v0.53c 填充剩余的 5 个步骤组件。
 
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -27,7 +26,7 @@ import { CheckCircle2, ChevronRight, ChevronLeft } from 'lucide-react';
  *   2. `storage` — DB 路径选择（v0.53a+）+ 主题
  *   3. `theme` — 3 主题切换
  *   4. `llm` — 添加第一个 LLM provider + key
- *   5. `polymarket` — CLOB credentials + wallet private key
+ *   5. `polymarket` — CLOB 凭证 + 钱包私钥
  *   6. `finish` — summary + 跳到 dashboard
  *
  * **状态机**：`step` 状态在 `useWelcomeStore`（持久化到 localStorage）。`done=true`
@@ -42,11 +41,10 @@ export function Welcome() {
   const { t } = useT();
   const setLocale = useLocaleStore((s) => s.setLocale);
 
-  // v0.53b — if the user has finished the wizard,
-  // redirect to dashboard. The L1 also does this
-  // in main.tsx; double-check here for the case
-  // where the user navigates back to /welcome
-  // intentionally (e.g. via the URL bar).
+  // v0.53b — 如果用户已完成向导，重定向至 dashboard。
+  // L1 在 main.tsx 中也会执行此操作；此处再次检查
+  // 是为了应对用户主动（例如通过 URL 栏）导航
+  // 回 /welcome 的情况。
   useEffect(() => {
     if (welcome.done) {
       navigate('/dashboard', { replace: true });

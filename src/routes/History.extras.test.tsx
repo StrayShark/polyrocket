@@ -1,14 +1,13 @@
-// v0.71c — History route additional tests.
+// v0.71c — History 路由补充测试。
 //
-// History.tsx is 345 lines with 10-column DataTable + status
-// filter + KPI summary + tx_hash external links. Existing test
-// (v0.62a) covers surface rendering only. We add 10 tests
-// covering the branch-rich column rendering (PnL color/bull/
-// bear/null, side pill, status pill kinds, mode pill, fill
-// slippage, partial badge, post-only badge) + filter state
-// machine + KPI positive/negative delta.
+// History.tsx 有 345 行，包含 10 列 DataTable + 状态
+// 筛选 + KPI 概览 + tx_hash 外链。已有测试（v0.62a）
+// 仅覆盖表层渲染。我们新增 10 个测试，覆盖分支丰富的列渲染
+// （PnL 颜色/bull/bear/null、side pill、status pill 类型、
+// mode pill、fill 滑点、partial 徽章、post-only 徽章） +
+// 筛选状态机 + KPI 正负 delta。
 //
-// Coverage target: 76.8% → ~90% stmts.
+// 覆盖目标：76.8% → ~90% stmts。
 //
 // @vitest-environment happy-dom
 
@@ -93,7 +92,7 @@ describe('History (extended)', () => {
     fireEvent.click(openBtn!);
     await waitFor(() => {
       expect(screen.getByText('m1')).toBeInTheDocument();
-      // m2 (won), m3 (lost), m4 (cancelled) should NOT be visible
+      // m2（won）、m3（lost）、m4（cancelled）不应可见
       expect(screen.queryByText('m2')).not.toBeInTheDocument();
     });
   });
@@ -114,7 +113,7 @@ describe('History (extended)', () => {
   it('renders YES pill for YES side bets', async () => {
     renderHistory();
     await waitFor(() => screen.getByText('m1'));
-    // m1 side is YES — should appear as YES text
+    // m1 side 为 YES —— 应作为 YES 文本出现
     expect(screen.getAllByText('YES').length).toBeGreaterThan(0);
   });
 
@@ -127,14 +126,14 @@ describe('History (extended)', () => {
   it('renders positive PnL with + prefix and bull color', async () => {
     renderHistory();
     await waitFor(() => screen.getByText('m2'));
-    // b2 pnl=25.5 → should render as +$25.50
+    // b2 pnl=25.5 → 应渲染为 +$25.50
     expect(screen.getAllByText(/\+\$25/).length).toBeGreaterThan(0);
   });
 
   it('renders negative PnL with bear color (no + prefix)', async () => {
     renderHistory();
     await waitFor(() => screen.getByText('m3'));
-    // b3 pnl=-12 → renders as $-12.00
+    // b3 pnl=-12 → 渲染为 $-12.00
     expect(screen.getAllByText(/\$-12/).length).toBeGreaterThan(0);
   });
 });

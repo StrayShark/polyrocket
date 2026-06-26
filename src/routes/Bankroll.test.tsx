@@ -1,11 +1,11 @@
-// v0.78c — bankroll L4 component tests (+12 tests, ~95% br).
+// v0.78c — bankroll L4 组件测试（+12 测试，约 95% 分支覆盖）。
 //
-// Covers:
-//   - BankrollCard: 4 tiles, free=available-reserved-allocated, negatives clamp
-//   - AllocationTable: empty state, single item, multiple items,
-//     capped reason badges, Yes/No pill
-//   - Bankroll route: renders with empty signals, config sliders,
-//     bankroll input, empty state for no signals
+// 覆盖：
+//   - BankrollCard：4 个卡片，free=available-reserved-allocated，负值夹紧为 0
+//   - AllocationTable：空状态、单条、多条、
+//     截断原因徽章、Yes/No 胶囊
+//   - Bankroll 路由：空信号渲染、配置滑块、
+//     bankroll 输入、无信号时空状态
 //
 // @vitest-environment happy-dom
 
@@ -111,9 +111,9 @@ describe('v0.78c — bankroll L4 components', () => {
 
     it('clamps negative free to 0', () => {
       wrap(<BankrollCard availableUsdc="100" reservedUsdc="200" allocatedUsdc="0" />);
-      // reserved > available, so free should be 0
+      // reserved > available，因此 free 应为 0
       const text = document.body.textContent || '';
-      // both reserved and free would show
+      // reserved 和 free 都会显示
       expect(text).toContain('Reserved');
     });
 
@@ -148,7 +148,7 @@ describe('v0.78c — bankroll L4 components', () => {
 
     it('shows capped reason pill when present', () => {
       wrap(<AllocationTable items={SAMPLE_RESULT.per_market} />);
-      // m2 has PerSignalCap
+      // m2 是 PerSignalCap（按信号上限）
       const row = screen.getByTestId('allocation-row-m2');
       expect(row.textContent).toContain('per-cap');
     });

@@ -1,17 +1,16 @@
-// v0.53b — WelcomeStep (Step 1 of 6).
+// v0.53b — WelcomeStep (Step 1 of 6)。
 //
-// Hero + language picker. No IPC side effects on
-// mount; the locale change writes to the
-// locale-store + welcome-store.
+// Hero + 语言选择器。挂载时无 IPC 副作用;
+// 语言切换写入 locale-store + welcome-store。
 //
-// **Why no IPC on step 1**: the user is just landing
-// in the app. We don't have their language preference
-// yet, and they may bail out. Keep step 1 cheap.
+// **Step 1 为什么无 IPC**: 用户只是首次
+// 进入应用。我们还没有他们的语言偏好,
+// 他们也可能中途退出。保持 step 1 轻量。
 //
-// **Layout**: vertical center column with
-//   1. Rocket icon (64×64) + app name
-//   2. EN / 中文 language picker (2 buttons)
-//   3. Three "value prop" chips (local-first / keys / LLM)
+// **布局**: 垂直居中列,包含
+//   1. Rocket 图标 (64×64) + 应用名
+//   2. EN / 中文 语言选择器 (2 个按钮)
+//   3. 三个 "价值主张" 标签 (本地优先 / 密钥 / LLM)
 
 import { Rocket } from 'lucide-react';
 import { useT } from '@/lib/i18n';
@@ -41,10 +40,10 @@ export function WelcomeStep({
         </div>
       </div>
 
-      {/* v0.53b — language picker. The user can
-          change this anytime from the topbar. We
-          default to whatever navigator.language
-          reports; both en and zh are bundled. */}
+      {/* v0.53b — language picker. 用户可以
+          随时从顶栏切换。默认取
+          navigator.language 报告的语言;
+          en 和 zh 都已打包。 */}
       <div className="max-w-md mx-auto">
         <div className="text-xs text-muted font-semibold mb-2 uppercase tracking-caption-uppercase">
           {t('welcome.locale_label')}
@@ -67,10 +66,10 @@ export function WelcomeStep({
         </div>
       </div>
 
-      {/* v0.53b — value props. 3 short bullets that
-          reinforce "local-first" / "self-custody" /
-          "OS keyring". Same language as the old
-          M13 v2.0 onboarding. */}
+      {/* v0.53b — value props. 3 个简短要点
+          强化 "本地优先" / "自托管" /
+          "OS keyring"。措辞与旧版
+          M13 v2.0 引导一致。 */}
       <div className="grid grid-cols-3 gap-3 max-w-md mx-auto pt-2">
         <PropChip
           testid="welcome-step-welcome-vp-0"
@@ -92,7 +91,7 @@ export function WelcomeStep({
   );
 }
 
-/** Locale button — the active locale has accent background. */
+/** Locale 按钮 — 激活的语言带有 accent 背景。 */
 function LocaleButton({
   active,
   onClick,
@@ -126,7 +125,7 @@ function LocaleButton({
   );
 }
 
-/** Small "value prop" chip — title + 1-line body, 3 across. */
+/** 小的 "value prop" 标签 —— 标题 + 一行正文,横向排 3 个。 */
 function PropChip({
   testid,
   title,

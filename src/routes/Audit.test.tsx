@@ -1,8 +1,8 @@
-// v0.62a — Audit component tests.
+// v0.62a — Audit 组件测试。
 //
-// /audit is the read-only audit log browser.
-// Today 0% coverage. This file covers the
-// initial render + filter chips + table.
+// /audit 是只读审计日志浏览器。
+// 当前覆盖率 0%。本文件覆盖
+// 初始渲染 + 过滤芯片 + 表格。
 
 // @vitest-environment happy-dom
 

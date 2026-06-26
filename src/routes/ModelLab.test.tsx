@@ -1,21 +1,19 @@
-// v0.57b — ModelLab component tests.
+// v0.57b — ModelLab 组件测试。
 //
-// The ModelLab is the v0.17+ lifecycle page. It
-// surfaces:
-//   - Train / promote / rollback controls
-//   - Last candidate summary
-//   - Auto-promote toggle
-//   - Promote history chart
-//   - Model comparison (v0.42e)
-//   - Backtest modal (v0.43d)
-//   - Archive viewer (v0.34b)
+// ModelLab 是 v0.17+ 起的模型生命周期页面，主要呈现：
+//   - Train / promote / rollback 控件
+//   - 最近一次 candidate 摘要
+//   - auto-promote 开关
+//   - promote 历史图表
+//   - model 对比（v0.42e）
+//   - backtest 模态框（v0.43d）
+//   - archive 查看器（v0.34b）
 //
-// Today it has 6 data-testids but no tests.
-// This file covers the surface-level rendering
-// of the page (Train + Promote buttons, last
-// candidate card, archive view) without
-// exercising the full lifecycle (which is
-// tested in Rust via sidecar_e2e).
+// 当前 ModelLab 已有 6 个 data-testid，但缺少测试。
+// 本文件覆盖页面的表层渲染（Train + Promote 按钮、
+// 最近一次 candidate 卡片、archive 视图），不
+// 演练完整生命周期（后者通过 Rust 侧的 sidecar_e2e
+// 测试覆盖）。
 
 // @vitest-environment happy-dom
 
@@ -25,7 +23,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 vi.mock('@/ipc', () => ({
-  // IPCs ModelLab uses
+  // ModelLab 使用的 IPCs
   listPromoteHistory: vi.fn().mockResolvedValue({
     ok: true,
     message: 'ok',
@@ -72,11 +70,10 @@ vi.mock('@/ipc', () => ({
     enabled: false,
     brier_margin: 0.005,
   }),
-  // Event listeners
+  // 事件监听器
   onTrainStarted: vi.fn().mockResolvedValue(() => {}),
   onAutoPromoteFinished: vi.fn().mockResolvedValue(() => {}),
-  // Other IPCs (not used in these tests but
-  // imported by the component)
+  // 其他 IPCs（本测试未使用但被组件导入）
   llmPerformance: vi.fn().mockResolvedValue([]),
   sidecarPredict: vi.fn().mockResolvedValue({
     predictions: [],
@@ -148,12 +145,9 @@ describe('ModelLab (v0.57b)', () => {
     });
   });
 
-  // Note: the Promote / Auto-promote / Last
-  // candidate / Compare buttons are conditional
-  // on a `lastCandidate` local state that's set
-  // by the train-completion event flow. They
-  // would need a fireEvent-driven test (click
-  // Train → wait for event → assert on the new
-  // buttons). The lifecycle flow itself is
-  // covered by the Rust sidecar_e2e.rs.
+  // 注意：Promote / Auto-promote / Last candidate / Compare
+  // 按钮依赖于由 train-completion 事件流设置的
+  // `lastCandidate` 本地 state。它们需要 fireEvent
+  // 驱动的测试（点击 Train → 等待事件 → 断言新按钮）。
+  // 生命周期流程本身由 Rust 侧 sidecar_e2e.rs 覆盖。
 });

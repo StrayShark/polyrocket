@@ -14,7 +14,7 @@ describe('Card (v0.119 Cursor-merge)', () => {
     const card = container.querySelector('[class*="rounded-card"]')!;
     expect(card).toBeInTheDocument();
     expect(card.className).toContain('rounded-card');
-    // Backward-compat: old `rounded-lg` should NOT be used anymore
+    // 向后兼容:不再使用旧的 `rounded-lg`
     expect(card.className).not.toContain('rounded-lg');
   });
 
@@ -44,7 +44,7 @@ describe('Card (v0.119 Cursor-merge)', () => {
 
   it('does not render title row if neither title nor action provided', () => {
     const { container } = render(<Card>body</Card>);
-    // Should only have 1 outer div + content div (no title row)
+    // 应该只有 1 个外层 div + 内容 div(无标题行)
     expect(container.children.length).toBe(1);
   });
 

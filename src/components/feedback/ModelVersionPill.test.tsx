@@ -46,7 +46,7 @@ describe('ModelVersionPill', () => {
     expect(pill.textContent).toContain('logistic-0.1.0');
   });
 
-  // v0.13b — brier score in the tooltip + visual badge
+  // v0.13b — tooltip 中的 brier score + 可视徽章
   it('shows a small Brier badge when brierScore is provided', () => {
     render(<ModelVersionPill modelVersion="logistic-train-abc" brierScore={0.220} />);
     const pill = screen.getByTestId('model-version-pill');

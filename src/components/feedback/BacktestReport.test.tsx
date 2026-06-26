@@ -1,15 +1,14 @@
 /**
- * BacktestReport component tests (v0.43d).
+ * BacktestReport 组件测试(v0.43d)。
  *
- * Tests the modal that shows the result of a
- * `backtestModel` call:
- *   - loading state (target not yet resolved)
- *   - target header
- *   - samples textarea
- *   - run button
- *   - result rendering (Brier, calibration,
- *     top winners/losers)
- *   - app-level error (sidecar ok=false)
+ * 测试展示 `backtestModel` 调用结果的 modal:
+ *   - loading 状态(target 尚未解析)
+ *   - target 头部
+ *   - samples 文本域
+ *   - run 按钮
+ *   - 结果渲染(Brier、calibration、
+ *     top 赢家/输家)
+ *   - App 级错误(sidecar ok=false)
  */
 
 // @vitest-environment happy-dom
@@ -113,7 +112,7 @@ describe('BacktestReport (v0.43d)', () => {
     render(wrap(<BacktestReport open onClose={() => {}} targetJobId="train-target" />));
     const ta = await screen.findByTestId('backtest-samples-input');
     expect(ta).toBeInTheDocument();
-    // Default samples should mention "Will X happen?" etc.
+    // 默认样本应包含 "Will X happen?" 等。
     expect((ta as HTMLTextAreaElement).value).toContain('Will X happen?');
   });
 
@@ -127,13 +126,13 @@ describe('BacktestReport (v0.43d)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('backtest-result')).toBeInTheDocument();
     });
-    // Headline Brier
+    // 头部 Brier
     const brier = screen.getByTestId('backtest-brier-mean');
     expect(brier.textContent).toContain('0.1800');
-    // Calibration buckets
+    // Calibration 分桶
     const buckets = screen.getAllByTestId('backtest-cal-bucket');
     expect(buckets).toHaveLength(3);
-    // Winners / losers
+    // 赢家 / 输家
     expect(screen.getByTestId('backtest-top-winners')).toBeInTheDocument();
     expect(screen.getByTestId('backtest-top-losers')).toBeInTheDocument();
   });
@@ -173,12 +172,12 @@ describe('BacktestReport (v0.43d)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('backtest-parse-error')).toBeInTheDocument();
     });
-    // backtestModel should NOT have been called
+    // backtestModel 不应被调用
     expect(vi.mocked(backtestModel)).not.toHaveBeenCalled();
   });
 
-  // v0.46 — Pull from resolved markets pre-fills
-  // the textarea with the query result.
+  // v0.46 —— 从 resolved markets 一键预填会用
+  // 查询结果填充 textarea。
   it('clicking Pull from resolved pre-fills the textarea', async () => {
     render(wrap(<BacktestReport open onClose={() => {}} targetJobId="train-target" />));
     await waitFor(() => {
@@ -186,9 +185,9 @@ describe('BacktestReport (v0.43d)', () => {
     });
     const pullBtn = await screen.findByTestId('backtest-pull-resolved-btn');
     fireEvent.click(pullBtn);
-    // The textarea should now contain a JSON
-    // array with 2 entries (one per resolved
-    // market) and the YES outcome converted to 1.0
+    // textarea 中应出现包含 2 条记录的 JSON 数组
+    // (每个 resolved market 一条),且 YES outcome
+    // 被转换为 1.0 (NO → 0.0)
     await waitFor(() => {
       const ta = screen.getByTestId('backtest-samples-input') as HTMLTextAreaElement;
       const parsed = JSON.parse(ta.value);

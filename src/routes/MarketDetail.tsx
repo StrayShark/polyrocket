@@ -9,6 +9,13 @@ import { Button } from '@/components/base/Button';
 import { Skeleton } from '@/components/feedback/Skeleton';
 import { ErrorState } from '@/components/feedback/ErrorState';
 import { EmptyState } from '@/components/feedback/EmptyState';
+import { SmartMoneyTab } from '@/components/football/SmartMoneyTab';
+import { NewsTab } from '@/components/football/NewsTab';
+import { ScoreMatrix } from '@/components/football/ScoreMatrix';
+import { CrowdOpinionTab } from '@/components/football/CrowdOpinionTab';
+import { ReversionGauge } from '@/components/football/ReversionGauge';
+import { SpikeBadge } from '@/components/football/SpikeBadge';
+import { UmaDisputeBadge } from '@/components/football/UmaDisputeBadge';
 import { fmtDate, fmtUsdc, fmtEdge, fmtConfidence } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import { toast } from '@/stores/toast-store';
@@ -48,16 +55,15 @@ export function MarketDetail() {
 
   const marketSignals = signals?.filter((s) => s.market_id === id) ?? [];
 
-  // v0.121 — "Run analysis" button on the MarketDetail page. The
-  // Analysis page (`/analysis`) is reachable via the URL but the
-  // sidebar doesn't link to it, so the per-market entry point was
-  // missing. This mutation calls `llm_analyze` IPC with the
-  // football.v1.0 prompt (auto-selected by the Rust side when
-  // market.category == "football") and invalidates the signals
-  // query on success so the new prediction shows up below.
+  // v0.121 — MarketDetail 页面上的「Run analysis」按钮。
+  // Analysis 页（`/analysis`）虽然可以通过 URL 访问，但侧边栏
+  // 并没有链接到它，因此缺少按市场的入口。该 mutation 调用
+  // `llm_analyze` IPC 并使用 football.v1.0 prompt（当
+  // market.category == "football" 时由 Rust 端自动选择），
+  // 成功时使 signals 查询失效，以便新预测显示在下方。
   //
-  // Triggered by: user clicks "Run analysis" on MarketDetail.
-  // The Toast surfaces ok/error (latency, cost, error reason).
+  // 触发方式：用户在 MarketDetail 上点击「Run analysis」。
+  // Toast 显示成功/失败（延迟、成本、错误原因）。
   const analyzeMut = useMutation({
     mutationFn: () =>
       invoke('llm_analyze', {
@@ -127,6 +133,8 @@ export function MarketDetail() {
                 ) : (
                   <Pill kind="muted">{t('marketdetail.inactive')}</Pill>
                 )}
+                {id && <SpikeBadge marketId={id} />}
+                {id && <UmaDisputeBadge marketId={id} />}
               </div>
               <h1 className="text-title-md font-semibold text-fg leading-snug">
                 {market.question}
@@ -141,10 +149,10 @@ export function MarketDetail() {
                 {t('marketdetail.btn.open_polymarket')}
               </Button>
             </a>
-            {/* v0.121 — per-market "Run analysis" button. Calls
-                llm_analyze IPC with football.v1.0 prompt and
-                refreshes the signals card on success. Disabled
-                while the mutation is in flight. */}
+            {/* v0.121 — 按市场的「Run analysis」按钮。调用
+                llm_analyze IPC 并使用 football.v1.0 prompt，
+                成功时刷新 signals 卡片。在 mutation 进行中
+                时禁用。*/}
             <Button
               variant="primary"
               size="sm"
@@ -219,6 +227,31 @@ export function MarketDetail() {
           <span>{t('marketdetail.activity.body')}</span>
         </div>
       </Card>
+
+      {/* v0.126 — Smart Money Score（P0-1） */}
+      {id && market.category === 'football' && (
+        <SmartMoneyTab marketId={id} />
+      )}
+
+      {/* v0.126 — News & Catalysts（P1-1） */}
+      {id && market.category === 'football' && (
+        <NewsTab marketId={id} />
+      )}
+
+      {/* v0.126 — Poisson Score Matrix（P2-1） */}
+      {id && market.category === 'football' && (
+        <ScoreMatrix marketId={id} />
+      )}
+
+      {/* Phase 1.1 — Crowd Opinion（按资本加权） */}
+      {id && market.category === 'football' && (
+        <CrowdOpinionTab marketId={id} />
+      )}
+
+      {/* Phase 1.2 — Mean Reversion（均值回归） */}
+      {id && market.category === 'football' && (
+        <ReversionGauge marketId={id} />
+      )}
     </div>
   );
 }

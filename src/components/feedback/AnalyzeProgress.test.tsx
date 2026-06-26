@@ -1,26 +1,23 @@
 // @vitest-environment happy-dom
 /**
- * AnalyzeProgress component tests (v0.15d).
+ * AnalyzeProgress 组件测试(v0.15d)。
  *
- * Strategy: mock `@/ipc` so the 4 `on*` listen functions
- * return no-op unlisten functions immediately. The tests
- * then render the component with a fixed `analysisId` and
- * assert the structural DOM (test ids, status pills, etc.).
+ * 策略:mock `@/ipc`,让 4 个 `on*` 监听函数立即返回
+ * no-op 的 unlisten 函数。测试随后用固定的 `analysisId`
+ * 渲染组件,并断言结构化 DOM(test id、状态 pill 等)。
  *
- * The mock is also used to **simulate events**: instead of
- * firing real Tauri events, we expose a `__trigger*` helper
- * from the mocked module. The test calls e.g.
- * `__triggerProviderDone({...})` and asserts the DOM updates.
+ * mock 还用于**模拟事件**:不再触发真实的 Tauri 事件,
+ * 而是从 mock 模块暴露 `__trigger*` 助手。测试调用
+ * 例如 `__triggerProviderDone({...})`,并断言 DOM 更新。
  *
- * This keeps the tests fast (no Tauri's event bus) and
- * deterministic (no timing). Each fire* is wrapped in act()
- * to flush React's state updates.
+ * 这样可以保持测试快速(无 Tauri 事件总线)且确定(无时序)。
+ * 每个 fire* 都包裹在 act() 中,以 flush React 的 state 更新。
  */
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, act } from '@testing-library/react';
 
 // ---------------------------------------------------------------------------
-// Mock `@/ipc` so we control the event stream.
+// Mock `@/ipc` 以便控制事件流。
 // ---------------------------------------------------------------------------
 
 type StartedCb = (e: { analysis_id: string; market_id: string; prompt_version: string; providers: string[]; started_at: number }) => void;
@@ -52,20 +49,20 @@ vi.mock('@/ipc', () => ({
   },
 }));
 
-// Wait for the component's useEffect to register its listeners.
-// The component calls onAnalyzeStarted(...) which returns a Promise
-// that resolves on the next microtask; the .then chains another
-// microtask before pushing to unsubs. So we need to flush 2 ticks
-// of microtasks plus a setTimeout(0) to be safe.
+// 等待组件 useEffect 注册监听器。
+// 组件调用 onAnalyzeStarted(...),该函数返回的 Promise
+// 在下一个微任务中 resolve;.then 又串接了一个微任务后
+// 才 push 到 unsubs。因此稳妥起见,需要 flush 2 次
+// 微任务,并额外 setTimeout(0)。
 async function flushListeners() {
   await Promise.resolve();
   await Promise.resolve();
   await new Promise((r) => setTimeout(r, 0));
 }
 
-// Helpers to push events to all subscribers. Wrapped in act() so
-// React's setState calls schedule a re-render and the DOM is
-// up-to-date by the time the test asserts.
+// 向所有订阅者推送事件的助手。用 act() 包裹,
+// 让 React 的 setState 调用调度一次 re-render,
+// 确保断言执行时 DOM 已经是最新的。
 function fireStarted(e: Parameters<StartedCb>[0]) {
   act(() => {
     for (const s of [...startedSubs]) s(e);
@@ -87,8 +84,8 @@ function fireFinished(e: Parameters<FinishedCb>[0]) {
   });
 }
 
-// Suppress console.error for the "act()" warnings
-// (the mocked on* functions are async; React warnings).
+// 屏蔽 "act()" 相关的 console.error 警告
+// (mock 的 on* 函数是异步的,会触发 React 警告)。
 const origError = console.error;
 beforeEach(() => {
   console.error = vi.fn();
@@ -102,7 +99,7 @@ afterEach(() => {
   console.error = origError;
 });
 
-// Now import the component (must be after the mock)
+// 现在导入组件(必须在 mock 之后)
 import { AnalyzeProgress } from './AnalyzeProgress';
 
 const AID = 'a-test-1';
@@ -115,7 +112,7 @@ describe('AnalyzeProgress (v0.15d)', () => {
 
   it('renders nothing when analysisId is set but no events have fired', () => {
     const { container } = render(<AnalyzeProgress analysisId={AID} />);
-    // No started event yet → component is hidden
+    // 尚未收到 started 事件 → 组件保持隐藏
     expect(container.firstChild).toBeNull();
   });
 
@@ -183,7 +180,7 @@ describe('AnalyzeProgress (v0.15d)', () => {
       analysis_id: AID, market_id: 'm1', prompt_version: 'v1',
       providers: ['anthropic'], started_at: 1000,
     });
-    // Event for a *different* analysis_id — must be ignored
+    // *其他* analysis_id 的事件——必须忽略
     fireProviderDone({
       analysis_id: 'a-OTHER', provider_id: 'anthropic', ok: true,
       latency_ms: 9999, tokens_in: 0, tokens_out: 0, cost_cents: 0.0,
@@ -220,7 +217,7 @@ describe('AnalyzeProgress (v0.15d)', () => {
     });
     const grid = screen.getByTestId('analyze-progress');
     expect(grid).toHaveAttribute('data-running', 'false');
-    // Both providers have final state
+    // 两个 provider 都进入最终状态
     expect(screen.getByTestId('analyze-progress-row-anthropic')).toHaveAttribute('data-status', 'ok');
     expect(screen.getByTestId('analyze-progress-row-openai')).toHaveAttribute('data-status', 'failed');
   });
@@ -257,12 +254,12 @@ describe('AnalyzeProgress — v0.119 Cursor TimelinePill + BadgePill integration
       analysis_id: AID, market_id: 'm1', prompt_version: 'v1',
       providers: ['anthropic', 'openai'], started_at: 1000,
     });
-    // Simulate a "running" provider by simulating the user just observing
-    // before any provider_done event fires. The default state is pending
-    // for all, so we test the "pending → thinking" branch + the "running"
-    // branch by directly inspecting the header pill state.
-    // Note: we don't have a "running" event in the IPC, so this test
-    // verifies the "thinking" → "read" mapping indirectly via DOM.
+    // 通过在 provider_done 事件触发前模拟用户观察时的状态来
+    // 模拟一个 "running" 的 provider。所有 provider 默认都是
+    // pending,因此这里通过直接检查头部 pill 状态来覆盖
+    // "pending → thinking" 分支与 "running" 分支。
+    // 注意:IPC 中没有 "running" 事件,所以本测试是通过 DOM
+    // 间接验证 "thinking" → "read" 的映射。
     const pill = screen.getByTestId('timeline-pill');
     expect(['thinking', 'read', 'edit']).toContain(pill.getAttribute('data-stage'));
   });

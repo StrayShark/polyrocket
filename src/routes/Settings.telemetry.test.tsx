@@ -1,15 +1,15 @@
-// v0.62c — TelemetryLogList sub-component tests.
+// v0.62c — TelemetryLogList 子组件测试。
 //
-// `TelemetryLogList` is the v0.49a on-disk session
-// viewer. Today 0% coverage (it's an internal
-// sub-component of Settings.tsx). v0.62c exports
-// it from Settings.tsx so we can test in isolation.
-// This file covers:
-//   1. Empty state when no logs
-//   2. Renders a list of sessions with size + date
-//   3. Summary line shows total bytes + count
-//   4. Refresh button re-fetches the list
-//   5. Purge button calls IPC and shows badge
+// `TelemetryLogList` 是 v0.49a 引入的本地磁盘 session
+// 查看器。目前覆盖率为 0%（它是
+// Settings.tsx 的内部子组件）。v0.62c 把
+// 它从 Settings.tsx 导出以便独立测试。
+// 本文件覆盖：
+//   1. 无日志时的空态
+//   2. 渲染 session 列表（含大小 + 日期）
+//   3. 汇总行显示总字节数 + 数量
+//   4. Refresh 按钮重新拉取列表
+//   5. Purge 按钮调用 IPC 并显示徽章
 
 // @vitest-environment happy-dom
 
@@ -51,11 +51,11 @@ describe('TelemetryLogList', () => {
     ]);
     render(<TelemetryLogList />);
     await waitFor(() => {
-      // Both file names visible
+      // 两个文件名均可见
       expect(screen.getByText('session-100.jsonl')).toBeInTheDocument();
       expect(screen.getByText('session-200.jsonl')).toBeInTheDocument();
     });
-    // Current marker on the second
+    // 第二个上有 current 标记
     const list = screen.getByTestId('telemetry-logs-list');
     expect(list.querySelectorAll('[data-testid="telemetry-log-current"]').length).toBe(1);
   });
@@ -69,7 +69,7 @@ describe('TelemetryLogList', () => {
     await waitFor(() => {
       const summary = screen.getByTestId('telemetry-logs-summary').textContent ?? '';
       expect(summary).toMatch(/2 sessions/);
-      // 1024 + 2048 = 3072 bytes → ~3 KB
+      // 1024 + 2048 = 3072 字节 → 约 3 KB
       expect(summary).toMatch(/KB total/);
     });
   });

@@ -27,32 +27,28 @@ export function Analysis() {
   const { t } = useT();
   const [marketId, setMarketId] = useState('');
   const [analyzeResult, setAnalyzeResult] = useState<{
-    // v0.16a — analysisId is now a string (UUID) per the
-    // LlmAnalysis DTO. v0.15c had to cast with `as unknown as
-    // number`; that workaround is gone.
+    // v0.16a — analysisId 现在是字符串（UUID），遵循 LlmAnalysis DTO。
+    // v0.15c 必须用 `as unknown as number` 强制转换；该变通已不再需要。
     analysisId: string;
     consensusSide: string | null;
     consensusProb: number | null;
     consensusConfidence: number | null;
-    /** v0.16b — full recommendation list (parsed from the
-     * `LlmAnalysis.recommendations` field). Used by recMut
-     * to pick a rec id for `llmGetRecommendation`. */
+    /** v0.16b — 完整的推荐列表（从 `LlmAnalysis.recommendations`
+     * 字段解析）。recMut 用它来为 `llmGetRecommendation` 挑选 rec id。*/
     recommendations: LlmRecommendation[];
   } | null>(null);
-  // v0.15c — track the UUID of the in-flight analyze so the
-  // AnalyzeProgress component can subscribe to the right events.
-  // We can't get the id from the IPC return value (events fire
-  // BEFORE the IPC resolves). Instead, we listen for the next
-  // `llm_analyze:started` event and capture the id from its
-  // payload. The listener is set up once on mount and stashes
-  // the id in a ref.
+  // v0.15c — 跟踪正在执行的分析的 UUID，以便 AnalyzeProgress 组件
+  // 能订阅到正确的事件。我们无法从 IPC 返回值中获取 id（事件在
+  // IPC 解析完成之前触发）。因此我们监听下一个 `llm_analyze:started`
+  // 事件，并从其 payload 中捕获 id。监听器在挂载时设置一次，
+  // 并将 id 保存在 ref 中。
   const [activeAnalysisId, setActiveAnalysisId] = useState<string | null>(null);
   const expectedAnalysisRef = useRef<boolean>(false);
   useEffect(() => {
     let cancelled = false;
     const unsubPromise = onAnalyzeStarted((e: AnalyzeStartedEvent) => {
       if (cancelled) return;
-      // Only capture if the user just clicked Analyze
+      // 仅捕获用户刚刚点击 Analyze 后的事件
       if (expectedAnalysisRef.current) {
         setActiveAnalysisId(e.analysis_id);
         expectedAnalysisRef.current = false;
@@ -60,7 +56,7 @@ export function Analysis() {
     });
     return () => {
       cancelled = true;
-      unsubPromise.then((u) => u()).catch(() => { /* ignore */ });
+      unsubPromise.then((u) => u()).catch(() => { /* 忽略 */ });
     };
   }, []);
 
@@ -73,30 +69,28 @@ export function Analysis() {
 
   const queryClient = useQueryClient();
   const analyzeMut = useMutation({
-    // v0.15c — return the analysis id from the mutation function
-    // so the caller (the onClick handler) knows the id before
-    // onSuccess fires. This lets us set activeAnalysisId and
-    // start listening to events immediately.
+    // v0.15c — 从 mutation 函数返回分析 id，以便调用方（onClick 处理函数）
+    // 在 onSuccess 触发之前就知道 id。这样我们就可以立即设置 activeAnalysisId
+    // 并开始监听事件。
     mutationFn: async (m: string) => {
       const a = await llmAnalyze(m);
       return { analysis: a, marketId: m };
     },
     onSuccess: (r) => {
       setAnalyzeResult({
-        // v0.16a — analysisId is the UUID string from the Rust
-        // DTO. No cast needed (the type now matches).
+        // v0.16a — analysisId 是来自 Rust DTO 的 UUID 字符串。
+        // 不再需要类型转换（类型现在匹配）。
         analysisId: r.analysis.id,
         consensusSide: r.analysis.consensus_side,
         consensusProb: r.analysis.consensus_predicted,
         consensusConfidence: r.analysis.consensus_conf,
-        // v0.16b — keep the recommendations so recMut can pick
-        // a rec id (the Rust `llm_get_recommendation` command
-        // takes a rec id, NOT the analysis id).
+        // v0.16b — 保留 recommendations，以便 recMut 挑选 rec id
+        // （Rust 的 `llm_get_recommendation` 命令接受的是 rec id，
+        // 而不是 analysis id）。
         recommendations: r.analysis.recommendations,
       });
-      // The mutation has already returned; the finished event
-      // fired before the IPC returned. Clear the in-flight ID
-      // so the progress grid stops subscribing.
+      // mutation 已经返回；finished 事件在 IPC 返回前已触发。
+      // 清除进行中的 ID，使进度网格停止订阅。
       setActiveAnalysisId(null);
       queryClient.invalidateQueries({ queryKey: ['llm-analyses'] });
     },
@@ -107,21 +101,19 @@ export function Analysis() {
   });
 
   const recMut = useMutation({
-    // v0.16b — the Rust `llm_get_recommendation` command takes
-    // a recommendation id (auto-increment i64), NOT the analysis
-    // UUID. v0.15c's call passed the analysis id, which the Rust
-    // deserializer couldn't parse as i64 → silent IPC failure.
+    // v0.16b — Rust 的 `llm_get_recommendation` 命令接受的是
+    // recommendation id（自增 i64），而不是 analysis UUID。
+    // v0.15c 的调用传入 analysis id，Rust 反序列化器无法将其
+    // 解析为 i64 → 静默 IPC 失败。
     //
-    // We pick the top recommendation (by parse_ok, then by
-    // confidence desc) so the modal shows the LLM the user is
-    // most likely to follow.
+    // 我们按 parse_ok 优先、再按 confidence 降序选择首选推荐，
+    // 以便模态框展示用户最有可能跟单的 LLM。
     mutationFn: () => {
-      // v0.16b — the Rust command takes a rec id, not the
-      // analysis id. We pick the top rec from the current
-      // analyzeResult's recommendations. (The Button's
-      // `mutate(analyzeResult.analysisId)` call below is a
-      // vestigial arg from v0.15c — recMut ignores it now
-      // and uses the closed-over analyzeResult instead.)
+      // v0.16b — Rust 命令接受 rec id，而不是 analysis id。
+      // 我们从当前 analyzeResult 的 recommendations 中挑选首选 rec。
+      // （下方 Button 的 `mutate(analyzeResult.analysisId)` 调用
+      // 是 v0.15c 遗留的参数 —— recMut 现在忽略它，
+      // 转而使用闭包捕获的 analyzeResult。）
       const recs = analyzeResult?.recommendations ?? [];
       const top = [...recs]
         .filter((r) => r.parse_ok)
@@ -135,19 +127,16 @@ export function Analysis() {
   });
 
   const decisionMut = useMutation({
-    // v0.16b — Rust `record_llm_decision` takes a
-    // `RecordDecisionArgs` struct. The L1 wrapper (v0.16b)
-    // accepts the same shape as a typed object. v0.15c's call
-    // passed `(analysisId: number, decision: string)` which
-    // didn't match the Rust arg struct at all → silent IPC
-    // failure.
+    // v0.16b — Rust 的 `record_llm_decision` 接受 `RecordDecisionArgs`
+    // 结构体。L1 封装（v0.16b）以类型化对象的相同形式接收。
+    // v0.15c 的调用传入 `(analysisId: number, decision: string)`，
+    // 与 Rust 的参数结构体完全不一致 → 静默 IPC 失败。
     mutationFn: (decision: 'follow_top' | 'manual_yes' | 'manual_no' | 'skip' | 're_analyze') =>
       recordLlmDecision({
         analysisId: analyzeResult!.analysisId,
         userDecision: decision,
-        // userDecidedSide, followedLlmId, betId, contextSnapshot
-        // are optional — the Rust struct's Option<T> defaults
-        // to None.
+        // userDecidedSide、followedLlmId、betId、contextSnapshot
+        // 均为可选 —— Rust 结构体的 Option<T> 默认为 None。
       }),
     onSuccess: () => {
       toast.success(t('analysis.toast.decision_recorded'));
@@ -173,7 +162,7 @@ export function Analysis() {
 
   return (
     <div className="space-y-4">
-      {/* Run analysis */}
+      {/* 运行分析 */}
       <Card
         title={t('analysis.run.title')}
         description={t('analysis.run.desc')}
@@ -192,10 +181,9 @@ export function Analysis() {
             loading={analyzeMut.isPending}
             disabled={!marketId.trim()}
             onClick={() => {
-              // v0.15c — set a flag that the next `started` event
-              // is "ours". The useEffect above will capture the
-              // analysis_id from that event and pass it down to
-              // AnalyzeProgress.
+              // v0.15c — 设置一个标志，表示下一个 `started` 事件
+              // 是「我们的」。上方的 useEffect 会从该事件中捕获
+              // analysis_id 并向下传递给 AnalyzeProgress。
               expectedAnalysisRef.current = true;
               analyzeMut.mutate(marketId.trim());
             }}
@@ -203,11 +191,9 @@ export function Analysis() {
             {t('analysis.btn.analyze')}
           </Button>
         </div>
-        {/* v0.15c — per-provider progress grid. Subscribes to the
-            4 LLM analyze events emitted by the backend. The id
-            is set by the onAnalyzeStarted listener (above) when
-            the next `started` event fires after the user clicks
-            Analyze. */}
+        {/* v0.15c — 按 provider 的进度网格。订阅后端发出的 4 个
+            LLM analyze 事件。id 由上方的 onAnalyzeStarted 监听器设置，
+            该监听器在用户点击 Analyze 后下一个 `started` 事件触发时执行。*/}
         {activeAnalysisId && (
           <AnalyzeProgress
             key={activeAnalysisId}
@@ -240,17 +226,15 @@ export function Analysis() {
         )}
         {analyzeResult && (
           <div className="mt-3 flex items-center gap-2">
-            {/* v0.16b — recMut takes the analysis id and
-                internally picks the top rec. Rust receives
-                a recommendation id (i64), not the analysis
-                UUID. */}
+            {/* v0.16b — recMut 接受 analysis id 并在内部
+                挑选首选 rec。Rust 接收的是 recommendation id（i64），
+                而不是 analysis UUID。 */}
             <Button
               variant="secondary"
               size="sm"
-              // v0.16b — recMut no longer takes the analysis
-              // id as an arg; it uses the closed-over
-              // analyzeResult.recommendations and picks the
-              // top rec to send to the Rust side.
+              // v0.16b — recMut 不再以 analysis id 作为参数；
+              // 它使用闭包捕获的 analyzeResult.recommendations
+              // 并挑选首选 rec 发送到 Rust 端。
               onClick={() => recMut.mutate()}
               loading={recMut.isPending}
             >
@@ -274,7 +258,7 @@ export function Analysis() {
         )}
       </Card>
 
-      {/* Active signals */}
+      {/* 活动信号 */}
       <Card
         title={t('analysis.signals.title')}
         description={t('analysis.signals.desc')}
@@ -351,13 +335,13 @@ export function Analysis() {
         >
           <div className="space-y-2">
             <Field label={t('analysis.recommendation.provider')} value={chosen.provider_id} mono />
-            {/* v0.16a — fields are nullable per the LlmRecommendation DTO */}
+            {/* v0.16a — 根据 LlmRecommendation DTO，这些字段可为空 */}
             <Field label={t('analysis.recommendation.side')} value={chosen.side ?? '—'} />
             <Field label={t('analysis.recommendation.predicted')} value={chosen.predicted_prob != null ? fmtPct(chosen.predicted_prob) : '—'} />
             <Field label={t('analysis.recommendation.confidence')} value={chosen.confidence != null ? fmtConfidence(chosen.confidence) : '—'} />
             <Field label={t('analysis.recommendation.cost')} value={chosen.cost_cents != null ? fmtCents(chosen.cost_cents) : '—'} />
             <Field label={t('analysis.recommendation.latency')} value={chosen.latency_ms != null ? fmtLatency(chosen.latency_ms) : '—'} />
-            {/* v0.16a — `reasoning` not `rationale` (matches Rust DTO) */}
+            {/* v0.16a — 字段名为 `reasoning` 而非 `rationale`（与 Rust DTO 一致）*/}
             {chosen.reasoning && (
               <div>
                 <div className="text-[11px] text-muted mb-1">{t('analysis.recommendation.rationale')}</div>

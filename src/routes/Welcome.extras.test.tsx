@@ -1,17 +1,17 @@
-// v0.70d — Welcome route additional tests.
+// v0.70d —— Welcome 路由附加测试。
 //
-// /welcome is a 163-line wizard controller. It delegates the
-// heavy lifting to 6 sub-components (WelcomeStep / StorageStep /
-// ThemeStep / LlmStep / PolymarketStep / FinishStep) but owns:
-//   - the 6-step state machine (WELCOME_STEPS array)
-//   - next/back/skip navigation logic
-//   - `done` redirect to /dashboard
-//   - locale bridge between welcome-store and i18n locale-store
+// /welcome 是一个 163 行的引导控制器。它将
+// 主要工作委托给 6 个子组件（WelcomeStep / StorageStep /
+// ThemeStep / LlmStep / PolymarketStep / FinishStep），但自身负责：
+//   - 6 步状态机（WELCOME_STEPS 数组）
+//   - next/back/skip 导航逻辑
+//   - `done` 时重定向到 /dashboard
+//   - welcome-store 与 i18n locale-store 之间的语言桥接
 //
-// Existing test (v0.62a) is 1 surface render. We add 8 focused
-// tests covering the navigation + state-machine branches.
+// 已有测试（v0.62a）仅 1 个表面渲染。我们新增 8 个聚焦
+// 测试，覆盖导航 + 状态机分支。
 //
-// Welcome.tsx: 42.5% → ~80% stmts.
+// Welcome.tsx：42.5% → ~80% stmts。
 //
 // @vitest-environment happy-dom
 
@@ -19,7 +19,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
-// Mock the welcome store so we can control state per test.
+// Mock welcome store 以便在每个测试中控制 state。
 type Step = 'welcome' | 'storage' | 'theme' | 'llm' | 'polymarket' | 'finish';
 const { mockWelcomeStoreState, mockSetStep, mockSetDone, mockSetLocale, mockSetConfigured } = vi.hoisted(() => ({
   mockWelcomeStoreState: {
@@ -49,16 +49,15 @@ vi.mock('@/lib/i18n', () => ({
   useT: () => ({
     t: (k: string) => k,  // return key as-is for test inspection
   }),
-  // zustand-style: useLocaleStore(selector) calls selector(state).
-  // We need a function that accepts a selector and returns what
-  // the selector returns. The component does
+  // zustand 风格：useLocaleStore(selector) 调用 selector(state)。
+  // 我们需要一个接受 selector 并返回 selector 所得值的函数。
+  // 组件中执行
   //   const setLocale = useLocaleStore((s) => s.setLocale);
-  // so we return an object with setLocale as the value the
-  // selector extracts.
+  // 因此返回一个带 setLocale 的对象，作为 selector 提取的值。
   useLocaleStore: vi.fn((selector: any) => selector({ setLocale: vi.fn(), locale: 'en' })),
 }));
 
-// Stub the 6 step components — they have their own tests.
+// Stub 6 个 step 组件 —— 它们各自有独立测试。
 vi.mock('@/components/welcome/StepProgress', () => ({
   StepProgress: () => <div data-testid="step-progress">step progress</div>,
 }));
@@ -89,7 +88,7 @@ import { Welcome } from './Welcome';
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // Reset store to first step
+  // 重置 store 到第一步
   mockWelcomeStoreState.done = false;
   mockWelcomeStoreState.step = 'welcome';
   mockWelcomeStoreState.locale = 'en';

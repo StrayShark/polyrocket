@@ -1,20 +1,20 @@
-// v0.72c — Audit branches additional tests.
+// v0.72c — Audit 分支补充测试。
 //
-// Audit.tsx is 203 lines with 6-column DataTable + dual filter
-// (action prefix chip + search debounce) + result pill color.
-// Existing tests (v0.62a + v0.70a) cover 18 cases. The remaining
-// uncovered branches (13/186 = 7%) are split across:
-//   - search filter by actor / target / action fields (3 branches)
-//   - action filter chip "All" button (resets filter)
-//   - action filter chip "pm.*" / "wallet.*" toggle
-//   - empty state: data.length=0 vs filtered.length=0 (different copy)
-//   - result pill color: result='ok' vs result='error'
-//   - target cell: target null → em-dash fallback
-//   - payload cell: payload null → em-dash fallback
-//   - action with no '.' in string (dot === -1, not added to prefix set)
-//   - refresh button disabled state during isRefetching
+// Audit.tsx 共 203 行，包含 6 列 DataTable + 双重过滤
+//（action 前缀芯片 + 搜索防抖）+ result 胶囊颜色。
+// 已有测试（v0.62a + v0.70a）覆盖 18 个用例。剩余
+// 未覆盖分支（13/186 = 7%）分布在：
+//   - 按 actor / target / action 字段的搜索过滤（3 个分支）
+//   - action 过滤芯片 "All" 按钮（重置过滤）
+//   - action 过滤芯片 "pm.*" / "wallet.*" 切换
+//   - 空状态：data.length=0 vs filtered.length=0（不同文案）
+//   - result 胶囊颜色：result='ok' vs result='error'
+//   - target 单元格：target null → em-dash 兜底
+//   - payload 单元格：payload null → em-dash 兜底
+//   - 字符串中没有 '.' 的 action（dot === -1，不加入前缀集合）
+//   - refresh 按钮在 isRefetching 期间的禁用状态
 //
-// Coverage target: branches 69.04% → ~85%.
+// 覆盖目标：分支 69.04% → 约 85%。
 //
 // @vitest-environment happy-dom
 
@@ -93,7 +93,7 @@ describe('Audit (branches — v0.72c)', () => {
   it('click "All" chip resets actionFilter', async () => {
     renderAudit();
     await waitFor(() => screen.getByText('user_alice'));
-    // Click "pm.*" chip first to filter
+    // 先点击 "pm.*" 芯片以过滤
     const pmChip = screen.getAllByRole('button').find(b =>
       b.textContent?.trim() === 'pm.*',
     );
@@ -102,7 +102,7 @@ describe('Audit (branches — v0.72c)', () => {
     await waitFor(() => {
       expect(screen.queryByText('wallet.add')).not.toBeInTheDocument();
     });
-    // Click "All" chip to reset
+    // 点击 "All" 芯片以重置
     const allChip = screen.getAllByRole('button').find(b =>
       /all/i.test(b.textContent || '') && b.textContent?.trim() !== 'pm.*',
     );
@@ -133,7 +133,7 @@ describe('Audit (branches — v0.72c)', () => {
     mlal.mockResolvedValue([]);
     renderAudit();
     await waitFor(() => {
-      // data.length === 0 → "no_writes" copy
+      // data.length === 0 → "no_writes" 文案
       const text = document.body.textContent || '';
       expect(text).toMatch(/no.write.operations/i);
     });
@@ -153,10 +153,10 @@ describe('Audit (branches — v0.72c)', () => {
   it('result pill color: result=error renders bear pill', async () => {
     renderAudit();
     await waitFor(() => screen.getByText('user_bob'));
-    // user_bob's llm.analyze has result='error' → bear pill
+    // user_bob 的 llm.analyze result 为 'error' → bear pill
     const errorRow = screen.getByText('llm.analyze').closest('tr');
     expect(errorRow).toBeTruthy();
-    // error pill has 'bear' className
+    // error pill 的 className 为 'bear'
     const errorPill = errorRow?.querySelector('.bg-bear\\/15, .text-bear');
     expect(errorPill).toBeTruthy();
   });
@@ -164,7 +164,7 @@ describe('Audit (branches — v0.72c)', () => {
   it('target cell renders em-dash when target is null', async () => {
     renderAudit();
     await waitFor(() => screen.getByText('user_bob'));
-    // user_bob's target is null — should render "—" instead of code
+    // user_bob 的 target 为 null —— 应渲染 "—" 而非 code
     const bobRow = screen.getByText('llm.analyze').closest('tr');
     expect(bobRow).toBeTruthy();
     const dashes = bobRow?.querySelectorAll('span');
@@ -174,7 +174,7 @@ describe('Audit (branches — v0.72c)', () => {
   it('payload cell renders em-dash when payload is null', async () => {
     renderAudit();
     await waitFor(() => screen.getByText('user_alice'));
-    // user_alice's payload is null
+    // user_alice 的 payload 为 null
     const aliceRow = screen.getByText('wallet.add').closest('tr');
     expect(aliceRow).toBeTruthy();
     const dashes = aliceRow?.querySelectorAll('span');
@@ -182,10 +182,10 @@ describe('Audit (branches — v0.72c)', () => {
   });
 
   it('action with no dot is skipped from prefix set', async () => {
-    // ENTRIES has "system_health" (no dot) — should NOT appear as a chip
+    // ENTRIES 中包含 "system_health"（无点） —— 不应作为芯片出现
     renderAudit();
     await waitFor(() => screen.getByText('user_alice'));
-    // Available chips: pm.* / wallet.* / llm.* (system_health has no dot)
+    // 可用芯片：pm.* / wallet.* / llm.*（system_health 没有点）
     const allChips = screen.getAllByRole('button')
       .map(b => b.textContent?.trim())
       .filter(t => t && t.endsWith('.*'));

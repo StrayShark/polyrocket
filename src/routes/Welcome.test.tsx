@@ -1,10 +1,10 @@
-// v0.62a.2 — Welcome component tests.
+// v0.62a.2 —— Welcome 组件测试。
 //
-// /welcome is the first-run landing wizard.
-// Today 0% coverage. This file covers:
-//   1. Initial render of the step progress
-//   2. StorageStep renders the path input + Browse button
-//   3. If welcome is done, redirect to dashboard
+// /welcome 是首次运行的引导向导。
+// 目前 0% 覆盖率。本文件覆盖：
+//   1. 步骤进度的初始渲染
+//   2. StorageStep 渲染路径输入框 + Browse 按钮
+//   3. 如果 welcome 已完成，重定向到 dashboard
 
 // @vitest-environment happy-dom
 
@@ -17,7 +17,7 @@ vi.mock('@/lib/i18n', () => ({
   useLocaleStore: () => ({}),
 }));
 
-// Default: welcome is NOT done
+// 默认：welcome 未完成
 vi.mock('@/stores/welcome-store', () => ({
   useWelcomeStore: Object.assign(
     () => ({

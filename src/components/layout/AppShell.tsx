@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { LayoutDashboard, LineChart, Search, RefreshCw, Bell, Settings, Goal } from 'lucide-react';
+import { LayoutDashboard, LineChart, Search, RefreshCw, Bell, Settings, Goal, TrendingUp } from 'lucide-react';
 import { KbdHelpDialog, useKbdHelpDialog } from '@/components/feedback/KbdHelpDialog';
 import { CommandPalette, useCommandPalette } from '@/components/feedback/CommandPalette';
 import { SidecarHealthBadge } from '@/components/feedback/SidecarHealthBadge';
@@ -12,14 +12,16 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useT } from '@/lib/i18n';
 import { cn } from '@/lib/cn';
 
-// v0.123 — football-only scope. Sidebar reduced to 2 primary
-// routes (Dashboard + Markets). Removed: signals, copy, pnl,
-// lab, trade, bankroll, history, wallets, audit, brief, help,
-// llm-perf, llm-mgmt. All removed routes are still reachable
-// via direct URL for diagnostics but no longer in the sidebar.
+// v0.123 —— 仅 football 范围。侧栏缩减为 2 个主要
+// 路由(Dashboard + Markets)。已移除:signals、copy、pnl、
+// lab、trade、bankroll、history、wallets、audit、brief、help、
+// llm-perf、llm-mgmt。所有被移除的路由仍可通过直接 URL
+// 访问以便诊断,但不再出现在侧栏中。
+// v0.126 —— 新增 Arb Board 导航项。
 const PRIMARY_NAV = [
   { to: '/dashboard', icon: LayoutDashboard, i18nKey: 'nav.dashboard' },
   { to: '/markets', icon: LineChart, i18nKey: 'nav.markets' },
+  { to: '/arb-board', icon: TrendingUp, i18nKey: 'nav.arb_board' },
 ];
 
 
@@ -50,7 +52,7 @@ export function AppShell() {
   const { t } = useT();
   const segments = location.pathname.split('/').filter(Boolean);
   const route = segments[0] ?? 'dashboard';
-  // Special case: /markets/:id → "Market Detail" instead of "Markets"
+  // 特殊情况:/markets/:id → "Market Detail" 而不是 "Markets"
   let pageKey = `page.${route.replace(/-/g, '_')}`;
   if (route === 'markets' && segments.length > 1) {
     pageKey = 'page.market_detail';
@@ -59,17 +61,16 @@ export function AppShell() {
     ? t(pageKey)
     : route.charAt(0).toUpperCase() + route.slice(1);
 
-  // v0.8d — keyboard navigation (g d / g m / ? / Esc)
+  // v0.8d —— 键盘导航(g d / g m / ? / Esc)
   const kbdHelp = useKbdHelpDialog();
-  // v0.9c — command palette (Cmd+K)
+  // v0.9c —— 命令面板(Cmd+K)
   const palette = useCommandPalette();
 
   const bindings = useNavBindings({
     onOpenHelp: kbdHelp.openDialog,
     onOpenSearch: () => {
-      // Search box lives in the topbar; focus it via a DOM selector.
-      // (Future: hoist this into a proper ref when the topbar is split
-      // into its own component.)
+      // 搜索框位于顶栏;通过 DOM 选择器聚焦它。
+      // (未来:等顶栏拆分为独立组件后,改成正式的 ref。)
       const input = document.querySelector<HTMLInputElement>('input[type="search"], input[placeholder*="Search" i]');
       input?.focus();
     },
@@ -77,10 +78,10 @@ export function AppShell() {
   });
   const { pendingPrefix } = useKeyboardNav(bindings);
 
-  // v0.123 — sidebar footer reads the real wallet + USDC balance
-  // from the .env L2 creds (PM CLOB balance-allowance). Both
-  // queries refetch on focus so the user sees the up-to-date
-  // balance after a paper trade or a wallet address change.
+  // v0.123 —— 侧栏底部读取真实钱包 + USDC 余额,
+  // 来源为 .env 中的 L2 凭据(PM CLOB balance-allowance)。
+  // 两条 query 都在 focus 时重新拉取,使用户在 paper trade
+  // 或切换钱包地址后能立刻看到最新余额。
   const walletsQuery = useQuery({
     queryKey: ['wallets'],
     queryFn: () => listWallets(),
@@ -100,7 +101,7 @@ export function AppShell() {
     ? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-3)}`
     : '0x000…000';
 
-  // v0.9c — palette commands
+  // v0.9c —— palette 命令
   const paletteCommands = buildPaletteCommands({
     onNavigate: navigate,
     onOpenHelp: kbdHelp.openDialog,
@@ -111,12 +112,12 @@ export function AppShell() {
 onOpenSettings: () => navigate('/settings'),
     onResetDemoData: async () => {
       await seedDemoData(true);
-      await isSeeded();  // touch so import isn't dead
+      await isSeeded();  // 触摸以避免 import 被识别为 dead
       queryClient.invalidateQueries();
     },
   });
 
-  // v0.9c — global Cmd+K / Ctrl+K listener
+  // v0.9c —— 全局 Cmd+K / Ctrl+K 监听器
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (isPaletteTrigger(e)) {
@@ -130,7 +131,7 @@ onOpenSettings: () => navigate('/settings'),
 
   return (
     <div className="flex h-screen">
-      {/* Sidebar */}
+      {/* 侧边栏 */}
       <aside
         className="w-[220px] shrink-0 flex flex-col border-r"
         style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
@@ -151,7 +152,7 @@ onOpenSettings: () => navigate('/settings'),
           </span>
         </div>
 
-        {/* Nav */}
+        {/* 导航 */}
         <div className="flex-1 overflow-auto py-2">
           <SectionLabel>Workspace</SectionLabel>
           {PRIMARY_NAV.map((n) => (
@@ -165,10 +166,10 @@ onOpenSettings: () => navigate('/settings'),
           </div>
         </div>
 
-        {/* v0.123 — wallet footer. Reads the real USDC balance
-            from PM CLOB via `getWalletBalance()` (L2 HMAC).
-            `balanceText` is "— USDC" until the lookup resolves or
-            when the .env creds / L1 address are missing. */}
+        {/* v0.123 —— 钱包底部。通过 `getWalletBalance()`(L2 HMAC)
+            从 PM CLOB 读取真实 USDC 余额。
+            在查询完成前,或 .env 凭据 / L1 地址缺失时,
+            `balanceText` 为 "— USDC"。*/}
         <div className="p-2 border-t" style={{ borderColor: 'var(--border)' }}>
           <div
             className="mt-2 flex items-center gap-2 px-1 py-1 text-[11px]"
@@ -187,9 +188,9 @@ onOpenSettings: () => navigate('/settings'),
 
       </aside>
 
-      {/* Main */}
+      {/* 主区域 */}
       <main className="flex-1 flex flex-col min-w-0">
-        {/* TopBar */}
+        {/* 顶部栏 */}
         <header
           className="h-12 px-4 flex items-center gap-3 border-b"
           style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
@@ -215,7 +216,7 @@ onOpenSettings: () => navigate('/settings'),
             </div>
           </div>
           <div className="ml-auto flex items-center gap-1">
-            {/* v0.8d — pending key chord indicator (e.g. "g…") */}
+            {/* v0.8d —— 待定组合键指示器(例如 "g…") */}
             {pendingPrefix && (
               <span
                 className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface border border-border text-muted"
@@ -224,7 +225,7 @@ onOpenSettings: () => navigate('/settings'),
                 {pendingPrefix}…
               </span>
             )}
-            {/* v0.10d — sidecar health badge */}
+            {/* v0.10d —— sidecar 健康徽章 */}
             <SidecarHealthBadge />
             <IconBtn><RefreshCw className="w-3.5 h-3.5" /></IconBtn>
             <IconBtn
@@ -251,10 +252,10 @@ onOpenSettings: () => navigate('/settings'),
         </div>
       </main>
 
-      {/* v0.8d — keyboard help dialog (`?` to open) */}
+      {/* v0.8d —— 键盘帮助 dialog(按 `?` 打开) */}
       <KbdHelpDialog bindings={bindings} open={kbdHelp.open} onClose={kbdHelp.closeDialog} />
 
-      {/* v0.9c — command palette (Cmd+K to open) */}
+      {/* v0.9c —— 命令面板(按 Cmd+K 打开) */}
       <CommandPalette
         commands={paletteCommands}
         open={palette.open}
@@ -282,7 +283,7 @@ function NavItem({ to, icon: Icon, i18nKey, label, count, badge, t }: {
   to: string;
   icon: React.ComponentType<{ className?: string }>;
   i18nKey?: string;
-  /** Fallback if no i18nKey. */
+  /** 无 i18nKey 时的 fallback。 */
   label?: string;
   count?: string;
   badge?: string;

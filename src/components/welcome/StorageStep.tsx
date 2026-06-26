@@ -1,10 +1,10 @@
-// v0.54a — StorageStep (Step 2 of 6).
+// v0.54a — StorageStep (Step 2 of 6)。
 //
-// Pick default or custom path. v0.53a wires the
-// 3 IPCs (getStorageInfo, setStoragePath,
-// resetStoragePath). v0.54a adds a native
-// directory picker via tauri-plugin-dialog so
-// the user doesn't have to type the full path.
+// 选择默认或自定义路径。v0.53a 串接
+// 3 个 IPC (getStorageInfo, setStoragePath,
+// resetStoragePath)。v0.54a 通过
+// tauri-plugin-dialog 添加原生目录选择器,
+// 这样用户就不必再输入完整路径。
 
 import { useEffect, useState, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -46,9 +46,9 @@ export function StorageStep({
   const [customPath, setCustomPath] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // When the IPC returns the actual state, sync
-  // the form (default vs custom) so the user sees
-  // what's currently in effect.
+  // 当 IPC 返回真实状态时,同步
+  // 表单(default 或 custom),让用户
+  // 看到当前生效的配置。
   useEffect(() => {
     if (info.data?.isCustom) {
       setMode('custom');
@@ -71,24 +71,23 @@ export function StorageStep({
           return;
         }
         await setStoragePath(customPath.trim());
-        // v0.58a — auto-migrate any existing data
-        // from the OS default to the new path.
-        // The user no longer has to click "Copy
-        // existing data" in Settings — we run
-        // it for them as part of the Apply flow.
+        // v0.58a — 自动将已有数据从
+        // OS 默认路径迁移到新路径。
+        // 用户不再需要在 Settings 中点击
+        // "Copy existing data" —— 我们
+        // 在 Apply 流程中替他们执行。
         //
-        // Idempotency: the IPC's `noop: true`
-        // path covers clean installs (no source
-        // data), and a second call is a noop.
+        // 幂等性: IPC 的 `noop: true`
+        // 路径覆盖全新安装 (无源数据),
+        // 第二次调用也是 noop。
         try {
           const r = await migrateStoragePath(
             customPath.trim(),
-            false, // don't overwrite by default
+            false, // 默认不覆盖
           );
           if (r.noop) {
-            // Clean install — no source data to
-            // copy. The next launch will create
-            // a fresh DB at the new path.
+            // 全新安装 —— 没有源数据需要拷贝。
+            // 下次启动会在新路径下创建一个新 DB。
             toast.info(t('storage.migrate_noop'));
           } else {
             toast.success(
@@ -99,11 +98,11 @@ export function StorageStep({
             );
           }
         } catch (e) {
-          // Migration failed (permission denied,
-          // disk full, etc.) — the path is set
-          // but the data isn't copied. The user
-          // sees the error toast and can retry
-          // from Settings → StorageMigrationCard.
+          // Migration 失败(权限被拒绝、
+          // 磁盘已满等)—— 路径已设置
+          // 但数据未拷贝。用户会
+          // 看到错误 toast,可从
+          // Settings → StorageMigrationCard 重试。
           toast.error(t('storage.migrate_failed', { err: String(e) }));
         }
         welcome.setConfigured('storagePath', true);
@@ -182,9 +181,9 @@ export function StorageStep({
         </ModeCard>
       </div>
 
-      {/* "What lives here" callout. Mirrors the
-          spec: db + logs/ + logs/telemetry/. NO
-          secrets — those live in OS keyring only. */}
+      {/* "What lives here" 提示。与规范保持
+          一致: db + logs/ + logs/telemetry/。不含
+          密钥 — 密钥仅存储在 OS keyring。 */}
       <div className="rounded-md border border-border bg-surface-2 p-3 text-[11px] text-muted space-y-1">
         <div className="text-fg text-[12px] mb-1">
           {t('welcome.storage_contents_title')}

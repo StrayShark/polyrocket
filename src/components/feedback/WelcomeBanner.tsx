@@ -1,19 +1,17 @@
-// v0.53b — WelcomeBanner component.
+// v0.53b —— WelcomeBanner 组件。
 //
-// Renders the "Setup incomplete" banner on the
-// Dashboard when the user has unfinished
-// configuration. Reads from useWelcomeStore
-// (configured flags) + queries secretsStatus as
-// the source of truth (in case the user changed
-// something outside the wizard).
+// 当用户有未完成的配置项时,在 Dashboard 渲染
+// "Setup incomplete" 横幅。读取 useWelcomeStore
+// (configured 标志)+ 调 secretsStatus 作为
+// 事实来源(以防用户绕过 wizard 直接改了配置)。
 //
-// The "Complete" button navigates to /welcome.
-// v0.54c — fixed pre-existing v0.53b bug:
-// computeMissing was reading the wrong fields
+// "Complete" 按钮跳转到 /welcome。
+// v0.54c —— 修复 v0.53b 已有的 bug:
+// computeMissing 之前读了错误的字段名
 // (llm_keys.length / polymarket.find /
-// wallets.length) when the actual SecretsStatus
-// shape is { llm_keys, pm_api, pm_passphrase,
-// pm_secret, wallet_pk }.
+// wallets.length),实际的 SecretsStatus shape
+// 是 { llm_keys, pm_api, pm_passphrase,
+// pm_secret, wallet_pk }。
 
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -29,7 +27,7 @@ import { AlertTriangle, ChevronRight } from 'lucide-react';
  * `pmApi` / `walletPk > 0`）。**全部 OK** 时不渲染（return null）。
  *
  * **数据流**：
- *   1. mount `secretsStatus()` IPC
+ *   1. 挂载时调用 `secretsStatus()` IPC
  *   2. 同时读 `useWelcomeStore.configured` 标志
  *   3. 两者 union → `computeMissing` → 列表
  *   4. 渲染 alert 卡片 + 各项状态 + 「Complete」按钮 → navigate('/welcome')
@@ -80,16 +78,14 @@ export function WelcomeBanner() {
 
 function computeMissing(s: SecretsStatus): Array<'llm' | 'pm' | 'wallet'> {
   const out: Array<'llm' | 'pm' | 'wallet'> = [];
-  // The user has at least one LLM key if
-  // llm_keys > 0. (The IPC returns the count, not
-  // a list, so we don't need to know which keys
-  // are configured — just whether any are.)
+  // 当 llm_keys > 0 时,用户至少配了一个 LLM key。
+  // (IPC 返回的是数量,不是列表,所以我们不需要
+  // 知道具体配了哪些 key,只要知道是否配了。)
   if (s.llm_keys === 0) out.push('llm');
-  // Polymarket CLOB needs all 3 creds (api key,
-  // secret, passphrase). Treat "any missing" as
-  // PM not configured.
+  // Polymarket CLOB 需要全部 3 项凭据(api key、
+  // secret、passphrase)。任一缺失就视为 PM 未配。
   if (!s.pm_api || !s.pm_secret || !s.pm_passphrase) out.push('pm');
-  // Wallet: at least one pk stored.
+  // Wallet:至少存有一个 pk。
   if (s.wallet_pk === 0) out.push('wallet');
   return out;
 }
