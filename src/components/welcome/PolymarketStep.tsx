@@ -64,7 +64,7 @@ function ClobCard({
     secretsStatus()
       .then((s) => {
         if (cancelled) return;
-        const allSet = s.polymarket.every((p) => p.configured);
+        const allSet = s.pm_api && s.pm_passphrase && s.pm_secret;
         setEnvConfigured(allSet);
         if (allSet) welcome.setConfigured('polymarketApi', true);
       })
