@@ -1,44 +1,34 @@
-"""v0.55 — model explainability.
+"""v0.55 —— 模型可解释性。
 
-Computes the top features that drive the
-logistic regression's prediction for a given
-input. We use a SHAP-like linear-model
-decomposition: for a logistic regression with
-weights [w0, w1, w2] and features
-[1, price, market_age_hours], the contribution
-of feature i to a single prediction is:
+计算驱动逻辑回归对给定输入做出预测的主要特征。
+我们使用一种类似 SHAP 的线性模型分解：对于权重为
+[w0, w1, w2]、特征为 [1, price, market_age_hours]
+的逻辑回归，特征 i 对单个预测的贡献为：
 
     contribution_i = w_i * x_i
 
-(scaled to probabilities via the logistic
-function, then normalized so the contributions
-sum to (p - 0.5)). For the linear model, this
-is exact — it's not a SHAP approximation, it's
-the actual decomposition of the dot product.
+（通过 logistic 函数缩放到概率，然后归一化使贡献
+之和等于 (p - 0.5)）。对于线性模型而言这是精确的——
+不是 SHAP 的近似，而是点积的实际分解。
 
-This is the cheapest possible explainability
-method that's still meaningful. It works for
-the 3-feature logistic model polyrocket ships
-with. For tree-based models, a real SHAP library
-(TreeSHAP) would be needed; v0.55+ candidate.
+这是所有可解释性方法中**最便宜**但仍然有意义的方案。
+它适用于 polyrocket 自带的 3 特征逻辑模型。对于
+基于树的模型，则需要真正的 SHAP 库（TreeSHAP），
+属于 v0.55+ 的候选方案。
 
-The output is a list of { feature, value,
-contribution, abs_contribution } sorted by
-abs_contribution descending. The L1 renders
-this as a horizontal bar chart (positive vs
-negative contributions).
+输出是按 abs_contribution 降序排列的
+{ feature, value, contribution, abs_contribution }
+列表。L1 将其渲染为水平条形图（正值 vs 负值贡献）。
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-# Feature names must match the order the model
-# was trained with. The 3-feature model uses:
-#   x[0] = 1           (bias)
-#   x[1] = price       (0..1, the market price)
-#   x[2] = market_age_hours (>=0, hours since
-#                          market opened)
+# 特征名称必须与模型训练时的顺序一致。3 特征模型使用：
+#   x[0] = 1           （偏置）
+#   x[1] = price       （0..1，市场价格）
+#   x[2] = market_age_hours （>=0，自市场开启以来的小时数）
 FEATURE_NAMES = ("bias", "price", "market_age_hours")
 
 
@@ -47,49 +37,43 @@ def run_explainability(
     model_version: str,
     sample: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Compute per-feature contribution for one
-    sample (or a default "average" sample when
-    the user doesn't pass one).
+    """计算单个样本的逐特征贡献
+    （如果用户未传入，则使用默认的"平均"样本）。
 
     Args:
-      model_version: e.g.
-        "logistic-train-441c352b". Looked up
-        in archive.jsonl first, then active.json
-        (same logic as run_backtest_model).
-      sample: optional dict with:
-        - "price"          (float, 0..1, default 0.5)
-        - "market_age_hours" (float, >=0, default 24)
-        When omitted, we use a default sample
-        (price=0.5, age=24h) so the user gets
-        a "what would the model say for a typical
-        market" view.
+      model_version: 例如
+        "logistic-train-441c352b"。先在 archive.jsonl
+        中查找，再在 active.json 中查找
+        （与 run_backtest_model 的逻辑相同）。
+      sample: 可选 dict，包含：
+        - "price"          （float，0..1，默认 0.5）
+        - "market_age_hours" （float，>=0，默认 24）
+        如果省略，则使用默认 sample
+        （price=0.5, age=24h），以便用户得到
+        一个"模型对典型市场的看法"的视图。
 
     Returns:
       - ok: bool
-      - model_version: the requested model
-        (echoed)
-      - features: list of { feature, value, weight,
-        contribution, abs_contribution } sorted
-        by abs_contribution desc
-      - prediction: float (the model's predicted
-        probability for the sample, 0..1)
+      - model_version: 所请求的模型（回显）
+      - features: 按 abs_contribution 降序排列的
+        { feature, value, weight, contribution,
+          abs_contribution } 列表
+      - prediction: float（模型对该样本的预测
+        概率，0..1）
       - sample: { price, market_age_hours }
-        (the input we used)
-      - message: human-readable status / error
+        （我们使用的输入）
+      - message: 人类可读的状态 / 错误信息
 
-    Linear-model math:
+    线性模型的数学：
       z = w0 * 1 + w1 * price + w2 * age
       p = 1 / (1 + exp(-z))
 
-    Per-feature contribution to p - 0.5 (the
-    deviation from the no-information prior):
+    每个特征对 p - 0.5（与无信息先验的偏差）的贡献：
       contribution_i = (w_i * x_i) / 4
 
-    The /4 normalizer comes from the slope of
-    the logistic at z=0. We divide by 4 so the
-    contributions are on the same scale as the
-    probability (so a contribution of 0.1 means
-    "this feature moved the probability by 0.1").
+    /4 这个归一化系数来自 logistic 在 z=0 处的斜率。
+    我们除以 4 是为了让贡献与概率处于同一量级
+    （因此贡献 0.1 表示"该特征把概率移动了 0.1"）。
     """
     from .train import _load_model_by_version
 
@@ -102,19 +86,18 @@ def run_explainability(
         age = float(sample.get("market_age_hours", 24.0))
     except (TypeError, ValueError):
         return _err(model_version, "price / market_age_hours must be numbers")
-    # v0.55 — domain validation. Polymarket prices are
-    # always in [0, 1] and age is hours since open. We
-    # reject anything outside that to keep the model
-    # input sane (the 3-feature model would extrapolate
-    # wildly otherwise).
+    # v0.55 —— 域校验。Polymarket 的价格始终在 [0, 1]，
+    # age 是自开盘以来的小时数。我们拒绝任何超出
+    # 该范围的值，以保证模型输入合理（否则
+    # 3 特征模型会进行疯狂的外推）。
     if not (0.0 <= price <= 1.0):
         return _err(model_version, "price must be in [0, 1]")
     if age < 0:
         return _err(model_version, "market_age_hours must be >= 0")
 
-    # v0.55 — load the trained weights. We look in
-    # archive.jsonl first (so old / rolled-back models
-    # can still be explained) then fall back to active.
+    # v0.55 —— 加载训练后的权重。我们先在
+    # archive.jsonl 中查找（这样旧的 / 已回滚的模型
+    # 仍然可以被解释），然后回退到 active。
     model = _load_model_by_version(model_version)
     if model is None:
         return _err(
@@ -140,28 +123,26 @@ def run_explainability(
             "weights w0/w1/w2 must be numbers",
         )
 
-    # Build feature vector + logit + probability.
-    # x[0] is the bias (always 1.0). w[0] is the
-    # intercept — together they shift the logit
-    # before the sigmoid.
+    # 构建特征向量 + logit + 概率。
+    # x[0] 是偏置（始终为 1.0）。w[0] 是截距——
+    # 它们一起在 sigmoid 之前平移 logit。
     x = [1.0, price, age]
     w = [w0, w1, w2]
     z = sum(wi * xi for wi, xi in zip(w, x))
-    # Numerically stable sigmoid. The two-branch form
-    # avoids overflow when z is large negative (e^-z
-    # would be huge) or large positive (e^z same).
+    # 数值稳定的 sigmoid。两个分支的形式
+    # 可以避免 z 较大负值（e^-z 会非常大）
+    # 或较大正值（e^z 同理）时的溢出。
     if z >= 0:
         p = 1.0 / (1.0 + pow(2.718281828459045, -z))
     else:
         ez = pow(2.718281828459045, z)
         p = ez / (1.0 + ez)
 
-    # Per-feature contribution to (p - 0.5).
-    # We don't normalize by 1/4 here — instead we
-    # use the actual slope: dp/dz = p(1-p).
-    # At z=0, slope = 0.25. We pass the slope
-    # through so the contribution is on the
-    # probability scale.
+    # 每个特征对 (p - 0.5) 的贡献。
+    # 这里我们不再用 1/4 来归一化——而是
+    # 使用实际的斜率：dp/dz = p(1-p)。
+    # 在 z=0 处，斜率为 0.25。我们直接
+    # 乘以斜率，使贡献保持在概率的量级。
     slope = p * (1.0 - p)
     contribs = []
     for fname, fvalue, fweight in zip(FEATURE_NAMES, x, w):

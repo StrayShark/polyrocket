@@ -1,83 +1,65 @@
-"""v0.59 — real SHAP values via KernelExplainer.
+"""v0.59 —— 通过 KernelExplainer 计算真正的 SHAP values。
 
-v0.55 ships the exact-decomposition
-`contribution_i = w_i * x_i * p(1-p)` for the
-3-feature logistic model. That's correct for
-linear models but doesn't satisfy the SHAP
-*efficiency* axiom (φ values sum to the
-prediction - baseline) when features are
-correlated. v0.59 fixes that with a true
-KernelExplainer.
+v0.55 对 3 特征 logistic 模型提供了精确分解
+`contribution_i = w_i * x_i * p(1-p)`。这在线性模型中是
+正确的，但在特征相关时**不**满足 SHAP 的 *efficiency*
+公理（φ 值之和等于 prediction - baseline）。v0.59
+通过真正的 KernelExplainer 来修复这个问题。
 
-## Why KernelExplainer?
+## 为什么使用 KernelExplainer？
 
-We have a 3-feature model. The exact SHAP
-closed-form for linear models is well known
-(Lundberg 2017, eq. 9), but the polyrocket
-model is logistic, not linear. KernelExplainer
-is model-agnostic: it treats the model as a
-black box, samples feature coalitions
-according to SHAP's kernel weights, and
-computes weighted least squares to fit the
-additive attribution.
+我们有一个 3 特征模型。线性模型下 SHAP 的精确闭式
+是已知的（Lundberg 2017, eq. 9），但 polyrocket 模型
+是 logistic 的，不是线性的。KernelExplainer 是模型
+无关的：它把模型当作一个黑盒，按 SHAP 的核权重
+采样特征组合（coalition），并计算加权最小二乘来
+拟合可加的属性分配。
 
-The cost is O(2^M) coalition evaluations where
-M is the number of features. With M=3, that's
-8 coalitions + the empty coalition. Cheap.
+代价是 O(2^M) 次 coalition 评估，其中 M 是特征数。
+当 M=3 时，是 8 次 coalition + 一次空 coalition。非常便宜。
 
-## Why not import the `shap` library?
+## 为什么不直接 import `shap` 库？
 
-Two reasons:
-  1. The `shap` PyPI package pulls in
-     `numpy` + `scipy` + `pandas` (~30MB).
-     The sidecar currently has zero deps.
-     Adding a 30MB dep for 100 lines of math
-     is overkill.
-  2. The polyrocket sidecar runs as a
-     child process. Heavy ML deps slow
-     startup. We can re-add `shap` later
-     if the model grows past 5 features
-     (where exact linear SHAP breaks down
-     and KernelExplainer becomes slow).
+有两个原因：
+  1. PyPI 上的 `shap` 包会引入 `numpy` + `scipy` +
+     `pandas`（约 30MB）。侧车目前零依赖。
+     为了 100 行数学代码添加 30MB 的依赖得不偿失。
+  2. polyrocket 侧车作为子进程运行。沉重的 ML 依赖
+     会拖慢启动。如果模型增长到 5 个特征以上
+     （那时精确的线性 SHAP 失效，KernelExplainer
+     也会变慢），我们之后再重新引入 `shap`。
 
-This implementation uses pure-Python (stdlib
-math only). For a 3-feature model, it's
-sub-millisecond per sample.
+本实现使用纯 Python（仅用标准库的 math）。对于
+3 特征模型，每个样本的处理时间在亚毫秒级。
 
-## Algorithm
+## 算法
 
-KernelSHAP for M features:
+对 M 个特征的 KernelSHAP：
 
-  1. Generate all 2^M binary coalition masks
-     (z ∈ {0,1}^M).
-  2. Convert each mask to an "imputed" input
-     by replacing absent features with the
-     background (median) feature value.
-  3. Evaluate the model on each imputed input.
-  4. Weight each coalition by the SHAP kernel
-     weight: w(z) = (M-1) / (C(M, |z|) * |z|
-     * (M - |z|)) — the closed form from
-     Lundberg & Lee (2017).
-  5. Fit a weighted linear regression of
-     model outputs on the mask features
-     (one-hot). The coefficients are the SHAP
-     values φ_i.
-  6. Constraint: φ_0 + Σφ_i = f(x) - f(bg)
-     (the efficiency axiom).
+  1. 生成所有 2^M 个二元 coalition mask
+     （z ∈ {0,1}^M）。
+  2. 将每个 mask 转换为一个"imputed"输入，
+     用背景（取中位数）的特征值替换掉不在的
+     特征。
+  3. 对每个 imputed 输入评估模型。
+  4. 用 SHAP 核权重为每个 coalition 分配权重：
+     w(z) = (M-1) / (C(M, |z|) * |z| * (M - |z|))
+     —— Lundberg & Lee (2017) 给出的闭式。
+  5. 对模型输出在 mask 特征（one-hot）上拟合
+     加权线性回归。其系数就是 SHAP values φ_i。
+  6. 约束：φ_0 + Σφ_i = f(x) - f(bg)
+     （efficiency 公理）。
 
-We implement step 5-6 in closed form using
-the normal equations. With 2^M samples and
-M+1 parameters, the regression is
-over-determined (8 > 4) and the system has a
-unique solution.
+我们使用正规方程的闭式实现步骤 5-6。对于 2^M 个
+样本和 M+1 个参数，回归是超定的（8 > 4），系统有
+唯一解。
 
-## Output
+## 输出
 
-Returns a list of { feature, value, shap_value,
-abs_shap } sorted by abs_shap descending.
-Same shape as v0.55's explainability
-contributions; the math is now SHAP instead
-of exact-decomposition.
+返回一个按 abs_shap 降序排列的
+{ feature, value, shap_value, abs_shap } 列表。
+结构与 v0.55 的可解释性贡献相同；只是数学上
+现在是 SHAP 而不再是 exact-decomposition。
 """
 
 from __future__ import annotations
@@ -86,20 +68,17 @@ import itertools
 import math
 from typing import Any
 
-# v0.59 — feature names must match the order
-# the model was trained with. The 3-feature
-# model uses:
-#   x[0] = 1           (bias)
-#   x[1] = price       (0..1)
-#   x[2] = market_age_hours (>=0)
+# v0.59 —— 特征名称必须与模型训练时的顺序一致。
+# 3 特征模型使用：
+#   x[0] = 1           （偏置）
+#   x[1] = price       （0..1）
+#   x[2] = market_age_hours （>=0）
 FEATURE_NAMES = ("bias", "price", "market_age_hours")
 
-# Background (baseline) values. The "empty
-# coalition" prediction uses these. Picked
-# from the synthetic dataset (v0.12+): the
-# typical market has price=0.5 and
-# market_age_hours=24. The bias is by
-# definition 1.0 in our feature vector.
+# 背景（baseline）值。"空 coalition" 的预测会
+# 使用这些值。从合成数据集（v0.12+）中选取：
+# 典型市场的 price=0.5 且 market_age_hours=24。
+# 偏置在我们的特征向量中按定义恒为 1.0。
 _BACKGROUND = (1.0, 0.5, 24.0)
 
 
@@ -107,8 +86,7 @@ def _predict_logistic(
     weights: tuple[float, float, float],
     x: tuple[float, float, float],
 ) -> float:
-    """Numerically stable sigmoid. Identical
-    to predict._sigmoid."""
+    """数值稳定的 sigmoid。与 predict._sigmoid 相同。"""
     z = sum(w * xi for w, xi in zip(weights, x))
     if z >= 0.0:
         return 1.0 / (1.0 + math.exp(-z))
@@ -117,16 +95,14 @@ def _predict_logistic(
 
 
 def _kernel_weight(m: int, s: int) -> float:
-    """SHAP kernel weight for a coalition of
-    size s out of m features. Closed form
-    from Lundberg & Lee 2017:
+    """大小为 s（特征总数为 m）的 coalition 的 SHAP 核
+    权重。Lundberg & Lee 2017 给出的闭式：
 
         w(z) = (M-1) / (C(M, |z|) * |z| * (M - |z|))
 
-    Special case: when |z| = 0 or |z| = M, the
-    weight is `infinity` (the empty / full
-    coalition is over-determined). We use a
-    large constant (1e6) as a soft cap.
+    特殊情况：当 |z| = 0 或 |z| = M 时，权重为
+    `infinity`（空 / 完整 coalition 是超定的）。
+    我们用一个大常数（1e6）作为软上限。
     """
     if s == 0 or s == m:
         return 1.0e6
@@ -135,9 +111,8 @@ def _kernel_weight(m: int, s: int) -> float:
 
 
 def _build_coalitions(m: int) -> list[list[int]]:
-    """All 2^M binary coalition masks. The
-    i-th element is 1 if feature i is
-    "present" in the coalition."""
+    """所有 2^M 个二元 coalition mask。第 i 个元素
+    为 1 表示特征 i 在该 coalition 中"存在"。"""
     return [
         [int(b) for b in format(idx, f"0{m}b")]
         for idx in range(2**m)
@@ -150,58 +125,51 @@ def _fit_weighted_ls(
     weights: list[float],
     n_features: int,
 ) -> list[float]:
-    """Weighted least-squares fit of outputs
-    on the one-hot mask encoding + bias
-    column. Returns [φ_0, φ_1, ..., φ_M] where
-    φ_0 is the bias term and φ_i is the SHAP
-    value for feature i.
+    """对 one-hot mask 编码 + 偏置列上的输出进行
+    加权最小二乘拟合。返回 [φ_0, φ_1, ..., φ_M]，
+    其中 φ_0 是偏置项，φ_i 是特征 i 的 SHAP value。
 
-    We use the normal equations:
+    我们使用正规方程：
         (X^T W X) β = X^T W y
 
-    where X is the (n_coalitions, n_features+1)
-    design matrix, W is diag(weights), and y
-    is the model outputs.
+    其中 X 是 (n_coalitions, n_features+1) 的设计矩阵，
+    W 是 diag(weights)，y 是模型的输出。
     """
     n = len(masks)
-    # Build X^T W X and X^T W y
-    # X has columns: [bias, mask[0], mask[1], ..., mask[M-1]]
+    # 构造 X^T W X 与 X^T W y
+    # X 的列依次为：[bias, mask[0], mask[1], ..., mask[M-1]]
     p = n_features + 1
     xtwx = [[0.0] * p for _ in range(p)]
     xtwy = [0.0] * p
     for r in range(n):
         w = weights[r]
-        # Row r of X
+        # X 的第 r 行
         row = [1.0] + [float(masks[r][i]) for i in range(n_features)]
-        # Update X^T W X
+        # 更新 X^T W X
         for i in range(p):
             for j in range(p):
                 xtwx[i][j] += row[i] * w * row[j]
             xtwy[i] += row[i] * w * outputs[r]
-    # Solve via Gaussian elimination.
+    # 通过高斯消元求解。
     return _solve_linear(xtwx, xtwy)
 
 
 def _solve_linear(a: list[list[float]], b: list[float]) -> list[float]:
-    """Solve Ax = b via Gaussian elimination
-    with partial pivoting. `a` is a square
-    (n, n) matrix in normal usage, but we
-    also handle the over-determined case
-    (more rows than unknowns) — the algorithm
-    just doesn't touch the extra rows. The
-    matrix shape is (rows, n+1) where n is
-    the number of unknowns (= number of
-    columns of a)."""
+    """通过带部分主元的高斯消元求解 Ax = b。在正常用法中
+    `a` 是一个 (n, n) 的方阵，但我们也处理超定情形
+    （行数多于未知数）——算法只是不访问额外的行。
+    矩阵的形状为 (rows, n+1)，其中 n 是未知数的数量
+    （= a 的列数）。
+    """
     n = len(a[0]) if a else 0
     rows = len(a)
-    # Augmented matrix: rows × (n+1)
+    # 增广矩阵：rows × (n+1)
     m = [a[i][:] + [b[i]] for i in range(rows)]
-    # Forward elimination. We only eliminate
-    # down to row n (not rows-1) because we
-    # have n unknowns; the extra rows (if any)
-    # are unused residuals.
+    # 前向消元。我们只消到第 n 行（不是 rows-1），
+    # 因为我们有 n 个未知数；额外的行（如果有）
+    # 是未使用的残差。
     for i in range(n):
-        # Find pivot
+        # 寻找主元
         max_row = i
         max_val = abs(m[i][i]) if i < rows else 0.0
         for r in range(i + 1, rows):
@@ -209,21 +177,19 @@ def _solve_linear(a: list[list[float]], b: list[float]) -> list[float]:
                 max_val = abs(m[r][i])
                 max_row = r
         if max_val < 1e-12:
-            # Singular — return zeros (the model
-            # output doesn't depend on any
-            # feature, which shouldn't happen
-            # in practice).
+            # 奇异 —— 返回零（模型输出不依赖于
+            # 任何特征，这在实践中不应发生）。
             return [0.0] * n
         if max_row != i:
             m[i], m[max_row] = m[max_row], m[i]
-        # Eliminate below
+        # 向下消元
         for r in range(i + 1, rows):
             if abs(m[r][i]) < 1e-12:
                 continue
             factor = m[r][i] / m[i][i]
             for c in range(i, n + 1):
                 m[r][c] -= factor * m[i][c]
-    # Back substitution
+    # 回代
     x = [0.0] * n
     for i in range(n - 1, -1, -1):
         s = m[i][n]
@@ -241,13 +207,11 @@ def run_shap_explainability(
     model_version: str,
     sample: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Compute true SHAP values for one
-    sample (or a default sample when the
-    user doesn't pass one).
+    """为单个样本计算真正的 SHAP values（如果用户
+    未传入 sample，则使用默认样本）。
 
-    The output is sorted by abs_shap
-    descending so the L1 bar chart shows the
-    top feature first.
+    输出按 abs_shap 降序排列，这样 L1 的条形图就能
+    把最重要的特征排在最前面。
     """
     from .train import _load_model_by_version
 
@@ -289,14 +253,13 @@ def run_shap_explainability(
     except (TypeError, ValueError):
         return _err(model_version, "weights w0/w1/w2 must be numbers")
 
-    # Build the 2^M coalitions.
+    # 构造 2^M 个 coalition。
     m = len(FEATURE_NAMES)
     coalitions = _build_coalitions(m)
     n_coalitions = len(coalitions)
 
-    # Convert each coalition to an imputed
-    # input (replace absent features with
-    # background) and evaluate the model.
+    # 将每个 coalition 转换为 imputed 输入
+    # （用背景值替换不在的特征）并评估模型。
     x_target = (1.0, price, age)
     outputs: list[float] = []
     weights: list[float] = []
@@ -309,20 +272,19 @@ def run_shap_explainability(
         s = sum(mask)
         weights.append(_kernel_weight(m, s))
 
-    # Fit weighted LS to extract SHAP values.
-    # We treat the bias (mask column 0) as a
-    # constant 1 in the design matrix; its
-    # coefficient is the "expected value
-    # term" that the SHAP values sum to
-    # f(x) - E[f(x)] = f(x) - baseline_pred.
+    # 拟合加权 LS 以提取 SHAP values。
+    # 我们把偏置（mask 第 0 列）视作设计矩阵中
+    # 的常数 1；其系数就是"expected value 项"，
+    # 它满足 SHAP values 之和为
+    # f(x) - E[f(x)] = f(x) - baseline_pred。
     phi = _fit_weighted_ls(coalitions, outputs, weights, m)
 
-    # Baseline prediction (empty coalition).
+    # 基准预测（空 coalition）。
     baseline_pred = _predict_logistic(w, _BACKGROUND)
     target_pred = _predict_logistic(w, x_target)
-    # The fitted φ values already satisfy
-    # Σφ_i = f(x) - E[f(x)] by construction.
-    # We surface the magnitudes to the L1.
+    # 拟合出的 φ 值在构造上已经满足
+    # Σφ_i = f(x) - E[f(x)]。我们把
+    # 它们的幅值暴露给 L1。
 
     features: list[dict[str, Any]] = []
     for i, name in enumerate(FEATURE_NAMES):

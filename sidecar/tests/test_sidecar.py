@@ -1,9 +1,9 @@
-"""Tests for the sidecar.
+"""侧车（sidecar）的测试。
 
-Run with:
+运行方式：
     cd sidecar && python3 -m unittest tests.test_sidecar -v
 
-We use unittest (not pytest) so the sidecar has zero runtime deps.
+我们使用 unittest（而不是 pytest），这样侧车运行时零依赖。
 """
 
 import json
@@ -13,7 +13,7 @@ import sys
 import unittest
 from pathlib import Path
 
-# Make the package importable when running tests/ directly
+# 当直接运行 tests/ 时，让包可被 import
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT))
@@ -33,7 +33,7 @@ from polyrocket_sidecar.dispatch import DISPATCH  # noqa: E402
 
 class ProtocolTests(unittest.TestCase):
     def test_parse_ping(self) -> None:
-        # NOTE: wire format is lowercase method names to match Rust.
+        # 注意：wire 格式使用小写方法名以匹配 Rust。
         req = parse_line('{"id": 1, "method": "ping", "params": {}}')
         self.assertEqual(req.id, 1)
         self.assertEqual(req.method, "ping")
@@ -65,16 +65,16 @@ class ProtocolTests(unittest.TestCase):
         obj = json.loads(line)
         self.assertEqual(obj["id"], 1)
         self.assertFalse(obj["ok"])
-        # The Rust SidecarResponse.error is Option<String>, so we serialize
-        # as a string with the code embedded in the message text.
+        # Rust 的 SidecarResponse.error 是 Option<String>，所以我们
+        # 把错误码嵌入到消息文本中，以字符串形式序列化。
         self.assertIsInstance(obj["error"], str)
         self.assertIn("-32601", obj["error"])
         self.assertIn("nope", obj["error"])
 
     def test_serialize_includes_ok_for_rust(self) -> None:
-        # The Rust `parse_line` distinguishes requests (have `method`) from
-        # responses (have `ok`). If a response is missing `ok`, the Rust side
-        # rejects it. This test guards against accidental removal.
+        # Rust 的 `parse_line` 区分请求（带 `method`）和
+        # 响应（带 `ok`）。如果响应缺少 `ok`，Rust 端会拒绝。
+        # 本测试防止它被意外移除。
         for r in [
             SidecarResponse(id=1, result={"x": 1}),
             SidecarResponse(id=2, error=SidecarError(code=-1, message="x")),
@@ -93,25 +93,24 @@ class ProtocolTests(unittest.TestCase):
 
 class PredictTests(unittest.TestCase):
     def setUp(self) -> None:
-        # v0.20d — pre-existing test isolation fix. Earlier
-        # tests (TrainJobTests, E2ESubprocessTests) may have
-        # written an active.json file. PredictTests expects
-        # the "no active model" state (model_version =
-        # "logistic-0.1.0") for some of its tests. Clearing
-        # the file + resetting the cache gives us a clean
-        # slate for each Predict test.
+        # v0.20d —— 预先存在的测试隔离修复。之前的测试
+        # （TrainJobTests、E2ESubprocessTests）可能写过
+        # active.json 文件。PredictTests 在某些测试中
+        # 期望"没有 active 模型"的状态（model_version =
+        # "logistic-0.1.0"）。清除文件 + 重置缓存，可以
+        # 给每个 Predict 测试一个干净的起点。
         from polyrocket_sidecar.active import ACTIVE_FILE as _ACTIVE_FILE, reset_cache
         if _ACTIVE_FILE.exists():
             _ACTIVE_FILE.unlink()
         reset_cache()
 
     def test_zero_price_zero_age_near_baseline(self) -> None:
-        # price=0 (max cheap) + age=0 → high prob
+        # price=0（最便宜）+ age=0 → 高概率
         p = predict_logic(price=0.0, market_age_hours=0.0)
         self.assertGreater(p, 0.5)
 
     def test_high_price(self) -> None:
-        # price=1 (max expensive) → low prob
+        # price=1（最贵）→ 低概率
         p = predict_logic(price=1.0, market_age_hours=24.0)
         self.assertLess(p, 0.5)
 
@@ -123,10 +122,11 @@ class PredictTests(unittest.TestCase):
                 self.assertLessEqual(p, 1.0)
 
     def test_predict_from_markets_rust_shape(self) -> None:
-        """The output MUST match what `domain::lab::sidecar::parse_predict_response`
-        expects on the Rust side: { predictions: [{ market_id, prob, confidence, rationale }],
-                                     model_version: "logistic-..." }.
-        v0.12a — model_version is hoisted to the top level.
+        """输出**必须**匹配 Rust 端
+        `domain::lab::sidecar::parse_predict_response` 期望的结构：
+        { predictions: [{ market_id, prob, confidence, rationale }],
+          model_version: "logistic-..." }。
+        v0.12a —— model_version 被提升到顶层。
         """
         result = predict_from_markets([{"market_id": "m1", "price": 0.5, "market_age_hours": 24}])
         self.assertIn("predictions", result)
@@ -142,7 +142,7 @@ class PredictTests(unittest.TestCase):
         self.assertLessEqual(p["prob"], 1.0)
         self.assertGreaterEqual(p["confidence"], 0.0)
         self.assertLessEqual(p["confidence"], 1.0)
-        # v0.12a — model_version should be a non-empty string
+        # v0.12a —— model_version 应是一个非空字符串
         self.assertIsInstance(result["model_version"], str)
         self.assertGreater(len(result["model_version"]), 0)
 
@@ -161,13 +161,13 @@ class PredictTests(unittest.TestCase):
         result = predict_from_markets([{"market_id": "m1", "price": "lol"}])
         out = result["predictions"]
         self.assertEqual(len(out), 1)
-        # default price = 0.5 → confidence = 0
+        # 默认 price = 0.5 → confidence = 0
         self.assertEqual(out[0]["confidence"], 0.0)
 
     def test_returns_model_version_field(self) -> None:
-        """v0.12a — predict_from_markets returns a `model_version` field
-        at the top level. The default (no active model) is
-        'logistic-0.1.0'.
+        """v0.12a —— predict_from_markets 在顶层返回一个
+        `model_version` 字段。默认值（没有 active 模型）为
+        'logistic-0.1.0'。
         """
         from polyrocket_sidecar.active import reset_cache
         reset_cache()
@@ -176,12 +176,12 @@ class PredictTests(unittest.TestCase):
 
 
 class BenchTests(unittest.TestCase):
-    """v0.11d — the hot path is hot enough.
+    """v0.11d —— 热路径足够快。
 
-    We don't assert on an exact timing (CI hosts vary), just that
-    10k markets finish in <500ms on a dev machine. A regression
-    to the slow path (e.g. unhoisted import, accidental global
-    re-read) would push this well over 1s.
+    我们不对精确时间做断言（CI 主机各异），只断言
+    1 万个市场在开发机上 < 500ms 完成。如果热路径
+    出现回归（例如 import 未上提、意外的全局重新读取），
+    那么耗时就会远超 1s。
     """
     def test_10k_markets_under_500ms(self) -> None:
         from polyrocket_sidecar.predict import predict_from_markets
@@ -193,15 +193,16 @@ class BenchTests(unittest.TestCase):
         started = time.perf_counter()
         result = predict_from_markets(markets)
         elapsed = time.perf_counter() - started
-        # v0.12a — result is now a dict with `predictions` array
+        # v0.12a —— result 现在是带 `predictions` 数组的 dict
         self.assertEqual(len(result["predictions"]), 10_000)
         self.assertLess(elapsed, 0.5, f"predict took {elapsed:.3f}s; expected <0.5s")
 
 
 class DispatchTests(unittest.TestCase):
     def test_all_methods_registered(self) -> None:
-        # If a method is added on the Rust side without registering here, this
-        # catches it. Mirror the set in `SidecarMethod` enum on Rust.
+        # 如果在 Rust 端添加了方法但没有在这里注册，
+        # 本测试可以捕获到。需要与 Rust 端
+        # `SidecarMethod` 枚举中的集合保持一致。
         expected = {"ping", "predict", "train_job", "promote_model", "list_promote_history", "rollback_model", "auto_promote_if_better", "promote_all_trials", "backtest_model", "explain_model", "shap_explain"}
         self.assertEqual(set(DISPATCH.keys()), expected)
 
@@ -218,39 +219,39 @@ class DispatchTests(unittest.TestCase):
         self.assertGreater(out["predictions"][0]["prob"], 0.5)
 
     def test_train_job_real(self) -> None:
-        """v0.10b: train_job runs a real sweep and writes a candidate file."""
+        """v0.10b：train_job 运行一次真实的扫描并写入候选文件。"""
         out = DISPATCH["train_job"]({})
         self.assertEqual(out["status"], "completed", msg=f"train failed: {out}")
         self.assertIn("job_id", out)
         self.assertIn("best_brier", out)
         self.assertIn("best_params", out)
         self.assertIn("candidate_path", out)
-        # Trials were attempted
+        # 已尝试的 trial
         self.assertGreaterEqual(len(out.get("trials", [])), 1)
-        # The candidate file should now exist on disk
+        # 候选文件现在应该已经存在于磁盘上
         from pathlib import Path
         self.assertTrue(Path(out["candidate_path"]).exists())
 
     def test_promote_model_real(self) -> None:
-        """v0.10b: promote_model requires a candidate first; without one
-        it returns ok=false with a clear error message.
+        """v0.10b：promote_model 需要先有候选；没有时
+        返回 ok=false 并附带清晰的错误消息。
         """
-        # Promote with no candidate on disk should fail cleanly
-        # (the model_dir may have a leftover from test_train_job_real —
-        # accept either outcome, just verify the shape).
+        # 没有磁盘上的候选时 promote 应干净失败
+        # （model_dir 可能留有 test_train_job_real 的痕迹
+        # ——任意一种结果都可以接受，只要验证响应结构）。
         out = DISPATCH["promote_model"]({})
         if out.get("promoted"):
             self.assertEqual(out["status"], "ok")
             self.assertIn("active_path", out)
             self.assertIn("promoted_at_ms", out)
         else:
-            # Either no candidate (from a clean test env) — both are valid
+            # 也可能是没有候选（干净的测试环境）—— 两种都合法
             self.assertEqual(out["status"], "failed")
 
     def test_list_promote_history_empty_or_populated(self) -> None:
-        """v0.19a: list_promote_history returns ok=true with whatever
-        is in active.json. If a previous test promoted, we may have
-        entries; otherwise the response is empty + a helpful message.
+        """v0.19a：list_promote_history 返回 ok=true，其内容
+        就是 active.json 中的内容。如果之前的测试做过 promote，
+        可能会得到条目；否则响应为空 + 一条友好的提示。
         """
         out = DISPATCH["list_promote_history"]({})
         self.assertTrue(out["ok"])
@@ -258,13 +259,13 @@ class DispatchTests(unittest.TestCase):
         self.assertIn("count", out)
         self.assertIsInstance(out["entries"], list)
         self.assertEqual(out["count"], len(out["entries"]))
-        # Each entry, if present, has the audit-relevant fields
+        # 每条条目（若存在）都包含审计相关字段
         for e in out["entries"]:
             self.assertIn("job_id", e)
             self.assertIn("model_version", e)
             self.assertIn("promoted_at_ms", e)
-            # best_brier and best_params are optional
-            # (best_params may be null in some entries)
+            # best_brier 和 best_params 是可选的
+            # （某些条目中 best_params 可能为 null）
 
     def test_predict_rejects_non_list_markets(self) -> None:
         with self.assertRaises(ValueError):
@@ -272,9 +273,10 @@ class DispatchTests(unittest.TestCase):
 
 
 class E2ESubprocessTests(unittest.TestCase):
-    """Spawn the actual `python3 -m polyrocket_sidecar` and verify it.
+    """启动真正的 `python3 -m polyrocket_sidecar` 并验证它。
 
-    These use the Rust wire format: lowercase methods, {"markets": [...]} params.
+    这些测试使用 Rust 的 wire 格式：小写方法名、
+    {"markets": [...]} 参数。
     """
 
     @classmethod
@@ -328,11 +330,11 @@ class E2ESubprocessTests(unittest.TestCase):
         self.assertIn("predictions", out["result"])
         preds = out["result"]["predictions"]
         self.assertEqual(len(preds), 2)
-        # m1 (cheap YES) should score higher than m2 (expensive YES)
+        # m1（便宜的 YES）应当比 m2（贵的 YES）得分高
         m1 = next(p for p in preds if p["market_id"] == "m1")
         m2 = next(p for p in preds if p["market_id"] == "m2")
         self.assertGreater(m1["prob"], m2["prob"])
-        # Each prediction has the Rust-expected fields
+        # 每个预测都包含 Rust 端期望的字段
         for p in preds:
             self.assertIn("market_id", p)
             self.assertIn("prob", p)
@@ -342,13 +344,13 @@ class E2ESubprocessTests(unittest.TestCase):
     def test_e2e_unknown_method(self) -> None:
         out = self._round_trip('{"id": 3, "method": "what_is_this", "params": {}}')
         self.assertEqual(out["id"], 3)
-        # error is now a string with code embedded
+        # error 现在是带嵌入错误码的字符串
         self.assertFalse(out["ok"])
         self.assertIsInstance(out["error"], str)
         self.assertIn("-32601", out["error"])
 
     def test_e2e_invalid_params(self) -> None:
-        # predict with markets="not a list" → -32602
+        # predict 时 markets="not a list" → -32602
         out = self._round_trip('{"id": 4, "method": "predict", "params": {"markets": "not a list"}}')
         self.assertEqual(out["id"], 4)
         self.assertFalse(out["ok"])
@@ -363,9 +365,9 @@ class E2ESubprocessTests(unittest.TestCase):
         self.assertIn("-32700", out["error"])
 
     def test_e2e_list_promote_history(self) -> None:
-        """v0.19a: list_promote_history is a read-only audit.
-        The shape is fixed (ok, entries, count, message) regardless
-        of whether any promotes have happened.
+        """v0.19a：list_promote_history 是一个只读审计。
+        其结构固定（ok、entries、count、message），
+        无论是否发生过任何 promote。
         """
         out = self._round_trip(
             '{"id": 5, "method": "list_promote_history", "params": {}}'
@@ -381,8 +383,8 @@ class E2ESubprocessTests(unittest.TestCase):
         self.assertEqual(result["count"], len(result["entries"]))
 
     def test_e2e_rollback_model_requires_model_version(self) -> None:
-        """v0.20a: rollback_model without model_version returns
-        a clean error (rolled_back=false with a message).
+        """v0.20a：rollback_model 缺少 model_version 时返回
+        一个干净错误（rolled_back=false 并附带消息）。
         """
         out = self._round_trip(
             '{"id": 6, "method": "rollback_model", "params": {}}'
@@ -395,15 +397,15 @@ class E2ESubprocessTests(unittest.TestCase):
         self.assertIn("model_version", result["message"])
 
     def test_e2e_rollback_model_not_in_history(self) -> None:
-        """v0.20a: rollback to a model_version that doesn't
-        exist in promotion_history returns a clear error.
-        First promotes a real model so active.json exists,
-        then tries to roll back to a non-existent version.
+        """v0.20a：回滚到 promotion_history 中不存在的
+        model_version 时返回清晰的错误。
+        先 promote 一个真实模型，使 active.json 存在，
+        然后再尝试回滚到一个不存在的版本。
         """
-        # First, train + promote so we have an active model
+        # 首先，train + promote 以获得一个 active 模型
         self._round_trip('{"id": 71, "method": "train_job", "params": {"n_trials": 1, "epochs": 5}}')
         self._round_trip('{"id": 72, "method": "promote_model", "params": {}}')
-        # Now rollback to a non-existent version
+        # 现在回滚到一个不存在的版本
         out = self._round_trip(
             '{"id": 73, "method": "rollback_model", "params": {"model_version": "logistic-train-NOPE"}}'
         )
@@ -414,10 +416,10 @@ class E2ESubprocessTests(unittest.TestCase):
         self.assertIn("not found", result["message"])
 
     def test_e2e_auto_promote_if_better_no_active(self) -> None:
-        """v0.23a: with no active model, auto_promote_if_better
-        just promotes the candidate (it's automatically best).
+        """v0.23a：在没有 active 模型的情况下，
+        auto_promote_if_better 直接提升候选（它自动是 best）。
         """
-        # Train so we have a candidate
+        # 先 train 以得到候选
         self._round_trip('{"id": 81, "method": "train_job", "params": {"n_trials": 1, "epochs": 5}}')
         out = self._round_trip(
             '{"id": 82, "method": "auto_promote_if_better", "params": {"brier_margin": 0.005}}'
@@ -431,16 +433,15 @@ class E2ESubprocessTests(unittest.TestCase):
         self.assertIn("no active model", result["reason"])
 
     def test_e2e_auto_promote_if_better_skipped(self) -> None:
-        """v0.23a: when the candidate isn't meaningfully
-        better than the active, the call no-ops and returns
-        a clear "skipped" reason.
+        """v0.23a：当候选没有明显优于 active 时，
+        该调用 no-op，并返回清晰的 "skipped" 原因。
         """
-        # First train + promote → active
+        # 先 train + promote → active
         self._round_trip('{"id": 91, "method": "train_job", "params": {"n_trials": 1, "epochs": 5}}')
         self._round_trip('{"id": 92, "method": "promote_model", "params": {}}')
-        # Second train → new candidate (likely similar brier)
+        # 第二次 train → 新的候选（brier 很可能相似）
         self._round_trip('{"id": 93, "method": "train_job", "params": {"n_trials": 1, "epochs": 5}}')
-        # Auto-promote with a HUGE margin (so it's never met)
+        # 用一个非常大的 margin 自动 promote（永远不会被满足）
         out = self._round_trip(
             '{"id": 94, "method": "auto_promote_if_better", "params": {"brier_margin": 1.0}}'
         )
@@ -453,7 +454,7 @@ class E2ESubprocessTests(unittest.TestCase):
         self.assertEqual(result["margin"], 1.0)
 
     def test_e2e_auto_promote_if_better_invalid_margin(self) -> None:
-        """v0.23a: negative brier_margin returns a clean error."""
+        """v0.23a：负的 brier_margin 返回一个干净错误。"""
         out = self._round_trip(
             '{"id": 95, "method": "auto_promote_if_better", "params": {"brier_margin": -0.01}}'
         )
@@ -465,13 +466,12 @@ class E2ESubprocessTests(unittest.TestCase):
         self.assertIn("non-negative", result["reason"])
 
     def test_e2e_promote_all_trials_no_candidate(self) -> None:
-        """v0.25a: when no candidate is on disk, returns
-        ok=false with empty results and a clear message.
-        We can't guarantee a clean state in the e2e tests
-        (they share `~/.polyrocket/sidecar/models/`), so
-        we just check the response shape — if a candidate
-        happens to exist, the response will have promoted=true
-        entries (also valid behavior).
+        """v0.25a：磁盘上没有候选时，返回 ok=false 且
+        results 为空，并附带清晰消息。
+        在 e2e 测试中无法保证完全干净的状态
+        （它们共享 `~/.polyrocket/sidecar/models/`），因此
+        我们只检查响应结构——如果恰好存在候选，
+        响应将包含 promoted=true 的条目（同样是合法行为）。
         """
         out = self._round_trip(
             '{"id": 101, "method": "promote_all_trials", "params": {}}'
@@ -479,15 +479,14 @@ class E2ESubprocessTests(unittest.TestCase):
         self.assertEqual(out["id"], 101)
         self.assertTrue(out["ok"])
         result = out["result"]
-        # The shape is always {ok, count, results, message}
+        # 结构始终是 {ok, count, results, message}
         self.assertIn("ok", result)
         self.assertIn("count", result)
         self.assertIn("results", result)
         self.assertIsInstance(result["results"], list)
         self.assertEqual(result["count"], len(result["results"]))
-        # If a candidate was available, all results should
-        # have been promoted. If not, the message should
-        # mention "no candidate".
+        # 如果存在候选，所有结果都应该是已提升的。
+        # 如果不存在，则消息中应提及 "no candidate"。
         if not result["ok"]:
             self.assertIn("no candidate", result["message"])
         else:

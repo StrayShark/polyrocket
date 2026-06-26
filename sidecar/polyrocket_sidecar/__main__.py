@@ -1,11 +1,11 @@
-"""Entrypoint — `python3 -m polyrocket_sidecar`.
+"""入口点 —— `python3 -m polyrocket_sidecar`。
 
-Reads JSON-RPC lines from stdin, dispatches to the right method, writes
-JSON-RPC lines to stdout. All errors are caught and turned into a
-SidecarError response so the Tauri app never sees a truncated line.
+从 stdin 读取 JSON-RPC 行，分发到正确的方法，将 JSON-RPC 行写入 stdout。
+所有错误都会被捕获并转换为 SidecarError 响应，这样 Tauri 应用就
+永远不会看到截断的行。
 
-Usage:
-    python3 -m polyrocket_sidecar          # interactive
+用法：
+    python3 -m polyrocket_sidecar          # 交互模式
     echo '{"id":1,"method":"Ping","params":{}}' | python3 -m polyrocket_sidecar
 """
 
@@ -23,7 +23,7 @@ from .protocol import (
     serialize_response,
 )
 
-# Error codes (mirroring JSON-RPC 2.0 loosely)
+# 错误码（大致对应 JSON-RPC 2.0）
 ERR_PARSE = -32700
 ERR_INVALID_REQUEST = -32600
 ERR_METHOD_NOT_FOUND = -32601
@@ -35,7 +35,7 @@ def _handle(line: str) -> str:
     try:
         req = parse_line(line)
     except (ValueError, json.JSONDecodeError) as e:
-        # No id available — reply with id=-1 so the caller can still log it
+        # 没有可用的 id —— 用 id=-1 回复，以便调用方仍可记录
         return serialize_response(
             SidecarResponse(
                 id=-1,
@@ -64,7 +64,7 @@ def _handle(line: str) -> str:
                 error=SidecarError(code=ERR_INVALID_PARAMS, message=str(e)),
             )
         )
-    except Exception as e:  # noqa: BLE001 — we want to catch *all* sidecar errors
+    except Exception as e:  # noqa: BLE001 —— 我们希望捕获 *所有* 侧车错误
         return serialize_response(
             SidecarResponse(
                 id=req.id,

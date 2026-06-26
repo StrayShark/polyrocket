@@ -1,6 +1,6 @@
-"""Method dispatch table for the sidecar.
+"""侧车的方法分发表。
 
-**Method names are LOWERCASE** to match the Rust `SidecarMethod::as_str`:
+**方法名为小写**，以匹配 Rust 的 `SidecarMethod::as_str`：
   - `"ping"`                    (Rust: SidecarMethod::Ping)
   - `"predict"`                 (Rust: SidecarMethod::Predict)
   - `"train_job"`               (Rust: SidecarMethod::TrainJob)
@@ -13,14 +13,14 @@
   - `"explain_model"`           (Rust: SidecarMethod::ExplainModel)          [v0.55]
   - `"shap_explain"`            (Rust: SidecarMethod::ShapExplain)           [v0.59]
 
-**If you add a method here, you MUST also**:
-  1. Add it to `SidecarMethod` enum in `domain::lab::sidecar`
-  2. Add a match arm in `SidecarMethod::as_str`
-  3. Add a test in `tests/test_sidecar.py::test_all_methods_registered`
-  4. Update the module-level list in `docs/coding-spec.md` (sidecar protocols section)
+**如果在这里添加方法，你还必须**：
+  1. 在 `domain::lab::sidecar` 的 `SidecarMethod` 枚举中添加它
+  2. 在 `SidecarMethod::as_str` 中添加一个 match 分支
+  3. 在 `tests/test_sidecar.py::test_all_methods_registered` 中添加一个测试
+  4. 更新 `docs/coding-spec.md` 中模块级别的列表（sidecar protocols 部分）
 
-**`DISPATCH` dict** at the bottom maps method name → handler. `__main__.py` looks up
-`DISPATCH.get(req.method)` and returns `ERR_METHOD_NOT_FOUND` if missing.
+底部的 **`DISPATCH` 字典** 用于映射方法名 → 处理函数。`__main__.py` 通过
+`DISPATCH.get(req.method)` 查找，若缺失则返回 `ERR_METHOD_NOT_FOUND`。
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ from .shap import run_shap_explainability
 
 
 def ping(_params: dict[str, Any]) -> dict[str, Any]:
-    """Health check. **No params**. Returns `{ pong: True, ts_ms: int }`.
+    """健康检查。**无参数**。返回 `{ pong: True, ts_ms: int }`。
 
     **调用方**：`commands::sidecar::sidecar_health_now`（IPC `sidecar_health_now`）
     每 30s 调一次（`run_sidecar_health_loop` scheduler）。
@@ -55,17 +55,18 @@ def predict(params: dict[str, Any]) -> dict[str, Any]:
     markets = params.get("markets", [])
     if not isinstance(markets, list):
         raise ValueError("'markets' must be a list")
-    # v0.12a — predict_from_markets now returns the full response
-    # shape (predictions + model_version) directly. Don't wrap.
+    # v0.12a —— predict_from_markets 现在直接返回完整的响应结构
+    # （predictions + model_version），不再额外包装。
     return predict_from_markets(markets)
 
 
 def train_job(params: dict[str, Any]) -> dict[str, Any]:
-    """Run a small hyperparameter sweep, persist the best model
-    as a candidate. Optional params:
-      - n_trials: int (default 4, max 4)
-      - epochs: int (default 80)
-      - job_id: str (ignored; the server generates one)
+    """运行一次小规模的超参数扫描，将最佳模型保存为候选。
+
+    可选参数：
+      - n_trials: int（默认 4，最大 4）
+      - epochs: int（默认 80）
+      - job_id: str（被忽略；由服务端生成）
     """
     n_trials = int(params.get("n_trials", 4))
     epochs = int(params.get("epochs", 80))
@@ -73,18 +74,17 @@ def train_job(params: dict[str, Any]) -> dict[str, Any]:
 
 
 def promote_model(params: dict[str, Any]) -> dict[str, Any]:
-    """Promote the current candidate to the active slot.
+    """将当前候选模型提升（promote）到 active 槽位。
 
-    Optional params:
-      - job_id: str (if set, refuses to promote a candidate from
-                 a different job — protects against race conditions)
-      - trial_index: int (v0.21a — bulk promote. If set, promotes
-                 that specific trial from all_trials[] instead of
-                 the best. 0..n_trials-1.)
+    可选参数：
+      - job_id: str（如果设置，则拒绝提升来自不同 job 的候选
+                 ——防止竞态条件）
+      - trial_index: int（v0.21a —— 批量提升。如果设置，则提升
+                 `all_trials[]` 中该特定 trial，而不是最佳 trial。取值 0..n_trials-1。）
     """
     job_id = params.get("job_id")
     trial_index = params.get("trial_index")
-    # v0.21a — only pass trial_index if it's an int
+    # v0.21a —— 仅当 trial_index 是 int 时才传入
     if trial_index is not None:
         if not isinstance(trial_index, int):
             return {
@@ -97,24 +97,23 @@ def promote_model(params: dict[str, Any]) -> dict[str, Any]:
 
 
 def list_promote_history(_params: dict[str, Any]) -> dict[str, Any]:
-    """Return the promotion history from active.json.
+    """从 active.json 返回提升（promote）历史。
 
-    v0.19a — read-only audit. No params. Returns:
+    v0.19a —— 只读审计。无参数。返回：
       { ok, entries, count, message }
     """
     return run_list_promote_history()
 
 
 def rollback_model(params: dict[str, Any]) -> dict[str, Any]:
-    """Roll back the active model to a previous version.
+    """将 active 模型回滚到之前的某个版本。
 
-    v0.20a — looks up the entry in active.json's
-    promotion_history by model_version and restores
-    its weights. The history entry must include
-    `weights` (set by promote_model in v0.20a+).
+    v0.20a —— 在 active.json 的 promotion_history 中按
+    model_version 查找条目并恢复其权重。历史条目
+    必须包含 `weights`（由 v0.20a+ 的 promote_model 设置）。
 
-    Required params:
-      - model_version: str (e.g. "logistic-train-441c352b")
+    必需参数：
+      - model_version: str（如 "logistic-train-441c352b"）
     """
     model_version = params.get("model_version")
     if not isinstance(model_version, str) or not model_version:
@@ -127,24 +126,23 @@ def rollback_model(params: dict[str, Any]) -> dict[str, Any]:
 
 
 def auto_promote_if_better(params: dict[str, Any]) -> dict[str, Any]:
-    """Promote the candidate only if it's meaningfully better.
+    """仅当候选模型明显优于 active 模型时才提升。
 
-    v0.23a — auto-promote guard. Compares the candidate's
-    brier to the active model's brier. If the candidate
-    is at least `brier_margin` better, promote it;
-    otherwise, do nothing and return a clear "skipped"
-    reason.
+    v0.23a —— 自动提升守卫。比较候选模型的
+    brier 与 active 模型的 brier。如果候选模型
+    至少优于 `brier_margin`，则提升它；否则
+    不做任何操作并返回清晰的 "skipped"（跳过）原因。
 
-    Optional params:
-      - brier_margin: float (default 0.005 — the
-        candidate must beat the active by this much)
-      - trial_index: int (None = best, 0..n-1 for
-        a specific trial; same as promote_model)
+    可选参数：
+      - brier_margin: float（默认 0.005 —— 候选模型
+        必须以这个幅度击败当前 active 模型）
+      - trial_index: int（None 表示最佳，0..n-1 表示
+        特定 trial；语义与 promote_model 相同）
     """
     brier_margin = params.get("brier_margin", 0.005)
-    # v0.23a — guard against bad params up front so
-    # the L1 gets a clear "skipped" reason instead of
-    # an opaque error from run_auto_promote_if_better.
+    # v0.23a —— 预先校验参数，以便 L1 收到清晰的
+    # "skipped" 原因，而不是来自 run_auto_promote_if_better
+    # 的晦涩错误。
     if not isinstance(brier_margin, (int, float)) or brier_margin < 0:
         return {
             "promoted": False,
@@ -158,9 +156,9 @@ def auto_promote_if_better(params: dict[str, Any]) -> dict[str, Any]:
             "message": None,
         }
     trial_index = params.get("trial_index")
-    # v0.23a — trial_index is optional. None means
-    # "use the best trial", 0..n-1 means "use that
-    # specific trial" (same semantics as promote_model).
+    # v0.23a —— trial_index 是可选的。None 表示
+    # "使用最佳 trial"，0..n-1 表示
+    # "使用该特定 trial"（语义与 promote_model 相同）。
     if trial_index is not None and not isinstance(trial_index, int):
         return {
             "promoted": False,
@@ -177,30 +175,31 @@ def auto_promote_if_better(params: dict[str, Any]) -> dict[str, Any]:
 
 
 def promote_all_trials(_params: dict[str, Any]) -> dict[str, Any]:
-    """Promote every trial from the current candidate.
+    """提升当前候选模型中的每一个 trial。
 
-    v0.25a — bulk-promote all 4 trials in one call.
-    No params. Returns a list of per-trial results.
+    v0.25a —— 一次调用批量提升全部 4 个 trial。
+    无参数。返回每个 trial 的结果列表。
     """
     return run_promote_all_trials()
 
 
 def backtest_model(params: dict[str, Any]) -> dict[str, Any]:
-    """v0.43a — replay a saved model against a list of
-    (price, market_age_hours, outcome) samples and
-    return Brier + calibration + per-sample predictions.
+    """v0.43a —— 用一个已保存的模型重放一组
+    (price, market_age_hours, outcome) 样本，并
+    返回 Brier + 校准 + 每个样本的预测。
 
-    **Params**:
-      - `model_version` (str, required): e.g. `"logistic-train-441c352b"`. Looked up
-        in `archive.jsonl` first, then `active.json`.
-      - `samples` (list, required): each item is a dict with `price` (0..1),
-        `market_age_hours` (≥0), `outcome` (0 or 1), and optional `label`.
+    **Params**：
+      - `model_version` (str, 必需)：例如 `"logistic-train-441c352b"`。
+        先在 `archive.jsonl` 中查找，再在 `active.json` 中查找。
+      - `samples` (list, 必需)：每个元素是包含 `price` (0..1)、
+        `market_age_hours` (≥0)、`outcome` (0 或 1) 以及可选 `label`
+        的 dict。
 
-    **调用方**：L1 「ModelLab → Backtest」表单提交后 → `sidecar_backtest_model` IPC →
-    这个 fn。
+    **调用方**：L1「ModelLab → Backtest」表单提交后 → `sidecar_backtest_model`
+    IPC → 本函数。
 
-    **Sidecar 保持纯**：除了读 model 文件，**不**做 IO。`samples` 由 L1 从
-    `markets` 表的 resolved market 转换而来。
+    **Sidecar 保持纯净**：除读取模型文件外，**不**做任何 IO。`samples`
+    由 L1 从 `markets` 表中已 resolved 的市场转换而来。
     """
     model_version = params.get("model_version")
     if not isinstance(model_version, str):
@@ -212,32 +211,19 @@ def backtest_model(params: dict[str, Any]) -> dict[str, Any]:
 
 
 def explain_model(params: dict[str, Any]) -> dict[str, Any]:
-    """v0.55 — per-feature contribution for one sample（**exact-decomposition**）。
+    """v0.55 —— 单个样本的逐特征贡献（**exact-decomposition**）。
 
-    **Params**:
-      - `model_version` (str, required): e.g. `"logistic-train-441c352b"`.
-      - `sample` (dict, optional): `{ price, market_age_hours }`。
-        缺省 → 默认 sample (price=0.5, age=24h) — 「model 对 typical market 的看法」。
+    **Params**：
+      - `model_version` (str, 必需)：例如 `"logistic-train-441c352b"`。
+      - `sample` (dict, 可选)：`{ price, market_age_hours }`。
+        缺省 → 使用默认 sample (price=0.5, age=24h) ——「模型对典型市场的看法」。
 
-    **vs `shap_explain` (v0.59)**：exact-decomposition 公式 `c_i = w_i * x_i * p(1-p)`，
-    对线性模型是精确的但**不**满足 SHAP efficiency axiom。`shap_explain` 走
-    KernelExplainer，满足 `Σφ_i = f(x) - E[f(x)]`（多 100µs/次）。
+    **vs `shap_explain` (v0.59)**：exact-decomposition 公式
+    `c_i = w_i * x_i * p(1-p)`，对线性模型是精确的，但**不**满足
+    SHAP efficiency axiom。`shap_explain` 走 KernelExplainer，
+    满足 `Σφ_i = f(x) - E[f(x)]`（每次多 100µs）。
 
     **Returns**：见 `explainability.run_explainability`。
-    """
-    """v0.55 — per-feature contribution for one sample.
-
-    Params:
-      - model_version (str, required): e.g.
-          "logistic-train-441c352b". Looked up in
-          archive.jsonl first, then active.json.
-      - sample (dict, optional): { price, market_age_hours }.
-          When omitted, uses a default sample
-          (price=0.5, age=24h) so the user gets a
-          "what would the model say for a typical
-          market" view.
-
-    Returns: see explainability.run_explainability.
     """
     model_version = params.get("model_version")
     if not isinstance(model_version, str) or not model_version:
@@ -247,42 +233,21 @@ def explain_model(params: dict[str, Any]) -> dict[str, Any]:
 
 
 def shap_explain(params: dict[str, Any]) -> dict[str, Any]:
-    """v0.59 — **真 SHAP values** via KernelExplainer。
+    """v0.59 —— 通过 KernelExplainer 计算**真正的 SHAP values**。
 
-    **Params**:
-      - `model_version` (str, required)
-      - `sample` (dict, optional)
+    **Params**：
+      - `model_version` (str, 必需)
+      - `sample` (dict, 可选)
 
-    **vs `explain_model` (v0.55)**：v0.55 用 exact-decomposition，公式快但
-    **不**满足 SHAP efficiency axiom。KernelSHAP 满足 `Σφ_i = f(x) - E[f(x)]`。
-    Response 多一个 `efficiency_diff` 字段，让 L1 可以显示「SHAP 值正好
-    等于 prediction - baseline」作为 sanity check hint。
+    **vs `explain_model` (v0.55)**：v0.55 使用 exact-decomposition，
+    公式快但**不**满足 SHAP efficiency axiom。KernelSHAP 满足
+    `Σφ_i = f(x) - E[f(x)]`。响应中多一个 `efficiency_diff` 字段，
+    让 L1 可以显示「SHAP values 之和正好等于 prediction - baseline」
+    作为 sanity check 提示。
 
-    **Cost**：3-feature polyrocket 模型 = 8 次 coalition 评估（~100µs）。
-    M=10 时升到 1024 次，所以 M > 5 就要换 TreeSHAP（v0.63+ candidate）。
-    """
-    """v0.59 — true SHAP values via KernelExplainer.
-
-    Params:
-      - model_version (str, required): e.g.
-          "logistic-train-441c352b".
-      - sample (dict, optional): { price, market_age_hours }.
-
-    Unlike v0.55's exact-decomposition
-    (contribution_i = w_i * x_i * p(1-p)),
-    KernelSHAP satisfies the *efficiency*
-    axiom: φ_0 + Σφ_i = f(x) - E[f(x)]. We
-    surface the efficiency gap as
-    `efficiency_diff` in the response so the
-    L1 can show "the SHAP values sum to the
-    deviation from baseline" as a hint.
-
-    For the 3-feature polyrocket model the
-    cost is 8 coalition evaluations (~100µs).
-    For a tree-based model with M > 5, we'd
-    need a different algorithm (TreeSHAP).
-
-    Returns: see shap.run_shap_explainability.
+    **Cost**：3-feature 的 polyrocket 模型 = 8 次 coalition 评估
+    （约 100µs）。当 M=10 时上升到 1024 次，所以 M > 5 时就要改用
+    TreeSHAP（v0.63+ 的候选方案）。
     """
     model_version = params.get("model_version")
     if not isinstance(model_version, str) or not model_version:

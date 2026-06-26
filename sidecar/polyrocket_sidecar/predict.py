@@ -1,16 +1,16 @@
-"""Predict method implementation — matches the Rust wire format.
+"""Predict 方法实现 —— 与 Rust 的 wire 格式保持一致。
 
-The Rust side (`domain::lab::sidecar::build_predict_request`) is the source
-of truth for the protocol shape. The Python sidecar mirrors it exactly:
+Rust 端（`domain::lab::sidecar::build_predict_request`）是协议结构
+的权威来源。Python 侧车对其进行了精确镜像：
 
   request.params = { "markets": [ { "market_id": "...", "price": 0.5 } ] }
   response.result = { "predictions": [
       { "market_id": "...", "prob": 0.5, "confidence": 0.5, "rationale": "..." }
   ] }
 
-v0.11c: the model used for scoring is the most recently promoted one
-(from `promote_model`'s active.json). v0.11d: the per-call hot path
-is hoisted — module-level imports, pre-bound sigmoid, single pass.
+v0.11c：用于打分的模型是最近被 promote 的那一个
+（来自 `promote_model` 的 active.json）。v0.11d：每次调用的热路径
+已被上提 —— 模块级 import、预先绑定 sigmoid、单次遍历。
 """
 
 from __future__ import annotations
@@ -18,16 +18,16 @@ from __future__ import annotations
 import math
 from typing import Any
 
-# Inline fallback weights (used when no model has been promoted yet).
+# 内联回退权重（尚未 promote 任何模型时使用）。
 _FALLBACK_W0 = -0.5
 _FALLBACK_W1 = 2.0
 _FALLBACK_W2 = 0.4
-_HORIZON_NORM_HOURS = 168.0  # 1 week
-_INV_HORIZON = 1.0 / _HORIZON_NORM_HOURS  # pre-computed for hot path
+_HORIZON_NORM_HOURS = 168.0  # 1 周
+_INV_HORIZON = 1.0 / _HORIZON_NORM_HOURS  # 为热路径预先计算
 
 
 def _sigmoid(z: float) -> float:
-    """Numerically stable sigmoid. v0.11d: pre-bound to local in hot path."""
+    """数值稳定的 sigmoid。v0.11d：在热路径中预先绑定到本地变量。"""
     if z >= 0.0:
         return 1.0 / (1.0 + math.exp(-z))
     ez = math.exp(z)
@@ -35,8 +35,8 @@ def _sigmoid(z: float) -> float:
 
 
 def predict_logic(price: float, market_age_hours: float) -> float:
-    """Backwards-compat: use the inline fallback weights. The dispatch
-    layer (`predict_from_markets`) uses the active model instead.
+    """向后兼容：使用内联回退权重。分发层
+    （`predict_from_markets`）使用的是 active 模型。
     """
     z = _FALLBACK_W0 + _FALLBACK_W1 * (1.0 - price) + _FALLBACK_W2 * (market_age_hours * _INV_HORIZON)
     return _sigmoid(z)
@@ -47,11 +47,11 @@ def _clamp(v: float, lo: float, hi: float) -> float:
 
 
 def _brier_score_from_active() -> float | None:
-    """Read the brier score from the active.json file. Returns
-    None if the file is missing or has no brier field.
+    """从 active.json 文件中读取 brier 分数。如果文件
+    缺失或没有 brier 字段则返回 None。
 
-    Cheap to call (one read of the same mtime-cached file) but we
-    don't import active.py here to keep this module dependency-light.
+    调用成本很低（对同一 mtime 缓存的文件只读取一次），
+    但我们不在这里 import active.py，以保持本模块依赖轻量。
     """
     from .train import ACTIVE_FILE
     import json
@@ -68,23 +68,23 @@ def _brier_score_from_active() -> float | None:
 
 
 def predict_from_markets(markets: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Public entry — accepts the Rust-shape markets list, returns the
-    Rust-shape predictions list.
+    """公共入口 —— 接受 Rust 格式的 markets 列表，返回
+    Rust 格式的 predictions 列表。
 
-    v0.11d: hot-path optimised.
-      - `get_active_weights()` is called once at the top
-      - `_sigmoid` is bound to a local for the loop
-      - `math.exp` is bound to a local
-      - the result dict shape is identical (protocol-stable)
+    v0.11d：热路径优化。
+      - `get_active_weights()` 在循环开始前调用一次
+      - `_sigmoid` 绑定为循环内的本地变量
+      - `math.exp` 绑定为本地变量
+      - 返回的 dict 结构保持一致（协议稳定）
     """
-    # Local import: keeps the import graph small when only the
-    # fallback path is needed (e.g. during a unit test that never
-    # touches active.py).
+    # 本地 import：当只需要回退路径时（例如永不触及
+    # active.py 的单元测试）保持 import 图尽量小。
     from .active import get_active_model_info
 
-    # Bind the hot-path functions to locals. CPython's LOAD_FAST
-    # is ~30% faster than LOAD_GLOBAL, and a 50-market batch
-    # means 50 sigmoid calls. The savings add up.
+    # 将热路径函数绑定为本地变量。CPython 的 LOAD_FAST
+    # 比 LOAD_GLOBAL 快约 30%，而 50 个市场的一批
+    # 调用就意味着 50 次 sigmoid 调用。这些节省会
+    # 累加起来。
     sigmoid = _sigmoid
     exp = math.exp
     inv_horizon = _INV_HORIZON
@@ -93,20 +93,20 @@ def predict_from_markets(markets: list[dict[str, Any]]) -> list[dict[str, Any]]:
     w0 = weights["w0"]
     w1 = weights["w1"]
     w2 = weights["w2"]
-    # v0.13b — also surface the brier score from the active model
-    # so the L1 ModelLab tooltip can show calibration info.
+    # v0.13b —— 同时暴露 active 模型的 brier 分数，
+    # 以便 L1 ModelLab 的 tooltip 可以展示校准信息。
     brier_score = _brier_score_from_active()
-    del weights  # don't hold a reference past the loop
+    del weights  # 不在循环结束后继续持有引用
 
     out: list[dict[str, Any]] = []
-    # Pre-format the weight tuple once (used in every rationale).
+    # 预先格式化权重元组一次（在每条 rationale 中都会用到）。
     w_str = f"({w0:.3f},{w1:.3f},{w2:.3f})"
 
     for m in markets:
         market_id = m.get("market_id", "")
         if not market_id:
             continue
-        # Coerce price; default 0.5
+        # 强制转换 price；默认 0.5
         raw_price = m.get("price", 0.5)
         try:
             price = float(raw_price)
@@ -116,7 +116,7 @@ def predict_from_markets(markets: list[dict[str, Any]]) -> list[dict[str, Any]]:
             price = 0.0
         elif price > 1.0:
             price = 1.0
-        # Coerce age; default 0.0
+        # 强制转换 age；默认 0.0
         raw_age = m.get("market_age_hours", 0.0)
         try:
             age = float(raw_age)
@@ -127,9 +127,9 @@ def predict_from_markets(markets: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
         z = w0 + w1 * (1.0 - price) + w2 * (age * inv_horizon)
         prob = sigmoid(z)
-        # Confidence: 0 at price=0.5, 1 at price=0 or 1
-        # v0.11d — manual abs is faster than the abs() builtin on
-        # this hot path.
+        # Confidence: 在 price=0.5 时为 0，在 price=0 或 1 时为 1
+        # v0.11d —— 在这条热路径上，手写的 abs 比内置
+        # abs() 更快。
         confidence = price - 0.5
         if confidence < 0.0:
             confidence = -confidence
@@ -147,12 +147,12 @@ def predict_from_markets(markets: list[dict[str, Any]]) -> list[dict[str, Any]]:
 _WEIGHTS_VERSION = "0.1.0"
 
 
-# v0.11d — micro-benchmark hook. Run with:
+# v0.11d —— 微基准测试钩子。运行方式：
 #   python3 -c "from polyrocket_sidecar import predict; predict.bench(n=10000)"
 def bench(n: int = 10000) -> float:
-    """Score `n` synthetic markets. Returns elapsed seconds.
+    """对 `n` 个合成市场打分。返回经过的秒数。
 
-    Used to verify the v0.11d hot-path optimisation actually helps.
+    用于验证 v0.11d 的热路径优化是否真的有效。
     """
     import time
     markets = [

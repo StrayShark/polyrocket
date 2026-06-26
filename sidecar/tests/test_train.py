@@ -1,7 +1,7 @@
-"""Dedicated tests for the v0.10b train_job + promote_model.
+"""v0.10b train_job + promote_model 的专项测试。
 
-These tests use a tmp model dir so they don't touch the user's
-real `~/.polyrocket/sidecar/models/`.
+这些测试使用一个临时 model 目录，避免触及用户
+真实的 `~/.polyrocket/sidecar/models/`。
 """
 
 import json
@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-# Make the package importable
+# 让包可以被 import
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT))
@@ -27,7 +27,7 @@ class TrainJobTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self._env = os.environ.get("POLYROCKET_SIDECAR_MODEL_DIR")
         os.environ["POLYROCKET_SIDECAR_MODEL_DIR"] = self.tmp.name
-        # Reload module-level path constants to pick up the new env
+        # 重新加载模块级路径常量以适配新的环境变量
         train.MODEL_DIR = Path(self.tmp.name)
         train.CANDIDATE_FILE = train.MODEL_DIR / "candidate.json"
         train.ACTIVE_FILE = train.MODEL_DIR / "active.json"
@@ -47,7 +47,7 @@ class TrainJobTests(unittest.TestCase):
         self.assertIn("best_params", result)
         self.assertIn("trials", result)
         self.assertGreaterEqual(len(result["trials"]), 2)
-        # Brier score is in [0, 1] (squared error on probabilities)
+        # Brier 分数在 [0, 1] 区间内（对概率的平方误差）
         self.assertGreaterEqual(result["best_brier"], 0.0)
         self.assertLessEqual(result["best_brier"], 1.0)
 
@@ -55,21 +55,21 @@ class TrainJobTests(unittest.TestCase):
         result = run_train_job(n_trials=1, epochs=10)
         candidate_path = Path(result["candidate_path"])
         self.assertTrue(candidate_path.exists())
-        # The file is valid JSON
+        # 该文件是合法的 JSON
         data = json.loads(candidate_path.read_text())
         self.assertEqual(data["job_id"], result["job_id"])
         self.assertIn("best", data)
         self.assertIn("all_trials", data)
 
     def test_train_atomic_write(self) -> None:
-        """No half-written candidate file should ever be visible."""
+        """永远不应看到只写了一半的候选文件。"""
         result = run_train_job(n_trials=1, epochs=10)
-        # After completion, no .tmp file should remain
+        # 完成后，磁盘上不应残留 .tmp 文件
         tmp_files = list(train.MODEL_DIR.glob("*.json.tmp"))
         self.assertEqual(tmp_files, [])
 
     def test_train_default_n_trials(self) -> None:
-        # n_trials=0 should still produce at least 1 trial (clamped)
+        # n_trials=0 也应至少产出 1 个 trial（被夹紧到下界）
         result = run_train_job(n_trials=0, epochs=5)
         self.assertEqual(result["status"], "completed")
         self.assertGreaterEqual(len(result["trials"]), 1)
@@ -98,15 +98,15 @@ class PromoteModelTests(unittest.TestCase):
         self.assertIn("no candidate", result["message"])
 
     def test_promote_succeeds_after_train(self) -> None:
-        # Run a train first
+        # 先跑一次 train
         train_result = run_train_job(n_trials=1, epochs=5)
         self.assertEqual(train_result["status"], "completed")
-        # Now promote
+        # 然后 promote
         promote = run_promote_model()
         self.assertTrue(promote["promoted"], msg=str(promote))
         self.assertEqual(promote["status"], "ok")
         self.assertTrue(Path(promote["active_path"]).exists())
-        # The active file contains the candidate's best params
+        # active 文件包含候选的 best 参数
         active_data = json.loads(Path(promote["active_path"]).read_text())
         self.assertIn("best", active_data)
         self.assertIn("promoted_at_ms", active_data)
@@ -124,8 +124,8 @@ class PromoteModelTests(unittest.TestCase):
         self.assertIn("mismatch", promote["message"])
 
     def test_full_workflow_train_then_promote(self) -> None:
-        """End-to-end: train writes candidate, promote moves it to active."""
-        # 1. No active file yet
+        """端到端：train 写入候选，promote 将其移动到 active。"""
+        # 1. 此时还没有 active 文件
         self.assertFalse(train.ACTIVE_FILE.exists())
         # 2. Train
         train_result = run_train_job(n_trials=2, epochs=10)
@@ -133,20 +133,21 @@ class PromoteModelTests(unittest.TestCase):
         # 3. Promote
         promote = run_promote_model()
         self.assertTrue(promote["promoted"])
-        # 4. Both files exist
+        # 4. 两个文件都存在
         self.assertTrue(train.CANDIDATE_FILE.exists())
         self.assertTrue(train.ACTIVE_FILE.exists())
-        # 5. Active file is a superset of the candidate
+        # 5. active 文件是 candidate 的超集
         active = json.loads(train.ACTIVE_FILE.read_text())
         candidate = json.loads(train.CANDIDATE_FILE.read_text())
         self.assertEqual(active["job_id"], candidate["job_id"])
         self.assertEqual(active["best"], candidate["best"])
 
     def test_promote_appends_to_history(self) -> None:
-        """v0.19a: each successful promote appends one entry to
-        active.json.promotion_history. Two promotes → 2 entries.
+        """v0.19a：每次成功的 promote 都会向
+        active.json.promotion_history 追加一条新条目。
+        两次 promote → 2 条条目。
         """
-        # First train + promote
+        # 第一次 train + promote
         t1 = run_train_job(n_trials=1, epochs=5)
         p1 = run_promote_model()
         self.assertTrue(p1["promoted"])
@@ -159,21 +160,21 @@ class PromoteModelTests(unittest.TestCase):
             f"logistic-{t1['job_id']}",
         )
 
-        # Second train + promote → history grows to 2
+        # 第二次 train + promote → history 增长到 2 条
         t2 = run_train_job(n_trials=1, epochs=5)
         p2 = run_promote_model()
         self.assertTrue(p2["promoted"])
         active2 = json.loads(train.ACTIVE_FILE.read_text())
         self.assertEqual(len(active2["promotion_history"]), 2)
-        # Newest entry is last
+        # 最新的条目在最后
         self.assertEqual(active2["promotion_history"][1]["job_id"], t2["job_id"])
-        # Oldest is still there
+        # 最旧的仍然存在
         self.assertEqual(active2["promotion_history"][0]["job_id"], t1["job_id"])
 
     def test_run_list_promote_history_round_trip(self) -> None:
-        """v0.19a: list_promote_history returns what was written."""
+        """v0.19a：list_promote_history 返回写入的内容。"""
         from polyrocket_sidecar.train import run_list_promote_history
-        # Train + promote once
+        # 跑一次 train + promote
         t = run_train_job(n_trials=1, epochs=5)
         run_promote_model()
         h = run_list_promote_history()
@@ -186,9 +187,9 @@ class PromoteModelTests(unittest.TestCase):
         )
 
     def test_history_entry_includes_weights(self) -> None:
-        """v0.20a: each history entry now has a `weights` field
-        with {w0, w1, w2} so the entry is self-contained for
-        rollback (no need to read the candidate file later).
+        """v0.20a：每条 history 条目现在都有一个
+        `weights` 字段，包含 {w0, w1, w2}，以便该条目
+        自包含、可用于回滚（之后无需再读取 candidate 文件）。
         """
         t = run_train_job(n_trials=1, epochs=5)
         run_promote_model()
@@ -201,18 +202,19 @@ class PromoteModelTests(unittest.TestCase):
         self.assertIn("w0", weights)
         self.assertIn("w1", weights)
         self.assertIn("w2", weights)
-        # Brier is also in the entry for the Brier badge
+        # Brier 也保存在条目中，便于展示 Brier 徽章
         self.assertIn("best_brier", entry)
         self.assertAlmostEqual(entry["best_brier"], t["best_brier"], places=4)
 
     def test_history_entry_includes_reason(self) -> None:
-        """v0.41a: each history entry has a `reason` field
-        with a human-readable description ("Promoted as
-        best trial" or "Promoted as trial N of M"). The L1
-        surfaces this as a hover tooltip.
+        """v0.41a：每条 history 条目都有一个
+        `reason` 字段，包含人类可读的描述
+        ("Promoted as best trial" 或
+        "Promoted as trial N of M")。L1 将其展示
+        为 hover tooltip。
         """
         t = run_train_job(n_trials=4, epochs=5)
-        # Best-trial promote
+        # best-trial 提升
         run_promote_model()
         from polyrocket_sidecar.train import run_list_promote_history
         h = run_list_promote_history()
@@ -220,19 +222,19 @@ class PromoteModelTests(unittest.TestCase):
         self.assertIn("reason", entry)
         self.assertEqual(entry["reason"], "Promoted as best trial")
 
-        # Bulk trial promote
+        # 批量 trial 提升
         t2 = run_train_job(n_trials=4, epochs=5)
         run_promote_model(trial_index=1)
         h = run_list_promote_history()
-        # h["entries"] is oldest-first; the new entry is last
+        # h["entries"] 是 oldest-first；新条目在最后
         new_entry = h["entries"][-1]
         self.assertEqual(new_entry["reason"], "Promoted as trial 2 of 4")
 
     def test_rollback_to_previous_version(self) -> None:
-        """v0.20a: train → promote → train → promote → rollback
-        to the FIRST version. The new active should be the
-        first version (not the current one), and the history
-        should grow by 1 (a rollback marker).
+        """v0.20a：train → promote → train → promote → rollback
+        到第一个版本。新的 active 应该是第一个版本
+        （而不是当前版本），且 history 应增长 1
+        （一个 rollback marker）。
         """
         from polyrocket_sidecar.train import run_rollback_model
         t1 = run_train_job(n_trials=1, epochs=5)
@@ -242,34 +244,34 @@ class PromoteModelTests(unittest.TestCase):
         t2 = run_train_job(n_trials=1, epochs=5)
         run_promote_model()
 
-        # Confirm current is t2
+        # 确认当前是 t2
         active_before = json.loads(train.ACTIVE_FILE.read_text())
         self.assertEqual(active_before["job_id"], t2["job_id"])
 
-        # Rollback to t1
+        # 回滚到 t1
         rb = run_rollback_model(model_version=first_version)
         self.assertTrue(rb["rolled_back"], msg=str(rb))
         self.assertEqual(rb["model_version"], first_version)
         self.assertEqual(rb["status"], "ok")
         self.assertIsNotNone(rb["rolled_back_at_ms"])
 
-        # Active file should now reflect t1
+        # active 文件现在应反映 t1
         active_after = json.loads(train.ACTIVE_FILE.read_text())
         self.assertEqual(active_after["job_id"], t1["job_id"])
         self.assertEqual(active_after["model_version"], first_version)
-        # The active weights are t1's
+        # active 权重是 t1 的
         w = active_after["weights"]
         self.assertIn("w0", w)
         self.assertIn("w1", w)
         self.assertIn("w2", w)
 
-        # History grew by 1 (a rollback marker)
+        # history 增长了 1 条（一个 rollback marker）
         history = active_after["promotion_history"]
-        # Last entry is the rollback marker
+        # 最后一条是 rollback marker
         self.assertEqual(history[-1]["kind"], "rollback")
         self.assertEqual(history[-1]["model_version"], first_version)
-        # Second-to-last is t1 (the original promote, not the rollback target)
-        # Find t1's promote entry
+        # 倒数第二条是 t1（原始的 promote，不是 rollback 目标）
+        # 找到 t1 的 promote 条目
         t1_entries = [e for e in history
                       if isinstance(e, dict)
                       and e.get("job_id") == t1["job_id"]
@@ -278,9 +280,9 @@ class PromoteModelTests(unittest.TestCase):
         self.assertEqual(t1_entries[0]["model_version"], first_version)
 
     def test_rollback_to_unknown_version_fails(self) -> None:
-        """v0.20a: rolling back to a model_version that doesn't
-        exist in the history returns rolled_back=false with a
-        clear error message.
+        """v0.20a：回滚到 history 中不存在的
+        model_version 时返回 rolled_back=false，并附带
+        清晰的错误消息。
         """
         from polyrocket_sidecar.train import run_rollback_model
         t = run_train_job(n_trials=1, epochs=5)
@@ -289,20 +291,20 @@ class PromoteModelTests(unittest.TestCase):
         self.assertFalse(rb["rolled_back"])
         self.assertEqual(rb["status"], "failed")
         self.assertIn("not found", rb["message"])
-        # Active file is unchanged
+        # active 文件未被修改
         active = json.loads(train.ACTIVE_FILE.read_text())
         self.assertEqual(active["job_id"], t["job_id"])
 
     def test_rollback_to_v19_entry_without_weights_fails(self) -> None:
-        """v0.20a: v0.19 history entries don't have weights.
-        A rollback to such an entry returns rolled_back=false
-        with a clear error explaining the user needs to retrain.
+        """v0.20a：v0.19 的 history 条目没有 weights。
+        回滚到这样的条目时返回 rolled_back=false，并附带
+        清晰的错误，提示用户需要重新训练。
         """
         from polyrocket_sidecar.train import run_rollback_model
         t = run_train_job(n_trials=1, epochs=5)
         run_promote_model()
-        # Manually strip weights from the history entry to
-        # simulate a v0.19 entry
+        # 手动从 history 条目中移除 weights，
+        # 以模拟一个 v0.19 条目
         active = json.loads(train.ACTIVE_FILE.read_text())
         active["promotion_history"][-1].pop("weights", None)
         train.ACTIVE_FILE.write_text(json.dumps(active))
@@ -315,59 +317,59 @@ class PromoteModelTests(unittest.TestCase):
         self.assertIn("cannot rollback", rb["message"].lower())
 
     def test_promote_specific_trial_v21(self) -> None:
-        """v0.21a: bulk promote. Train 4 trials, promote
-        trial index 2 (not the best). The active should be
-        trial 2's weights; the model_version should have
-        a -t2 suffix; the history should record trial_index=2.
+        """v0.21a：批量提升。Train 4 个 trial，提升
+        trial index 2（不是 best）。active 应是
+        trial 2 的权重；model_version 应带有
+        -t2 后缀；history 应记录 trial_index=2。
         """
         t = run_train_job(n_trials=4, epochs=10)
         self.assertEqual(len(t["trials"]), 4)
-        # Pick trial 2 (NOT the best — the best might be
-        # any of the 4 by synthetic Brier)
+        # 选择 trial 2（不是 best —— best 在
+        # 合成 Brier 下可能是 4 个中的任意一个）
         promote = run_promote_model(trial_index=2)
         self.assertTrue(promote["promoted"], msg=str(promote))
         self.assertEqual(promote["status"], "ok")
         self.assertEqual(promote["trial_index"], 2)
         self.assertTrue(promote["model_version"].endswith("-t2"))
-        # The history's last entry should have trial 2's weights
+        # history 的最后一条应包含 trial 2 的权重
         active = json.loads(train.ACTIVE_FILE.read_text())
         trial2_weights = t["trials"][2]["weights"]
         history_weights = active["promotion_history"][-1]["weights"]
         self.assertEqual(history_weights["w0"], trial2_weights["w0"])
         self.assertEqual(history_weights["w1"], trial2_weights["w1"])
         self.assertEqual(history_weights["w2"], trial2_weights["w2"])
-        # History records trial_index
+        # history 记录 trial_index
         self.assertEqual(active["promotion_history"][-1]["trial_index"], 2)
-        # And the history entry uses the -t2 version
+        # history 条目使用 -t2 版本
         self.assertTrue(active["promotion_history"][-1]["model_version"].endswith("-t2"))
 
     def test_promote_default_is_best_v21(self) -> None:
-        """v0.21a: when trial_index is None, the behavior is
-        unchanged from v0.18a (promote the best).
+        """v0.21a：当 trial_index 为 None 时，行为与
+        v0.18a 保持一致（提升 best）。
         """
         t = run_train_job(n_trials=4, epochs=10)
-        promote = run_promote_model()  # no trial_index
+        promote = run_promote_model()  # 不传 trial_index
         self.assertTrue(promote["promoted"], msg=str(promote))
         self.assertIsNone(promote["trial_index"])
-        # Model version has no -t{N} suffix
+        # model version 没有 -t{N} 后缀
         self.assertFalse(promote["model_version"].endswith(("-t0", "-t1", "-t2", "-t3")))
 
     def test_promote_trial_out_of_range_v21(self) -> None:
-        """v0.21a: trial_index out of range returns a
-        clear error and does NOT modify the active file.
+        """v0.21a：trial_index 超出范围时返回
+        清晰的错误，且**不会**修改 active 文件。
         """
         run_train_job(n_trials=4, epochs=10)
-        # trial_index 99 is out of range (only 0..3 valid)
+        # trial_index 99 超出范围（仅 0..3 合法）
         promote = run_promote_model(trial_index=99)
         self.assertFalse(promote["promoted"])
         self.assertEqual(promote["status"], "failed")
         self.assertIn("out of range", promote["message"])
-        # Active file should not exist (no successful promote)
+        # active 文件不应存在（没有成功的 promote）
         self.assertFalse(train.ACTIVE_FILE.exists())
 
     def test_auto_promote_if_better_promotes_v23(self) -> None:
-        """v0.23a: with no active model, auto_promote
-        just promotes the candidate (auto-best).
+        """v0.23a：在没有 active 模型时，
+        auto_promote 直接提升候选（自动 best）。
         """
         from polyrocket_sidecar.train import run_auto_promote_if_better
         t = run_train_job(n_trials=2, epochs=5)
@@ -379,32 +381,32 @@ class PromoteModelTests(unittest.TestCase):
         self.assertEqual(result["model_version"], f"logistic-{t['job_id']}")
 
     def test_auto_promote_if_better_skips_when_close_v23(self) -> None:
-        """v0.23a: when the candidate is NOT meaningfully
-        better than the active, auto_promote is a no-op
-        and returns a clear "skipped" reason.
+        """v0.23a：当候选**没有**明显优于 active 时，
+        auto_promote 是一个 no-op，并返回清晰的
+        "skipped" 原因。
         """
         from polyrocket_sidecar.train import run_auto_promote_if_better
-        # Train + promote twice with the SAME seed → nearly
-        # identical briers. A small margin won't be met.
+        # 用相同的 seed train + promote 两次 → brier 几乎
+        # 完全相同。小的 margin 不会被满足。
         t1 = run_train_job(n_trials=1, epochs=5)
         run_promote_model()
         t2 = run_train_job(n_trials=1, epochs=5)
-        # Use a margin of 1.0 — guaranteed not to be met
+        # 使用 1.0 的 margin —— 一定不会被满足
         result = run_auto_promote_if_better(brier_margin=1.0)
         self.assertFalse(result["promoted"])
         self.assertTrue(result["skipped"])
         self.assertIn("not at least 1.0 better", result["reason"])
-        # Active file is unchanged (still t1)
+        # active 文件未被修改（仍然是 t1）
         active = json.loads(train.ACTIVE_FILE.read_text())
         self.assertEqual(active["job_id"], t1["job_id"])
-        # The candidate still exists (not promoted, not deleted)
+        # candidate 仍然存在（未被提升，也未被删除）
         self.assertTrue(train.CANDIDATE_FILE.exists())
 
     def test_promote_all_trials_v25(self) -> None:
-        """v0.25a: bulk-promote all 4 trials in one call.
-        After the call, all 4 trials should appear in
-        the promotion history, each with its own -tN
-        suffix and trial_index.
+        """v0.25a：在一次调用中批量提升全部 4 个 trial。
+        调用完成后，全部 4 个 trial 都应出现在
+        promotion history 中，每条都带有自己的 -tN
+        后缀和 trial_index。
         """
         from polyrocket_sidecar.train import (
             run_promote_all_trials,
@@ -416,20 +418,20 @@ class PromoteModelTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["count"], 4)
         self.assertEqual(len(result["results"]), 4)
-        # All 4 should be promoted
+        # 全部 4 个都应已被提升
         for i, r in enumerate(result["results"]):
             self.assertEqual(r["trial_index"], i)
             self.assertTrue(r["promoted"], msg=f"trial {i} failed: {r}")
             self.assertEqual(r["status"], "ok")
             self.assertTrue(r["model_version"].endswith(f"-t{i}"))
-        # All 4 should appear in the history
+        # 全部 4 个都应出现在 history 中
         history = run_list_promote_history()
         self.assertEqual(history["count"], 4)
         trial_indices = [e["trial_index"] for e in history["entries"]]
         self.assertEqual(trial_indices, [0, 1, 2, 3])
 
     def test_promote_all_trials_no_candidate_v25(self) -> None:
-        """v0.25a: no candidate on disk returns ok=false."""
+        """v0.25a：磁盘上没有候选时返回 ok=false。"""
         from polyrocket_sidecar.train import run_promote_all_trials
         result = run_promote_all_trials()
         self.assertFalse(result["ok"])
@@ -440,55 +442,55 @@ class PromoteModelTests(unittest.TestCase):
 
 
 class TestPromoteHistoryArchive(unittest.TestCase):
-    """v0.33a — promote history archive (append-only JSONL).
+    """v0.33a —— promote history archive（append-only JSONL）。
 
-    The 20-entry cap on `promotion_history[]` silently drops
-    old entries. v0.33a fixes this by writing the dropped
-    entries to `archive.jsonl` BEFORE the cap takes effect.
-    The archive is append-only and never auto-pruned.
+    `promotion_history[]` 的 20 条上限会静默地丢弃
+    旧条目。v0.33a 通过在上限生效**之前**把被丢弃
+    的条目写入 `archive.jsonl` 来修复这个问题。
+    archive 是 append-only 的，永远不会自动裁剪。
     """
 
     def setUp(self) -> None:
-        # Clean MODEL_DIR + ARCHIVE_FILE between tests
+        # 在测试之间清理 MODEL_DIR + ARCHIVE_FILE
         if train.MODEL_DIR.exists():
             shutil.rmtree(train.MODEL_DIR)
-        # Also explicitly remove the archive file (it
-        # lives in MODEL_DIR, but defensive cleanup in
-        # case other test classes wrote to it)
+        # 同时显式移除 archive 文件（它位于
+        # MODEL_DIR 中，但为防御性清理，
+        # 以防其他测试类写入了它）
         from polyrocket_sidecar.train import ARCHIVE_FILE
         if ARCHIVE_FILE.exists():
             ARCHIVE_FILE.unlink()
 
     def test_archive_file_does_not_exist_before_any_promote(self) -> None:
-        """v0.33a — no archive file on fresh setup."""
-        # Run one train + promote, history has 1 entry (no overflow)
+        """v0.33a —— 全新环境下没有 archive 文件。"""
+        # 跑一次 train + promote，history 包含 1 条（未溢出）
         run_train_job(n_trials=1, epochs=5)
         run_promote_model()
-        # Archive file may or may not exist; the test is loose
-        # because the cap is 20 — 1 entry doesn't trigger
-        # the archive. We just verify that if it exists,
-        # it's a valid JSONL.
+        # archive 文件可能存在也可能不存在；该测试较为宽松，
+        # 因为上限是 20 —— 1 条不会触发
+        # archive。我们只验证：若文件存在，
+        # 则它是一个合法的 JSONL。
         from polyrocket_sidecar.train import ARCHIVE_FILE
         if ARCHIVE_FILE.exists():
             content = ARCHIVE_FILE.read_text()
-            # If it exists, it should be valid JSONL
+            # 若文件存在，则它应是合法的 JSONL
             for line in content.strip().split("\n"):
                 if line:
-                    json.loads(line)  # raises if invalid
+                    json.loads(line)  # 若不合法则抛异常
 
     def test_archive_writes_dropped_entries_on_overflow(self) -> None:
-        """v0.33a — 21st promote writes the 1 dropped entry."""
+        """v0.33a —— 第 21 次 promote 写入被丢弃的 1 条。"""
         from polyrocket_sidecar.train import ARCHIVE_FILE
-        # Run 21 trains + promotes. The 20-cap drops the 1st.
+        # 跑 21 次 train + promote。20 条上限会丢弃第 1 条。
         job_ids: list[str] = []
         for _ in range(21):
             t = run_train_job(n_trials=1, epochs=5)
             job_ids.append(t["job_id"])
             run_promote_model()
-        # In-memory history is still capped at 20
+        # 内存中的 history 仍然被限制在 20 条
         active = json.loads(train.ACTIVE_FILE.read_text())
         self.assertEqual(len(active["promotion_history"]), 20)
-        # Archive file should exist with 1 entry (the 1st, dropped)
+        # archive 文件应存在并包含 1 条条目（第 1 条被丢弃的）
         self.assertTrue(ARCHIVE_FILE.exists(), "archive file should exist after 21 promotes")
         lines = ARCHIVE_FILE.read_text().strip().split("\n")
         self.assertEqual(len(lines), 1, "expected 1 archived entry")
@@ -502,60 +504,59 @@ class TestPromoteHistoryArchive(unittest.TestCase):
         self.assertIn("archived_at_ms", archived)
 
     def test_archive_is_append_only(self) -> None:
-        """v0.33a — multiple overflows append, not overwrite."""
+        """v0.33a —— 多次溢出时是追加而不是覆盖。"""
         from polyrocket_sidecar.train import ARCHIVE_FILE
-        # Run 25 promotes → drops 5 entries (1 each on the
-        # 21st, 22nd, 23rd, 24th, 25th).
+        # 跑 25 次 promote → 丢弃 5 条（第 21、22、23、
+        # 24、25 次各丢弃 1 条）。
         for _ in range(25):
             t = run_train_job(n_trials=1, epochs=5)
             run_promote_model()
-        # Archive should have 5 entries (5 dropped over 25 promotes)
+        # archive 应包含 5 条（25 次 promote 中共丢弃 5 条）
         self.assertTrue(ARCHIVE_FILE.exists())
         lines = ARCHIVE_FILE.read_text().strip().split("\n")
         self.assertEqual(len(lines), 5)
-        # Each line is a valid JSON object
+        # 每行都是一个合法的 JSON 对象
         for line in lines:
             archived = json.loads(line)
             self.assertIn("job_id", archived)
             self.assertIn("archived_at_ms", archived)
 
     def test_archive_entries_have_correct_shape(self) -> None:
-        """v0.33a — each archived entry has the full set of fields
-        needed to reconstruct the promotion, including weights
-        (for v0.20a rollback) and trial_index (for v0.21a bulk)."""
+        """v0.33a —— 每条 archive 条目都拥有重建 promote
+        所需的完整字段集合，包括 weights
+        （用于 v0.20a 回滚）和 trial_index（用于 v0.21a 批量提升）。"""
         from polyrocket_sidecar.train import ARCHIVE_FILE
-        # Run 21 promotes
+        # 跑 21 次 promote
         for _ in range(21):
             t = run_train_job(n_trials=1, epochs=5)
             run_promote_model()
         lines = ARCHIVE_FILE.read_text().strip().split("\n")
         archived = json.loads(lines[0])
-        # The exact same shape as the in-memory entries
+        # 与内存中的条目形状完全一致
         self.assertEqual(
             set(archived.keys()),
             {"job_id", "model_version", "promoted_at_ms",
              "best_brier", "best_params", "weights",
              "trial_index", "reason", "archived_at_ms"},
         )
-        # Weights has the 3 expected keys
+        # weights 包含 3 个预期的键
         self.assertEqual(set(archived["weights"].keys()), {"w0", "w1", "w2"})
 
 
 # =================================================================
-# ============== v0.43a — backtest_model tests ====================
+# ============== v0.43a — backtest_model 测试 ======================
 # =================================================================
 
 
 class BacktestModelTests(unittest.TestCase):
-    """v0.43a — replay a saved model against a list of
-    (price, age, outcome) samples and return Brier +
-    calibration + per-sample predictions.
+    """v0.43a —— 用一个已保存的模型对一组
+    (price, age, outcome) 样本进行重放，并返回
+    Brier + 校准 + 每个样本的预测。
 
-    These tests don't go through the full train +
-    promote workflow — they write a synthetic
-    `archive.jsonl` directly with known weights
-    and assert that the backtest produces the
-    expected Brier.
+    这些测试不经过完整的 train + promote 流程
+    ——它们直接用已知的权重写入一个合成的
+    `archive.jsonl`，然后断言回测产出
+    期望的 Brier。
     """
 
     def setUp(self) -> None:
@@ -591,8 +592,8 @@ class BacktestModelTests(unittest.TestCase):
             f.write(json.dumps(entry) + "\n")
 
     def test_backtest_finds_model_in_archive(self) -> None:
-        # Predictable weights: w0=0, w1=0, w2=0 → sigmoid(0) = 0.5
-        # (always predict 0.5 regardless of inputs)
+        # 可预测的权重：w0=0, w1=0, w2=0 → sigmoid(0) = 0.5
+        # （无论输入如何都预测 0.5）
         self._write_archive_entry("logistic-test", {"w0": 0.0, "w1": 0.0, "w2": 0.0})
         out = run_backtest_model(
             model_version="logistic-test",
@@ -607,14 +608,14 @@ class BacktestModelTests(unittest.TestCase):
         self.assertEqual(out["sample_count"], 3)
         # Brier mean = ((0.5-0)² + (0.5-1)² + (0.5-0.5)²) / 3 = (0.25 + 0.25 + 0) / 3 = 0.1666...
         self.assertAlmostEqual(out["brier_mean"], (0.25 + 0.25 + 0.0) / 3.0, places=4)
-        # Calibration: all 3 fall in the [0.4, 0.6) bucket
+        # 校准：3 个样本都落在 [0.4, 0.6) 桶中
         self.assertEqual(len(out["calibration"]), 5)
         non_empty = [b for b in out["calibration"] if b["count"] > 0]
         self.assertEqual(len(non_empty), 1)
         self.assertEqual(non_empty[0]["count"], 3)
 
     def test_backtest_finds_model_in_active(self) -> None:
-        # Write directly to active.json (not archive)
+        # 直接写入 active.json（不是 archive）
         self.archive_path.parent.mkdir(parents=True, exist_ok=True)
         active = {
             "model_version": "logistic-active",
@@ -650,20 +651,20 @@ class BacktestModelTests(unittest.TestCase):
         out = run_backtest_model(
             model_version="logistic-test",
             samples=[
-                {"price": 0.5, "market_age_hours": 24.0, "outcome": 1.0},  # valid
-                {"price": "not a number", "market_age_hours": 24.0, "outcome": 0.0},  # bad
-                {"market_age_hours": 24.0, "outcome": 0.0},  # missing price
-                {"price": 0.5, "market_age_hours": 24.0, "outcome": 2.0},  # out of range
+                {"price": 0.5, "market_age_hours": 24.0, "outcome": 1.0},  # 合法
+                {"price": "not a number", "market_age_hours": 24.0, "outcome": 0.0},  # 坏数据
+                {"market_age_hours": 24.0, "outcome": 0.0},  # 缺少 price
+                {"price": 0.5, "market_age_hours": 24.0, "outcome": 2.0},  # 超出范围
             ],
         )
         self.assertTrue(out["ok"])
-        # Only the first sample is valid
+        # 只有第一个样本是合法的
         self.assertEqual(out["sample_count"], 1)
 
     def test_backtest_top_winners_and_losers(self) -> None:
         self._write_archive_entry("logistic-test", {"w0": 0.0, "w1": 0.0, "w2": 0.0})
-        # All predict 0.5; outcomes 0 → 0.25 brier, outcomes 1 → 0.25 brier
-        # outcomes 0.5 → 0 brier
+        # 全部预测 0.5；outcome 0 → brier 0.25，outcome 1 → brier 0.25
+        # outcome 0.5 → brier 0
         out = run_backtest_model(
             model_version="logistic-test",
             samples=[
@@ -674,24 +675,24 @@ class BacktestModelTests(unittest.TestCase):
             ],
         )
         self.assertTrue(out["ok"])
-        # Top winners: 3 perfect (lowest brier = 0)
+        # top winners：3 个 perfect（最低 brier = 0）
         self.assertEqual(len(out["top_winners"]), 3)
         for w in out["top_winners"]:
             self.assertAlmostEqual(w["brier"], 0.0, places=6)
-        # Top losers: cap at 3, but in this small
-        # sample set, the last 3 (sorted by brier
-        # ascending) are [perfect, perfect, wrong]
-        # reversed → [wrong, perfect, perfect]. The
-        # worst is at index 0; the duplicates are
-        # acceptable for a small sample set.
+        # top losers：上限为 3，但在这个小样本集
+        # 中，按 brier 升序排好后 3 个是
+        # [perfect, perfect, wrong]，反转后 →
+        # [wrong, perfect, perfect]。最差的那
+        # 个位于 index 0；重复项在小样本集
+        # 下是可接受的。
         self.assertEqual(len(out["top_losers"]), 3)
         self.assertEqual(out["top_losers"][0]["label"], "wrong")
         self.assertAlmostEqual(out["top_losers"][0]["brier"], 0.25, places=4)
 
     def test_backtest_top_losers_caps_at_sample_size(self) -> None:
-        # v0.43a — when samples < 3, top_losers
-        # gracefully degrades. With 1 sample, both
-        # winners and losers have 1 entry.
+        # v0.43a —— 当样本数 < 3 时，top_losers
+        # 平滑降级。1 个样本时，winners 和
+        # losers 都只有 1 条。
         self._write_archive_entry("logistic-test", {"w0": 0.0, "w1": 0.0, "w2": 0.0})
         out = run_backtest_model(
             model_version="logistic-test",

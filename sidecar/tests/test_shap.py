@@ -1,15 +1,13 @@
-"""Tests for the v0.59 SHAP (KernelExplainer)
-implementation.
+"""v0.59 SHAP（KernelExplainer）实现的测试。
 
-Covers:
-  1. _predict_logistic matches predict._sigmoid
-  2. _kernel_weight closed form
-  3. _build_coalitions enumerates all 2^M masks
-  4. _fit_weighted_ls recovers the gradient
-     of a known linear function
-  5. run_shap_explainability: efficiency axiom
-     (Σφ_i ≈ f(x) - E[f(x)] within float tol)
-  6. run_shap_explainability: error path
+覆盖：
+  1. _predict_logistic 与 predict._sigmoid 一致
+  2. _kernel_weight 的闭式
+  3. _build_coalitions 枚举了所有 2^M 个 mask
+  4. _fit_weighted_ls 能恢复出已知线性函数的梯度
+  5. run_shap_explainability：efficiency 公理
+     （Σφ_i ≈ f(x) - E[f(x)]，在浮点容差内）
+  6. run_shap_explainability：错误路径
 """
 
 import math
@@ -33,10 +31,9 @@ from polyrocket_sidecar.shap import (
 
 class TestShapKernelExplainer(unittest.TestCase):
     def test_predict_logistic_matches_sigmoid(self):
-        """v0.59 — _predict_logistic should match
-        predict._sigmoid. They're both
-        numerically stable sigmoid impls; we
-        assert on a few (w, x) pairs."""
+        """v0.59 —— _predict_logistic 应与
+        predict._sigmoid 一致。它们都是数值稳定的
+        sigmoid 实现；我们对若干 (w, x) 组合进行断言。"""
         from polyrocket_sidecar.predict import _sigmoid
         for w in [(0.1, 2.4, -0.02), (0.0, 0.0, 0.0), (1.5, -3.0, 0.5)]:
             for x in [(1.0, 0.5, 24.0), (1.0, 0.0, 0.0), (1.0, 1.0, 100.0)]:
@@ -49,43 +46,41 @@ class TestShapKernelExplainer(unittest.TestCase):
                 )
 
     def test_kernel_weight_closed_form(self):
-        """v0.59 — w(z) = (M-1) / (C(M,|z|) * |z| *
-        (M-|z|)). We test the special cases
-        (empty + full coalition = large
-        constant) and the M=3 case in the
-        middle."""
-        # Empty coalition: |z|=0 → large constant
+        """v0.59 —— w(z) = (M-1) / (C(M,|z|) * |z| *
+        (M-|z|))。我们测试特殊情况
+        （空 + 完整 coalition = 大常数）以及
+        M=3 的中间情况。"""
+        # 空 coalition：|z|=0 → 大常数
         self.assertEqual(_kernel_weight(3, 0), 1.0e6)
-        # Full coalition: |z|=M → large constant
+        # 完整 coalition：|z|=M → 大常数
         self.assertEqual(_kernel_weight(3, 3), 1.0e6)
-        # Half coalition: |z|=1 in M=3
+        # 半 coalition：M=3 中 |z|=1
         # binom(3, 1) = 3, |z|=1, M-|z|=2
         # w = 2 / (3 * 1 * 2) = 1/3
         self.assertAlmostEqual(_kernel_weight(3, 1), 1.0 / 3.0, places=10)
-        # |z|=2 in M=3: same as |z|=1 by symmetry
+        # M=3 中 |z|=2：由对称性等于 |z|=1
         self.assertAlmostEqual(_kernel_weight(3, 2), 1.0 / 3.0, places=10)
 
     def test_build_coalitions_enumerates_all(self):
-        """v0.59 — _build_coalitions must return
-        all 2^M binary masks."""
+        """v0.59 —— _build_coalitions 必须返回
+        所有 2^M 个二元 mask。"""
         for m in [1, 2, 3, 4]:
             coalitions = _build_coalitions(m)
             self.assertEqual(len(coalitions), 2**m)
-            # Every mask is a list of m 0/1 ints.
+            # 每个 mask 都是 m 个 0/1 int 的列表。
             for c in coalitions:
                 self.assertEqual(len(c), m)
                 self.assertTrue(all(b in (0, 1) for b in c))
-            # No duplicates.
+            # 不能有重复。
             self.assertEqual(
                 len({tuple(c) for c in coalitions}),
                 2**m,
             )
 
     def test_solve_linear(self):
-        """v0.59 — sanity check on the LS
-        solver."""
-        # 2 unknowns, 3 equations (over-determined).
-        # x + 2y = 5, 2x - y = 0, x + y = 3 → x=1, y=2.
+        """v0.59 —— 对 LS 求解器的健全性检查。"""
+        # 2 个未知数，3 个方程（超定）。
+        # x + 2y = 5, 2x - y = 0, x + y = 3 → x=1, y=2。
         a = [[1.0, 2.0], [2.0, -1.0], [1.0, 1.0]]
         b = [5.0, 0.0, 3.0]
         x = _solve_linear(a, b)
@@ -93,23 +88,21 @@ class TestShapKernelExplainer(unittest.TestCase):
         self.assertAlmostEqual(x[1], 2.0, places=6)
 
     def test_fit_weighted_ls_recovers_gradient(self):
-        """v0.59 — for a known linear function
-        f(x) = a + b*x0 + c*x1 + d*x2, the
-        fitted SHAP coefficients should
-        satisfy:
-          - phi[0] (the "bias" / E[f(x)] term)
+        """v0.59 —— 对于已知线性函数
+        f(x) = a + b*x0 + c*x1 + d*x2，拟合出的
+        SHAP 系数应满足：
+          - phi[0]（"bias" / E[f(x)] 项）
             = f(background) = a + b*bg[0]
-          - phi[1..M] (per-feature contributions)
-            = (b, c, d) — the gradient scaled by
-            the feature delta (x_target - bg)
+          - phi[1..M]（每特征贡献）
+            = (b, c, d) —— 按特征差 (x_target - bg)
+            缩放后的梯度
         """
         a, b, c, d = 1.0, 2.0, -3.0, 0.5
-        # Build 8 coalitions for M=3, evaluate
-        # f at each imputed input.
+        # 为 M=3 构造 8 个 coalition，并在每个
+        # imputed 输入上求 f。
         m = 3
         coalitions = _build_coalitions(m)
-        # Use the background = (1.0, 0.0, 0.0)
-        # for all features.
+        # 对所有特征使用 background = (1.0, 0.0, 0.0)。
         bg = (1.0, 0.0, 0.0)
         x_target = (1.0, 2.0, 4.0)
         outputs = []
@@ -120,21 +113,20 @@ class TestShapKernelExplainer(unittest.TestCase):
             )
             outputs.append(a + b * x[0] + c * x[1] + d * x[2])
         weights = [_kernel_weight(m, sum(m_)) for m_ in coalitions]
-        # Fit: X has columns [1, mask[0], mask[1], mask[2]]
-        # Returns 4 coefficients: E[f(x)] (the
-        # baseline), then per-feature contributions
-        # = w_i * (x_target_i - bg_i).
+        # 拟合：X 的列为 [1, mask[0], mask[1], mask[2]]
+        # 返回 4 个系数：E[f(x)]（baseline），
+        # 然后是逐特征贡献 = w_i * (x_target_i - bg_i)。
         phi = _fit_weighted_ls(coalitions, outputs, weights, m)
         # Baseline = f(bg) = a + b*1 + c*0 + d*0 = 3
         expected_baseline = a + b * bg[0] + c * bg[1] + d * bg[2]
         self.assertAlmostEqual(phi[0], expected_baseline, places=4)
-        # Per-feature: w * (x - bg)
+        # 逐特征：w * (x - bg)
         self.assertAlmostEqual(phi[1], b * (x_target[0] - bg[0]), places=4)
         self.assertAlmostEqual(phi[2], c * (x_target[1] - bg[1]), places=4)
         self.assertAlmostEqual(phi[3], d * (x_target[2] - bg[2]), places=4)
-        # Efficiency: sum of feature contributions
+        # Efficiency：所有特征贡献之和
         # = f(x_target) - f(bg) = (1+4-12+2) - (1+2)
-        # = -5 - 3 = -8. Verify.
+        # = -5 - 3 = -8。验证一下。
         self.assertAlmostEqual(
             sum(phi[1:]),
             (a + b*x_target[0] + c*x_target[1] + d*x_target[2])
@@ -144,31 +136,30 @@ class TestShapKernelExplainer(unittest.TestCase):
 
 
 class TestShapEndToEnd(unittest.TestCase):
-    """End-to-end tests that write a real
-    active.json (matching the v0.12+ schema)
-    and run run_shap_explainability against
-    it. We use a tiny temp dir for the model
-    files so we don't touch the real ~/
-    .polyrocket/sidecar/models/."""
+    """端到端测试：写入一个真实的
+    active.json（匹配 v0.12+ 的 schema），
+    并对其运行 run_shap_explainability。
+    我们用一个很小的临时目录保存模型文件，
+    以免触及真实的 ~/.polyrocket/sidecar/models/。"""
 
     def setUp(self):
         import tempfile
         from polyrocket_sidecar.train import ACTIVE_FILE, MODEL_DIR
         self.tmp = tempfile.TemporaryDirectory()
         self.env = {"POLYROCKET_HOME": self.tmp.name}
-        # Polyrocket's train.py uses a hard-coded
-        # ~/.polyrocket/sidecar/models/ path. We
-        # monkey-patch MODEL_DIR to point at our
-        # temp dir for the duration of the test.
+        # polyrocket 的 train.py 使用硬编码的
+        # ~/.polyrocket/sidecar/models/ 路径。我们
+        # monkey-patch MODEL_DIR 指向我们的临时目录，
+        # 效果持续整个测试期间。
         import polyrocket_sidecar.train as train_mod
         self._orig_model_dir = train_mod.MODEL_DIR
         train_mod.MODEL_DIR = Path(self.tmp.name) / "models"
         train_mod.MODEL_DIR.mkdir(parents=True, exist_ok=True)
         train_mod.ACTIVE_FILE = train_mod.MODEL_DIR / "active.json"
-        # Reset the active cache.
+        # 重置 active 缓存。
         from polyrocket_sidecar.active import reset_cache
         reset_cache()
-        # Write a minimal active.json.
+        # 写入一个最小的 active.json。
         import json
         active = {
             "model_version": "logistic-test-shap",
@@ -186,27 +177,25 @@ class TestShapEndToEnd(unittest.TestCase):
         reset_cache()
 
     def test_efficiency_axiom_holds(self):
-        """v0.59 — Σφ_i = f(x) - E[f(x)] within
-        float tolerance. This is the SHAP
-        efficiency axiom; if it doesn't hold,
-        the regression didn't converge."""
+        """v0.59 —— Σφ_i = f(x) - E[f(x)] 在浮点
+        容差内成立。这是 SHAP efficiency 公理；
+        如果不成立，则回归没有收敛。"""
         r = run_shap_explainability(
             model_version="logistic-test-shap",
             sample={"price": 0.5, "market_age_hours": 24.0},
         )
         self.assertTrue(r["ok"], r.get("message"))
         self.assertEqual(r["method"], "kernel_shap")
-        # Efficiency: Σφ_i ≈ f(x) - E[f(x)]
-        # (the efficiency_diff is the residual
-        # after fitting; should be ~0).
+        # Efficiency：Σφ_i ≈ f(x) - E[f(x)]
+        # （efficiency_diff 是拟合后的残差；应接近 0）。
         self.assertIsNotNone(r["efficiency_diff"])
         self.assertAlmostEqual(
             r["efficiency_diff"], 0.0, places=4,
             msg=f"efficiency diff {r['efficiency_diff']} too large",
         )
-        # Sanity: 3 features returned.
+        # 健全性：返回了 3 个特征。
         self.assertEqual(len(r["features"]), 3)
-        # Sorted by abs_shap descending.
+        # 按 abs_shap 降序排列。
         for i in range(len(r["features"]) - 1):
             self.assertGreaterEqual(
                 r["features"][i]["abs_shap"],
@@ -214,9 +203,8 @@ class TestShapEndToEnd(unittest.TestCase):
             )
 
     def test_efficiency_holds_at_extremes(self):
-        """v0.59 — the efficiency axiom should
-        hold at the corners of the input
-        space (price=0, price=1, age=0, age=large)."""
+        """v0.59 —— efficiency 公理应在输入空间的
+        角点（price=0、price=1、age=0、age 很大）处成立。"""
         for price in [0.01, 0.5, 0.99]:
             for age in [0.1, 24, 168, 720]:
                 r = run_shap_explainability(
