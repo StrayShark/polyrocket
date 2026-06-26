@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Bankroll · Polyrocket</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="_shared.css">
+<style>
+  .donut-wrap { display: flex; gap: 18px; align-items: center; }
+  .legend-grid { display: grid; grid-template-columns: 1fr; gap: 4px; font-size: 12px; color: var(--tx-2); flex: 1; }
+  .legend-grid .li { display: flex; gap: 8px; align-items: center; }
+  .legend-grid .li i { width: 10px; height: 10px; border-radius: 2px; }
+  .var-bar { display: flex; gap: 8px; align-items: center; padding: 6px 0; font-size: 12px; }
+  .strategy-row { display: grid; grid-template-columns: 1fr 100px 100px 100px 100px 100px; gap: 10px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--bd-1); font-size: 12px; }
+  .strategy-row:last-child { border-bottom: 0; }
+</style>
+</head>
+<body>
+<script>
+  // Theme buttons → real seed file
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-theme-link]');
+    if (!a) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    location.href = '.seed-' + a.getAttribute('data-theme-link') + '.html';
+  }, true);
+</script>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand-pin">
+      <div class="logo">P</div>
+      <span class="wordmark">Polyrocket</span>
+      <button class="collapse-btn" data-toggle="sidebar" title="折叠">‹</button>
+    </div>
+    <div class="search">
+      <span>⌕</span>
+      <input placeholder="搜索比赛 / 市场 / 地址 / 交易员" data-open-palette readonly>
+      <span class="kbd">⌘K</span>
+    </div>
+    <div class="nav-scroll">
+      <div class="nav-section">
+        <div class="nav-section-title">交易</div>
+        <a class="nav-item" data-nav="dashboard.html" href="dashboard.html">▦ Dashboard</a>
+        <a class="nav-item" data-nav="markets.html" href="markets.html">⌗ Markets</a>
+        <a class="nav-item" data-nav="market-detail.html" href="market-detail.html">◎ Market Detail</a>
+        <a class="nav-item" data-nav="signals.html" href="signals.html">⚡ Signals <span class="badge">14</span></a>
+        <a class="nav-item" data-nav="arb-board.html" href="arb-board.html">⇄ Arb Board</a>
+        <a class="nav-item" data-nav="copy-trading.html" href="copy-trading.html">⎘ Copy</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">研究</div>
+        <a class="nav-item" data-nav="llm-management.html" href="llm-management.html">⌬ LLM Mgmt</a>
+        <a class="nav-item" data-nav="model-lab.html" href="model-lab.html">◈ Model Lab</a>
+        <a class="nav-item" data-nav="bankroll.html" href="bankroll.html">$ Bankroll</a>
+        <a class="nav-item" data-nav="history.html" href="history.html">⏱ History</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">系统</div>
+        <a class="nav-item" data-nav="audit.html" href="audit.html">⎙ Audit</a>
+        <a class="nav-item" data-nav="notifications.html" href="notifications.html">♪ Notifications <span class="badge">3</span></a>
+        <a class="nav-item" data-nav="settings.html" href="settings.html">⚙ Settings</a>
+        <a class="nav-item" data-nav="help.html" href="help.html">? Help</a>
+      </div>
+    </div>
+    <div class="sidebar-foot">
+      <button class="user-connect" data-connect>
+        <span class="ic">⏻</span>
+        <span class="label">连接 Polymarket</span>
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="engine-strip">
+      <span class="pulse"></span>
+      <span><strong>Bankroll</strong> · 总资金 <b class="up">$29,180</b> · 可用 <b>$10,486</b> · 锁定 <b>$8,820</b> · 风险敞口 <b style="color:var(--warn)">$9,874</b></span>
+    </div>
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">Bankroll</h1>
+        <p class="page-sub">资金曲线 · Kelly 仓位建议 · 风险监控 · 多策略分配</p>
+      </div>
+      <div class="row">
+        <button class="btn">充值</button>
+        <button class="btn">提现</button>
+        <button class="btn primary">+ 调整策略</button>
+      </div>
+    </div>
+
+    <!-- KPI -->
+    <div class="grid grid-4">
+      <div class="card kpi">
+        <div class="l">总资金</div>
+        <div class="v up"><span class="num" data-num="29180" data-fmt="usd">$0</span></div>
+        <div class="d up">▲ 18.7% 月环比</div>
+      </div>
+      <div class="card kpi">
+        <div class="l">可用</div>
+        <div class="v"><span class="num" data-num="10486" data-fmt="usd">$0</span></div>
+        <div class="d flat">35.9% · 距上限 75% 还可加 39.1%</div>
+      </div>
+      <div class="card kpi">
+        <div class="l">锁定（持仓中）</div>
+        <div class="v"><span class="num" data-num="8820" data-fmt="usd">$0</span></div>
+        <div class="d flat">18 个市场 · 平均 5d 后解锁</div>
+      </div>
+      <div class="card kpi">
+        <div class="l">风险敞口</div>
+        <div class="v" style="color:var(--warn)"><span class="num" data-num="9874" data-fmt="usd">$0</span></div>
+        <div class="d flat">VaR(95%) $1,840</div>
+      </div>
+    </div>
+
+    <!-- Big bankroll chart -->
+    <div class="card mt-4">
+      <div class="between">
+        <h3 class="card-title">资金曲线 · 30 日</h3>
+        <div class="row">
+          <span class="chip up">+18.7%</span>
+          <span class="dim" style="font-size:11px">SHARP 1.84 · MDD -3.2%</span>
+          <div class="row">
+            <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:4px 10px;border-radius:6px;font-size:11px">7d</button>
+            <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:4px 10px;border-radius:6px;font-size:11px">30d</button>
+            <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:4px 10px;border-radius:6px;font-size:11px">90d</button>
+            <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:4px 10px;border-radius:6px;font-size:11px">All</button>
+          </div>
+        </div>
+      </div>
+      <canvas class="spark" data-spark='[24500,24700,24900,25100,25300,25500,25700,25800,26000,26200,26400,26500,26700,26900,27100,27300,27500,27700,27900,28100,28200,28400,28600,28700,28800,28900,29000,29100,29150,29180]' style="height:160px"></canvas>
+    </div>
+
+    <div class="grid grid-2 mt-3" style="gap:18px">
+      <div class="card">
+        <h3 class="card-title">资金分配</h3>
+        <div class="donut-wrap mt-2">
+          <canvas data-donut='[{"l":"现货","v":35,"c":"var(--brand)"},{"l":"YES 持仓","v":30,"c":"var(--yes)"},{"l":"NO 持仓","v":12,"c":"var(--no)"},{"l":"套利","v":8,"c":"var(--c-arb)"},{"l":"现金","v":15,"c":"var(--bg-3)"}]' style="width:160px;height:160px"></canvas>
+          <div class="legend-grid">
+            <div class="li"><i style="background:var(--brand)"></i>现货 35% · $10,213</div>
+            <div class="li"><i style="background:var(--yes)"></i>YES 持仓 30% · $8,754</div>
+            <div class="li"><i style="background:var(--no)"></i>NO 持仓 12% · $3,502</div>
+            <div class="li"><i style="background:var(--c-arb)"></i>套利 8% · $2,334</div>
+            <div class="li"><i style="background:var(--bg-3)"></i>现金 15% · $4,377</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">风险监控</h3>
+        <div class="mt-2">
+          <div class="var-bar">
+            <span class="muted" style="width:120px;font-size:11px">VaR (95%)</span>
+            <div class="prob-bar" style="flex:1;height:8px"><i class="yes" style="position:absolute;left:0;width:18%"></i></div>
+            <span><b style="color:var(--warn)">$1,840</b> · 6.3%</span>
+          </div>
+          <div class="var-bar">
+            <span class="muted" style="width:120px;font-size:11px">VaR (99%)</span>
+            <div class="prob-bar" style="flex:1;height:8px"><i class="yes" style="position:absolute;left:0;width:9%"></i></div>
+            <span><b style="color:var(--no)">$2,640</b> · 9.0%</span>
+          </div>
+          <div class="var-bar">
+            <span class="muted" style="width:120px;font-size:11px">最大回撤 (MDD)</span>
+            <div class="prob-bar" style="flex:1;height:8px"><i class="yes" style="position:absolute;left:0;width:11%"></i></div>
+            <span><b style="color:var(--info)">$3,200</b> · 11.0%</span>
+          </div>
+          <div class="var-bar">
+            <span class="muted" style="width:120px;font-size:11px">单笔最大亏损</span>
+            <div class="prob-bar" style="flex:1;height:8px"><i class="yes" style="position:absolute;left:0;width:5%"></i></div>
+            <span><b style="color:var(--warn)">$1,460</b> · 5.0%</span>
+          </div>
+          <div class="var-bar">
+            <span class="muted" style="width:120px;font-size:11px">连续亏损天数</span>
+            <div class="prob-bar" style="flex:1;height:8px"><i class="yes" style="position:absolute;left:0;width:14%"></i></div>
+            <span><b>2 / 5</b> 上限 5</span>
+          </div>
+          <div class="var-bar">
+            <span class="muted" style="width:120px;font-size:11px">当前夏普</span>
+            <div class="prob-bar" style="flex:1;height:8px"><i class="yes" style="position:absolute;left:0;width:74%"></i></div>
+            <span><b style="color:var(--yes)">1.84</b> · 目标 1.5</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="between">
+        <h3 class="card-title">策略分配 · Kelly 仓位建议</h3>
+        <button class="btn">+ 新建策略</button>
+      </div>
+      <p class="muted" style="font-size:12px;margin:6px 0 12px">Kelly 公式 f* = (bp - q) / b 用于计算最优仓位比例。系统会基于近 90 日胜率与盈亏比动态更新建议值。</p>
+
+      <div class="strategy-row" style="background:var(--bg-2);font-size:10px;color:var(--tx-3);text-transform:uppercase;letter-spacing:0.06em">
+        <span>策略</span>
+        <span>当前</span>
+        <span>Kelly f*</span>
+        <span>1/4 Kelly</span>
+        <span>实盘</span>
+        <span>调整</span>
+      </div>
+
+      <div class="strategy-row">
+        <span><b>Fusion Edge 跟单</b> <span class="muted" style="font-size:11px">主策略</span></span>
+        <span class="num"><b>45%</b> · $13,131</span>
+        <span class="num up">42%</span>
+        <span class="num">10.5%</span>
+        <span class="num">10.5%</span>
+        <span><button class="btn primary">应用</button></span>
+      </div>
+
+      <div class="strategy-row">
+        <span><b>Behavioral 套利</b></span>
+        <span class="num"><b>20%</b> · $5,836</span>
+        <span class="num up">25%</span>
+        <span class="num up">6.3%</span>
+        <span class="num up">6.3%</span>
+        <span><button class="btn primary">应用</button></span>
+      </div>
+
+      <div class="strategy-row">
+        <span><b>AI 反转 (激进)</b></span>
+        <span class="num"><b>15%</b> · $4,377</span>
+        <span class="num down">12%</span>
+        <span class="num">3.0%</span>
+        <span class="num">3.0%</span>
+        <span><button class="btn">应用</button></span>
+      </div>
+
+      <div class="strategy-row">
+        <span><b>Copy 跟单 (聪明钱)</b></span>
+        <span class="num"><b>10%</b> · $2,918</span>
+        <span class="num up">18%</span>
+        <span class="num up">4.5%</span>
+        <span class="num up">4.5%</span>
+        <span><button class="btn primary">应用</button></span>
+      </div>
+
+      <div class="strategy-row">
+        <span><b>单边市场套利</b></span>
+        <span class="num"><b>5%</b> · $1,459</span>
+        <span class="num">8%</span>
+        <span class="num">2.0%</span>
+        <span class="num">2.0%</span>
+        <span><button class="btn">应用</button></span>
+      </div>
+
+      <div class="strategy-row">
+        <span><b>现金储备</b></span>
+        <span class="num"><b>5%</b> · $1,459</span>
+        <span class="num">—</span>
+        <span class="num">—</span>
+        <span class="num">5.0%</span>
+        <span><button class="btn ghost" disabled style="opacity:.5">调整</button></span>
+      </div>
+
+      <div class="row between mt-3">
+        <div class="muted" style="font-size:12px">总分配 <b>100%</b> · 已用风险预算 <b style="color:var(--warn)">62%</b></div>
+        <div class="row">
+          <button class="btn">恢复默认</button>
+          <button class="btn primary">一键应用 Kelly 建议</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<!-- Command palette -->
+<div class="palette" data-palette>
+  <div class="panel">
+    <div class="head">
+      <span>⌕</span>
+      <input placeholder="跳转到页面 / 执行命令…" />
+      <span class="kbd">ESC</span>
+    </div>
+    <div class="list">
+      <div class="row" data-href="dashboard.html"><span class="ic">▦</span><span class="lbl">Dashboard</span><span class="sec">交易</span></div>
+      <div class="row" data-href="markets.html"><span class="ic">⌗</span><span class="lbl">Markets</span><span class="sec">交易</span></div>
+      <div class="row" data-href="market-detail.html"><span class="ic">◎</span><span class="lbl">Market Detail</span><span class="sec">交易</span></div>
+      <div class="row" data-href="signals.html"><span class="ic">⚡</span><span class="lbl">Signals</span><span class="sec">交易</span></div>
+      <div class="row" data-href="arb-board.html"><span class="ic">⇄</span><span class="lbl">Arb Board</span><span class="sec">交易</span></div>
+      <div class="row" data-href="copy-trading.html"><span class="ic">⎘</span><span class="lbl">Copy Trading</span><span class="sec">交易</span></div>
+      <div class="row" data-href="llm-management.html"><span class="ic">⌬</span><span class="lbl">LLM Mgmt</span><span class="sec">研究</span></div>
+      <div class="row" data-href="model-lab.html"><span class="ic">◈</span><span class="lbl">Model Lab</span><span class="sec">研究</span></div>
+      <div class="row" data-href="bankroll.html"><span class="ic">$</span><span class="lbl">Bankroll</span><span class="sec">研究</span></div>
+      <div class="row" data-href="history.html"><span class="ic">⏱</span><span class="lbl">History</span><span class="sec">研究</span></div>
+      <div class="row" data-href="audit.html"><span class="ic">⎙</span><span class="lbl">Audit</span><span class="sec">系统</span></div>
+      <div class="row" data-href="notifications.html"><span class="ic">♪</span><span class="lbl">Notifications</span><span class="sec">系统</span></div>
+      <div class="row" data-href="settings.html"><span class="ic">⚙</span><span class="lbl">Settings</span><span class="sec">系统</span></div>
+      <div class="row" data-href="help.html"><span class="ic">?</span><span class="lbl">Help</span><span class="sec">系统</span></div>
+    </div>
+    <div class="foot">
+      <span>↑↓ 选择</span><span>⏎ 跳转</span><span>ESC 关闭</span>
+    </div>
+  </div>
+</div>
+
+<!-- Notifications panel -->
+<div class="notif" data-notif>
+  <div class="head">
+    <span class="t">通知</span>
+    <span class="close" data-open-notif>✕</span>
+  </div>
+  <div class="list">
+    <div class="item sev-warn">
+      <div class="row"><span class="t">z-score 越界</span><span class="time">2 分钟前</span></div>
+      <div class="d">曼城 vs 利物浦 · 当前 +2.4σ，预计回归中位 0.62</div>
+    </div>
+    <div class="item sev-info">
+      <div class="row"><span class="t">HHI 集中度上升</span><span class="time">8 分钟前</span></div>
+      <div class="d">Top 3 持仓占比突破 60%，关注聪明钱分歧</div>
+    </div>
+    <div class="item sev-error">
+      <div class="row"><span class="t">套利窗口关闭</span><span class="time">15 分钟前</span></div>
+      <div class="d">Polymarket ↔ Kalshi 利差已收敛至 0.4%</div>
+    </div>
+    <div class="item">
+      <div class="row"><span class="t">AI 辩论完成</span><span class="time">32 分钟前</span></div>
+      <div class="d">3 个模型达成一致：YES 67% (σ=0.04)</div>
+    </div>
+    <div class="item">
+      <div class="row"><span class="t">模型回测完成</span><span class="time">1 小时前</span></div>
+      <div class="d">近 30 天 Sharpe 1.84，最大回撤 6.2%</div>
+    </div>
+  </div>
+</div>
+<script src="_shell.js"></script>
+</body>
+</html>

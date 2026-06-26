@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>History · Polyrocket</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="_shared.css">
+<style>
+  .layout { display: grid; grid-template-columns: 1fr 320px; gap: 18px; }
+  @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
+  .filter-strip { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .hist-row { display: grid; grid-template-columns: 130px 1fr 60px 80px 80px 80px 100px 70px 100px; gap: 8px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--bd-1); font-size: 12px; }
+  .hist-row.head { color: var(--tx-3); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; padding: 8px 12px; }
+  .hist-row:last-child { border-bottom: 0; }
+  .hist-row.expand { background: var(--bg-2); }
+  .expand-row { background: var(--bg-2); padding: 14px 18px; border-bottom: 1px solid var(--bd-1); font-size: 12px; }
+  .pnl-pos { color: var(--yes); font-weight: 600; }
+  .pnl-neg { color: var(--no); font-weight: 600; }
+  .league-bullet { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; background: var(--bg-3); color: var(--tx-2); }
+  .league-bullet.pl { background: var(--info-soft); color: var(--info); }
+  .league-bullet.laliga { background: var(--warn-soft); color: var(--warn); }
+  .league-bullet.bundes { background: var(--yes-soft); color: var(--yes); }
+  .league-bullet.seriea { background: rgba(192, 168, 221, 0.16); color: var(--tl-edit); }
+</style>
+</head>
+<body>
+<script>
+  // Theme buttons → real seed file
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-theme-link]');
+    if (!a) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    location.href = '.seed-' + a.getAttribute('data-theme-link') + '.html';
+  }, true);
+</script>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand-pin">
+      <div class="logo">P</div>
+      <span class="wordmark">Polyrocket</span>
+      <button class="collapse-btn" data-toggle="sidebar" title="折叠">‹</button>
+    </div>
+    <div class="search">
+      <span>⌕</span>
+      <input placeholder="搜索比赛 / 市场 / 地址 / 交易员" data-open-palette readonly>
+      <span class="kbd">⌘K</span>
+    </div>
+    <div class="nav-scroll">
+      <div class="nav-section">
+        <div class="nav-section-title">交易</div>
+        <a class="nav-item" data-nav="dashboard.html" href="dashboard.html">▦ Dashboard</a>
+        <a class="nav-item" data-nav="markets.html" href="markets.html">⌗ Markets</a>
+        <a class="nav-item" data-nav="market-detail.html" href="market-detail.html">◎ Market Detail</a>
+        <a class="nav-item" data-nav="signals.html" href="signals.html">⚡ Signals <span class="badge">14</span></a>
+        <a class="nav-item" data-nav="arb-board.html" href="arb-board.html">⇄ Arb Board</a>
+        <a class="nav-item" data-nav="copy-trading.html" href="copy-trading.html">⎘ Copy</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">研究</div>
+        <a class="nav-item" data-nav="llm-management.html" href="llm-management.html">⌬ LLM Mgmt</a>
+        <a class="nav-item" data-nav="model-lab.html" href="model-lab.html">◈ Model Lab</a>
+        <a class="nav-item" data-nav="bankroll.html" href="bankroll.html">$ Bankroll</a>
+        <a class="nav-item" data-nav="history.html" href="history.html">⏱ History</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">系统</div>
+        <a class="nav-item" data-nav="audit.html" href="audit.html">⎙ Audit</a>
+        <a class="nav-item" data-nav="notifications.html" href="notifications.html">♪ Notifications <span class="badge">3</span></a>
+        <a class="nav-item" data-nav="settings.html" href="settings.html">⚙ Settings</a>
+        <a class="nav-item" data-nav="help.html" href="help.html">? Help</a>
+      </div>
+    </div>
+    <div class="sidebar-foot">
+      <button class="user-connect" data-connect>
+        <span class="ic">⏻</span>
+        <span class="label">连接 Polymarket</span>
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="engine-strip">
+      <span class="pulse"></span>
+      <span><strong>History</strong> · 近 30d 共 <b>148</b> 笔成交 · 累计 PnL <b class="up">+$4,820</b> · 胜率 <b>67.1%</b></span>
+    </div>
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">History</h1>
+        <p class="page-sub">成交历史 · PnL 拆解 · 决策快照 · 复盘笔记</p>
+      </div>
+      <div class="row">
+        <button class="btn">导出 CSV</button>
+        <button class="btn primary">+ 添加复盘</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="filter-strip">
+        <span class="muted" style="font-size:12px">时间：</span>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px">1d</button>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px">7d</button>
+        <button class="seg-btn active" style="padding:6px 12px;border-radius:8px;font-size:12px">30d</button>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px">90d</button>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px">All</button>
+
+        <span class="muted" style="font-size:12px;margin-left:8px">市场：</span>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px">全部</button>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px">英超</button>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px">西甲</button>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px">德甲</button>
+
+        <span class="muted" style="font-size:12px;margin-left:8px">引擎：</span>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px">全部</button>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px">Fusion</button>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px">AI</button>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px">Beh</button>
+
+        <span class="muted" style="font-size:12px;margin-left:8px">盈亏：</span>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px">全部</button>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px">盈利</button>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px">亏损</button>
+      </div>
+    </div>
+
+    <div class="layout mt-3">
+      <div class="card">
+        <div class="hist-row head">
+          <span>时间</span>
+          <span>市场</span>
+          <span>方向</span>
+          <span>引擎</span>
+          <span>数量</span>
+          <span>价格</span>
+          <span>PnL</span>
+          <span>时长</span>
+          <span>状态</span>
+        </div>
+
+        <div class="hist-row expand">
+          <span class="muted">12-08 22:30</span>
+          <span><b>曼城 vs 利物浦 · 曼城胜</b> <span class="league-bullet pl">英超</span></span>
+          <span class="up">YES</span>
+          <span><span class="engine fuse">F</span></span>
+          <span class="num">5,200</span>
+          <span class="num">0.38</span>
+          <span class="num pnl-pos">+$820.40</span>
+          <span class="muted">2d 8h</span>
+          <span><button class="btn" style="height:24px;padding:0 8px;font-size:11px">已结算</button></span>
+        </div>
+        <div class="expand-row">
+          <div class="grid grid-3" style="gap:18px">
+            <div>
+              <div class="muted" style="font-size:11px">决策快照 · 融合概率</div>
+              <div class="fusion" data-fusion='{"market": 38, "fused": 64}' style="margin-top:6px"></div>
+              <div class="row between mt-2" style="font-size:11px"><span>Market 38</span><span>Fused 64</span></div>
+              <div class="row between" style="font-size:11px"><span>Beh 41</span><span>AI 71</span></div>
+            </div>
+            <div>
+              <div class="muted" style="font-size:11px">行为金融分项</div>
+              <div class="row between mt-2" style="font-size:11px"><span>HHI 集中度</span><span>0.24</span></div>
+              <div class="row between" style="font-size:11px"><span>聪明钱分歧</span><span>低</span></div>
+              <div class="row between" style="font-size:11px"><span>z-score</span><span>-2.4</span></div>
+              <div class="row between" style="font-size:11px"><span>Edge</span><span class="up">+26¢</span></div>
+            </div>
+            <div>
+              <div class="muted" style="font-size:11px">AI 论点摘要</div>
+              <ul style="font-size:11px;padding-left:18px;margin:6px 0;color:var(--tx-2)">
+                <li>曼城主场 xG +1.4</li>
+                <li>哈兰德 12 场 14 球</li>
+                <li>利物浦周中欧冠消耗</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="hist-row">
+          <span class="muted">12-07 02:15</span>
+          <span><b>皇马 vs 巴萨 · 平局</b> <span class="league-bullet laliga">西甲</span></span>
+          <span class="down">NO</span>
+          <span><span class="engine ai">AI</span></span>
+          <span class="num">2,400</span>
+          <span class="num">0.72</span>
+          <span class="num pnl-pos">+$642.00</span>
+          <span class="muted">3d 1h</span>
+          <span><button class="btn" style="height:24px;padding:0 8px;font-size:11px">已结算</button></span>
+        </div>
+
+        <div class="hist-row">
+          <span class="muted">12-05 21:00</span>
+          <span><b>拜仁 vs 多特 · 大2.5球</b> <span class="league-bullet bundes">德甲</span></span>
+          <span class="up">YES</span>
+          <span><span class="engine beh">B</span></span>
+          <span class="num">1,800</span>
+          <span class="num">0.61</span>
+          <span class="num pnl-pos">+$486.00</span>
+          <span class="muted">1d 14h</span>
+          <span><button class="btn" style="height:24px;padding:0 8px;font-size:11px">已结算</button></span>
+        </div>
+
+        <div class="hist-row">
+          <span class="muted">12-04 19:45</span>
+          <span><b>国米 vs 尤文 · 国米胜</b> <span class="league-bullet seriea">意甲</span></span>
+          <span class="up">YES</span>
+          <span><span class="engine fuse">F</span></span>
+          <span class="num">3,200</span>
+          <span class="num">0.44</span>
+          <span class="num pnl-neg">-$280.00</span>
+          <span class="muted">5d 2h</span>
+          <span><button class="btn" style="height:24px;padding:0 8px;font-size:11px">已结算</button></span>
+        </div>
+
+        <div class="hist-row">
+          <span class="muted">12-03 23:00</span>
+          <span><b>切尔西 vs 曼联 · 切尔西胜</b> <span class="league-bullet pl">英超</span></span>
+          <span class="up">YES</span>
+          <span><span class="engine ai">AI</span></span>
+          <span class="num">1,500</span>
+          <span class="num">0.39</span>
+          <span class="num pnl-pos">+$372.00</span>
+          <span class="muted">4d 6h</span>
+          <span><button class="btn" style="height:24px;padding:0 8px;font-size:11px">已结算</button></span>
+        </div>
+
+        <div class="hist-row">
+          <span class="muted">12-02 22:30</span>
+          <span><b>阿森纳 vs 热刺 · 热刺胜</b> <span class="league-bullet pl">英超</span></span>
+          <span class="down">NO</span>
+          <span><span class="engine beh">B</span></span>
+          <span class="num">2,000</span>
+          <span class="num">0.72</span>
+          <span class="num pnl-pos">+$540.00</span>
+          <span class="muted">3d 12h</span>
+          <span><button class="btn" style="height:24px;padding:0 8px;font-size:11px">已结算</button></span>
+        </div>
+
+        <div class="hist-row">
+          <span class="muted">12-01 04:00</span>
+          <span><b>马竞 vs 塞维利亚 · 大2.5球</b> <span class="league-bullet laliga">西甲</span></span>
+          <span class="up">YES</span>
+          <span><span class="engine fuse">F</span></span>
+          <span class="num">1,200</span>
+          <span class="num">0.48</span>
+          <span class="num pnl-neg">-$128.00</span>
+          <span class="muted">2d 18h</span>
+          <span><button class="btn" style="height:24px;padding:0 8px;font-size:11px">已结算</button></span>
+        </div>
+
+        <div class="hist-row">
+          <span class="muted">11-29 23:00</span>
+          <span><b>多特 vs 莱比锡 · 多特胜</b> <span class="league-bullet bundes">德甲</span></span>
+          <span class="up">YES</span>
+          <span><span class="engine ai">AI</span></span>
+          <span class="num">2,800</span>
+          <span class="num">0.42</span>
+          <span class="num pnl-pos">+$756.00</span>
+          <span class="muted">6d 3h</span>
+          <span><button class="btn" style="height:24px;padding:0 8px;font-size:11px">已结算</button></span>
+        </div>
+
+        <div class="hist-row">
+          <span class="muted">11-28 21:00</span>
+          <span><b>巴黎 vs 马赛 · 巴黎胜</b> <span class="league-bullet pl">英超</span></span>
+          <span class="up">YES</span>
+          <span><span class="engine beh">B</span></span>
+          <span class="num">1,400</span>
+          <span class="num">0.52</span>
+          <span class="num pnl-pos">+$196.00</span>
+          <span class="muted">1d 9h</span>
+          <span><button class="btn" style="height:24px;padding:0 8px;font-size:11px">已结算</button></span>
+        </div>
+
+        <div class="hist-row">
+          <span class="muted">11-27 02:00</span>
+          <span><b>那不勒斯 vs 罗马 · 那不勒斯胜</b> <span class="league-bullet seriea">意甲</span></span>
+          <span class="down">NO</span>
+          <span><span class="engine fuse">F</span></span>
+          <span class="num">2,200</span>
+          <span class="num">0.48</span>
+          <span class="num pnl-pos">+$572.00</span>
+          <span class="muted">4d 22h</span>
+          <span><button class="btn" style="height:24px;padding:0 8px;font-size:11px">已结算</button></span>
+        </div>
+
+        <div class="row between mt-3">
+          <span class="muted" style="font-size:12px">显示 10 / 148 笔 · 累计 PnL <b class="up">+$3,776</b></span>
+          <div class="row">
+            <button class="btn">← 上一页</button>
+            <button class="btn primary">下一页 →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- right column -->
+      <div>
+        <div class="card">
+          <h3 class="card-title">累计 PnL</h3>
+          <canvas class="spark" data-spark='[10000,10400,10800,11200,11600,11900,12300,12800,13200,13600,14000,14500,14900,15400,15900,16400,17000,17600,18200,18900,19600,20400,21200,22100,23000,24000,25100,26200,27400,28700,30000]' style="height:80px"></canvas>
+          <div class="row between mt-2" style="font-size:11px"><span class="muted">起点</span><span>$10,000</span></div>
+          <div class="row between" style="font-size:11px"><span class="muted">当前</span><span class="up">$30,000</span></div>
+        </div>
+
+        <div class="card mt-3">
+          <h3 class="card-title">按引擎拆分</h3>
+          <canvas data-donut='[{"l":"Fusion","v":52,"c":"var(--brand)"},{"l":"AI","v":28,"c":"var(--yes)"},{"l":"Beh","v":18,"c":"var(--info)"},{"l":"Copy","v":2,"c":"var(--bg-3)"}]' style="width:120px;height:120px;margin:8px auto 0"></canvas>
+          <div class="row between mt-2" style="font-size:11px"><span>Fusion</span><span>52% · +$2,506</span></div>
+          <div class="row between" style="font-size:11px"><span>AI</span><span>28% · +$1,350</span></div>
+          <div class="row between" style="font-size:11px"><span>Beh</span><span>18% · +$864</span></div>
+          <div class="row between" style="font-size:11px"><span>Copy</span><span>2% · +$100</span></div>
+        </div>
+
+        <div class="card mt-3">
+          <h3 class="card-title">按联赛拆分</h3>
+          <div class="meter"><span class="lbl">英超</span><div class="bar"><i style="width:78%;background:var(--info)"></i></div><span class="v">$1,820</span></div>
+          <div class="meter"><span class="lbl">西甲</span><div class="bar"><i style="width:64%;background:var(--warn)"></i></div><span class="v">$1,420</span></div>
+          <div class="meter"><span class="lbl">德甲</span><div class="bar"><i style="width:52%;background:var(--yes)"></i></div><span class="v">$984</span></div>
+          <div class="meter"><span class="lbl">意甲</span><div class="bar"><i style="width:38%;background:var(--tl-edit)"></i></div><span class="v">$596</span></div>
+        </div>
+
+        <div class="card mt-3">
+          <h3 class="card-title">盈亏统计</h3>
+          <div class="row between" style="padding:4px 0;font-size:12px"><span>胜率</span><span class="up"><b>67.1%</b></span></div>
+          <div class="row between" style="padding:4px 0;font-size:12px"><span>总笔数</span><span>148</span></div>
+          <div class="row between" style="padding:4px 0;font-size:12px"><span>平均盈利</span><span class="up">+$186</span></div>
+          <div class="row between" style="padding:4px 0;font-size:12px"><span>平均亏损</span><span class="down">-$104</span></div>
+          <div class="row between" style="padding:4px 0;font-size:12px"><span>盈亏比</span><span>1.79</span></div>
+          <div class="row between" style="padding:4px 0;font-size:12px"><span>最大连胜</span><span>7</span></div>
+          <div class="row between" style="padding:4px 0;font-size:12px"><span>最大连亏</span><span>2</span></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<!-- Command palette -->
+<div class="palette" data-palette>
+  <div class="panel">
+    <div class="head">
+      <span>⌕</span>
+      <input placeholder="跳转到页面 / 执行命令…" />
+      <span class="kbd">ESC</span>
+    </div>
+    <div class="list">
+      <div class="row" data-href="dashboard.html"><span class="ic">▦</span><span class="lbl">Dashboard</span><span class="sec">交易</span></div>
+      <div class="row" data-href="markets.html"><span class="ic">⌗</span><span class="lbl">Markets</span><span class="sec">交易</span></div>
+      <div class="row" data-href="market-detail.html"><span class="ic">◎</span><span class="lbl">Market Detail</span><span class="sec">交易</span></div>
+      <div class="row" data-href="signals.html"><span class="ic">⚡</span><span class="lbl">Signals</span><span class="sec">交易</span></div>
+      <div class="row" data-href="arb-board.html"><span class="ic">⇄</span><span class="lbl">Arb Board</span><span class="sec">交易</span></div>
+      <div class="row" data-href="copy-trading.html"><span class="ic">⎘</span><span class="lbl">Copy Trading</span><span class="sec">交易</span></div>
+      <div class="row" data-href="llm-management.html"><span class="ic">⌬</span><span class="lbl">LLM Mgmt</span><span class="sec">研究</span></div>
+      <div class="row" data-href="model-lab.html"><span class="ic">◈</span><span class="lbl">Model Lab</span><span class="sec">研究</span></div>
+      <div class="row" data-href="bankroll.html"><span class="ic">$</span><span class="lbl">Bankroll</span><span class="sec">研究</span></div>
+      <div class="row" data-href="history.html"><span class="ic">⏱</span><span class="lbl">History</span><span class="sec">研究</span></div>
+      <div class="row" data-href="audit.html"><span class="ic">⎙</span><span class="lbl">Audit</span><span class="sec">系统</span></div>
+      <div class="row" data-href="notifications.html"><span class="ic">♪</span><span class="lbl">Notifications</span><span class="sec">系统</span></div>
+      <div class="row" data-href="settings.html"><span class="ic">⚙</span><span class="lbl">Settings</span><span class="sec">系统</span></div>
+      <div class="row" data-href="help.html"><span class="ic">?</span><span class="lbl">Help</span><span class="sec">系统</span></div>
+    </div>
+    <div class="foot">
+      <span>↑↓ 选择</span><span>⏎ 跳转</span><span>ESC 关闭</span>
+    </div>
+  </div>
+</div>
+
+<!-- Notifications panel -->
+<div class="notif" data-notif>
+  <div class="head">
+    <span class="t">通知</span>
+    <span class="close" data-open-notif>✕</span>
+  </div>
+  <div class="list">
+    <div class="item sev-warn">
+      <div class="row"><span class="t">z-score 越界</span><span class="time">2 分钟前</span></div>
+      <div class="d">曼城 vs 利物浦 · 当前 +2.4σ，预计回归中位 0.62</div>
+    </div>
+    <div class="item sev-info">
+      <div class="row"><span class="t">HHI 集中度上升</span><span class="time">8 分钟前</span></div>
+      <div class="d">Top 3 持仓占比突破 60%，关注聪明钱分歧</div>
+    </div>
+    <div class="item sev-error">
+      <div class="row"><span class="t">套利窗口关闭</span><span class="time">15 分钟前</span></div>
+      <div class="d">Polymarket ↔ Kalshi 利差已收敛至 0.4%</div>
+    </div>
+    <div class="item">
+      <div class="row"><span class="t">AI 辩论完成</span><span class="time">32 分钟前</span></div>
+      <div class="d">3 个模型达成一致：YES 67% (σ=0.04)</div>
+    </div>
+    <div class="item">
+      <div class="row"><span class="t">模型回测完成</span><span class="time">1 小时前</span></div>
+      <div class="d">近 30 天 Sharpe 1.84，最大回撤 6.2%</div>
+    </div>
+  </div>
+</div>
+<script src="_shell.js"></script>
+</body>
+</html>

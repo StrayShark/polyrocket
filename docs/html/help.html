@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Help · Polyrocket</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="_shared.css">
+<style>
+  .help-layout { display: grid; grid-template-columns: 240px 1fr; gap: 18px; }
+  @media (max-width: 1000px) { .help-layout { grid-template-columns: 1fr; } }
+  .help-nav { display: flex; flex-direction: column; gap: 2px; position: sticky; top: 76px; }
+  .help-nav a { padding: 10px 14px; border-radius: 8px; color: var(--tx-2); font-size: 13px; display: block; }
+  .help-nav a:hover { background: var(--bg-2); text-decoration: none; }
+  .help-nav a.active { background: var(--canvas-soft); color: var(--ink); box-shadow: inset 0 0 0 1px var(--hairline-strong); }
+  .kbd-table { width: 100%; }
+  .kbd-table td { padding: 8px 12px; border-bottom: 1px dashed var(--bd-1); font-size: 13px; }
+  .glossary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  @media (max-width: 800px) { .glossary-grid { grid-template-columns: 1fr; } }
+  .glossary-item { padding: 14px; background: var(--bg-2); border-radius: 10px; border: 1px solid var(--bd-1); }
+  .glossary-item h4 { margin: 0 0 4px; font-size: 13px; color: var(--tx-1); }
+  .glossary-item .abbr { font-family: var(--mono); color: var(--primary); font-size: 12px; margin-right: 6px; }
+  .faq-item { padding: 12px 0; border-bottom: 1px dashed var(--bd-1); }
+  .faq-item:last-child { border-bottom: 0; }
+  .faq-item h4 { margin: 0 0 6px; font-size: 14px; }
+  .faq-item p { color: var(--tx-2); margin: 0; font-size: 12px; line-height: 1.6; }
+  .code-block { background: var(--bg-2); border: 1px solid var(--bd-1); border-radius: 8px; padding: 10px 14px; font-family: var(--mono); font-size: 12px; color: var(--tx-2); overflow-x: auto; }
+</style>
+</head>
+<body>
+<script>
+  // Theme buttons → real seed file
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-theme-link]');
+    if (!a) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    location.href = '.seed-' + a.getAttribute('data-theme-link') + '.html';
+  }, true);
+</script>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand-pin">
+      <div class="logo">P</div>
+      <span class="wordmark">Polyrocket</span>
+      <button class="collapse-btn" data-toggle="sidebar" title="折叠">‹</button>
+    </div>
+    <div class="search">
+      <span>⌕</span>
+      <input placeholder="搜索比赛 / 市场 / 地址 / 交易员" data-open-palette readonly>
+      <span class="kbd">⌘K</span>
+    </div>
+    <div class="nav-scroll">
+      <div class="nav-section">
+        <div class="nav-section-title">交易</div>
+        <a class="nav-item" data-nav="dashboard.html" href="dashboard.html">▦ Dashboard</a>
+        <a class="nav-item" data-nav="markets.html" href="markets.html">⌗ Markets</a>
+        <a class="nav-item" data-nav="market-detail.html" href="market-detail.html">◎ Market Detail</a>
+        <a class="nav-item" data-nav="signals.html" href="signals.html">⚡ Signals <span class="badge">14</span></a>
+        <a class="nav-item" data-nav="arb-board.html" href="arb-board.html">⇄ Arb Board</a>
+        <a class="nav-item" data-nav="copy-trading.html" href="copy-trading.html">⎘ Copy</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">研究</div>
+        <a class="nav-item" data-nav="llm-management.html" href="llm-management.html">⌬ LLM Mgmt</a>
+        <a class="nav-item" data-nav="model-lab.html" href="model-lab.html">◈ Model Lab</a>
+        <a class="nav-item" data-nav="bankroll.html" href="bankroll.html">$ Bankroll</a>
+        <a class="nav-item" data-nav="history.html" href="history.html">⏱ History</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">系统</div>
+        <a class="nav-item" data-nav="audit.html" href="audit.html">⎙ Audit</a>
+        <a class="nav-item" data-nav="notifications.html" href="notifications.html">♪ Notifications <span class="badge">3</span></a>
+        <a class="nav-item" data-nav="settings.html" href="settings.html">⚙ Settings</a>
+        <a class="nav-item" data-nav="help.html" href="help.html">? Help</a>
+      </div>
+    </div>
+    <div class="sidebar-foot">
+      <button class="user-connect" data-connect>
+        <span class="ic">⏻</span>
+        <span class="label">连接 Polymarket</span>
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="engine-strip">
+      <span class="pulse"></span>
+      <span><strong>Help</strong> · 文档 · 快捷键 · 术语表 · 故障排查 · 反馈</span>
+    </div>
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">Help</h1>
+        <p class="page-sub">使用文档 · 常见问题 · 术语解释 · v1.0.0 · 最后更新 2026-01-12</p>
+      </div>
+      <div class="row">
+        <button class="btn">导出 PDF</button>
+        <button class="btn primary">提交反馈</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="search" style="max-width:none">
+        <span>⌕</span>
+        <input placeholder="搜索文档、快捷键、术语…" style="font-size:15px;padding:8px">
+      </div>
+    </div>
+
+    <div class="help-layout mt-3">
+      <div class="card" style="padding:14px">
+        <div class="help-nav">
+          <a class="active">▦ 入门</a>
+          <a>⌘ 快捷键</a>
+          <a>⌬ 术语表</a>
+          <a>◈ 故障排查</a>
+          <a>✉ 反馈</a>
+          <a>ⓘ 关于</a>
+        </div>
+      </div>
+
+      <div>
+        <!-- 入门 -->
+        <div class="card">
+          <h3 class="card-title">▦ 入门 · 5 分钟上手 Polyrocket</h3>
+          <p class="muted" style="font-size:13px;margin:6px 0 14px;line-height:1.7">
+            Polyrocket 是一个本地优先的足球预测市场交易终端，核心是基于"<strong>双引擎</strong>"的概率融合系统：
+          </p>
+          <ol style="font-size:13px;line-height:1.8;color:var(--tx-2)">
+            <li><strong>逻辑一 · 行为金融（Behavioral）</strong> — 通过 HHI 集中度、聪明钱分歧、z-score / Bollinger Bands 等行为金融指标对市场隐含概率做修正。</li>
+            <li><strong>逻辑二 · 多因子 AI（Multi-Factor AI）</strong> — 调用 LLM（GPT-4o / Claude / DeepSeek）综合阵容、伤停、xG、控球率、盘口等多因子，给出独立概率。</li>
+            <li><strong>融合（Fusion）</strong> — 两套引擎的输出通过贝叶斯加权 + 温度缩放融合成最终概率（fused）。</li>
+          </ol>
+          <p class="muted" style="font-size:13px;margin:14px 0 0;line-height:1.7">推荐开始顺序：① 完成 Onboarding ② 浏览 Dashboard 了解今日比赛 ③ 打开感兴趣的 Market Detail 查看融合概率 ④ 在 Bankroll 设置风险偏好 ⑤ 配置 Notifications。</p>
+        </div>
+
+        <!-- 快捷键 -->
+        <div class="card mt-3">
+          <h3 class="card-title">⌘ 快捷键</h3>
+          <p class="muted" style="font-size:12px;margin:6px 0 12px">按 <span class="kbd">⌘K</span> / <span class="kbd">Ctrl+K</span> 唤起命令面板，输入动作或跳转目的地。</p>
+
+          <table class="kbd-table">
+            <tbody>
+              <tr><td style="width:50%">命令面板</td><td><span class="kbd">⌘K</span> / <span class="kbd">Ctrl+K</span></td></tr>
+              <tr><td>跳到 Dashboard</td><td><span class="kbd">G</span> + <span class="kbd">D</span></td></tr>
+              <tr><td>跳到 Markets</td><td><span class="kbd">G</span> + <span class="kbd">M</span></td></tr>
+              <tr><td>跳到 Market Detail</td><td><span class="kbd">G</span> + <span class="kbd">K</span></td></tr>
+              <tr><td>跳到 Signals</td><td><span class="kbd">G</span> + <span class="kbd">S</span></td></tr>
+              <tr><td>跳到 Arb Board</td><td><span class="kbd">G</span> + <span class="kbd">A</span></td></tr>
+              <tr><td>跳到 LLM Mgmt</td><td><span class="kbd">G</span> + <span class="kbd">L</span></td></tr>
+              <tr><td>跳到 Bankroll</td><td><span class="kbd">G</span> + <span class="kbd">B</span></td></tr>
+              <tr><td>跳到 History</td><td><span class="kbd">G</span> + <span class="kbd">H</span></td></tr>
+              <tr><td>跳到 Audit</td><td><span class="kbd">G</span> + <span class="kbd">U</span></td></tr>
+              <tr><td>跳到 Settings</td><td><span class="kbd">G</span> + <span class="kbd">,</span></td></tr>
+              <tr><td>切换主题（Dark / Light / Matrix）</td><td><span class="kbd">T</span></td></tr>
+              <tr><td>折叠 / 展开侧栏</td><td><span class="kbd">[</span> / <span class="kbd">]</span></td></tr>
+              <tr><td>新建策略</td><td><span class="kbd">N</span> + <span class="kbd">S</span></td></tr>
+              <tr><td>确认下单</td><td><span class="kbd">⌘</span> + <span class="kbd">↵</span></td></tr>
+              <tr><td>取消 / 关闭弹窗</td><td><span class="kbd">Esc</span></td></tr>
+              <tr><td>快速搜索</td><td><span class="kbd">/</span></td></tr>
+              <tr><td>数字行 1-9 跳页</td><td><span class="kbd">1</span> ~ <span class="kbd">9</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 术语表 -->
+        <div class="card mt-3">
+          <h3 class="card-title">⌬ 术语表</h3>
+          <p class="muted" style="font-size:12px;margin:6px 0 12px">理解 Polyrocket 的核心概念。所有术语在文档和 UI 中均保留英文。</p>
+
+          <div class="glossary-grid">
+            <div class="glossary-item">
+              <h4><span class="abbr">HHI</span>Herfindahl-Hirschman Index</h4>
+              <p class="muted" style="font-size:12px;margin:0">衡量市场持仓集中度的指标。范围 0~1，越高表示某一方持仓占比越大，越低表示分散。&gt; 0.5 视为高度集中，需警惕操纵。</p>
+            </div>
+            <div class="glossary-item">
+              <h4><span class="abbr">z-score</span>标准分数</h4>
+              <p class="muted" style="font-size:12px;margin:0">价格偏离均值的标准化度量。z = (x - μ) / σ。|z| &gt; 2 视为越界，可触发均值回归（fade）信号。</p>
+            </div>
+            <div class="glossary-item">
+              <h4><span class="abbr">Bollinger</span>布林带</h4>
+              <p class="muted" style="font-size:12px;margin:0">以 20 日均线为中轨，上下 2σ 分别为上轨、下轨。价格触及下轨后 14 天内有 71% 概率回归中轨。</p>
+            </div>
+            <div class="glossary-item">
+              <h4><span class="abbr">Fuse</span>融合</h4>
+              <p class="muted" style="font-size:12px;margin:0">将 L1（市场）+ L2（行为金融）+ L3（AI）的概率通过贝叶斯加权合成最终概率，并附置信度。</p>
+            </div>
+            <div class="glossary-item">
+              <h4><span class="abbr">Edge</span>优势</h4>
+              <p class="muted" style="font-size:12px;margin:0">融合概率与市场隐含概率的差值（以 ¢ 计）。Edge &gt; 5¢ 视为显著优势，可考虑建仓。</p>
+            </div>
+            <div class="glossary-item">
+              <h4><span class="abbr">Brier</span>Brier Score</h4>
+              <p class="muted" style="font-size:12px;margin:0">概率校准指标。BS = (p - y)²，对所有结果求均值。0 为完美，越小越好。基准 BaseRate 模型约 0.25。</p>
+            </div>
+            <div class="glossary-item">
+              <h4><span class="abbr">Kelly</span>凯利公式</h4>
+              <p class="muted" style="margin:0;font-size:12px">f* = (bp - q) / b，其中 b 为盈亏比，p 为胜率，q = 1-p。建议使用 1/4 Kelly 以降低波动。</p>
+            </div>
+            <div class="glossary-item">
+              <h4><span class="abbr">Sharpe</span>夏普比率</h4>
+              <p class="muted" style="margin:0;font-size:12px">年化收益 / 年化波动率。&gt; 1 为合格，&gt; 2 为优秀。目标 ≥ 1.5。</p>
+            </div>
+            <div class="glossary-item">
+              <h4><span class="abbr">VaR</span>Value at Risk</h4>
+              <p class="muted" style="margin:0;font-size:12px">在给定置信水平下的最大可能损失。如 VaR(95%) = $1,840 意味着 95% 概率日亏损不超过 $1,840。</p>
+            </div>
+            <div class="glossary-item">
+              <h4><span class="abbr">MDD</span>最大回撤</h4>
+              <p class="muted" style="margin:0;font-size:12px">账户净值从峰值到谷底的最大跌幅。&lt; 15% 视为可控。</p>
+            </div>
+            <div class="glossary-item">
+              <h4><span class="abbr">xG</span>预期进球</h4>
+              <p class="muted" style="margin:0;font-size:12px">基于射门质量的统计模型给出的"应进球数"。xG 差 = 己方 xG - 对手 xG，正值越大越有利。</p>
+            </div>
+            <div class="glossary-item">
+              <h4><span class="abbr">LP</span>流动性提供者</h4>
+              <p class="muted" style="margin:0;font-size:12px">在 AMM 中提供资金以获得手续费的地址。LP 持仓变化是大单流入 / 流出的领先指标。</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 故障排查 -->
+        <div class="card mt-3">
+          <h3 class="card-title">◈ 故障排查</h3>
+
+          <div class="faq-item">
+            <h4>Q: 打开应用后侧栏一直显示 "Tauri 1.6 · connecting"</h4>
+            <p>检查 Tauri 后端是否启动。macOS: <code>launchctl list | grep polyrocket</code> · Windows: 查看任务管理器。如果未运行，删除 <code>~/.polyrocket/lock</code> 后重启应用。</p>
+          </div>
+          <div class="faq-item">
+            <h4>Q: LLM 调用一直超时</h4>
+            <p>前往「设置 → 网络」检查 HTTPS 代理设置。如果你使用公司网络，可能需要关闭代理；如果你使用 OpenAI API 但在中国大陆，请配置 VPN 出口。</p>
+          </div>
+          <div class="faq-item">
+            <h4>Q: 为什么我的融合概率和 AI 概率完全一样？</h4>
+            <p>说明 Behavioral 引擎和市场隐含完全一致。这种情况通常发生在开盘 30 分钟内，市场尚未形成分歧。可前往「Model Lab」查看校准曲线。</p>
+          </div>
+          <div class="faq-item">
+            <h4>Q: 下单一直 pending 不成交</h4>
+            <p>检查订单簿深度（Market Detail → 订单簿）。如果挂单价远离中价，订单会一直在队列末尾。可调整过期时间到 IOC 立即成交。</p>
+          </div>
+          <div class="faq-item">
+            <h4>Q: 主题切换后界面错乱</h4>
+            <p>这是 <code>_shell.js</code> 的小问题。刷新页面（<span class="kbd">⌘R</span>）即可。后续会修复为不刷新的渐变切换。</p>
+          </div>
+          <div class="faq-item">
+            <h4>Q: 数据如何重置？</h4>
+            <p>「设置 → 数据 → 重置所有数据」会清空 SQLite 数据库。系统会重新拉取链上事件。强烈建议先导出备份。</p>
+          </div>
+          <div class="faq-item">
+            <h4>Q: 如何完全离线运行？</h4>
+            <p>前往「LLM Mgmt」启用 Ollama / qwen2.5-7b。开启后系统会在网络故障时自动回退到本地模型。注意：本地模型准确度较云端低 8-12 pp。</p>
+          </div>
+        </div>
+
+        <!-- 反馈 -->
+        <div class="card mt-3">
+          <h3 class="card-title">✉ 反馈与支持</h3>
+          <p class="muted" style="font-size:12px;margin:6px 0 12px">遇到问题或有建议？通过以下渠道联系我们：</p>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <a class="btn" href="https://github.com/polyrocket/desktop/issues" target="_blank">GitHub Issues</a>
+            <a class="btn" href="https://discord.gg/polyrocket" target="_blank">Discord 社区</a>
+            <a class="btn" href="mailto:support@polyrocket.io">邮件支持</a>
+            <a class="btn" href="https://twitter.com/polyrocket" target="_blank">Twitter @polyrocket</a>
+          </div>
+          <div class="divider"></div>
+          <div class="form-row">
+            <label>直接发送反馈</label>
+            <textarea placeholder="描述你遇到的问题或建议…（最多 2,000 字）" style="height:80px;background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-1);border-radius:8px;padding:10px 12px;font:inherit"></textarea>
+          </div>
+          <div class="form-row">
+            <label>附件（可选）</label>
+            <input type="file">
+          </div>
+          <button class="btn primary">发送反馈</button>
+        </div>
+
+        <!-- 关于 -->
+        <div class="card mt-3">
+          <h3 class="card-title">ⓘ 关于 Polyrocket</h3>
+          <p class="muted" style="font-size:13px;line-height:1.7;margin:6px 0">
+            Polyrocket 是一个由社区驱动的开源项目，致力于为足球预测市场提供专业级的本地交易终端。
+            核心理念是"双引擎融合"：既不盲从群体智慧，也不迷信单一 AI，而是让两者互相校准。
+          </p>
+          <div class="code-block" style="margin-top:10px">
+$ polyrocket --version<br>
+polyrocket 1.0.0 (build 240, 2026-01-12)<br>
+$ polyrocket --features<br>
+&nbsp;&nbsp;twin-engine.fusion ✓<br>
+&nbsp;&nbsp;multi-factor.ai ✓<br>
+&nbsp;&nbsp;copy-trading ✓<br>
+&nbsp;&nbsp;audit.ed25519 ✓
+          </div>
+          <p class="muted" style="font-size:12px;margin:14px 0 0">特别感谢：所有贡献者、HHI 指标的学术先驱、Opta / FBref 的数据源，以及每一个在深夜测试版本的用户 ❤️</p>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<!-- Command palette -->
+<div class="palette" data-palette>
+  <div class="panel">
+    <div class="head">
+      <span>⌕</span>
+      <input placeholder="跳转到页面 / 执行命令…" />
+      <span class="kbd">ESC</span>
+    </div>
+    <div class="list">
+      <div class="row" data-href="dashboard.html"><span class="ic">▦</span><span class="lbl">Dashboard</span><span class="sec">交易</span></div>
+      <div class="row" data-href="markets.html"><span class="ic">⌗</span><span class="lbl">Markets</span><span class="sec">交易</span></div>
+      <div class="row" data-href="market-detail.html"><span class="ic">◎</span><span class="lbl">Market Detail</span><span class="sec">交易</span></div>
+      <div class="row" data-href="signals.html"><span class="ic">⚡</span><span class="lbl">Signals</span><span class="sec">交易</span></div>
+      <div class="row" data-href="arb-board.html"><span class="ic">⇄</span><span class="lbl">Arb Board</span><span class="sec">交易</span></div>
+      <div class="row" data-href="copy-trading.html"><span class="ic">⎘</span><span class="lbl">Copy Trading</span><span class="sec">交易</span></div>
+      <div class="row" data-href="llm-management.html"><span class="ic">⌬</span><span class="lbl">LLM Mgmt</span><span class="sec">研究</span></div>
+      <div class="row" data-href="model-lab.html"><span class="ic">◈</span><span class="lbl">Model Lab</span><span class="sec">研究</span></div>
+      <div class="row" data-href="bankroll.html"><span class="ic">$</span><span class="lbl">Bankroll</span><span class="sec">研究</span></div>
+      <div class="row" data-href="history.html"><span class="ic">⏱</span><span class="lbl">History</span><span class="sec">研究</span></div>
+      <div class="row" data-href="audit.html"><span class="ic">⎙</span><span class="lbl">Audit</span><span class="sec">系统</span></div>
+      <div class="row" data-href="notifications.html"><span class="ic">♪</span><span class="lbl">Notifications</span><span class="sec">系统</span></div>
+      <div class="row" data-href="settings.html"><span class="ic">⚙</span><span class="lbl">Settings</span><span class="sec">系统</span></div>
+      <div class="row" data-href="help.html"><span class="ic">?</span><span class="lbl">Help</span><span class="sec">系统</span></div>
+    </div>
+    <div class="foot">
+      <span>↑↓ 选择</span><span>⏎ 跳转</span><span>ESC 关闭</span>
+    </div>
+  </div>
+</div>
+
+<!-- Notifications panel -->
+<div class="notif" data-notif>
+  <div class="head">
+    <span class="t">通知</span>
+    <span class="close" data-open-notif>✕</span>
+  </div>
+  <div class="list">
+    <div class="item sev-warn">
+      <div class="row"><span class="t">z-score 越界</span><span class="time">2 分钟前</span></div>
+      <div class="d">曼城 vs 利物浦 · 当前 +2.4σ，预计回归中位 0.62</div>
+    </div>
+    <div class="item sev-info">
+      <div class="row"><span class="t">HHI 集中度上升</span><span class="time">8 分钟前</span></div>
+      <div class="d">Top 3 持仓占比突破 60%，关注聪明钱分歧</div>
+    </div>
+    <div class="item sev-error">
+      <div class="row"><span class="t">套利窗口关闭</span><span class="time">15 分钟前</span></div>
+      <div class="d">Polymarket ↔ Kalshi 利差已收敛至 0.4%</div>
+    </div>
+    <div class="item">
+      <div class="row"><span class="t">AI 辩论完成</span><span class="time">32 分钟前</span></div>
+      <div class="d">3 个模型达成一致：YES 67% (σ=0.04)</div>
+    </div>
+    <div class="item">
+      <div class="row"><span class="t">模型回测完成</span><span class="time">1 小时前</span></div>
+      <div class="d">近 30 天 Sharpe 1.84，最大回撤 6.2%</div>
+    </div>
+  </div>
+</div>
+<script src="_shell.js"></script>
+</body>
+</html>

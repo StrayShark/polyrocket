@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Audit · Polyrocket</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="_shared.css">
+<style>
+  .audit-row { display: grid; grid-template-columns: 150px 130px 200px 1fr 180px 100px 130px; gap: 8px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--bd-1); font-size: 12px; }
+  .audit-row.head { color: var(--tx-3); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; padding: 8px 12px; }
+  .audit-row:last-child { border-bottom: 0; }
+  .event-decision { background: var(--info-soft); color: var(--info); }
+  .event-trade { background: var(--yes-soft); color: var(--yes); }
+  .event-fund { background: var(--warn-soft); color: var(--warn); }
+  .event-config { background: rgba(192, 168, 221, 0.16); color: var(--tl-edit); }
+  .event-llm { background: var(--bg-3); color: var(--tx-2); }
+  .hash-cell { font-family: var(--mono); font-size: 11px; color: var(--tx-2); }
+  .verified { color: var(--yes); }
+  .not-verified { color: var(--tx-3); }
+  .info-banner { display: flex; gap: 14px; padding: 14px; background: var(--canvas-soft); border: 1px solid var(--hairline-strong); border-radius: var(--r-lg); }
+  .info-banner .ic { font-size: 28px; }
+  .info-banner h4 { margin: 0 0 4px; color: var(--info); }
+</style>
+</head>
+<body>
+<script>
+  // Theme buttons → real seed file
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-theme-link]');
+    if (!a) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    location.href = '.seed-' + a.getAttribute('data-theme-link') + '.html';
+  }, true);
+</script>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand-pin">
+      <div class="logo">P</div>
+      <span class="wordmark">Polyrocket</span>
+      <button class="collapse-btn" data-toggle="sidebar" title="折叠">‹</button>
+    </div>
+    <div class="search">
+      <span>⌕</span>
+      <input placeholder="搜索比赛 / 市场 / 地址 / 交易员" data-open-palette readonly>
+      <span class="kbd">⌘K</span>
+    </div>
+    <div class="nav-scroll">
+      <div class="nav-section">
+        <div class="nav-section-title">交易</div>
+        <a class="nav-item" data-nav="dashboard.html" href="dashboard.html">▦ Dashboard</a>
+        <a class="nav-item" data-nav="markets.html" href="markets.html">⌗ Markets</a>
+        <a class="nav-item" data-nav="market-detail.html" href="market-detail.html">◎ Market Detail</a>
+        <a class="nav-item" data-nav="signals.html" href="signals.html">⚡ Signals <span class="badge">14</span></a>
+        <a class="nav-item" data-nav="arb-board.html" href="arb-board.html">⇄ Arb Board</a>
+        <a class="nav-item" data-nav="copy-trading.html" href="copy-trading.html">⎘ Copy</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">研究</div>
+        <a class="nav-item" data-nav="llm-management.html" href="llm-management.html">⌬ LLM Mgmt</a>
+        <a class="nav-item" data-nav="model-lab.html" href="model-lab.html">◈ Model Lab</a>
+        <a class="nav-item" data-nav="bankroll.html" href="bankroll.html">$ Bankroll</a>
+        <a class="nav-item" data-nav="history.html" href="history.html">⏱ History</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">系统</div>
+        <a class="nav-item" data-nav="audit.html" href="audit.html">⎙ Audit</a>
+        <a class="nav-item" data-nav="notifications.html" href="notifications.html">♪ Notifications <span class="badge">3</span></a>
+        <a class="nav-item" data-nav="settings.html" href="settings.html">⚙ Settings</a>
+        <a class="nav-item" data-nav="help.html" href="help.html">? Help</a>
+      </div>
+    </div>
+    <div class="sidebar-foot">
+      <button class="user-connect" data-connect>
+        <span class="ic">⏻</span>
+        <span class="label">连接 Polymarket</span>
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="engine-strip">
+      <span class="pulse"></span>
+      <span><strong>Audit</strong> · 不可篡改日志 · 共 <b>12,486</b> 条 · 最新 7 天 <b>3,420</b> 条 · 完整性 100%</span>
+    </div>
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">Audit</h1>
+        <p class="page-sub">决策 / 交易 / 资金 / 配置 / 模型调用 · SHA-256 哈希链 · 端到端可验证</p>
+      </div>
+      <div class="row">
+        <button class="btn">验证全部</button>
+        <button class="btn primary">导出完整审计包</button>
+      </div>
+    </div>
+
+    <div class="info-banner">
+      <div class="ic">⎙</div>
+      <div>
+        <h4>不可篡改审计日志</h4>
+        <p class="muted" style="font-size:12px;margin:0">每条事件都用 Ed25519 签名 + SHA-256 哈希链链接。任何修改会导致后续哈希全部失效。日志可导出为 JSON Lines + Merkle 证明，可通过 <code>polyrocket verify</code> CLI 工具独立验证。</p>
+      </div>
+    </div>
+
+    <!-- KPI -->
+    <div class="grid grid-4 mt-4">
+      <div class="card kpi">
+        <div class="l">总事件数</div>
+        <div class="v"><span class="num">12,486</span></div>
+        <div class="d up">▲ 142 今日</div>
+      </div>
+      <div class="card kpi">
+        <div class="l">完整性</div>
+        <div class="v up"><span class="num">100%</span></div>
+        <div class="d up">Merkle root 验证通过</div>
+      </div>
+      <div class="card kpi">
+        <div class="l">签名算法</div>
+        <div class="v" style="font-size:16px"><span class="num">Ed25519</span></div>
+        <div class="d flat">SHA-256 链</div>
+      </div>
+      <div class="card kpi">
+        <div class="l">保留期</div>
+        <div class="v" style="font-size:16px"><span class="num">永久</span></div>
+        <div class="d flat">可手动归档 7 年+</div>
+      </div>
+    </div>
+
+    <div class="card mt-4">
+      <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center">
+        <span class="muted" style="font-size:12px">类型：</span>
+        <button class="seg-btn" style="background:var(--primary);color:var(--on-primary);border-color:transparent;padding:6px 12px;border-radius:8px;font-size:12px">全部</button>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px"><span class="event-decision" style="padding:1px 6px;border-radius:4px;font-size:10px">决策</span></button>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px"><span class="event-trade" style="padding:1px 6px;border-radius:4px;font-size:10px">交易</span></button>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px"><span class="event-fund" style="padding:1px 6px;border-radius:4px;font-size:10px">资金</span></button>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px"><span class="event-config" style="padding:1px 6px;border-radius:4px;font-size:10px">配置</span></button>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px"><span class="event-llm" style="padding:1px 6px;border-radius:4px;font-size:10px">LLM</span></button>
+
+        <span class="muted" style="font-size:12px;margin-left:8px">时间：</span>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px">1h</button>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px">24h</button>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px">7d</button>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px">30d</button>
+        <button class="seg-btn" style="background:var(--bg-2);border:1px solid var(--bd-1);color:var(--tx-2);padding:6px 12px;border-radius:8px;font-size:12px">All</button>
+
+        <div class="search" style="margin-left:auto;max-width:260px">
+          <span>⌕</span>
+          <input placeholder="按哈希 / 主体搜索…">
+        </div>
+      </div>
+    </div>
+
+    <div class="card mt-3" style="padding:0">
+      <div class="audit-row head">
+        <span>时间</span>
+        <span>事件类型</span>
+        <span>主体</span>
+        <span>详情</span>
+        <span>哈希</span>
+        <span>状态</span>
+        <span>操作</span>
+      </div>
+
+      <div class="audit-row">
+        <span class="muted">14:32:18.412</span>
+        <span><span class="event-decision" style="padding:1px 8px;border-radius:4px;font-size:10px">决策</span></span>
+        <span>fusion.engine</span>
+        <span>Fused=64¢ → 推荐买入 YES 曼城 vs 利物浦，Edge=+26¢，置信 87%</span>
+        <span class="hash-cell">9a3f42d1c7b1...</span>
+        <span class="verified">● 已验证</span>
+        <span><button class="btn" style="height:24px;padding:0 8px;font-size:11px">复制</button> <button class="btn" style="height:24px;padding:0 8px;font-size:11px">验证</button></span>
+      </div>
+
+      <div class="audit-row">
+        <span class="muted">14:32:19.103</span>
+        <span><span class="event-llm" style="padding:1px 8px;border-radius:4px;font-size:10px">LLM</span></span>
+        <span>llm.gpt-4o</span>
+        <span>调用完成 · input 1,248t / output 320t · $0.04 · 1.8s</span>
+        <span class="hash-cell">e8f34e29b8d2...</span>
+        <span class="verified">● 已验证</span>
+        <span><button class="btn" style="height:24px;padding:0 8px;font-size:11px">复制</button> <button class="btn" style="height:24px;padding:0 8px;font-size:11px">验证</button></span>
+      </div>
+
+      <div class="audit-row">
+        <span class="muted">14:32:21.844</span>
+        <span><span class="event-trade" style="padding:1px 8px;border-radius:4px;font-size:10px">交易</span></span>
+        <span>order.placed</span>
+        <span>BUY YES 曼城 5,200 @ 0.38 · USDC $1,976 · 滑点 0.3¢</span>
+        <span class="hash-cell">1fc62f81a4c2...</span>
+        <span class="verified">● 已验证</span>
+        <span><button class="btn" style="height:24px;padding:0 8px;font-size:11px">复制</button> <button class="btn" style="height:24px;padding:0 8px;font-size:11px">验证</button></span>
+      </div>
+
+      <div class="audit-row">
+        <span class="muted">14:28:12.044</span>
+        <span><span class="event-decision" style="padding:1px 8px;border-radius:4px;font-size:10px">决策</span></span>
+        <span>signal.beh</span>
+        <span>HHI 突变告警 · 拜仁 vs 多特 0.18 → 0.41 · 触发观望</span>
+        <span class="hash-cell">71a53c458e21...</span>
+        <span class="verified">● 已验证</span>
+        <span><button class="btn" style="height:24px;padding:0 8px;font-size:11px">复制</button> <button class="btn" style="height:24px;padding:0 8px;font-size:11px">验证</button></span>
+      </div>
+
+      <div class="audit-row">
+        <span class="muted">14:21:48.500</span>
+        <span><span class="event-trade" style="padding:1px 8px;border-radius:4px;font-size:10px">交易</span></span>
+        <span>order.filled</span>
+        <span>BUY YES 皇马 vs 巴萨 平局 2,400 @ 0.27 · USDC $648</span>
+        <span class="hash-cell">ae726f342bd8...</span>
+        <span class="verified">● 已验证</span>
+        <span><button class="btn" style="height:24px;padding:0 8px;font-size:11px">复制</button> <button class="btn" style="height:24px;padding:0 8px;font-size:11px">验证</button></span>
+      </div>
+
+      <div class="audit-row">
+        <span class="muted">14:18:03.200</span>
+        <span><span class="event-fund" style="padding:1px 8px;border-radius:4px;font-size:10px">资金</span></span>
+        <span>bankroll.update</span>
+        <span>资金变更 +$540 · 来源 settlement 切尔西 vs 曼联 · Kelly 0.43 调整</span>
+        <span class="hash-cell">8b196a4c2b71...</span>
+        <span class="verified">● 已验证</span>
+        <span><button class="btn" style="height:24px;padding:0 8px;font-size:11px">复制</button> <button class="btn" style="height:24px;padding:0 8px;font-size:11px">验证</button></span>
+      </div>
+
+      <div class="audit-row">
+        <span class="muted">14:09:21.018</span>
+        <span><span class="event-config" style="padding:1px 8px;border-radius:4px;font-size:10px">配置</span></span>
+        <span>risk.guard</span>
+        <span>单笔上限 5% → 6% · 资金 ≥ $25K 触发 · 实际未启用</span>
+        <span class="hash-cell">2c415e8a9d18...</span>
+        <span class="verified">● 已验证</span>
+        <span><button class="btn" style="height:24px;padding:0 8px;font-size:11px">复制</button> <button class="btn" style="height:24px;padding:0 8px;font-size:11px">验证</button></span>
+      </div>
+
+      <div class="audit-row">
+        <span class="muted">14:02:11.880</span>
+        <span><span class="event-decision" style="padding:1px 8px;border-radius:4px;font-size:10px">决策</span></span>
+        <span>arb.detect</span>
+        <span>检测到单边套利 · 阿森纳 vs 热刺 YES 52 + NO 47 = 99 · 利润 +1¢</span>
+        <span class="hash-cell">4e293a90c5d3...</span>
+        <span class="verified">● 已验证</span>
+        <span><button class="btn" style="height:24px;padding:0 8px;font-size:11px">复制</button> <button class="btn" style="height:24px;padding:0 8px;font-size:11px">验证</button></span>
+      </div>
+
+      <div class="audit-row">
+        <span class="muted">13:55:42.300</span>
+        <span><span class="event-llm" style="padding:1px 8px;border-radius:4px;font-size:10px">LLM</span></span>
+        <span>llm.claude-3.5</span>
+        <span>调用完成 · input 1,156t / output 280t · $0.06 · 2.1s</span>
+        <span class="hash-cell">b8d21fc6a3f4...</span>
+        <span class="verified">● 已验证</span>
+        <span><button class="btn" style="height:24px;padding:0 8px;font-size:11px">复制</button> <button class="btn" style="height:24px;padding:0 8px;font-size:11px">验证</button></span>
+      </div>
+
+      <div class="audit-row">
+        <span class="muted">13:48:12.000</span>
+        <span><span class="event-config" style="padding:1px 8px;border-radius:4px;font-size:10px">配置</span></span>
+        <span>model.add</span>
+        <span>添加模型 · deepseek-v3 · 输入 $0.14 / 输出 $0.28 · 中文语境</span>
+        <span class="hash-cell">c7b1e8f35ad9...</span>
+        <span class="verified">● 已验证</span>
+        <span><button class="btn" style="height:24px;padding:0 8px;font-size:11px">复制</button> <button class="btn" style="height:24px;padding:0 8px;font-size:11px">验证</button></span>
+      </div>
+
+      <div class="audit-row">
+        <span class="muted">13:40:08.512</span>
+        <span><span class="event-trade" style="padding:1px 8px;border-radius:4px;font-size:10px">交易</span></span>
+        <span>order.cancelled</span>
+        <span>CANCEL BUY NO 拜仁 vs 多特 1,200 @ 0.55 · 用户主动</span>
+        <span class="hash-cell">2f81a4c2d8b1...</span>
+        <span class="verified">● 已验证</span>
+        <span><button class="btn" style="height:24px;padding:0 8px;font-size:11px">复制</button> <button class="btn" style="height:24px;padding:0 8px;font-size:11px">验证</button></span>
+      </div>
+
+      <div class="row between" style="padding:14px 16px">
+        <span class="muted" style="font-size:12px">显示 11 / 3,420 今日事件</span>
+        <div class="row">
+          <button class="btn">← 上一页</button>
+          <button class="btn primary">下一页 →</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <h3 class="card-title">Merkle Root · 最近 24h</h3>
+      <p class="muted" style="font-size:12px;margin:6px 0 10px">每 1,000 条事件生成一个 Merkle Root，可在第三方系统独立验证日志完整性。</p>
+      <div class="hash-cell" style="background:var(--bg-2);padding:10px;border-radius:8px">3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b</div>
+      <div class="row mt-2" style="gap:8px">
+        <button class="btn">复制 Merkle Root</button>
+        <button class="btn">下载 Merkle 证明</button>
+        <button class="btn primary" style="margin-left:auto">用 CLI 工具验证</button>
+      </div>
+    </div>
+  </main>
+</div>
+<!-- Command palette -->
+<div class="palette" data-palette>
+  <div class="panel">
+    <div class="head">
+      <span>⌕</span>
+      <input placeholder="跳转到页面 / 执行命令…" />
+      <span class="kbd">ESC</span>
+    </div>
+    <div class="list">
+      <div class="row" data-href="dashboard.html"><span class="ic">▦</span><span class="lbl">Dashboard</span><span class="sec">交易</span></div>
+      <div class="row" data-href="markets.html"><span class="ic">⌗</span><span class="lbl">Markets</span><span class="sec">交易</span></div>
+      <div class="row" data-href="market-detail.html"><span class="ic">◎</span><span class="lbl">Market Detail</span><span class="sec">交易</span></div>
+      <div class="row" data-href="signals.html"><span class="ic">⚡</span><span class="lbl">Signals</span><span class="sec">交易</span></div>
+      <div class="row" data-href="arb-board.html"><span class="ic">⇄</span><span class="lbl">Arb Board</span><span class="sec">交易</span></div>
+      <div class="row" data-href="copy-trading.html"><span class="ic">⎘</span><span class="lbl">Copy Trading</span><span class="sec">交易</span></div>
+      <div class="row" data-href="llm-management.html"><span class="ic">⌬</span><span class="lbl">LLM Mgmt</span><span class="sec">研究</span></div>
+      <div class="row" data-href="model-lab.html"><span class="ic">◈</span><span class="lbl">Model Lab</span><span class="sec">研究</span></div>
+      <div class="row" data-href="bankroll.html"><span class="ic">$</span><span class="lbl">Bankroll</span><span class="sec">研究</span></div>
+      <div class="row" data-href="history.html"><span class="ic">⏱</span><span class="lbl">History</span><span class="sec">研究</span></div>
+      <div class="row" data-href="audit.html"><span class="ic">⎙</span><span class="lbl">Audit</span><span class="sec">系统</span></div>
+      <div class="row" data-href="notifications.html"><span class="ic">♪</span><span class="lbl">Notifications</span><span class="sec">系统</span></div>
+      <div class="row" data-href="settings.html"><span class="ic">⚙</span><span class="lbl">Settings</span><span class="sec">系统</span></div>
+      <div class="row" data-href="help.html"><span class="ic">?</span><span class="lbl">Help</span><span class="sec">系统</span></div>
+    </div>
+    <div class="foot">
+      <span>↑↓ 选择</span><span>⏎ 跳转</span><span>ESC 关闭</span>
+    </div>
+  </div>
+</div>
+
+<!-- Notifications panel -->
+<div class="notif" data-notif>
+  <div class="head">
+    <span class="t">通知</span>
+    <span class="close" data-open-notif>✕</span>
+  </div>
+  <div class="list">
+    <div class="item sev-warn">
+      <div class="row"><span class="t">z-score 越界</span><span class="time">2 分钟前</span></div>
+      <div class="d">曼城 vs 利物浦 · 当前 +2.4σ，预计回归中位 0.62</div>
+    </div>
+    <div class="item sev-info">
+      <div class="row"><span class="t">HHI 集中度上升</span><span class="time">8 分钟前</span></div>
+      <div class="d">Top 3 持仓占比突破 60%，关注聪明钱分歧</div>
+    </div>
+    <div class="item sev-error">
+      <div class="row"><span class="t">套利窗口关闭</span><span class="time">15 分钟前</span></div>
+      <div class="d">Polymarket ↔ Kalshi 利差已收敛至 0.4%</div>
+    </div>
+    <div class="item">
+      <div class="row"><span class="t">AI 辩论完成</span><span class="time">32 分钟前</span></div>
+      <div class="d">3 个模型达成一致：YES 67% (σ=0.04)</div>
+    </div>
+    <div class="item">
+      <div class="row"><span class="t">模型回测完成</span><span class="time">1 小时前</span></div>
+      <div class="d">近 30 天 Sharpe 1.84，最大回撤 6.2%</div>
+    </div>
+  </div>
+</div>
+<script src="_shell.js"></script>
+</body>
+</html>

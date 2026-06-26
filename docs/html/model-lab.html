@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Model Lab · Polyrocket</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="_shared.css">
+<style>
+  .lab-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--bd-1); margin-bottom: 14px; }
+  .lab-tabs a { padding: 10px 14px; color: var(--tx-2); font-size: 13px; border-bottom: 2px solid transparent; cursor: pointer; }
+  .lab-tabs a.active { color: var(--ink); border-color: var(--primary); }
+  .reliability-svg { width: 100%; height: 220px; background: var(--bg-2); border-radius: 8px; }
+  .factor-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--bd-1); }
+  .factor-row:last-child { border-bottom: 0; }
+  .factor-name { width: 130px; font-size: 12px; color: var(--tx-2); }
+  .slider { flex: 1; accent-color: var(--primary); }
+  .factor-val { width: 50px; text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .metric-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 8px; }
+  .metric-card { background: var(--bg-2); padding: 8px 12px; border-radius: 8px; }
+  .metric-card .l { font-size: 11px; color: var(--tx-3); }
+  .metric-card .v { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<script>
+  // Theme buttons → real seed file
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-theme-link]');
+    if (!a) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    location.href = '.seed-' + a.getAttribute('data-theme-link') + '.html';
+  }, true);
+</script>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand-pin">
+      <div class="logo">P</div>
+      <span class="wordmark">Polyrocket</span>
+      <button class="collapse-btn" data-toggle="sidebar" title="折叠">‹</button>
+    </div>
+    <div class="search">
+      <span>⌕</span>
+      <input placeholder="搜索比赛 / 市场 / 地址 / 交易员" data-open-palette readonly>
+      <span class="kbd">⌘K</span>
+    </div>
+    <div class="nav-scroll">
+      <div class="nav-section">
+        <div class="nav-section-title">交易</div>
+        <a class="nav-item" data-nav="dashboard.html" href="dashboard.html">▦ Dashboard</a>
+        <a class="nav-item" data-nav="markets.html" href="markets.html">⌗ Markets</a>
+        <a class="nav-item" data-nav="market-detail.html" href="market-detail.html">◎ Market Detail</a>
+        <a class="nav-item" data-nav="signals.html" href="signals.html">⚡ Signals <span class="badge">14</span></a>
+        <a class="nav-item" data-nav="arb-board.html" href="arb-board.html">⇄ Arb Board</a>
+        <a class="nav-item" data-nav="copy-trading.html" href="copy-trading.html">⎘ Copy</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">研究</div>
+        <a class="nav-item" data-nav="llm-management.html" href="llm-management.html">⌬ LLM Mgmt</a>
+        <a class="nav-item" data-nav="model-lab.html" href="model-lab.html">◈ Model Lab</a>
+        <a class="nav-item" data-nav="bankroll.html" href="bankroll.html">$ Bankroll</a>
+        <a class="nav-item" data-nav="history.html" href="history.html">⏱ History</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">系统</div>
+        <a class="nav-item" data-nav="audit.html" href="audit.html">⎙ Audit</a>
+        <a class="nav-item" data-nav="notifications.html" href="notifications.html">♪ Notifications <span class="badge">3</span></a>
+        <a class="nav-item" data-nav="settings.html" href="settings.html">⚙ Settings</a>
+        <a class="nav-item" data-nav="help.html" href="help.html">? Help</a>
+      </div>
+    </div>
+    <div class="sidebar-foot">
+      <button class="user-connect" data-connect>
+        <span class="ic">⏻</span>
+        <span class="label">连接 Polymarket</span>
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="engine-strip">
+      <span class="pulse"></span>
+      <span><strong>Model Lab</strong> · 概率校准 · 回测 · 因子权重实验 · 全部基于 <b>1,248</b> 场历史比赛</span>
+    </div>
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">Model Lab</h1>
+        <p class="page-sub">双引擎校准与回测 · Reliability / Brier / Log Loss / 因子实验</p>
+      </div>
+      <div class="row">
+        <button class="btn">导出报告</button>
+        <button class="btn primary">+ 新建实验</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="lab-tabs">
+        <a class="active">概率校准</a>
+        <a>回测</a>
+        <a>因子权重</a>
+      </div>
+
+      <!-- Tab 1: 概率校准 -->
+      <div>
+        <div class="grid grid-2" style="gap:24px">
+          <div>
+            <h3 class="card-title">Reliability Diagram</h3>
+            <p class="muted" style="font-size:12px;margin:4px 0 8px">横轴 = 预测概率（分 10 档）· 纵轴 = 实际发生频率。理想情况下应贴近对角线 y=x。</p>
+            <svg class="reliability-svg" viewBox="0 0 400 220">
+              <!-- grid -->
+              <g stroke="var(--bd-1)" stroke-width="1">
+                <line x1="40" y1="20" x2="40" y2="200"/>
+                <line x1="40" y1="200" x2="380" y2="200"/>
+                <line x1="40" y1="155" x2="380" y2="155" stroke-dasharray="2 4"/>
+                <line x1="40" y1="110" x2="380" y2="110" stroke-dasharray="2 4"/>
+                <line x1="40" y1="65" x2="380" y2="65" stroke-dasharray="2 4"/>
+                <line x1="40" y1="20" x2="380" y2="20" stroke-dasharray="2 4"/>
+              </g>
+              <!-- ideal diagonal -->
+              <line x1="40" y1="200" x2="380" y2="20" stroke="var(--tx-3)" stroke-dasharray="3 3" stroke-width="1"/>
+              <!-- reliability curve -->
+              <polyline points="58,194 95,180 132,165 170,140 208,118 245,98 282,76 320,60 357,42" fill="none" stroke="var(--brand)" stroke-width="2"/>
+              <!-- data points -->
+              <g fill="var(--brand)">
+                <circle cx="58" cy="194" r="3"/>
+                <circle cx="95" cy="180" r="3"/>
+                <circle cx="132" cy="165" r="3"/>
+                <circle cx="170" cy="140" r="3"/>
+                <circle cx="208" cy="118" r="3"/>
+                <circle cx="245" cy="98" r="3"/>
+                <circle cx="282" cy="76" r="3"/>
+                <circle cx="320" cy="60" r="3"/>
+                <circle cx="357" cy="42" r="3"/>
+              </g>
+              <!-- axis labels -->
+              <g fill="var(--tx-3)" font-size="10">
+                <text x="200" y="216" text-anchor="middle">预测概率</text>
+                <text x="14" y="110" text-anchor="middle" transform="rotate(-90 14 110)">实际频率</text>
+                <text x="40" y="216" text-anchor="middle">0%</text>
+                <text x="210" y="216" text-anchor="middle">50%</text>
+                <text x="380" y="216" text-anchor="middle">100%</text>
+                <text x="36" y="200" text-anchor="end">0%</text>
+                <text x="36" y="20" text-anchor="end">100%</text>
+              </g>
+            </svg>
+            <div class="metric-grid">
+              <div class="metric-card"><div class="l">Brier Score</div><div class="v">0.184</div></div>
+              <div class="metric-card"><div class="l">Log Loss</div><div class="v">0.612</div></div>
+              <div class="metric-card"><div class="l">ECE</div><div class="v up">0.024</div></div>
+              <div class="metric-card"><div class="l">MCE</div><div class="v">0.082</div></div>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="card-title">分模型校准</h3>
+            <table class="tbl" style="margin-top:6px">
+              <thead>
+                <tr><th>模型</th><th>Brier</th><th>Log Loss</th><th>ECE</th><th>样本</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><b>Fusion (3-LLM)</b></td><td class="num up">0.184</td><td class="num">0.612</td><td class="num up">0.024</td><td class="num">1,248</td></tr>
+                <tr><td>GPT-4o 单模型</td><td class="num">0.198</td><td class="num">0.638</td><td class="num">0.038</td><td class="num">1,248</td></tr>
+                <tr><td>Claude 3.5</td><td class="num">0.202</td><td class="num">0.645</td><td class="num">0.042</td><td class="num">1,248</td></tr>
+                <tr><td>DeepSeek V3</td><td class="num">0.218</td><td class="num">0.682</td><td class="num">0.051</td><td class="num">1,248</td></tr>
+                <tr><td>Market Implied</td><td class="num">0.241</td><td class="num">0.724</td><td class="num">0.078</td><td class="num">1,248</td></tr>
+                <tr><td>Behavioral (HHI)</td><td class="num">0.232</td><td class="num">0.701</td><td class="num">0.066</td><td class="num">1,248</td></tr>
+                <tr><td>Base Rate</td><td class="num down">0.250</td><td class="num down">0.693</td><td class="num">—</td><td class="num">1,248</td></tr>
+              </tbody>
+            </table>
+
+            <h3 class="card-title" style="margin-top:14px">温度缩放 (Temperature Scaling)</h3>
+            <div class="factor-row">
+              <span class="factor-name">温度 T</span>
+              <input type="range" class="slider" min="50" max="200" value="118">
+              <span class="factor-val">1.18</span>
+            </div>
+            <p class="muted" style="font-size:11px;margin:4px 0 0">T &gt; 1 让概率更平滑，&lt; 1 更尖锐。Fusion 模型 T=1.18 取得最优 ECE。</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 2: 回测 (preview) -->
+      <div class="card mt-3">
+        <h3 class="card-title">回测结果 · 近 90 天</h3>
+        <div class="grid grid-4 mt-2">
+          <div class="card kpi">
+            <div class="l">年化收益</div>
+            <div class="v up"><span class="num">+62.4%</span></div>
+            <div class="d up">▲ vs 基准 +44%</div>
+          </div>
+          <div class="card kpi">
+            <div class="l">Sharpe</div>
+            <div class="v up"><span class="num">1.84</span></div>
+            <div class="d up">▲ 0.32 较上周期</div>
+          </div>
+          <div class="card kpi">
+            <div class="l">最大回撤</div>
+            <div class="v"><span class="num">-8.6%</span></div>
+            <div class="d flat">峰值 2025-10-14</div>
+          </div>
+          <div class="card kpi">
+            <div class="l">胜率</div>
+            <div class="v up"><span class="num">67.1%</span></div>
+            <div class="d up">盈亏比 1.62</div>
+          </div>
+        </div>
+        <div class="mt-3">
+          <div class="muted" style="font-size:11px">净值曲线 · 90 日</div>
+          <canvas class="spark" data-spark='[10000,10200,10400,10350,10600,10800,10950,11200,11400,11600,11850,12100,12350,12600,12850,13000,13200,13400,13550,13700,13900,14000,13800,13900,14100,14400,14700,15000,15200,15400,15500,15300,15400,15600,15800,16000,16200,16500,16800,17000,17200,17450,17700,17900,18000,18100,18200,18300,18400,18500,18600,18700,18800,18900,19000,19100,19200,19300,19400,19500,19600,19700,19800,19900,20000,20100,20200,20300,20400,20500,20600,20700,20800,20900,21000,21100,21200,21300,21400,21500,21600,21700,21800,21900,22000,22100,22200,22300,22400,22500,22600,22700,22800]' style="height:120px"></canvas>
+        </div>
+      </div>
+
+      <!-- Tab 3: 因子权重 -->
+      <div class="card mt-3">
+        <h3 class="card-title">因子权重实验 · 实时合成概率</h3>
+        <p class="muted" style="font-size:12px;margin:6px 0 14px">拖动滑块观察每个因子对融合概率的影响。因子总和不要求 1，系统会自动归一化。</p>
+        <div class="grid grid-2" style="gap:24px">
+          <div>
+            <div class="factor-row">
+              <span class="factor-name">主场优势</span>
+              <input type="range" class="slider" min="0" max="100" value="60">
+              <span class="factor-val">0.60</span>
+            </div>
+            <div class="factor-row">
+              <span class="factor-name">阵容完整度</span>
+              <input type="range" class="slider" min="0" max="100" value="75">
+              <span class="factor-val">0.75</span>
+            </div>
+            <div class="factor-row">
+              <span class="factor-name">xG 差</span>
+              <input type="range" class="slider" min="0" max="100" value="80">
+              <span class="factor-val">0.80</span>
+            </div>
+            <div class="factor-row">
+              <span class="factor-name">控球率</span>
+              <input type="range" class="slider" min="0" max="100" value="45">
+              <span class="factor-val">0.45</span>
+            </div>
+            <div class="factor-row">
+              <span class="factor-name">历史交锋</span>
+              <input type="range" class="slider" min="0" max="100" value="55">
+              <span class="factor-val">0.55</span>
+            </div>
+            <div class="factor-row">
+              <span class="factor-name">伤停影响</span>
+              <input type="range" class="slider" min="0" max="100" value="40">
+              <span class="factor-val">0.40</span>
+            </div>
+            <div class="factor-row">
+              <span class="factor-name">赛程密度</span>
+              <input type="range" class="slider" min="0" max="100" value="35">
+              <span class="factor-val">0.35</span>
+            </div>
+            <div class="factor-row">
+              <span class="factor-name">盘口移动</span>
+              <input type="range" class="slider" min="0" max="100" value="70">
+              <span class="factor-val">0.70</span>
+            </div>
+            <div class="row mt-2">
+              <button class="btn">重置为默认</button>
+              <button class="btn primary" style="margin-left:auto">应用并保存</button>
+            </div>
+          </div>
+          <div>
+            <h3 class="card-title">曼城 vs 利物浦 · 实时合成</h3>
+            <div class="card" style="background:var(--bg-2);padding:14px;margin-top:8px">
+              <div class="muted" style="font-size:11px">L3 AI 合成概率</div>
+              <div class="fusion" data-fusion='{"market": 38, "fused": 67}' style="margin:8px 0"></div>
+              <div class="row between"><span class="muted" style="font-size:11px">Fused</span><span class="up" style="font-size:24px;font-weight:700"><span class="num">67%</span></span></div>
+              <div class="divider"></div>
+              <div class="row between" style="font-size:12px"><span>基本预测</span><span>61%</span></div>
+              <div class="row between" style="font-size:12px"><span>主力加权</span><span>+6%</span></div>
+              <div class="row between" style="font-size:12px"><span>赛程密度惩罚</span><span>-2%</span></div>
+              <div class="row between" style="font-size:12px"><span>盘口印证</span><span>+2%</span></div>
+            </div>
+            <div class="mt-3">
+              <div class="muted" style="font-size:11px">该权重下历史回测表现（90d）</div>
+              <div class="row" style="margin-top:6px">
+                <div class="metric-card" style="flex:1"><div class="l">年化</div><div class="v up">+58%</div></div>
+                <div class="metric-card" style="flex:1"><div class="l">Sharpe</div><div class="v">1.62</div></div>
+                <div class="metric-card" style="flex:1"><div class="l">胜率</div><div class="v">64%</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<!-- Command palette -->
+<div class="palette" data-palette>
+  <div class="panel">
+    <div class="head">
+      <span>⌕</span>
+      <input placeholder="跳转到页面 / 执行命令…" />
+      <span class="kbd">ESC</span>
+    </div>
+    <div class="list">
+      <div class="row" data-href="dashboard.html"><span class="ic">▦</span><span class="lbl">Dashboard</span><span class="sec">交易</span></div>
+      <div class="row" data-href="markets.html"><span class="ic">⌗</span><span class="lbl">Markets</span><span class="sec">交易</span></div>
+      <div class="row" data-href="market-detail.html"><span class="ic">◎</span><span class="lbl">Market Detail</span><span class="sec">交易</span></div>
+      <div class="row" data-href="signals.html"><span class="ic">⚡</span><span class="lbl">Signals</span><span class="sec">交易</span></div>
+      <div class="row" data-href="arb-board.html"><span class="ic">⇄</span><span class="lbl">Arb Board</span><span class="sec">交易</span></div>
+      <div class="row" data-href="copy-trading.html"><span class="ic">⎘</span><span class="lbl">Copy Trading</span><span class="sec">交易</span></div>
+      <div class="row" data-href="llm-management.html"><span class="ic">⌬</span><span class="lbl">LLM Mgmt</span><span class="sec">研究</span></div>
+      <div class="row" data-href="model-lab.html"><span class="ic">◈</span><span class="lbl">Model Lab</span><span class="sec">研究</span></div>
+      <div class="row" data-href="bankroll.html"><span class="ic">$</span><span class="lbl">Bankroll</span><span class="sec">研究</span></div>
+      <div class="row" data-href="history.html"><span class="ic">⏱</span><span class="lbl">History</span><span class="sec">研究</span></div>
+      <div class="row" data-href="audit.html"><span class="ic">⎙</span><span class="lbl">Audit</span><span class="sec">系统</span></div>
+      <div class="row" data-href="notifications.html"><span class="ic">♪</span><span class="lbl">Notifications</span><span class="sec">系统</span></div>
+      <div class="row" data-href="settings.html"><span class="ic">⚙</span><span class="lbl">Settings</span><span class="sec">系统</span></div>
+      <div class="row" data-href="help.html"><span class="ic">?</span><span class="lbl">Help</span><span class="sec">系统</span></div>
+    </div>
+    <div class="foot">
+      <span>↑↓ 选择</span><span>⏎ 跳转</span><span>ESC 关闭</span>
+    </div>
+  </div>
+</div>
+
+<!-- Notifications panel -->
+<div class="notif" data-notif>
+  <div class="head">
+    <span class="t">通知</span>
+    <span class="close" data-open-notif>✕</span>
+  </div>
+  <div class="list">
+    <div class="item sev-warn">
+      <div class="row"><span class="t">z-score 越界</span><span class="time">2 分钟前</span></div>
+      <div class="d">曼城 vs 利物浦 · 当前 +2.4σ，预计回归中位 0.62</div>
+    </div>
+    <div class="item sev-info">
+      <div class="row"><span class="t">HHI 集中度上升</span><span class="time">8 分钟前</span></div>
+      <div class="d">Top 3 持仓占比突破 60%，关注聪明钱分歧</div>
+    </div>
+    <div class="item sev-error">
+      <div class="row"><span class="t">套利窗口关闭</span><span class="time">15 分钟前</span></div>
+      <div class="d">Polymarket ↔ Kalshi 利差已收敛至 0.4%</div>
+    </div>
+    <div class="item">
+      <div class="row"><span class="t">AI 辩论完成</span><span class="time">32 分钟前</span></div>
+      <div class="d">3 个模型达成一致：YES 67% (σ=0.04)</div>
+    </div>
+    <div class="item">
+      <div class="row"><span class="t">模型回测完成</span><span class="time">1 小时前</span></div>
+      <div class="d">近 30 天 Sharpe 1.84，最大回撤 6.2%</div>
+    </div>
+  </div>
+</div>
+<script src="_shell.js"></script>
+</body>
+</html>

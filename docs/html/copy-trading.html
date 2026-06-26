@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Copy Trading · Polyrocket</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="_shared.css">
+<style>
+  .trader-row { display: grid; grid-template-columns: 60px 1fr 90px 100px 90px 100px 110px; gap: 10px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--bd-1); font-size: 12px; }
+  .trader-row.head { color: var(--tx-3); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; padding: 8px 14px; }
+  .trader-row:last-child { border-bottom: 0; }
+  .rank { font-size: 18px; font-weight: 700; color: var(--tx-3); text-align: center; }
+  .rank.gold { color: #f3b94c; }
+  .rank.silver { color: #c0c5d0; }
+  .rank.bronze { color: #c9892b; }
+  .addr-cell { display: flex; gap: 8px; align-items: center; }
+  .avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--primary); display: grid; place-items: center; color: var(--on-primary); font-size: 11px; font-weight: 700; }
+  .progress-mini { width: 80px; height: 6px; background: var(--bg-3); border-radius: 999px; overflow: hidden; }
+  .progress-mini > i { display: block; height: 100%; background: var(--yes); }
+  .copy-config-row { display: grid; grid-template-columns: 130px 110px 110px 110px 130px 60px; gap: 10px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--bd-1); font-size: 12px; }
+  .copy-config-row:last-child { border-bottom: 0; }
+</style>
+</head>
+<body>
+<script>
+  // Theme buttons → real seed file
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-theme-link]');
+    if (!a) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    location.href = '.seed-' + a.getAttribute('data-theme-link') + '.html';
+  }, true);
+</script>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand-pin">
+      <div class="logo">P</div>
+      <span class="wordmark">Polyrocket</span>
+      <button class="collapse-btn" data-toggle="sidebar" title="折叠">‹</button>
+    </div>
+    <div class="search">
+      <span>⌕</span>
+      <input placeholder="搜索比赛 / 市场 / 地址 / 交易员" data-open-palette readonly>
+      <span class="kbd">⌘K</span>
+    </div>
+    <div class="nav-scroll">
+      <div class="nav-section">
+        <div class="nav-section-title">交易</div>
+        <a class="nav-item" data-nav="dashboard.html" href="dashboard.html">▦ Dashboard</a>
+        <a class="nav-item" data-nav="markets.html" href="markets.html">⌗ Markets</a>
+        <a class="nav-item" data-nav="market-detail.html" href="market-detail.html">◎ Market Detail</a>
+        <a class="nav-item" data-nav="signals.html" href="signals.html">⚡ Signals <span class="badge">14</span></a>
+        <a class="nav-item" data-nav="arb-board.html" href="arb-board.html">⇄ Arb Board</a>
+        <a class="nav-item" data-nav="copy-trading.html" href="copy-trading.html">⎘ Copy</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">研究</div>
+        <a class="nav-item" data-nav="llm-management.html" href="llm-management.html">⌬ LLM Mgmt</a>
+        <a class="nav-item" data-nav="model-lab.html" href="model-lab.html">◈ Model Lab</a>
+        <a class="nav-item" data-nav="bankroll.html" href="bankroll.html">$ Bankroll</a>
+        <a class="nav-item" data-nav="history.html" href="history.html">⏱ History</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">系统</div>
+        <a class="nav-item" data-nav="audit.html" href="audit.html">⎙ Audit</a>
+        <a class="nav-item" data-nav="notifications.html" href="notifications.html">♪ Notifications <span class="badge">3</span></a>
+        <a class="nav-item" data-nav="settings.html" href="settings.html">⚙ Settings</a>
+        <a class="nav-item" data-nav="help.html" href="help.html">? Help</a>
+      </div>
+    </div>
+    <div class="sidebar-foot">
+      <button class="user-connect" data-connect>
+        <span class="ic">⏻</span>
+        <span class="label">连接 Polymarket</span>
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="engine-strip">
+      <span class="pulse"></span>
+      <span><strong>Copy Trading</strong> · 聪明钱榜单 · 我的跟单配置 <b>4</b> 个 · 7d 平均跟单收益 <b class="up">+6.2%</b></span>
+    </div>
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">Copy Trading</h1>
+        <p class="page-sub">聪明钱榜单 · 一键跟单 · 风险护栏 · 自动按比例分配</p>
+      </div>
+      <div class="row">
+        <button class="btn">导出</button>
+        <button class="btn primary">+ 添加跟单</button>
+      </div>
+    </div>
+
+    <!-- KPI -->
+    <div class="grid grid-4">
+      <div class="card kpi">
+        <div class="l">7d 跟单收益</div>
+        <div class="v up"><span class="num" data-num="624" data-fmt="usd">$0</span></div>
+        <div class="d up">▲ 1.8% 较上周</div>
+      </div>
+      <div class="card kpi">
+        <div class="l">跟单次数 (30d)</div>
+        <div class="v"><span class="num">38</span></div>
+        <div class="d up">▲ 8 较上月</div>
+      </div>
+      <div class="card kpi">
+        <div class="l">跟单命中率</div>
+        <div class="v up"><span class="num">71.4%</span></div>
+        <div class="d up">▲ 4.1 pp</div>
+      </div>
+      <div class="card kpi">
+        <div class="l">跟单总投入</div>
+        <div class="v"><span class="num">$8,420</span></div>
+        <div class="d flat">占资金 28.7%</div>
+      </div>
+    </div>
+
+    <div class="card mt-4">
+      <div class="between">
+        <h3 class="card-title">聪明钱榜单</h3>
+        <div class="row">
+          <span class="muted" style="font-size:12px">排序：</span>
+          <button class="btn ghost">30d PnL</button>
+          <button class="btn">胜率</button>
+          <button class="btn">夏普</button>
+          <button class="btn">跟单人数</button>
+        </div>
+      </div>
+      <p class="muted" style="font-size:12px;margin:6px 0 12px">基于 30 日滚动 ROI、胜率、最大回撤、跟单人数综合排序。标记 Smart 的钱包经过回测验证为稳定盈利。</p>
+
+      <div class="trader-row head">
+        <span>排名</span>
+        <span>钱包</span>
+        <span>胜率</span>
+        <span>30d PnL</span>
+        <span>7d 收益</span>
+        <span>跟单人</span>
+        <span>操作</span>
+      </div>
+
+      <div class="trader-row">
+        <span class="rank gold">1</span>
+        <span class="addr-cell"><div class="avatar">A</div><span class="addr">0x9a3f...42d1</span> <span class="chip yes">Smart</span></span>
+        <span><div class="progress-mini"><i style="width:72%"></i></div><span class="muted" style="font-size:11px">72%</span></span>
+        <span class="num up">+$8,420</span>
+        <span class="num up">+8.4%</span>
+        <span class="num">142</span>
+        <span><button class="btn primary">跟单</button> <button class="btn">详情</button></span>
+      </div>
+
+      <div class="trader-row">
+        <span class="rank silver">2</span>
+        <span class="addr-cell"><div class="avatar">B</div><span class="addr">0xc7b1...e8f3</span> <span class="chip yes">Smart</span></span>
+        <span><div class="progress-mini"><i style="width:68%"></i></div><span class="muted" style="font-size:11px">68%</span></span>
+        <span class="num up">+$6,180</span>
+        <span class="num up">+6.1%</span>
+        <span class="num">98</span>
+        <span><button class="btn primary">跟单</button> <button class="btn">详情</button></span>
+      </div>
+
+      <div class="trader-row">
+        <span class="rank bronze">3</span>
+        <span class="addr-cell"><div class="avatar">C</div><span class="addr">0xb8d2...1fc6</span> <span class="chip yes">Smart</span></span>
+        <span><div class="progress-mini"><i style="width:64%"></i></div><span class="muted" style="font-size:11px">64%</span></span>
+        <span class="num up">+$5,820</span>
+        <span class="num up">+4.8%</span>
+        <span class="num">76</span>
+        <span><button class="btn primary">跟单</button> <button class="btn">详情</button></span>
+      </div>
+
+      <div class="trader-row">
+        <span class="rank">4</span>
+        <span class="addr-cell"><div class="avatar">D</div><span class="addr">0x71a5...6b9d</span> <span class="chip yes">Smart</span></span>
+        <span><div class="progress-mini"><i style="width:62%"></i></div><span class="muted" style="font-size:11px">62%</span></span>
+        <span class="num up">+$4,920</span>
+        <span class="num up">+5.2%</span>
+        <span class="num">54</span>
+        <span><button class="btn primary">跟单</button> <button class="btn">详情</button></span>
+      </div>
+
+      <div class="trader-row">
+        <span class="rank">5</span>
+        <span class="addr-cell"><div class="avatar">E</div><span class="addr">0xae72...f0c4</span> <span class="chip yes">Smart</span></span>
+        <span><div class="progress-mini"><i style="width:60%"></i></div><span class="muted" style="font-size:11px">60%</span></span>
+        <span class="num up">+$3,640</span>
+        <span class="num up">+3.8%</span>
+        <span class="num">42</span>
+        <span><button class="btn primary">跟单</button> <button class="btn">详情</button></span>
+      </div>
+
+      <div class="trader-row">
+        <span class="rank">6</span>
+        <span class="addr-cell"><div class="avatar">F</div><span class="addr">0x5b32...0e29</span> <span class="chip warn">新</span></span>
+        <span><div class="progress-mini"><i style="width:58%"></i></div><span class="muted" style="font-size:11px">58%</span></span>
+        <span class="num up">+$2,840</span>
+        <span class="num up">+12.4%</span>
+        <span class="num">18</span>
+        <span><button class="btn">跟单</button> <button class="btn">详情</button></span>
+      </div>
+
+      <div class="trader-row">
+        <span class="rank">7</span>
+        <span class="addr-cell"><div class="avatar">G</div><span class="addr">0x9d18...7c41</span></span>
+        <span><div class="progress-mini"><i style="width:55%"></i></div><span class="muted" style="font-size:11px">55%</span></span>
+        <span class="num up">+$2,420</span>
+        <span class="num up">+2.6%</span>
+        <span class="num">32</span>
+        <span><button class="btn">跟单</button> <button class="btn">详情</button></span>
+      </div>
+
+      <div class="trader-row">
+        <span class="rank">8</span>
+        <span class="addr-cell"><div class="avatar">H</div><span class="addr">0x63a1...af0c</span> <span class="chip warn">新</span></span>
+        <span><div class="progress-mini"><i style="width:53%"></i></div><span class="muted" style="font-size:11px">53%</span></span>
+        <span class="num up">+$1,820</span>
+        <span class="num up">+9.2%</span>
+        <span class="num">12</span>
+        <span><button class="btn">跟单</button> <button class="btn">详情</button></span>
+      </div>
+
+      <div class="trader-row">
+        <span class="rank">9</span>
+        <span class="addr-cell"><div class="avatar">I</div><span class="addr">0xe4a8...2b71</span></span>
+        <span><div class="progress-mini"><i style="width:51%"></i></div><span class="muted" style="font-size:11px">51%</span></span>
+        <span class="num up">+$1,420</span>
+        <span class="num up">+1.8%</span>
+        <span class="num">26</span>
+        <span><button class="btn">跟单</button> <button class="btn">详情</button></span>
+      </div>
+
+      <div class="trader-row">
+        <span class="rank">10</span>
+        <span class="addr-cell"><div class="avatar">J</div><span class="addr">0x2c41...5e8a</span></span>
+        <span><div class="progress-mini"><i style="width:50%"></i></div><span class="muted" style="font-size:11px">50%</span></span>
+        <span class="num up">+$1,180</span>
+        <span class="num down">-0.6%</span>
+        <span class="num">21</span>
+        <span><button class="btn">跟单</button> <button class="btn">详情</button></span>
+      </div>
+
+      <div class="row between mt-3">
+        <span class="muted" style="font-size:12px">显示 10 / 1,284 个交易员</span>
+        <div class="row">
+          <button class="btn">← 上一页</button>
+          <button class="btn primary">下一页 →</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <h3 class="card-title">我的跟单配置</h3>
+      <p class="muted" style="font-size:12px;margin:6px 0 12px">每个被跟单交易员可设置：分配比例、单笔上限、跟单时间窗。系统会自动按其下单规模按比例跟随。</p>
+
+      <div class="copy-config-row" style="background:var(--bg-2);font-size:10px;color:var(--tx-3);text-transform:uppercase;letter-spacing:0.06em">
+        <span>跟单对象</span>
+        <span>分配比例</span>
+        <span>单笔上限</span>
+        <span>跟单时间窗</span>
+        <span>风险护栏</span>
+        <span>暂停</span>
+      </div>
+
+      <div class="copy-config-row">
+        <span><div class="avatar" style="display:inline-block;vertical-align:middle;margin-right:6px">A</div><b>0x9a3f...42d1</b></span>
+        <span class="num"><b>20%</b> / $5,840</span>
+        <span class="num">$200</span>
+        <span class="num">赛前 6h</span>
+        <span><span class="chip yes">已开启</span></span>
+        <div class="switch"></div>
+      </div>
+
+      <div class="copy-config-row">
+        <span><div class="avatar" style="display:inline-block;vertical-align:middle;margin-right:6px">B</div><b>0xc7b1...e8f3</b></span>
+        <span class="num"><b>15%</b> / $4,380</span>
+        <span class="num">$150</span>
+        <span class="num">赛前 4h</span>
+        <span><span class="chip yes">已开启</span></span>
+        <div class="switch"></div>
+      </div>
+
+      <div class="copy-config-row">
+        <span><div class="avatar" style="display:inline-block;vertical-align:middle;margin-right:6px">C</div><b>0xb8d2...1fc6</b></span>
+        <span class="num"><b>10%</b> / $2,920</span>
+        <span class="num">$100</span>
+        <span class="num">全天</span>
+        <span><span class="chip warn">限流</span></span>
+        <div class="switch"></div>
+      </div>
+
+      <div class="copy-config-row">
+        <span><div class="avatar" style="display:inline-block;vertical-align:middle;margin-right:6px">D</div><b>0x71a5...6b9d</b></span>
+        <span class="num"><b>5%</b> / $1,460</span>
+        <span class="num">$50</span>
+        <span class="num">赛前 2h</span>
+        <span><span class="chip no">已暂停</span></span>
+        <div class="switch on"></div>
+      </div>
+
+      <div class="row between mt-3">
+        <div class="muted" style="font-size:12px">总跟单配置占资金 <b>28.7%</b> · 距上限 50% 还有 21.3%</div>
+        <div class="row">
+          <button class="btn">恢复默认</button>
+          <button class="btn primary">保存配置</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<!-- Command palette -->
+<div class="palette" data-palette>
+  <div class="panel">
+    <div class="head">
+      <span>⌕</span>
+      <input placeholder="跳转到页面 / 执行命令…" />
+      <span class="kbd">ESC</span>
+    </div>
+    <div class="list">
+      <div class="row" data-href="dashboard.html"><span class="ic">▦</span><span class="lbl">Dashboard</span><span class="sec">交易</span></div>
+      <div class="row" data-href="markets.html"><span class="ic">⌗</span><span class="lbl">Markets</span><span class="sec">交易</span></div>
+      <div class="row" data-href="market-detail.html"><span class="ic">◎</span><span class="lbl">Market Detail</span><span class="sec">交易</span></div>
+      <div class="row" data-href="signals.html"><span class="ic">⚡</span><span class="lbl">Signals</span><span class="sec">交易</span></div>
+      <div class="row" data-href="arb-board.html"><span class="ic">⇄</span><span class="lbl">Arb Board</span><span class="sec">交易</span></div>
+      <div class="row" data-href="copy-trading.html"><span class="ic">⎘</span><span class="lbl">Copy Trading</span><span class="sec">交易</span></div>
+      <div class="row" data-href="llm-management.html"><span class="ic">⌬</span><span class="lbl">LLM Mgmt</span><span class="sec">研究</span></div>
+      <div class="row" data-href="model-lab.html"><span class="ic">◈</span><span class="lbl">Model Lab</span><span class="sec">研究</span></div>
+      <div class="row" data-href="bankroll.html"><span class="ic">$</span><span class="lbl">Bankroll</span><span class="sec">研究</span></div>
+      <div class="row" data-href="history.html"><span class="ic">⏱</span><span class="lbl">History</span><span class="sec">研究</span></div>
+      <div class="row" data-href="audit.html"><span class="ic">⎙</span><span class="lbl">Audit</span><span class="sec">系统</span></div>
+      <div class="row" data-href="notifications.html"><span class="ic">♪</span><span class="lbl">Notifications</span><span class="sec">系统</span></div>
+      <div class="row" data-href="settings.html"><span class="ic">⚙</span><span class="lbl">Settings</span><span class="sec">系统</span></div>
+      <div class="row" data-href="help.html"><span class="ic">?</span><span class="lbl">Help</span><span class="sec">系统</span></div>
+    </div>
+    <div class="foot">
+      <span>↑↓ 选择</span><span>⏎ 跳转</span><span>ESC 关闭</span>
+    </div>
+  </div>
+</div>
+
+<!-- Notifications panel -->
+<div class="notif" data-notif>
+  <div class="head">
+    <span class="t">通知</span>
+    <span class="close" data-open-notif>✕</span>
+  </div>
+  <div class="list">
+    <div class="item sev-warn">
+      <div class="row"><span class="t">z-score 越界</span><span class="time">2 分钟前</span></div>
+      <div class="d">曼城 vs 利物浦 · 当前 +2.4σ，预计回归中位 0.62</div>
+    </div>
+    <div class="item sev-info">
+      <div class="row"><span class="t">HHI 集中度上升</span><span class="time">8 分钟前</span></div>
+      <div class="d">Top 3 持仓占比突破 60%，关注聪明钱分歧</div>
+    </div>
+    <div class="item sev-error">
+      <div class="row"><span class="t">套利窗口关闭</span><span class="time">15 分钟前</span></div>
+      <div class="d">Polymarket ↔ Kalshi 利差已收敛至 0.4%</div>
+    </div>
+    <div class="item">
+      <div class="row"><span class="t">AI 辩论完成</span><span class="time">32 分钟前</span></div>
+      <div class="d">3 个模型达成一致：YES 67% (σ=0.04)</div>
+    </div>
+    <div class="item">
+      <div class="row"><span class="t">模型回测完成</span><span class="time">1 小时前</span></div>
+      <div class="d">近 30 天 Sharpe 1.84，最大回撤 6.2%</div>
+    </div>
+  </div>
+</div>
+<script src="_shell.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Polyrocket · Theme</title>
+<script>
+  localStorage.setItem('polyrocket.theme', 'matrix');
+  localStorage.setItem('polyrocket.first-run-done', '1');
+  localStorage.setItem('polyrocket.sidebar.collapsed', '0');
+  const back = new URL(document.referrer || location.href).pathname.split('/').pop();
+  const target = back && back.endsWith('.html') ? back : 'dashboard.html';
+  location.replace(target + location.hash);
+</script>

@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Arb Board · Polyrocket</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="_shared.css">
+<style>
+  .arb-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--bd-1); margin-bottom: 14px; }
+  .arb-tabs a { padding: 10px 14px; color: var(--tx-2); font-size: 13px; border-bottom: 2px solid transparent; cursor: pointer; }
+  .arb-tabs a.active { color: var(--tx-1); border-color: var(--c-arb); }
+  .platform-tag { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; }
+  .poly { background: var(--info-soft); color: var(--info); }
+  .kalshi { background: var(--warn-soft); color: var(--warn); }
+  .predict { background: var(--yes-soft); color: var(--yes); }
+  .arb-row { display: grid; grid-template-columns: 1fr 80px 80px 80px 80px 80px 100px 100px; gap: 8px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--bd-1); font-size: 12px; }
+  .arb-row.head { color: var(--tx-3); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; padding: 8px 14px; }
+  .arb-row:last-child { border-bottom: 0; }
+  .profit-pos { color: var(--yes); font-weight: 600; }
+  .profit-neg { color: var(--no); font-weight: 600; }
+  .risk-low { background: var(--yes-soft); color: var(--yes); padding: 1px 8px; border-radius: 999px; font-size: 10px; }
+  .risk-med { background: var(--warn-soft); color: var(--warn); padding: 1px 8px; border-radius: 999px; font-size: 10px; }
+  .risk-high { background: var(--no-soft); color: var(--no); padding: 1px 8px; border-radius: 999px; font-size: 10px; }
+</style>
+</head>
+<body>
+<script>
+  // Theme buttons → real seed file
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-theme-link]');
+    if (!a) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    location.href = '.seed-' + a.getAttribute('data-theme-link') + '.html';
+  }, true);
+</script>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand-pin">
+      <div class="logo">P</div>
+      <span class="wordmark">Polyrocket</span>
+      <button class="collapse-btn" data-toggle="sidebar" title="折叠">‹</button>
+    </div>
+    <div class="search">
+      <span>⌕</span>
+      <input placeholder="搜索比赛 / 市场 / 地址 / 交易员" data-open-palette readonly>
+      <span class="kbd">⌘K</span>
+    </div>
+    <div class="nav-scroll">
+      <div class="nav-section">
+        <div class="nav-section-title">交易</div>
+        <a class="nav-item" data-nav="dashboard.html" href="dashboard.html">▦ Dashboard</a>
+        <a class="nav-item" data-nav="markets.html" href="markets.html">⌗ Markets</a>
+        <a class="nav-item" data-nav="market-detail.html" href="market-detail.html">◎ Market Detail</a>
+        <a class="nav-item" data-nav="signals.html" href="signals.html">⚡ Signals <span class="badge">14</span></a>
+        <a class="nav-item" data-nav="arb-board.html" href="arb-board.html">⇄ Arb Board</a>
+        <a class="nav-item" data-nav="copy-trading.html" href="copy-trading.html">⎘ Copy</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">研究</div>
+        <a class="nav-item" data-nav="llm-management.html" href="llm-management.html">⌬ LLM Mgmt</a>
+        <a class="nav-item" data-nav="model-lab.html" href="model-lab.html">◈ Model Lab</a>
+        <a class="nav-item" data-nav="bankroll.html" href="bankroll.html">$ Bankroll</a>
+        <a class="nav-item" data-nav="history.html" href="history.html">⏱ History</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">系统</div>
+        <a class="nav-item" data-nav="audit.html" href="audit.html">⎙ Audit</a>
+        <a class="nav-item" data-nav="notifications.html" href="notifications.html">♪ Notifications <span class="badge">3</span></a>
+        <a class="nav-item" data-nav="settings.html" href="settings.html">⚙ Settings</a>
+        <a class="nav-item" data-nav="help.html" href="help.html">? Help</a>
+      </div>
+    </div>
+    <div class="sidebar-foot">
+      <button class="user-connect" data-connect>
+        <span class="ic">⏻</span>
+        <span class="label">连接 Polymarket</span>
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="engine-strip">
+      <span class="pulse"></span>
+      <span><strong>套利面板</strong> · 单边 8 个机会 · 跨平台 4 个 · 时间套利 3 个 · 24h 已捕获利润 <b class="up">$1,284</b></span>
+    </div>
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">Arb Board</h1>
+        <p class="page-sub">单边市场 / 跨平台 / 时间套利 · 自动监控 · 风险评分</p>
+      </div>
+      <div class="row">
+        <button class="btn">配置</button>
+        <button class="btn primary">开启自动套利</button>
+      </div>
+    </div>
+
+    <!-- KPI -->
+    <div class="grid grid-4">
+      <div class="card kpi">
+        <div class="l">24h 套利利润</div>
+        <div class="v up"><span class="num" data-num="1284" data-fmt="usd">$0</span></div>
+        <div class="d up">▲ 32.4% 较 7 日均值</div>
+      </div>
+      <div class="card kpi">
+        <div class="l">套利成功率</div>
+        <div class="v up"><span class="num">82.6%</span></div>
+        <div class="d up">▲ 3.1 pp 较上周期</div>
+      </div>
+      <div class="card kpi">
+        <div class="l">活跃机会</div>
+        <div class="v"><span class="num">15</span></div>
+        <div class="d flat">单边 8 · 跨平台 4 · 时间 3</div>
+      </div>
+      <div class="card kpi">
+        <div class="l">平均利润</div>
+        <div class="v up"><span class="num">2.4¢</span></div>
+        <div class="d flat">—— 区间 0.4 ~ 5.2¢</div>
+      </div>
+    </div>
+
+    <div class="card mt-4">
+      <div class="arb-tabs">
+        <a class="active">单边市场 (8)</a>
+        <a>跨平台 (4)</a>
+        <a>时间套利 (3)</a>
+      </div>
+
+      <!-- Tab 1: 单边 -->
+      <div>
+        <p class="muted" style="font-size:12px;margin-bottom:12px">当 YES 价 + NO 价 &lt; 1.0 时，买入双方后到期可锁定 (1 - YES - NO) 的无风险利润。下方列出当前所有未消解机会。</p>
+
+        <div class="arb-row head">
+          <span>市场</span>
+          <span>YES</span>
+          <span>NO</span>
+          <span>合计</span>
+          <span>利润</span>
+          <span>流动性</span>
+          <span>风险</span>
+          <span>操作</span>
+        </div>
+
+        <div class="arb-row">
+          <span><b>阿森纳 vs 热刺 · 热刺胜</b></span>
+          <span class="num">52¢</span>
+          <span class="num">47¢</span>
+          <span class="num">99¢</span>
+          <span class="num profit-pos">+1.0¢</span>
+          <span class="num">$348K</span>
+          <span><span class="risk-low">低</span></span>
+          <span><button class="btn primary">下单</button></span>
+        </div>
+
+        <div class="arb-row">
+          <span><b>巴黎 vs 马赛 · 巴黎胜</b></span>
+          <span class="num">52¢</span>
+          <span class="num">45¢</span>
+          <span class="num">97¢</span>
+          <span class="num profit-pos">+3.0¢</span>
+          <span class="num">$64.8K</span>
+          <span><span class="risk-med">中</span></span>
+          <span><button class="btn primary">下单</button></span>
+        </div>
+
+        <div class="arb-row">
+          <span><b>本菲卡 vs 波尔图 · 本菲卡胜</b></span>
+          <span class="num">55¢</span>
+          <span class="num">43¢</span>
+          <span class="num">98¢</span>
+          <span class="num profit-pos">+2.0¢</span>
+          <span class="num">$38.4K</span>
+          <span><span class="risk-med">中</span></span>
+          <span><button class="btn primary">下单</button></span>
+        </div>
+
+        <div class="arb-row">
+          <span><b>纽卡斯尔 vs 维拉 · 纽卡斯尔胜</b></span>
+          <span class="num">35¢</span>
+          <span class="num">62¢</span>
+          <span class="num">97¢</span>
+          <span class="num profit-pos">+3.0¢</span>
+          <span class="num">$42.8K</span>
+          <span><span class="risk-low">低</span></span>
+          <span><button class="btn primary">下单</button></span>
+        </div>
+
+        <div class="arb-row">
+          <span><b>埃因霍温 vs 阿贾克斯 · 埃因霍温胜</b></span>
+          <span class="num">48¢</span>
+          <span class="num">49¢</span>
+          <span class="num">97¢</span>
+          <span class="num profit-pos">+3.0¢</span>
+          <span class="num">$18.2K</span>
+          <span><span class="risk-med">中</span></span>
+          <span><button class="btn primary">下单</button></span>
+        </div>
+
+        <div class="arb-row">
+          <span><b>凯尔特人 vs 流浪者 · 凯尔特人胜</b></span>
+          <span class="num">60¢</span>
+          <span class="num">38¢</span>
+          <span class="num">98¢</span>
+          <span class="num profit-pos">+2.0¢</span>
+          <span class="num">$12.4K</span>
+          <span><span class="risk-med">中</span></span>
+          <span><button class="btn">下单</button></span>
+        </div>
+
+        <div class="arb-row">
+          <span><b>布鲁日 vs 标准列日 · 布鲁日胜</b></span>
+          <span class="num">44¢</span>
+          <span class="num">54¢</span>
+          <span class="num">98¢</span>
+          <span class="num profit-pos">+2.0¢</span>
+          <span class="num">$8.6K</span>
+          <span><span class="risk-high">高</span></span>
+          <span><button class="btn" disabled style="opacity:.5">下单</button></span>
+        </div>
+
+        <div class="arb-row">
+          <span><b>罗马 vs 拉齐奥 · 平局</b></span>
+          <span class="num">28¢</span>
+          <span class="num">71¢</span>
+          <span class="num">99¢</span>
+          <span class="num profit-pos">+1.0¢</span>
+          <span class="num">$22.0K</span>
+          <span><span class="risk-low">低</span></span>
+          <span><button class="btn">下单</button></span>
+        </div>
+      </div>
+
+      <div class="row between mt-3">
+        <span class="muted" style="font-size:12px">8 个机会 · 总潜在利润 $1,840 · 平均 $230</span>
+        <div class="row">
+          <button class="btn">刷新</button>
+          <button class="btn primary">全选执行</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <h3 class="card-title">自动套利配置</h3>
+      <p class="muted" style="font-size:12px;margin:6px 0 14px">启用后，系统会在机会出现时自动下单。需要预先设置风险阈值与单笔上限。</p>
+
+      <div class="grid grid-2">
+        <div>
+          <div class="row between" style="padding:8px 0;border-bottom:1px dashed var(--bd-1)">
+            <span><b>单边市场套利</b></span><div class="switch on"></div>
+          </div>
+          <div class="row between" style="padding:8px 0;border-bottom:1px dashed var(--bd-1)">
+            <span><b>跨平台套利</b></span><div class="switch on"></div>
+          </div>
+          <div class="row between" style="padding:8px 0;border-bottom:1px dashed var(--bd-1)">
+            <span><b>时间套利</b></span><div class="switch"></div>
+          </div>
+          <div class="row between" style="padding:8px 0">
+            <span><b>跟单触发套利</b></span><div class="switch on"></div>
+          </div>
+        </div>
+        <div>
+          <div class="row between" style="padding:6px 0;font-size:12px"><span>最小利润阈值</span><span><b>1.0¢</b></span></div>
+          <div class="row between" style="padding:6px 0;font-size:12px"><span>单笔最大金额</span><span><b>$500</b></span></div>
+          <div class="row between" style="padding:6px 0;font-size:12px"><span>单日总敞口上限</span><span><b>$2,000</b></span></div>
+          <div class="row between" style="padding:6px 0;font-size:12px"><span>允许的最大风险</span><span><b>中</b></span></div>
+          <div class="row between" style="padding:6px 0;font-size:12px"><span>滑点容忍</span><span><b>0.3¢</b></span></div>
+        </div>
+      </div>
+      <div class="row mt-3">
+        <button class="btn">恢复默认</button>
+        <button class="btn primary" style="margin-left:auto">保存配置</button>
+      </div>
+    </div>
+  </main>
+</div>
+<!-- Command palette -->
+<div class="palette" data-palette>
+  <div class="panel">
+    <div class="head">
+      <span>⌕</span>
+      <input placeholder="跳转到页面 / 执行命令…" />
+      <span class="kbd">ESC</span>
+    </div>
+    <div class="list">
+      <div class="row" data-href="dashboard.html"><span class="ic">▦</span><span class="lbl">Dashboard</span><span class="sec">交易</span></div>
+      <div class="row" data-href="markets.html"><span class="ic">⌗</span><span class="lbl">Markets</span><span class="sec">交易</span></div>
+      <div class="row" data-href="market-detail.html"><span class="ic">◎</span><span class="lbl">Market Detail</span><span class="sec">交易</span></div>
+      <div class="row" data-href="signals.html"><span class="ic">⚡</span><span class="lbl">Signals</span><span class="sec">交易</span></div>
+      <div class="row" data-href="arb-board.html"><span class="ic">⇄</span><span class="lbl">Arb Board</span><span class="sec">交易</span></div>
+      <div class="row" data-href="copy-trading.html"><span class="ic">⎘</span><span class="lbl">Copy Trading</span><span class="sec">交易</span></div>
+      <div class="row" data-href="llm-management.html"><span class="ic">⌬</span><span class="lbl">LLM Mgmt</span><span class="sec">研究</span></div>
+      <div class="row" data-href="model-lab.html"><span class="ic">◈</span><span class="lbl">Model Lab</span><span class="sec">研究</span></div>
+      <div class="row" data-href="bankroll.html"><span class="ic">$</span><span class="lbl">Bankroll</span><span class="sec">研究</span></div>
+      <div class="row" data-href="history.html"><span class="ic">⏱</span><span class="lbl">History</span><span class="sec">研究</span></div>
+      <div class="row" data-href="audit.html"><span class="ic">⎙</span><span class="lbl">Audit</span><span class="sec">系统</span></div>
+      <div class="row" data-href="notifications.html"><span class="ic">♪</span><span class="lbl">Notifications</span><span class="sec">系统</span></div>
+      <div class="row" data-href="settings.html"><span class="ic">⚙</span><span class="lbl">Settings</span><span class="sec">系统</span></div>
+      <div class="row" data-href="help.html"><span class="ic">?</span><span class="lbl">Help</span><span class="sec">系统</span></div>
+    </div>
+    <div class="foot">
+      <span>↑↓ 选择</span><span>⏎ 跳转</span><span>ESC 关闭</span>
+    </div>
+  </div>
+</div>
+
+<!-- Notifications panel -->
+<div class="notif" data-notif>
+  <div class="head">
+    <span class="t">通知</span>
+    <span class="close" data-open-notif>✕</span>
+  </div>
+  <div class="list">
+    <div class="item sev-warn">
+      <div class="row"><span class="t">z-score 越界</span><span class="time">2 分钟前</span></div>
+      <div class="d">曼城 vs 利物浦 · 当前 +2.4σ，预计回归中位 0.62</div>
+    </div>
+    <div class="item sev-info">
+      <div class="row"><span class="t">HHI 集中度上升</span><span class="time">8 分钟前</span></div>
+      <div class="d">Top 3 持仓占比突破 60%，关注聪明钱分歧</div>
+    </div>
+    <div class="item sev-error">
+      <div class="row"><span class="t">套利窗口关闭</span><span class="time">15 分钟前</span></div>
+      <div class="d">Polymarket ↔ Kalshi 利差已收敛至 0.4%</div>
+    </div>
+    <div class="item">
+      <div class="row"><span class="t">AI 辩论完成</span><span class="time">32 分钟前</span></div>
+      <div class="d">3 个模型达成一致：YES 67% (σ=0.04)</div>
+    </div>
+    <div class="item">
+      <div class="row"><span class="t">模型回测完成</span><span class="time">1 小时前</span></div>
+      <div class="d">近 30 天 Sharpe 1.84，最大回撤 6.2%</div>
+    </div>
+  </div>
+</div>
+<script src="_shell.js"></script>
+</body>
+</html>

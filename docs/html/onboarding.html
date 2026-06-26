@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>欢迎使用 · Polyrocket</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="_shared.css">
+<style>
+  .wizard-wrap { max-width: 920px; margin: 0 auto; }
+  .stepper { display: flex; gap: 8px; align-items: center; margin-bottom: 18px; }
+  .step {
+    flex: 1; display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; border-radius: 12px;
+    background: var(--bg-1); border: 1px solid var(--bd-1);
+    color: var(--tx-3); font-size: 13px;
+  }
+  .step .n {
+    width: 26px; height: 26px; border-radius: 50%;
+    display: grid; place-items: center; font-weight: 700; font-size: 12px;
+    background: var(--bg-3); color: var(--tx-2);
+  }
+  .step.active { background: var(--bg-2); color: var(--tx-1); border-color: var(--bd-2); }
+  .step.active .n { background: var(--primary); color: var(--on-primary); }
+  .step.done .n { background: var(--yes); color: var(--tx-inv); }
+  .step.done { color: var(--tx-2); }
+  .step .ttl { font-weight: 600; }
+  .step .sub { font-size: 11px; color: var(--tx-3); }
+  .panel { display: grid; grid-template-columns: 200px 1fr; gap: 24px; padding: 24px; }
+  @media (max-width: 720px) { .panel { grid-template-columns: 1fr; } }
+  .panel .icon-box {
+    height: 140px; border-radius: 14px;
+    display: grid; place-items: center; font-size: 56px;
+    background: var(--canvas-soft);
+    border: 1px solid var(--hairline); color: var(--primary);
+  }
+  .form-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .form-row label { font-size: 12px; color: var(--tx-2); }
+  .form-row input, .form-row select, .form-row textarea {
+    background: var(--bg-2); border: 1px solid var(--bd-1); color: var(--tx-1);
+    border-radius: 8px; padding: 10px 12px; font: inherit;
+  }
+  .form-row input:focus, .form-row select:focus { outline: none; border-color: var(--primary); }
+  .provider-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .provider-card {
+    padding: 14px; border-radius: 12px; background: var(--bg-2);
+    border: 1px solid var(--bd-1); cursor: pointer; text-align: center;
+  }
+  .provider-card.active { border-color: var(--primary); box-shadow: none; }
+  .provider-card .nm { font-weight: 600; margin-top: 8px; }
+  .provider-card .ds { font-size: 11px; color: var(--tx-3); }
+  .risk-track { position: relative; height: 8px; background: var(--bg-3); border-radius: 999px; margin: 12px 0 6px; }
+  .risk-track .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 50%; background: linear-gradient(90deg, var(--yes), var(--brand), var(--no)); border-radius: 999px; }
+  .risk-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--tx-3); }
+  .theme-pick { display: flex; gap: 10px; }
+  .theme-pick .opt {
+    flex: 1; padding: 14px; border-radius: 12px; background: var(--bg-2);
+    border: 1px solid var(--bd-1); cursor: pointer; text-align: center;
+  }
+  .theme-pick .opt.active { border-color: var(--primary); box-shadow: none; }
+  .theme-pick .sw { width: 100%; height: 32px; border-radius: 6px; margin-bottom: 8px; }
+  .foot { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; }
+  .progress-line { height: 4px; background: var(--bg-3); border-radius: 999px; overflow: hidden; margin-top: 12px; }
+  .progress-line > i { display: block; height: 100%; width: 20%; background: var(--primary); transition: width 0.3s; }
+</style>
+</head>
+<body>
+<script>
+  // Theme buttons → real seed file
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-theme-link]');
+    if (!a) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    location.href = '.seed-' + a.getAttribute('data-theme-link') + '.html';
+  }, true);
+</script>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand-pin" style="margin: 4px 8px 16px;">
+      <div class="logo">P</div>
+      <div class="nav-label">Polyrocket</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-title">交易</div>
+      <a class="nav-item" data-nav="dashboard.html" href="dashboard.html">▦ Dashboard</a>
+      <a class="nav-item" data-nav="markets.html" href="markets.html">⌗ Markets</a>
+      <a class="nav-item" data-nav="market-detail.html" href="market-detail.html">◎ Market Detail</a>
+      <a class="nav-item" data-nav="signals.html" href="signals.html">⚡ Signals <span class="badge">14</span></a>
+      <a class="nav-item" data-nav="arb-board.html" href="arb-board.html">⇄ Arb Board</a>
+      <a class="nav-item" data-nav="copy-trading.html" href="copy-trading.html">⎘ Copy</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-title">研究</div>
+      <a class="nav-item" data-nav="llm-management.html" href="llm-management.html">⌬ LLM Mgmt</a>
+      <a class="nav-item" data-nav="model-lab.html" href="model-lab.html">◈ Model Lab</a>
+      <a class="nav-item" data-nav="bankroll.html" href="bankroll.html">$ Bankroll</a>
+      <a class="nav-item" data-nav="history.html" href="history.html">⏱ History</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-title">系统</div>
+      <a class="nav-item" data-nav="audit.html" href="audit.html">⎙ Audit</a>
+      <a class="nav-item" data-nav="notifications.html" href="notifications.html">♪ Notifications <span class="badge">3</span></a>
+      <a class="nav-item" data-nav="settings.html" href="settings.html">⚙ Settings</a>
+      <a class="nav-item" data-nav="help.html" href="help.html">? Help</a>
+    </div>
+    <div class="sidebar-foot">
+      <div class="row"><span class="pulse"></span><span class="label">Tauri 1.6 · connected</span></div>
+      <div class="row dim label">v1.0.0 · build 240</div>
+    </div>
+  </aside>
+
+  <header class="topbar">
+    <button class="icon-btn" data-toggle="sidebar" title="折叠侧栏">≡</button>
+    <div class="search">
+      <span>⌕</span>
+      <input placeholder="搜索比赛 / 市场 / 钱包地址 / 交易员…  ⌘K">
+    </div>
+    <div class="top-actions">
+      <div class="seg">
+        <a data-theme-link="dark" href="#">Dark</a>
+        <a data-theme-link="light" href="#">Light</a>
+        <a data-theme-link="matrix" href="#">Matrix</a>
+      </div>
+      <button class="icon-btn" title="通知">♪</button>
+      <button class="icon-btn" title="命令面板">⌘K</button>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="engine-strip">
+      <span class="pulse"></span>
+      <span><strong>首次启动向导</strong> · 5 步快速配置 · 预计 3 分钟</span>
+    </div>
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">欢迎使用 Polyrocket</h1>
+        <p class="page-sub">让我们一起配置好双引擎预测系统。本向导可随时在「设置」中重新启动。</p>
+      </div>
+      <div class="row">
+        <button class="btn">跳过向导</button>
+        <button class="btn primary">下一步</button>
+      </div>
+    </div>
+
+    <div class="wizard-wrap">
+      <!-- Stepper -->
+      <div class="stepper">
+        <div class="step active"><div class="n">1</div><div><div class="ttl">选择 LLM Provider</div><div class="sub">OpenAI / Anthropic / DeepSeek</div></div></div>
+        <div class="step"><div class="n">2</div><div><div class="ttl">输入 API Key</div><div class="sub">本地加密存储</div></div></div>
+        <div class="step"><div class="n">3</div><div><div class="ttl">资金与风险</div><div class="sub">Bankroll / Kelly</div></div></div>
+        <div class="step"><div class="n">4</div><div><div class="ttl">主题与语言</div><div class="sub">dark / light / matrix</div></div></div>
+        <div class="step"><div class="n">5</div><div><div class="ttl">启动</div><div class="sub">双引擎就绪</div></div></div>
+      </div>
+
+      <div class="progress-line"><i style="width:20%"></i></div>
+
+      <div class="card" style="margin-top:18px">
+        <div class="panel">
+          <div class="icon-box">⌬</div>
+          <div>
+            <h2 class="card-title">第 1 步 · 选择 LLM Provider</h2>
+            <p class="card-sub" style="margin-bottom:14px">Polyrocket 不会将任何数据上传到云端。你选择的 Provider 仅用于本地调用的 AI 推演：基本面分析、新闻摘要、辩论机制。所有 key 均通过 macOS Keychain / Windows DPAPI 加密。</p>
+
+            <div class="provider-grid">
+              <div class="provider-card active">
+                <div style="font-size:28px">⬢</div>
+                <div class="nm">OpenAI</div>
+                <div class="ds">gpt-4o · gpt-4o-mini · o1</div>
+              </div>
+              <div class="provider-card">
+                <div style="font-size:28px">▲</div>
+                <div class="nm">Anthropic</div>
+                <div class="ds">claude-3.5-sonnet · haiku</div>
+              </div>
+              <div class="provider-card">
+                <div style="font-size:28px">⌬</div>
+                <div class="nm">DeepSeek</div>
+                <div class="ds">deepseek-v3 · r1</div>
+              </div>
+              <div class="provider-card">
+                <div style="font-size:28px">◉</div>
+                <div class="nm">Google</div>
+                <div class="ds">gemini-2.0-flash</div>
+              </div>
+              <div class="provider-card">
+                <div style="font-size:28px">◈</div>
+                <div class="nm">本地 Ollama</div>
+                <div class="ds">llama3.2 · qwen2.5</div>
+              </div>
+              <div class="provider-card">
+                <div style="font-size:28px">+</div>
+                <div class="nm">自定义 OpenAI 兼容</div>
+                <div class="ds">OpenRouter / Azure / vLLM</div>
+              </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="grid grid-2">
+              <div class="form-row">
+                <label>推荐模型（主推演）</label>
+                <select>
+                  <option>gpt-4o · 综合最强</option>
+                  <option>claude-3.5-sonnet · 长文分析</option>
+                  <option>deepseek-v3 · 中文足球语境</option>
+                  <option>gemini-2.0-flash · 低成本</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label>辩论模型（多模型对照）</label>
+                <select>
+                  <option>启用 3 模型辩论（推荐）</option>
+                  <option>仅 1 个主模型</option>
+                  <option>5 模型全方位辩论</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="foot">
+        <div class="muted">第 1 步 / 共 5 步</div>
+        <div class="row">
+          <button class="btn ghost" disabled style="opacity:0.4">← 上一步</button>
+          <button class="btn">跳过</button>
+          <button class="btn primary">下一步 →</button>
+        </div>
+      </div>
+
+      <div class="card mt-4">
+        <h3 class="card-title">为什么需要 LLM？</h3>
+        <div class="grid grid-3 mt-2">
+          <div>
+            <div class="chip info"><span class="dot"></span>基本面研判</div>
+            <p class="muted" style="font-size:12px;margin:6px 0 0">把阵容、伤停、赛程密度、历史交锋盘口等结构化字段喂给 LLM，让其以教练视角做出综合判断。</p>
+          </div>
+          <div>
+            <div class="chip yes"><span class="dot"></span>多模型辩论</div>
+            <p class="muted" style="font-size:12px;margin:6px 0 0">GPT-4o / Claude / DeepSeek 三方独立出价，若分歧过大则触发 <em>高不确定性</em> 标记，规避盲目下注。</p>
+          </div>
+          <div>
+            <div class="chip warn"><span class="dot"></span>本地优先</div>
+            <p class="muted" style="font-size:12px;margin:6px 0 0">Ollama / vLLM 本地推理完全离线运行，你的 key 永远不离开本机。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mt-3">
+        <h3 class="card-title">本次安装会下载</h3>
+        <table class="tbl" style="margin-top:8px">
+          <thead><tr><th>资源</th><th>大小</th><th>用途</th><th>来源</th></tr></thead>
+          <tbody>
+            <tr><td>比赛历史数据集 (FBref / Opta)</td><td class="num">42 MB</td><td>回测与因子工程</td><td>本地下载</td></tr>
+            <tr><td>链上事件 ABI 缓存</td><td class="num">3.4 MB</td><td>智能合约事件解码</td><td>内置</td></tr>
+            <tr><td>字体 (Inter / JetBrains Mono)</td><td class="num">1.2 MB</td><td>UI 渲染</td><td>内置</td></tr>
+            <tr><td>嵌入模型 (BGE-small)</td><td class="num">28 MB</td><td>新闻相似度检索</td><td>HuggingFace</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="_shell.js"></script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Polyrocket · UI Index</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="_shared.css">
+<style>
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 24px 80px; }
+  .hero {
+    display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; align-items: center;
+    margin-bottom: 32px;
+  }
+  @media (max-width: 720px) { .hero { grid-template-columns: 1fr; } }
+  .hero h1 { font-size: 32px; margin: 0 0 8px; line-height: 1.2; }
+  .hero p { color: var(--tx-2); margin: 0; }
+  .pillar { display: flex; gap: 12px; padding: 14px; border-radius: var(--radius); background: var(--bg-1); border: 1px solid var(--bd-1); }
+  .pillar .icn { width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center; background: var(--info-soft); color: var(--info); }
+  .pillar.ai .icn { background: var(--yes-soft); color: var(--yes); }
+  .pillar .t { font-weight: 600; }
+  .pillar .s { color: var(--tx-3); font-size: 12px; }
+  .page-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }
+  @media (max-width: 900px) { .page-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .page-list { grid-template-columns: 1fr; } }
+  .page-list a {
+    display: block; padding: 14px; border-radius: var(--radius);
+    background: var(--bg-1); border: 1px solid var(--bd-1); color: var(--tx-1);
+  }
+  .page-list a:hover { border-color: var(--bd-2); text-decoration: none; }
+  .page-list .h { font-weight: 600; margin-bottom: 4px; }
+  .page-list .d { color: var(--tx-3); font-size: 12px; }
+  .page-list .tag { margin-right: 6px; }
+  .theme-bar { display: flex; gap: 8px; align-items: center; margin-top: 16px; }
+  .theme-pill {
+    padding: 6px 12px; border-radius: 999px; border: 1px solid var(--bd-1);
+    background: var(--bg-2); color: var(--tx-1); cursor: pointer; font: inherit; font-size: 12px;
+  }
+  .theme-pill[data-active="1"] { background: var(--brand); color: var(--tx-inv); border-color: transparent; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div>
+      <span class="chip info"><span class="dot"></span>v1.0 · Twin-Engine</span>
+      <h1>Polyrocket UI Design</h1>
+      <p>为足球预测市场打造的本地优先桌面应用 UI 规范。核心叙事为「<strong>双引擎融合</strong>」：逻辑一 群体智慧与行为金融学 + 逻辑二 基本面多因子 AI 推演。本目录输出基于该叙事的全部页面静态原型，支持 dark / light / matrix 三种主题。</p>
+      <div class="theme-bar">
+        <span class="dim" style="font-size:12px">主题：</span>
+        <a class="theme-pill" data-theme-link="dark">Dark</a>
+        <a class="theme-pill" data-theme-link="light">Light</a>
+        <a class="theme-pill" data-theme-link="matrix">Matrix</a>
+      </div>
+    </div>
+    <div class="col">
+      <div class="pillar">
+        <div class="icn">B</div>
+        <div>
+          <div class="t">逻辑一 · 群体智慧 / 行为金融学</div>
+          <div class="s">资本加权意见 · HHI 集中度 · 聪明钱分歧 · 均值回归 · z-score · 布林带</div>
+        </div>
+      </div>
+      <div class="pillar ai">
+        <div class="icn">A</div>
+        <div>
+          <div class="t">逻辑二 · 多因子 AI 推演</div>
+          <div class="s">赛前数据 / 阵容 / 历史 / 伤停 / 盘口 · LLM 校准 · 多模型辩论 · 置信区间</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="margin: 24px 0 8px;">核心页面</h3>
+  <div class="page-list">
+    <a href="onboarding.html"><div class="h"><span class="tag">入门</span>Onboarding</div><div class="d">首次启动向导，配置 LLM / 资金 / 风险偏好。</div></a>
+    <a href="dashboard.html"><div class="h"><span class="tag">总览</span>Dashboard</div><div class="d">今日比赛 · 双引擎融合概率 · 信号流 · 异常告警。</div></a>
+    <a href="markets.html"><div class="h"><span class="tag">列表</span>Markets</div><div class="d">足球市场列表，支持 HHI / 流动性 / 套利空间排序。</div></a>
+    <a href="market-detail.html"><div class="h"><span class="tag">详情</span>Market Detail</div><div class="d">单场比赛：融合概率 · 资本分布 · 均值回归 · AI 辩论 · 跟单入口。</div></a>
+    <a href="signals.html"><div class="h"><span class="tag">信号</span>Signals</div><div class="d">融合信号流，订阅频道、命中回放。</div></a>
+    <a href="arb-board.html"><div class="h"><span class="tag">套利</span>Arb Board</div><div class="d">单边市场 / 跨平台 / 时间套利实时面板。</div></a>
+    <a href="llm-management.html"><div class="h"><span class="tag">模型</span>LLM Mgmt</div><div class="d">模型矩阵、Provider 配置、用量与计费、性能监控。</div></a>
+    <a href="model-lab.html"><div class="h"><span class="tag">实验</span>Model Lab</div><div class="d">概率校准 / Brier Score / 回测 / 因子权重实验。</div></a>
+    <a href="copy-trading.html"><div class="h"><span class="tag">跟单</span>Copy Trading</div><div class="d">聪明钱榜单 / 跟单配置 / 风险护栏。</div></a>
+    <a href="bankroll.html"><div class="h"><span class="tag">资金</span>Bankroll</div><div class="d">Kelly 仓位 / 多策略分配 / 风险敞口。</div></a>
+    <a href="history.html"><div class="h"><span class="tag">历史</span>History</div><div class="d">成交历史 · PnL 拆解 · 复盘笔记。</div></a>
+    <a href="audit.html"><div class="h"><span class="tag">审计</span>Audit</div><div class="d">系统行为不可篡改日志：决策 / 交易 / 资金变更。</div></a>
+    <a href="notifications.html"><div class="h"><span class="tag">通知</span>Notifications</div><div class="d">告警中心、规则配置、推送渠道。</div></a>
+    <a href="settings.html"><div class="h"><span class="tag">设置</span>Settings</div><div class="d">通用 / 网络 / 主题 / 语言 / 数据 / 高级。</div></a>
+    <a href="help.html"><div class="h"><span class="tag">帮助</span>Help</div><div class="d">快捷键、术语表、版本与许可。</div></a>
+  </div>
+
+  <h3 style="margin: 32px 0 8px;">设计原则</h3>
+  <ol style="color: var(--tx-2); line-height: 1.7;">
+    <li><strong>双引擎显式可见</strong>：每张概率卡同时显示市场隐含概率、行为金融合成概率、AI 合成概率与最终融合概率。</li>
+    <li><strong>数据透明</strong>：所有数据来源 / 样本量 / 计算时间戳 / 置信区间必须可见。</li>
+    <li><strong>本地优先</strong>：所有计算在前端 + Tauri Rust 后端，不依赖云服务。</li>
+    <li><strong>键盘优先</strong>：常用操作（切换主题、跳转市场、确认下单）提供快捷键。</li>
+    <li><strong>三主题一致</strong>：dark / light / matrix 共享同一布局，仅替换色板与字体。</li>
+  </ol>
+</div>
+<script src="_shell.js"></script>
+</body>
+</html>

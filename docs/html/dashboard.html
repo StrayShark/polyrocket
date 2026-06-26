@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Dashboard · Polyrocket</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="_shared.css">
+<style>
+  .layout { display: grid; grid-template-columns: 1fr 320px; gap: 18px; }
+  @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
+  .match-card { padding: 14px; }
+  .match-card .row1 { display: flex; align-items: center; justify-content: space-between; }
+  .match-card .teams { font-weight: 600; font-size: 14px; margin: 6px 0 2px; }
+  .match-card .meta { color: var(--tx-3); font-size: 11px; }
+  .match-card .probs { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin: 10px 0; }
+  .prob-cell { font-size: 11px; color: var(--tx-2); }
+  .prob-cell .v { font-size: 16px; font-weight: 700; color: var(--tx-1); font-variant-numeric: tabular-nums; }
+  .match-card .actions { display: flex; gap: 6px; margin-top: 8px; }
+  .signal-row {
+    display: grid; grid-template-columns: 60px 1fr auto; gap: 8px; align-items: center;
+    padding: 10px 12px; border-bottom: 1px solid var(--bd-1); font-size: 12px;
+  }
+  .signal-row:last-child { border-bottom: 0; }
+  .signal-row .t { color: var(--tx-3); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .signal-row .msg { color: var(--tx-1); }
+  .signal-row .msg b { color: var(--ink); }
+  .alert-row { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px dashed var(--bd-1); font-size: 12px; }
+  .alert-row:last-child { border-bottom: 0; }
+  .alert-row .pulse { margin-top: 4px; }
+  .alert-row.warn .pulse { background: var(--warn); }
+  .alert-row.no .pulse { background: var(--no); }
+  .bottom-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; margin-top: 18px; }
+  @media (max-width: 1100px) { .bottom-grid { grid-template-columns: 1fr; } }
+  .donut-box { display: flex; align-items: center; gap: 12px; }
+  .legend-stack { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--tx-2); }
+  .legend-stack .li { display: flex; gap: 6px; align-items: center; }
+  .legend-stack .li i { width: 10px; height: 10px; border-radius: 2px; }
+  .edge-pos { color: var(--yes); font-weight: 600; }
+  .edge-neg { color: var(--no); font-weight: 600; }
+</style>
+</head>
+<body>
+<script>
+  // Theme buttons → real seed file
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-theme-link]');
+    if (!a) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    location.href = '.seed-' + a.getAttribute('data-theme-link') + '.html';
+  }, true);
+</script>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand-pin">
+      <div class="logo">P</div>
+      <span class="wordmark">Polyrocket</span>
+      <button class="collapse-btn" data-toggle="sidebar" title="折叠">‹</button>
+    </div>
+    <div class="search">
+      <span>⌕</span>
+      <input placeholder="搜索比赛 / 市场 / 地址 / 交易员" data-open-palette readonly>
+      <span class="kbd">⌘K</span>
+    </div>
+    <div class="nav-scroll">
+      <div class="nav-section">
+        <div class="nav-section-title">交易</div>
+        <a class="nav-item" data-nav="dashboard.html" href="dashboard.html">▦ Dashboard</a>
+        <a class="nav-item" data-nav="markets.html" href="markets.html">⌗ Markets</a>
+        <a class="nav-item" data-nav="market-detail.html" href="market-detail.html">◎ Market Detail</a>
+        <a class="nav-item" data-nav="signals.html" href="signals.html">⚡ Signals <span class="badge">14</span></a>
+        <a class="nav-item" data-nav="arb-board.html" href="arb-board.html">⇄ Arb Board</a>
+        <a class="nav-item" data-nav="copy-trading.html" href="copy-trading.html">⎘ Copy</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">研究</div>
+        <a class="nav-item" data-nav="llm-management.html" href="llm-management.html">⌬ LLM Mgmt</a>
+        <a class="nav-item" data-nav="model-lab.html" href="model-lab.html">◈ Model Lab</a>
+        <a class="nav-item" data-nav="bankroll.html" href="bankroll.html">$ Bankroll</a>
+        <a class="nav-item" data-nav="history.html" href="history.html">⏱ History</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">系统</div>
+        <a class="nav-item" data-nav="audit.html" href="audit.html">⎙ Audit</a>
+        <a class="nav-item" data-nav="notifications.html" href="notifications.html">♪ Notifications <span class="badge">3</span></a>
+        <a class="nav-item" data-nav="settings.html" href="settings.html">⚙ Settings</a>
+        <a class="nav-item" data-nav="help.html" href="help.html">? Help</a>
+      </div>
+    </div>
+    <div class="sidebar-foot">
+      <button class="user-connect" data-connect>
+        <span class="ic">⏻</span>
+        <span class="label">连接 Polymarket</span>
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="engine-strip">
+      <span class="pulse"></span>
+      <span><strong>双引擎已启动</strong> · L1 市场隐含 <span class="muted">·</span> L2 行为金融 <span class="engine beh">Behavioral</span> <span class="muted">·</span> L3 AI 推演 <span class="engine ai">Multi-Factor AI</span> <span class="muted">·</span> 融合置信度 <strong>87%</strong></span>
+    </div>
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">Dashboard</h1>
+        <p class="page-sub">今日比赛 · 双引擎融合视图 · 实时信号流与异常告警</p>
+      </div>
+      <div class="row">
+        <button class="btn">导出</button>
+        <button class="btn primary">新建策略</button>
+      </div>
+    </div>
+
+    <!-- KPI -->
+    <div class="grid grid-4">
+      <div class="card kpi">
+        <div class="l">今日 PnL</div>
+        <div class="v up"><span class="num" data-num="2840" data-fmt="usd">$0</span></div>
+        <div class="d up">▲ 12.4% vs 7 日均值</div>
+      </div>
+      <div class="card kpi">
+        <div class="l">持仓数</div>
+        <div class="v"><span class="num" data-num="18" data-fmt="0">0</span> <span class="muted" style="font-size:12px">个市场</span></div>
+        <div class="d flat">—— 较昨日 +3</div>
+      </div>
+      <div class="card kpi">
+        <div class="l">信号命中率 (30d)</div>
+        <div class="v up"><span class="num" data-num="0.671" data-fmt="0.0%">0%</span></div>
+        <div class="d up">▲ 4.2 pp 较上周期</div>
+      </div>
+      <div class="card kpi">
+        <div class="l">资金利用率</div>
+        <div class="v"><span class="num" data-num="0.64" data-fmt="0%">0%</span></div>
+        <div class="d flat">上限 75% · 距上限 11%</div>
+      </div>
+    </div>
+
+    <div class="layout mt-4">
+      <!-- left: matches -->
+      <div>
+        <div class="card">
+          <div class="between">
+            <h3 class="card-title">今日比赛 · 双引擎融合视图</h3>
+            <div class="row">
+              <span class="chip">共 <b style="margin-left:4px">6</b> 场</span>
+              <span class="chip info">5 场英超 / 1 场西甲</span>
+              <button class="btn ghost">查看全部</button>
+            </div>
+          </div>
+          <div class="grid grid-2 mt-3">
+            <!-- Match 1 -->
+            <div class="card match-card">
+              <div class="row1">
+                <span class="chip info">英超</span>
+                <span class="muted" style="font-size:11px">20:30 开赛</span>
+              </div>
+              <div class="teams">曼彻斯特城 vs 利物浦</div>
+              <div class="meta">伊蒂哈德球场 · 2025-12-21 · 天气阴 7℃</div>
+              <div class="probs">
+                <div class="prob-cell"><div>Market</div><div class="v">38¢</div></div>
+                <div class="prob-cell"><div>Behavioral</div><div class="v">41¢</div></div>
+                <div class="prob-cell"><div>AI</div><div class="v up">71¢</div></div>
+                <div class="prob-cell"><div>Fused</div><div class="v" style="color:var(--primary)">64¢</div></div>
+              </div>
+              <div class="fusion" data-fusion='{"market": 38, "fused": 64}'></div>
+              <div class="fusion-legend">
+                <span><i style="background:var(--tx-1)"></i>Market 38</span>
+                <span><i style="background:var(--brand)"></i>Fused 64</span>
+              </div>
+              <div class="between" style="margin-top:8px">
+                <span class="edge-pos">Edge +26¢ · 推荐 YES</span>
+                <div class="actions">
+                  <button class="btn">详情</button>
+                  <button class="btn primary">跟单</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Match 2 -->
+            <div class="card match-card">
+              <div class="row1">
+                <span class="chip info">英超</span>
+                <span class="muted" style="font-size:11px">23:00 开赛</span>
+              </div>
+              <div class="teams">阿森纳 vs 托特纳姆热刺</div>
+              <div class="meta">酋长球场 · 2025-11-23 · 北伦敦德比</div>
+              <div class="probs">
+                <div class="prob-cell"><div>Market</div><div class="v">52¢</div></div>
+                <div class="prob-cell"><div>Behavioral</div><div class="v">49¢</div></div>
+                <div class="prob-cell"><div>AI</div><div class="v">55¢</div></div>
+                <div class="prob-cell"><div>Fused</div><div class="v" style="color:var(--primary)">53¢</div></div>
+              </div>
+              <div class="fusion" data-fusion='{"market": 52, "fused": 53}'></div>
+              <div class="fusion-legend">
+                <span><i style="background:var(--tx-1)"></i>Market 52</span>
+                <span><i style="background:var(--brand)"></i>Fused 53</span>
+              </div>
+              <div class="between" style="margin-top:8px">
+                <span class="muted">Edge +1¢ · 中性</span>
+                <div class="actions">
+                  <button class="btn">详情</button>
+                  <button class="btn">观望</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Match 3 -->
+            <div class="card match-card">
+              <div class="row1">
+                <span class="chip info">西甲</span>
+                <span class="muted" style="font-size:11px">04:00 开赛</span>
+              </div>
+              <div class="teams">皇家马德里 vs 巴塞罗那</div>
+              <div class="meta">伯纳乌 · 2026-01-15 · 国家德比</div>
+              <div class="probs">
+                <div class="prob-cell"><div>Market</div><div class="v">47¢</div></div>
+                <div class="prob-cell"><div>Behavioral</div><div class="v">52¢</div></div>
+                <div class="prob-cell"><div>AI</div><div class="v">61¢</div></div>
+                <div class="prob-cell"><div>Fused</div><div class="v" style="color:var(--primary)">57¢</div></div>
+              </div>
+              <div class="fusion" data-fusion='{"market": 47, "fused": 57}'></div>
+              <div class="fusion-legend">
+                <span><i style="background:var(--tx-1)"></i>Market 47</span>
+                <span><i style="background:var(--brand)"></i>Fused 57</span>
+              </div>
+              <div class="between" style="margin-top:8px">
+                <span class="edge-pos">Edge +10¢ · 推荐 YES</span>
+                <div class="actions">
+                  <button class="btn">详情</button>
+                  <button class="btn primary">跟单</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Match 4 -->
+            <div class="card match-card">
+              <div class="row1">
+                <span class="chip info">德甲</span>
+                <span class="muted" style="font-size:11px">22:30 开赛</span>
+              </div>
+              <div class="teams">拜仁慕尼黑 vs 多特蒙德</div>
+              <div class="meta">安联球场 · 2026-02-09 · 德国国家德比</div>
+              <div class="probs">
+                <div class="prob-cell"><div>Market</div><div class="v">61¢</div></div>
+                <div class="prob-cell"><div>Behavioral</div><div class="v down">42¢</div></div>
+                <div class="prob-cell"><div>AI</div><div class="v">58¢</div></div>
+                <div class="prob-cell"><div>Fused</div><div class="v" style="color:var(--primary)">53¢</div></div>
+              </div>
+              <div class="fusion" data-fusion='{"market": 61, "fused": 53}'></div>
+              <div class="fusion-legend">
+                <span><i style="background:var(--tx-1)"></i>Market 61</span>
+                <span><i style="background:var(--brand)"></i>Fused 53</span>
+              </div>
+              <div class="between" style="margin-top:8px">
+                <span class="edge-neg">Edge -8¢ · 不建议</span>
+                <div class="actions">
+                  <button class="btn">详情</button>
+                  <button class="btn" disabled style="opacity:.5">跟单</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Match 5 -->
+            <div class="card match-card">
+              <div class="row1">
+                <span class="chip info">意甲</span>
+                <span class="muted" style="font-size:11px">02:45 开赛</span>
+              </div>
+              <div class="teams">国际米兰 vs 尤文图斯</div>
+              <div class="meta">梅阿查 · 2026-04-12 · 意大利国家德比</div>
+              <div class="probs">
+                <div class="prob-cell"><div>Market</div><div class="v">44¢</div></div>
+                <div class="prob-cell"><div>Behavioral</div><div class="v">48¢</div></div>
+                <div class="prob-cell"><div>AI</div><div class="v up">67¢</div></div>
+                <div class="prob-cell"><div>Fused</div><div class="v" style="color:var(--primary)">61¢</div></div>
+              </div>
+              <div class="fusion" data-fusion='{"market": 44, "fused": 61}'></div>
+              <div class="fusion-legend">
+                <span><i style="background:var(--tx-1)"></i>Market 44</span>
+                <span><i style="background:var(--brand)"></i>Fused 61</span>
+              </div>
+              <div class="between" style="margin-top:8px">
+                <span class="edge-pos">Edge +17¢ · 推荐 YES</span>
+                <div class="actions">
+                  <button class="btn">详情</button>
+                  <button class="btn primary">跟单</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Match 6 -->
+            <div class="card match-card">
+              <div class="row1">
+                <span class="chip info">英超</span>
+                <span class="muted" style="font-size:11px">04:30 开赛</span>
+              </div>
+              <div class="teams">切尔西 vs 曼联</div>
+              <div class="meta">斯坦福桥 · 2025-12-04</div>
+              <div class="probs">
+                <div class="prob-cell"><div>Market</div><div class="v">39¢</div></div>
+                <div class="prob-cell"><div>Behavioral</div><div class="v">43¢</div></div>
+                <div class="prob-cell"><div>AI</div><div class="v">40¢</div></div>
+                <div class="prob-cell"><div>Fused</div><div class="v" style="color:var(--primary)">41¢</div></div>
+              </div>
+              <div class="fusion" data-fusion='{"market": 39, "fused": 41}'></div>
+              <div class="fusion-legend">
+                <span><i style="background:var(--tx-1)"></i>Market 39</span>
+                <span><i style="background:var(--brand)"></i>Fused 41</span>
+              </div>
+              <div class="between" style="margin-top:8px">
+                <span class="muted">Edge +2¢ · 观望</span>
+                <div class="actions">
+                  <button class="btn">详情</button>
+                  <button class="btn">观望</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bottom-grid">
+          <div class="card">
+            <div class="between">
+              <h3 class="card-title">资金曲线 · 30 日</h3>
+              <div class="row">
+                <span class="chip up">+18.7%</span>
+                <span class="dim" style="font-size:11px">SHARP 1.84</span>
+              </div>
+            </div>
+            <canvas class="spark" data-spark='[10000,10240,10480,10390,10620,10840,10990,11150,11280,11520,11680,11840,12020,12180,12350,12540,12710,12880,13040,13220,13400,13580,13760,13920,14100,14280,14460,14650,14820,15000,15280,15560,15820,16080,16340,16620,16890,17180,17460,17720,18020,18340,18650,18920,19240,19580,19920,20280,20650,21030,21420,21840,22260,22640,23010,23380,23760,24120,24480,24860,25240,25610,25980,26380,26760,27120,27480,27840,28120,28350,28600,28840,29010,29180]' style="height:80px"></canvas>
+            <div class="row" style="margin-top:8px">
+              <span class="muted" style="font-size:11px">起点 <b>$10,000</b></span>
+              <span class="muted" style="font-size:11px">当前 <b style="color:var(--yes)">$29,180</b></span>
+              <span class="muted" style="font-size:11px">最大回撤 -3.2%</span>
+            </div>
+          </div>
+          <div class="card">
+            <h3 class="card-title">LLM 用量 (24h)</h3>
+            <div class="donut-box mt-2">
+              <canvas data-donut='[{"l":"OpenAI","v":48,"c":"var(--brand)"},{"l":"Anthropic","v":29,"c":"var(--yes)"},{"l":"DeepSeek","v":18,"c":"var(--c-fund)"},{"l":"本地","v":5,"c":"var(--bg-3)"}]' style="width:120px;height:120px"></canvas>
+              <div class="legend-stack">
+                <div class="li"><i style="background:var(--brand)"></i>OpenAI · 48%</div>
+                <div class="li"><i style="background:var(--yes)"></i>Anthropic · 29%</div>
+                <div class="li"><i style="background:var(--c-fund)"></i>DeepSeek · 18%</div>
+                <div class="li"><i style="background:var(--bg-3)"></i>本地 Ollama · 5%</div>
+                <div class="li muted" style="margin-top:6px">总花费 <b style="color:var(--tx-1)">$8.42</b> · 142 次调用</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- right column -->
+      <div>
+        <div class="card">
+          <div class="between">
+            <h3 class="card-title">实时信号流</h3>
+            <span class="chip">14 条</span>
+          </div>
+          <div>
+            <div class="signal-row">
+              <span class="t">14:32</span>
+              <span class="msg"><span class="engine ai">AI</span> <b>曼城 vs 利物浦</b> · AI 强势反转，fused 64 → 71</span>
+              <button class="btn ghost" style="height:24px;padding:0 8px;font-size:11px">查看</button>
+            </div>
+            <div class="signal-row">
+              <span class="t">14:28</span>
+              <span class="msg"><span class="engine beh">Beh</span> <b>拜仁 vs 多特</b> · HHI 突变 0.18 → 0.41</span>
+              <button class="btn ghost" style="height:24px;padding:0 8px;font-size:11px">查看</button>
+            </div>
+            <div class="signal-row">
+              <span class="t">14:21</span>
+              <span class="msg"><span class="engine fuse">Fuse</span> <b>皇马 vs 巴萨</b> · z-score 越界 (-2.4) · fade YES</span>
+              <button class="btn ghost" style="height:24px;padding:0 8px;font-size:11px">查看</button>
+            </div>
+            <div class="signal-row">
+              <span class="t">14:18</span>
+              <span class="msg"><span class="engine beh">Beh</span> <b>国米 vs 尤文</b> · 聪明钱分歧 +0.12</span>
+              <button class="btn ghost" style="height:24px;padding:0 8px;font-size:11px">查看</button>
+            </div>
+            <div class="signal-row">
+              <span class="t">14:09</span>
+              <span class="msg"><span class="engine ai">AI</span> <b>切尔西 vs 曼联</b> · AI 论据更新 2 条</span>
+              <button class="btn ghost" style="height:24px;padding:0 8px;font-size:11px">查看</button>
+            </div>
+            <div class="signal-row">
+              <span class="t">14:02</span>
+              <span class="msg"><span class="engine fuse">Fuse</span> <b>阿森纳 vs 热刺</b> · 套利窗口 +1.8¢</span>
+              <button class="btn ghost" style="height:24px;padding:0 8px;font-size:11px">查看</button>
+            </div>
+            <div class="signal-row">
+              <span class="t">13:55</span>
+              <span class="msg"><span class="engine beh">Beh</span> <b>曼城 vs 利物浦</b> · 大单 YES 12,400 股 @ 0.38</span>
+              <button class="btn ghost" style="height:24px;padding:0 8px;font-size:11px">查看</button>
+            </div>
+            <div class="signal-row">
+              <span class="t">13:48</span>
+              <span class="msg"><span class="engine ai">AI</span> <b>皇马 vs 巴萨</b> · 伤停更新 · 本泽马疑似</span>
+              <button class="btn ghost" style="height:24px;padding:0 8px;font-size:11px">查看</button>
+            </div>
+            <div class="signal-row">
+              <span class="t">13:40</span>
+              <span class="msg"><span class="engine beh">Beh</span> <b>拜仁 vs 多特</b> · 均值回归信号 · 0.61 → 0.55</span>
+              <button class="btn ghost" style="height:24px;padding:0 8px;font-size:11px">查看</button>
+            </div>
+            <div class="signal-row">
+              <span class="t">13:34</span>
+              <span class="msg"><span class="engine fuse">Fuse</span> <b>国米 vs 尤文</b> · 融合置信度升至 91%</span>
+              <button class="btn ghost" style="height:24px;padding:0 8px;font-size:11px">查看</button>
+            </div>
+          </div>
+          <button class="btn mt-2" style="width:100%">查看全部 14 条信号 →</button>
+        </div>
+
+        <div class="card mt-3">
+          <h3 class="card-title">市场异常告警</h3>
+          <div class="alert-row warn">
+            <span class="pulse"></span>
+            <div>
+              <div><b>HHI 突变</b> · 拜仁 vs 多特</div>
+              <div class="muted" style="font-size:11px">0.18 → 0.41（5 分钟内）· 集中度快速上升</div>
+            </div>
+          </div>
+          <div class="alert-row">
+            <span class="pulse"></span>
+            <div>
+              <div><b>z-score 越界</b> · 皇马 vs 巴萨</div>
+              <div class="muted" style="font-size:11px">z = -2.4 · 价格显著低于 20 日均线 · 触发 fade YES</div>
+            </div>
+          </div>
+          <div class="alert-row no">
+            <span class="pulse"></span>
+            <div>
+              <div><b>聪明钱分歧</b> · 国米 vs 尤文</div>
+              <div class="muted" style="font-size:11px">Top10 持仓方向不一致 · 不建议跟单</div>
+            </div>
+          </div>
+          <div class="alert-row">
+            <span class="pulse"></span>
+            <div>
+              <div><b>套利空间</b> · 阿森纳 vs 热刺</div>
+              <div class="muted" style="font-size:11px">YES 52 + NO 47 = 99 < 100 · 微套利 1¢</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<!-- Command palette -->
+<div class="palette" data-palette>
+  <div class="panel">
+    <div class="head">
+      <span>⌕</span>
+      <input placeholder="跳转到页面 / 执行命令…" />
+      <span class="kbd">ESC</span>
+    </div>
+    <div class="list">
+      <div class="row" data-href="dashboard.html"><span class="ic">▦</span><span class="lbl">Dashboard</span><span class="sec">交易</span></div>
+      <div class="row" data-href="markets.html"><span class="ic">⌗</span><span class="lbl">Markets</span><span class="sec">交易</span></div>
+      <div class="row" data-href="market-detail.html"><span class="ic">◎</span><span class="lbl">Market Detail</span><span class="sec">交易</span></div>
+      <div class="row" data-href="signals.html"><span class="ic">⚡</span><span class="lbl">Signals</span><span class="sec">交易</span></div>
+      <div class="row" data-href="arb-board.html"><span class="ic">⇄</span><span class="lbl">Arb Board</span><span class="sec">交易</span></div>
+      <div class="row" data-href="copy-trading.html"><span class="ic">⎘</span><span class="lbl">Copy Trading</span><span class="sec">交易</span></div>
+      <div class="row" data-href="llm-management.html"><span class="ic">⌬</span><span class="lbl">LLM Mgmt</span><span class="sec">研究</span></div>
+      <div class="row" data-href="model-lab.html"><span class="ic">◈</span><span class="lbl">Model Lab</span><span class="sec">研究</span></div>
+      <div class="row" data-href="bankroll.html"><span class="ic">$</span><span class="lbl">Bankroll</span><span class="sec">研究</span></div>
+      <div class="row" data-href="history.html"><span class="ic">⏱</span><span class="lbl">History</span><span class="sec">研究</span></div>
+      <div class="row" data-href="audit.html"><span class="ic">⎙</span><span class="lbl">Audit</span><span class="sec">系统</span></div>
+      <div class="row" data-href="notifications.html"><span class="ic">♪</span><span class="lbl">Notifications</span><span class="sec">系统</span></div>
+      <div class="row" data-href="settings.html"><span class="ic">⚙</span><span class="lbl">Settings</span><span class="sec">系统</span></div>
+      <div class="row" data-href="help.html"><span class="ic">?</span><span class="lbl">Help</span><span class="sec">系统</span></div>
+    </div>
+    <div class="foot">
+      <span>↑↓ 选择</span><span>⏎ 跳转</span><span>ESC 关闭</span>
+    </div>
+  </div>
+</div>
+
+<!-- Notifications panel -->
+<div class="notif" data-notif>
+  <div class="head">
+    <span class="t">通知</span>
+    <span class="close" data-open-notif>✕</span>
+  </div>
+  <div class="list">
+    <div class="item sev-warn">
+      <div class="row"><span class="t">z-score 越界</span><span class="time">2 分钟前</span></div>
+      <div class="d">曼城 vs 利物浦 · 当前 +2.4σ，预计回归中位 0.62</div>
+    </div>
+    <div class="item sev-info">
+      <div class="row"><span class="t">HHI 集中度上升</span><span class="time">8 分钟前</span></div>
+      <div class="d">Top 3 持仓占比突破 60%，关注聪明钱分歧</div>
+    </div>
+    <div class="item sev-error">
+      <div class="row"><span class="t">套利窗口关闭</span><span class="time">15 分钟前</span></div>
+      <div class="d">Polymarket ↔ Kalshi 利差已收敛至 0.4%</div>
+    </div>
+    <div class="item">
+      <div class="row"><span class="t">AI 辩论完成</span><span class="time">32 分钟前</span></div>
+      <div class="d">3 个模型达成一致：YES 67% (σ=0.04)</div>
+    </div>
+    <div class="item">
+      <div class="row"><span class="t">模型回测完成</span><span class="time">1 小时前</span></div>
+      <div class="d">近 30 天 Sharpe 1.84，最大回撤 6.2%</div>
+    </div>
+  </div>
+</div>
+<script src="_shell.js"></script>
+</body>
+</html>
