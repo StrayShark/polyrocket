@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <style>
-  /* ====== same layout, three palettes (governance §11) ====== */
+  /* ====== 同一布局，三套调色板 (governance §11) ====== */
   :root {
     --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
     --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
@@ -22,19 +22,19 @@
   }
   html[data-theme='dark'] {
     /* Cursor / VS Code Dark+ inspired */
-    --bg: #1E1E1E;        /* editor */
-    --surface: #181818;   /* sidebar — darker than bg */
-    --surface-2: #252526; /* inputs / segments */
+    --bg: #1E1E1E;        /* 编辑器 */
+    --surface: #181818;   /* 侧边栏 — 比 bg 更深 */
+    --surface-2: #252526; /* 输入框 / 分段 */
     --surface-hover: #2A2D2E;
     --border: #2D2D2D;
     --border-strong: #3F3F46;
-    --fg: #D4D4D4;        /* editor text */
+    --fg: #D4D4D4;        /* 编辑器文字 */
     --fg-secondary: #9D9D9D;
     --muted: #6B6B6B;
     --accent: #007ACC;    /* VS Code blue */
     --accent-hover: #1F8AD2;
-    --bull: #4EC9B0;      /* softer green like VS Code */
-    --bear: #F48771;      /* softer red */
+    --bull: #4EC9B0;      /* 比 VS Code 更柔和的绿色 */
+    --bear: #F48771;      /* 更柔和的红色 */
     --warning: #DCDCAA;
     --shadow-card: 0 1px 0 rgba(0,0,0,0.4);
     --shadow-overlay: 0 8px 24px rgba(0,0,0,0.6);
@@ -50,13 +50,13 @@
   }
   html[data-theme='matrix'] {
     /* OpenAI Codex CLI matrix inspired — true black, soft green, sparse */
-    --bg: #0A0A0A;        /* true black like terminal */
+    --bg: #0A0A0A;        /* 像终端的真黑色 */
     --surface: #0F0F0F;
     --surface-2: #161616;
     --surface-hover: #1C1C1C;
-    --border: #1F1F1F;     /* near-invisible */
+    --border: #1F1F1F;     /* 几乎隐形 */
     --border-strong: #2A2A2A;
-    --fg: #D4D4D4;        /* not neon — readable */
+    --fg: #D4D4D4;        /* 不是霓虹色 — 可读性好 */
     --fg-secondary: #8A8A8A;
     --muted: #5C5C5C;
     --accent: #10A37F;    /* OpenAI green, restrained */
@@ -87,7 +87,7 @@
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
 
-  /* ====== shell layout ====== */
+  /* ====== 外壳布局 ====== */
   .app { display: flex; height: 100vh; }
   .sidebar {
     width: 220px; flex-shrink: 0;
@@ -112,7 +112,7 @@
   body.sidebar-collapsed .sidebar .logo { justify-content: center; padding: 0; }
   body.sidebar-collapsed .sidebar .sidebar-bottom { padding: 6px 4px; }
   body.sidebar-collapsed .sidebar .user-btn { justify-content: center; padding: 0; }
-  /* collapsed state nav-item: only icon centered, with tooltip on hover */
+  /* 折叠状态下的导航项：仅图标居中，悬停时显示 tooltip */
   body.sidebar-collapsed .sidebar .nav-item { position: relative; }
   body.sidebar-collapsed .sidebar .nav-item:hover::after {
     content: attr(data-tooltip);
@@ -191,7 +191,7 @@
   .wallet-line .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--bull); }
   .wallet-line .balance { margin-left: auto; }
 
-  /* user-btn (collapsed bottom area) */
+  /* 用户按钮（折叠时的底部区域） */
   .user-btn {
     width: 100%; display: flex; align-items: center; gap: 10px;
     padding: 6px 8px; border-radius: 6px;
@@ -205,7 +205,7 @@
   .user-btn-meta { font-size: 10.5px; color: var(--muted); font-family: var(--font-mono); line-height: 1.2; margin-top: 2px; }
   .user-btn-chev { color: var(--muted); flex-shrink: 0; }
 
-  /* user menu popover */
+  /* 用户菜单弹出框 */
   .user-menu {
     position: absolute; left: 8px; right: 8px; bottom: calc(100% + 6px);
     background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
@@ -247,7 +247,7 @@
   .user-menu-theme button.active { background: var(--surface); color: var(--fg); border: 1px solid var(--border); }
   .user-menu-theme button svg { width: 12px; height: 12px; }
 
-  /* ====== main area ====== */
+  /* ====== 主区域 ====== */
   .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
   .topbar {
     height: 48px; padding: 0 16px;
@@ -291,7 +291,7 @@
   .page-header .subtitle { font-size: 12px; color: var(--muted); margin-top: 2px; }
   .page-actions { display: flex; gap: 8px; align-items: center; }
 
-  /* ====== components ====== */
+  /* ====== 组件 ====== */
   .seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 2px; }
   .seg button { padding: 4px 10px; font-size: 12px; border-radius: 4px; color: var(--muted); }
   .seg button.active { background: var(--surface); color: var(--fg); box-shadow: var(--shadow-card); }
@@ -375,7 +375,7 @@
   }
   .toast svg { width: 16px; height: 16px; }
 
-  /* ---------- modal (v1.1) ---------- */
+  /* ---------- 弹窗 (v1.1) ---------- */
   .modal-overlay {
     position: fixed; inset: 0;
     background: rgba(0,0,0,0.5);
@@ -426,7 +426,7 @@
   .input::placeholder { color: var(--muted); }
   select.input { cursor: pointer; }
 
-  /* ---------- state components (v2.0) ---------- */
+  /* ---------- 状态组件 (v2.0) ---------- */
   .toast-container {
     position: fixed; top: 16px; right: 16px;
     display: flex; flex-direction: column; gap: 8px;
@@ -485,7 +485,7 @@
     box-shadow: 0 1px 0 var(--border);
   }
 
-  /* fade transition for theme */
+  /* 主题切换的渐变过渡 */
   .theme-fade, .theme-fade * { transition: background-color var(--duration-theme) var(--ease-out), color var(--duration-theme) var(--ease-out), border-color var(--duration-theme) var(--ease-out); }
 </style>
 </head>
@@ -493,7 +493,7 @@
 
 <div class="app">
 
-  <!-- ====== Sidebar ====== -->
+  <!-- ====== 侧边栏 ====== -->
   <aside class="sidebar">
     <div class="logo">
       <div class="logo-mark"><i data-lucide="radar"></i></div>
@@ -530,7 +530,7 @@
     </nav>
 
     <div class="sidebar-bottom">
-      <!-- User menu popover -->
+      <!-- 用户菜单弹出框 -->
       <div class="user-menu" id="userMenu">
         <div class="user-menu-header">
           <div class="name">dutong</div>
@@ -568,7 +568,7 @@
         </div>
       </div>
 
-      <!-- User button (triggers menu) -->
+      <!-- 用户按钮（触发菜单） -->
       <button class="user-btn" id="userBtn">
         <div class="avatar">D</div>
         <div class="user-btn-info sidebar-bottom-user-info">
@@ -580,7 +580,7 @@
     </div>
   </aside>
 
-  <!-- ====== Main ====== -->
+  <!-- ====== 主区域 ====== -->
   <main class="main">
     <header class="topbar">
       <div class="breadcrumb">
@@ -613,7 +613,7 @@
 </div>
 
 <script>
-  /* ========== theme ========== */
+  /* ========== 主题 ========== */
   function applyTheme(t) {
     document.documentElement.setAttribute('data-theme', t);
     document.querySelectorAll('.theme-btn').forEach(b =>
@@ -625,15 +625,15 @@
   try { applyTheme(localStorage.getItem('polyrocket.theme') || 'dark'); }
   catch(e) { applyTheme('dark'); }
 
-  /* ========== first-run check (v2.0) ========== */
-  // If we have no LLM key AND no wallet, route to onboarding.
-  // In real app this is gated by `await invoke('secrets_status')`.
+  /* ========== 首次运行检查 (v2.0) ========== */
+  // 如果既没有 LLM 密钥也没有钱包，则路由到引导页。
+  // 在真实应用中，这里会通过 `await invoke('secrets_status')` 守护。
   let firstRunDone = false;
   try { firstRunDone = localStorage.getItem('polyrocket.first-run-done') === '1'; } catch(e) {}
   function maybeRouteOnboarding() {
     if (firstRunDone) return;
-    // Simulated: production would await invoke('secrets_status') and check
-    // if llm_keys and wallets are both empty.
+    // 模拟逻辑：生产环境会 await invoke('secrets_status') 并检查
+    // llm_keys 和 wallets 是否都为空。
     const llmKeys = (window.__mockSecrets || { llm: 5, wallet: 1, pm: 3 });
     if (llmKeys.llm === 0 || llmKeys.wallet === 0) {
       route('onboarding');
@@ -642,7 +642,7 @@
     }
   }
 
-  /* ========== sidebar collapse ========== */
+  /* ========== 侧边栏折叠 ========== */
   function setSidebarCollapsed(collapsed) {
     document.body.classList.toggle('sidebar-collapsed', collapsed);
     try { localStorage.setItem('polyrocket.sidebar.collapsed', collapsed ? '1' : '0'); } catch(e) {}
@@ -650,16 +650,16 @@
   document.getElementById('collapseBtn').addEventListener('click', () =>
     setSidebarCollapsed(!document.body.classList.contains('sidebar-collapsed')));
 
-  /* ========== user menu ========== */
+  /* ========== 用户菜单 ========== */
   const userBtn = document.getElementById('userBtn');
   const userMenu = document.getElementById('userMenu');
   function setUserMenuOpen(open) { userMenu.classList.toggle('open', open); }
   userBtn.addEventListener('click', e => { e.stopPropagation(); setUserMenuOpen(!userMenu.classList.contains('open')); });
-  // Click outside to close
+  // 点击外部关闭
   document.addEventListener('click', e => {
     if (!userMenu.contains(e.target) && !userBtn.contains(e.target)) setUserMenuOpen(false);
   });
-  // ESC closes
+  // ESC 关闭
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') setUserMenuOpen(false);
     if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'l' || e.key === 'L')) {
@@ -672,14 +672,14 @@
       setSidebarCollapsed(!document.body.classList.contains('sidebar-collapsed'));
     }
   });
-  // user menu items: route or action
+  // 用户菜单项：路由或动作
   userMenu.querySelectorAll('[data-route], [data-action]').forEach(el => {
     el.addEventListener('click', () => {
       const route = el.getAttribute('data-route');
       const action = el.getAttribute('data-action');
       setUserMenuOpen(false);
       if (route) { window.route(route); return; }
-      // actions
+      // 操作
       const toast = document.createElement('div');
       toast.className = 'toast';
       const label = el.querySelector('.label')?.textContent || action;
@@ -690,13 +690,13 @@
     });
   });
 
-  // restore sidebar state
+  // 恢复侧边栏状态
   try {
     if (localStorage.getItem('polyrocket.sidebar.collapsed') === '1') setSidebarCollapsed(true);
   } catch(e) {}
 
-  /* ========== router ========== */
-  /* ========== mock data ========== */
+  /* ========== 路由 ========== */
+  /* ========== 模拟数据 ========== */
   const SIGNALS = [
     { id: 1, cat: 'CS2', q: 'LGD vs Spirit — Map 2 winner', closes: '2h 14m', our: 0.71, mkt: 0.58, edge: +0.13, conf: 0.82, model: 'v0.3.2' },
     { id: 2, cat: 'Football', q: 'Real Madrid vs Barcelona', closes: '5h 02m', our: 0.63, mkt: 0.54, edge: +0.09, conf: 0.71, model: 'v0.3.2' },
@@ -759,7 +759,7 @@
     onboarding: { label: 'Welcome', render: renderOnboarding },
   };
 
-  // ================ UI state helpers (v2.0) ================
+  // ================ UI 状态辅助函数 (v2.0) ================
 
   function showToast(msg, kind = 'info') {
     const c = document.getElementById('toast-container') || (() => {
@@ -779,7 +779,7 @@
     setTimeout(() => el.remove(), 4000);
   }
 
-  // Loading skeleton — 3 bar shapes per row
+  // 加载骨架 — 每行 3 条
   function uiSkeleton(rows = 5) {
     return `
       <div class="card padded" style="margin-bottom:16px;">
@@ -794,7 +794,7 @@
     `;
   }
 
-  // Empty state — title + subtitle + icon + optional CTA
+  // 空状态 — 标题 + 副标题 + 图标 + 可选 CTA
   function uiEmpty({ icon = 'inbox', title = 'Nothing here yet', subtitle = '', cta = null }) {
     return `
       <div class="empty-state">
@@ -806,7 +806,7 @@
     `;
   }
 
-  // Error state — title + reason + retry button
+  // 错误状态 — 标题 + 原因 + 重试按钮
   function uiError({ title = 'Something went wrong', reason = '', onRetry = null }) {
     return `
       <div class="error-state">
@@ -831,10 +831,10 @@
     n.addEventListener('click', e => { e.preventDefault(); route(n.getAttribute('data-route')); }));
   window.addEventListener('hashchange', () => route(location.hash.slice(1)));
   route(location.hash.slice(1) || 'dashboard');
-  // Trigger first-run onboarding check after a tick (so dashboard can render first if not first-run)
+  // 在一个 tick 之后触发首次运行引导检查（这样如果非首次运行，可以让 dashboard 先渲染）
   setTimeout(maybeRouteOnboarding, 50);
 
-  /* ========== renderers ========== */
+  /* ========== 渲染器 ========== */
   function renderDashboard() {
     return `
       <div class="page-header">
@@ -848,7 +848,7 @@
         </div>
       </div>
 
-      <!-- Today's Brief (M12) -->
+      <!-- 今日简报 (M12) -->
       <div class="card" style="margin-bottom:16px;border-left:3px solid var(--accent);">
         <div class="card-header" style="background:var(--surface-2);">
           <div>
@@ -1350,7 +1350,7 @@
         </div>
       </div>
 
-      <!-- Polymarket CLOB credentials (consolidated here for clarity) -->
+      <!-- Polymarket CLOB 凭据（此处集中展示便于查看） -->
       <div class="card" style="margin-bottom:16px;overflow:hidden;">
         <div class="card-header">
           <div>
@@ -1469,7 +1469,7 @@
         </div>
       </div>
 
-      <!-- Context card -->
+      <!-- 上下文卡片 -->
       <div class="card padded" style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <div style="font-size:13px;font-weight:500;">Context (assembled by polyrocket)</div>
@@ -1499,7 +1499,7 @@
         </div>
       </div>
 
-      <!-- 4 LLM cards -->
+      <!-- 4 个 LLM 卡片 -->
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
         ${providers.map((p, i) => `
           <div class="card padded" style="position:relative;">
@@ -1515,7 +1515,7 @@
         `).join('')}
       </div>
 
-      <!-- Consensus + decision -->
+      <!-- 共识 + 决策 -->
       <div class="card padded" style="border-left:3px solid var(--accent);">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
           <div>
@@ -1736,35 +1736,35 @@
         <div style="font-size:13px;font-weight:500;margin-bottom:12px;">Per-LLM P&L scatter (30D)</div>
         <div style="position:relative;height:300px;background:var(--surface-2);border-radius:6px;padding:16px;">
           <svg viewBox="0 0 600 260" style="width:100%;height:100%;">
-            <!-- axes -->
+            <!-- 坐标轴 -->
             <line x1="40" y1="20" x2="40" y2="220" stroke="var(--border)"/>
             <line x1="40" y1="220" x2="580" y2="220" stroke="var(--border)"/>
-            <!-- y: win rate 0-100% -->
+            <!-- y: 胜率 0-100% -->
             <text x="6" y="30" fill="var(--muted)" font-size="9" class="num">100%</text>
             <text x="6" y="120" fill="var(--muted)" font-size="9" class="num">70%</text>
             <text x="6" y="220" fill="var(--muted)" font-size="9" class="num">0%</text>
-            <!-- x: total P&L -100 to +200 -->
+            <!-- x: 总 P&L -100 到 +200 -->
             <text x="40" y="240" fill="var(--muted)" font-size="9" class="num">-$100</text>
             <text x="280" y="240" fill="var(--muted)" font-size="9" class="num">$0</text>
             <text x="540" y="240" fill="var(--muted)" font-size="9" class="num">+$200</text>
-            <!-- bubbles: x=pnl, y=winrate, r=avg pnl, color=provider -->
-            <!-- Claude: pnl +120, win 71%, avg +8 -->
+            <!-- 气泡：x=pnl，y=胜率，r=平均 pnl，颜色=provider -->
+            <!-- Claude: pnl +120, 胜率 71%, 平均 +8 -->
             <circle cx="450" cy="78" r="22" fill="var(--bull)" fill-opacity="0.3" stroke="var(--bull)" stroke-width="2"/>
             <text x="450" y="78" text-anchor="middle" fill="var(--fg)" font-size="11" font-weight="600">Claude</text>
             <text x="450" y="92" text-anchor="middle" fill="var(--muted)" font-size="9" class="num">+120 · 71%</text>
-            <!-- GPT-4o: pnl -45, win 68% -->
+            <!-- GPT-4o: pnl -45, 胜率 68% -->
             <circle cx="280" cy="92" r="20" fill="var(--accent)" fill-opacity="0.3" stroke="var(--accent)" stroke-width="2"/>
             <text x="280" y="92" text-anchor="middle" fill="var(--fg)" font-size="11" font-weight="600">GPT-4o</text>
             <text x="280" y="106" text-anchor="middle" fill="var(--muted)" font-size="9" class="num">−45 · 68%</text>
-            <!-- Gemini: pnl -80, win 65% -->
+            <!-- Gemini: pnl -80, 胜率 65% -->
             <circle cx="220" cy="105" r="18" fill="var(--warning)" fill-opacity="0.3" stroke="var(--warning)" stroke-width="2"/>
             <text x="220" y="105" text-anchor="middle" fill="var(--fg)" font-size="11" font-weight="600">Gemini</text>
             <text x="220" y="119" text-anchor="middle" fill="var(--muted)" font-size="9" class="num">−80 · 65%</text>
-            <!-- DeepSeek: pnl -12, win 61% -->
+            <!-- DeepSeek: pnl -12, 胜率 61% -->
             <circle cx="350" cy="123" r="16" fill="var(--muted)" fill-opacity="0.3" stroke="var(--muted)" stroke-width="2"/>
             <text x="350" y="123" text-anchor="middle" fill="var(--fg)" font-size="11" font-weight="600">DeepSeek</text>
             <text x="350" y="137" text-anchor="middle" fill="var(--muted)" font-size="9" class="num">−12 · 61%</text>
-            <!-- Consensus: pnl +150, win 73% (top right) -->
+            <!-- Consensus: pnl +150, 胜率 73% (右上角) -->
             <circle cx="490" cy="60" r="26" fill="var(--accent)" fill-opacity="0.5" stroke="var(--accent)" stroke-width="2.5"/>
             <text x="490" y="60" text-anchor="middle" fill="var(--fg)" font-size="11" font-weight="700">Consensus</text>
             <text x="490" y="74" text-anchor="middle" fill="var(--fg)" font-size="9" class="num">+150 · 73%</text>
@@ -1783,7 +1783,7 @@
     const days = 30;
     const providers = ['Claude 4', 'GPT-4o', 'Gemini', 'DeepSeek', 'Consensus'];
     const colors = ['var(--bull)', 'var(--accent)', 'var(--warning)', 'var(--muted)', 'var(--fg)'];
-    // mock timeseries data
+    // 模拟时序数据
     const series = providers.map((p, i) => {
       const points = [];
       let base = 0.5 + Math.random() * 0.2;
@@ -1924,7 +1924,7 @@
         </div>
       </div>
 
-      <!-- Secrets status banner (v1.1: client-side key persistence) -->
+      <!-- 凭据状态横幅 (v1.1：客户端密钥持久化) -->
       <div class="card" style="margin-bottom:16px;padding:12px 16px;background:rgba(248,81,73,0.08);border-left:3px solid var(--bear);">
         <div style="display:flex;align-items:center;gap:12px;">
           <i data-lucide="alert-triangle" style="color:var(--bear);width:18px;height:18px;"></i>
@@ -1937,7 +1937,7 @@
         </div>
       </div>
 
-      <!-- Provider list -->
+      <!-- Provider 列表 -->
       <div class="card" style="margin-bottom:16px;overflow:hidden;">
         <table>
           <thead>
@@ -2055,7 +2055,7 @@
         </table>
       </div>
 
-      <!-- Traffic summary -->
+      <!-- 流量汇总 -->
       <div class="grid-2" style="margin-bottom:16px;">
         <div class="card padded">
           <div style="font-size:13px;font-weight:500;margin-bottom:12px;">Traffic (24h)</div>
@@ -2085,7 +2085,7 @@
         </div>
       </div>
 
-      <!-- Win-rate stats by confidence -->
+      <!-- 按置信度分桶的胜率统计 -->
       <div class="card" style="overflow:hidden;">
         <div class="card-header">
           <div>
@@ -2118,7 +2118,7 @@
         </table>
       </div>
 
-      <!-- Wallets & Polymarket CLOB credentials (v1.1) -->
+      <!-- 钱包与 Polymarket CLOB 凭据 (v1.1) -->
       <div class="card" style="margin-top:16px;overflow:hidden;">
         <div class="card-header">
           <div>
@@ -2176,7 +2176,7 @@
                 <button class="btn" style="padding:3px 8px;font-size:11px;"><i data-lucide="trash-2"></i></button>
               </td>
             </tr>
-            <!-- Wallet (mode B) -->
+            <!-- 钱包 (mode B) -->
             <tr>
               <td><span class="dot" style="background:var(--bull);"></span></td>
               <td><span class="pill">wallet_pk</span></td>
@@ -2189,7 +2189,7 @@
                 <button class="btn" style="padding:3px 8px;font-size:11px;"><i data-lucide="trash-2"></i></button>
               </td>
             </tr>
-            <!-- .env dev hint -->
+            <!-- .env 开发提示 -->
             <tr style="background:var(--surface-2);">
               <td><i data-lucide="info" style="width:14px;height:14px;color:var(--muted);"></i></td>
               <td colspan="6" style="font-size:11.5px;color:var(--muted);padding:10px 12px;">
@@ -2202,7 +2202,7 @@
         </table>
       </div>
 
-      <!-- Add / update key modal (v1.1) -->
+      <!-- 添加 / 更新密钥弹窗 (v1.1) -->
       <div id="add-key-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeAddKeyModal()">
         <div class="modal" style="max-width:480px;">
           <div class="modal-header">
@@ -2263,9 +2263,9 @@
     const secretLabel = document.getElementById('add-key-secret-label');
     const title       = document.getElementById('add-key-title');
     if (providerId) providerSel.value = providerId;
-    // Default alias when blank
+    // 留空时的默认别名
     if (!aliasInput.value) aliasInput.value = 'prod-1';
-    // Provider → keyring alias preview
+    // Provider → keyring 别名预览
     const v = providerSel.value;
     let target;
     if (v === 'pm_api')            target = 'polyrocket/pm/api';
@@ -2274,7 +2274,7 @@
     else if (v === 'wallet_pk')    target = 'polyrocket/wallet/' + (aliasInput.value || 'primary');
     else                           target = `llm/${v}/${aliasInput.value || 'prod-1'}`;
     targetAlias.textContent = target;
-    // Show/hide conditional fields
+    // 显示/隐藏条件字段
     pmExtra.classList.toggle('hidden', !v.startsWith('pm_'));
     aliasRow.classList.toggle('hidden', v.startsWith('pm_') || v === 'wallet_pk');
     if (v === 'wallet_pk') {
@@ -2298,16 +2298,16 @@
   }
 
   function submitAddKey() {
-    // In production this calls:
+    // 生产环境中这里调用:
     //   await invoke('llm_key_upsert', { args: { key, secret } })
     //   or  invoke('llm_pm_set_credentials', { args: {...} })
     //   or  invoke('polyrocket_wallet_set_pk', { args: {...} })
-    // Mock: just close the modal + toast.
+    // Mock：只关闭弹窗 + toast。
     closeAddKeyModal();
     showToast('✓ Saved to OS keychain', 'success');
   }
 
-  // Wire live update of the target-alias preview as user types
+  // 监听用户输入，实时更新目标别名预览
   document.addEventListener('input', (e) => {
     if (e.target && e.target.id === 'add-key-alias') {
       const v = document.getElementById('add-key-provider').value;
@@ -2322,7 +2322,7 @@
     }
   });
 
-  // secrets_status demo — would invoke('secrets_status')
+  // secrets_status 演示 — 生产环境中会调用 invoke('secrets_status')
   function invoke_secrets_status_demo() {
     showToast('secrets_status · 5 LLM keys ✓ · 3 PM ✓ · 1 wallet ✓', 'info');
   }
@@ -2449,14 +2449,14 @@
     `;
   }
 
-  // ================ 6 new pages (v2.0) ================
+  // ================ 6 个新页面 (v2.0) ================
 
   function renderOnboarding() {
-    // 4-step wizard: welcome → theme → wallet → LLM keys
-    // v0.2 only shows this on first run (no wallet + no LLM key configured)
+    // 4 步向导：欢迎 → 主题 → 钱包 → LLM 密钥
+    // v0.2 仅在首次运行时显示此页面（未配置钱包 + 未配置 LLM 密钥）
     return `
       <div style="max-width:760px;margin:24px auto;padding:0 24px;">
-        <!-- progress -->
+        <!-- 进度 -->
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:24px;">
           <div class="dot" style="background:var(--accent);"></div>
           <div style="height:2px;width:48px;background:var(--accent);"></div>
@@ -2555,7 +2555,7 @@
       </div>
 
       <div class="grid-2" style="margin-bottom:16px;gap:16px;">
-        <!-- left: orderbook + price chart -->
+        <!-- 左：订单簿 + 价格曲线 -->
         <div>
           <div class="card padded" style="margin-bottom:16px;">
             <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;">
@@ -2595,7 +2595,7 @@
           </div>
         </div>
 
-        <!-- right: bet + LLM + signals -->
+        <!-- 右：下单 + LLM + 信号 -->
         <div>
           <div class="card padded" style="margin-bottom:16px;">
             <div style="font-size:13px;font-weight:500;margin-bottom:12px;">Place a bet</div>
@@ -3089,10 +3089,10 @@
   }
 </script>
 <!--
-  Regenerate PNG previews with:
+  用以下命令重新生成 PNG 预览:
     python3 scripts/snapshot_pages.py
-  Writes 54 PNGs to docs/previews/{dark,light,matrix}/<page>.png
-  See docs/polyrocket-ui-design.md §3.1 for the page list.
+  共写入 54 张 PNG 到 docs/previews/{dark,light,matrix}/<page>.png
+  页面列表见 docs/polyrocket-ui-design.md §3.1。
 -->
 </body>
 </html>
