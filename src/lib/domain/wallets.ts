@@ -1,6 +1,6 @@
 /**
- * L1 domain mirror — M4 Wallets.
- * Mirrors src-tauri/src/domain/wallet/mod.rs.
+ * L1 领域镜像 —— M4 钱包。
+ * 镜像 src-tauri/src/domain/wallet/mod.rs。
  */
 
 export const POLYGON_MAINNET = 137;

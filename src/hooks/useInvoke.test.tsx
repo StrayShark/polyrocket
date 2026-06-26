@@ -1,8 +1,8 @@
-// v0.95 — useInvoke hook test (+2 tests, +2 stmts).
+// v0.95 —— useInvoke hook 测试（+2 个测试，+2 个语句）。
 //
-// useInvoke.ts is a thin wrapper around React Query's useQuery.
-// It was added to coverage include list in v0.91 but had 0
-// direct tests. This file adds 2 tests to bump fn/stmts.
+// useInvoke.ts 是对 React Query 的 useQuery 的轻量封装。
+// 它在 v0.91 被加入覆盖率包含列表但没有
+// 直接测试。本文件添加 2 个测试以提升 fn/stmts。
 
 // @vitest-environment happy-dom
 

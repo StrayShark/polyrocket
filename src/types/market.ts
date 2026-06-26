@@ -1,4 +1,4 @@
-// Market DTOs (mirror src-tauri/src/commands/market.rs + domain::polymarket)
+// Market DTO（镜像 src-tauri/src/commands/market.rs + domain::polymarket）
 
 /** L1 Market DTO。**镜像** `src-tauri/src/commands/market.rs::MarketDto`。
  *
@@ -23,9 +23,9 @@ export interface Market {
   outcome: string | null;
   liquidity: string | null;
   volume_24h: string | null;
-  /** user_interested (v0.3+, optional) */
+  /** user_interested (v0.3+, optional,是否感兴趣) */
   user_interested?: number | null;
-  /** brief_dismissed_at (v0.3+, optional) */
+  /** brief_dismissed_at (v0.3+, optional,简报 dismiss 时间戳) */
   brief_dismissed_at?: number | null;
 }
 

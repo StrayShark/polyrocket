@@ -1,17 +1,17 @@
-// v0.91 — useTrainProgress hook tests (+7 tests).
+// v0.91 — useTrainProgress hook 测试（+7 个测试）。
 //
-// The hook was extracted in v0.91 from ModelLab.tsx to make
-// the deferred v0.83 branch coverage gap testable. This file
-// verifies:
-//   - initial state: activeTrainJobId=null
-//   - markExpected + train:started → activeTrainJobId set
-//   - markExpected + train:started resets the expected flag
-//     (next event ignored)
-//   - 2 markExpected + 2 train:started → second one captured
-//   - markExpected + train:started + clearActive → null
-//   - enabled=false → no listener subscribed
-//   - listener cleanup on unmount (cancelled=true on first
-//     mount in strict mode; second mount's listener stays)
+// 该 hook 在 v0.91 中从 ModelLab.tsx 提取出来，以便
+// 对 v0.83 延期的分支覆盖率缺口进行测试。本文件
+// 验证以下场景：
+//   - 初始状态：activeTrainJobId=null
+//   - markExpected + train:started → activeTrainJobId 被设置
+//   - markExpected + train:started 重置 expected 标记
+//     （忽略下一个事件）
+//   - 2 次 markExpected + 2 次 train:started → 捕获第二次的事件
+//   - markExpected + train:started + clearActive → activeTrainJobId 设为 null
+//   - enabled=false → 不订阅监听器
+//   - 卸载时清理监听器（严格模式下第一次
+//     mount 时 cancelled=true；第二次 mount 的监听器保持）
 
 // @vitest-environment happy-dom
 
@@ -29,11 +29,11 @@ function evt(jobId: string): TrainStartedEvent {
 }
 
 /**
- * Build a controllable ListenFn for tests. Returns helpers:
- *   - fn: the ListenFn to pass to the hook
- *   - fire(): push an event to all registered listeners
- *   - subscribeCount(): how many times the listener was registered
- *   - unsub(): the unlisten fn for the most recent subscription
+ * 为测试构建可控的 ListenFn。返回辅助函数：
+ *   - fn: 传递给 hook 的 ListenFn
+ *   - fire(): 向所有已注册的 listener 推送一个事件
+ *   - subscribeCount(): listener 被注册的次数
+ *   - unsub(): 最近一次订阅的 unlisten 函数
  */
 function makeListener() {
   const listeners: Array<(e: TrainStartedEvent) => void> = [];
@@ -101,7 +101,7 @@ describe('useTrainProgress (v0.91)', () => {
       listener.fire(evt('first'));
     });
     expect(result.current.activeTrainJobId).toBe('first');
-    // Second event arrives without another markExpected — ignored
+    // 第二个事件到达时没有再次 markExpected —— 被忽略
     await act(async () => {
       listener.fire(evt('second'));
     });
@@ -139,10 +139,10 @@ describe('useTrainProgress (v0.91)', () => {
     const unsub = listener.lastUnsub();
     expect(unsub).toBeDefined();
     unmount();
-    // The cleanup function awaits the unlisten promise.
-    // After unmount, the unlisten should have been called.
+    // 清理函数会 await unlisten promise。
+    // unmount 之后，unlisten 应该已被调用。
     await act(async () => {
-      // microtask flush
+      // 微任务刷新
     });
     expect(unsub).toHaveBeenCalled();
   });

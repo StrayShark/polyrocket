@@ -1,6 +1,6 @@
 /**
- * L1 domain mirror — M7 ModelLab.
- * Mirrors src-tauri/src/domain/lab/mod.rs.
+ * L1 领域镜像 —— M7 ModelLab。
+ * 镜像 src-tauri/src/domain/lab/mod.rs。
  */
 
 export interface LabRun {
@@ -20,7 +20,7 @@ export function parseRunStatus(s: string): RunStatus | null {
   return null;
 }
 
-/** Legal transitions: Queued→Running, Running→Done|Error. */
+/** 合法的状态转移：Queued→Running, Running→Done|Error。 */
 export function canTransitionTo(from: RunStatus, to: RunStatus): boolean {
   if (from === 'queued' && to === 'running') return true;
   if (from === 'running' && (to === 'done' || to === 'error')) return true;
@@ -95,8 +95,8 @@ export interface ModelPerf {
 }
 
 /**
- * Promotion rule: lower brier wins; tiebreak by higher win rate;
- * final tiebreak by more predictions.
+ * 晋升规则：Brier 低者胜；平局时按胜率高者胜；
+ * 最终再平局时按预测数多者胜。
  */
 /** Promotion 规则：candidate 是否「更好」。
  *

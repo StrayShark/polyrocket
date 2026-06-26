@@ -1,26 +1,28 @@
 /**
- * L1 — i18n foundation (v0.9d).
+ * L1 —— i18n 基础（v0.9d）。
  *
- * Minimal, zero-dependency translation system. Just enough to:
- *   - register a string dictionary per locale
- *   - look up by key with `{{var}}` interpolation
- *   - expose a React context for components
- *   - persist the user's locale choice (zustand)
+ * 极简、零依赖的翻译系统。足以：
+ *   - 为每个 locale 注册字符串字典
+ *   - 通过 key 查找并支持 `{{var}}` 插值
+ *   - 为组件暴露 React context
+ *   - 持久化用户的 locale 选择（zustand）
  *
- * NOT in scope for v0.9d:
- *   - Pluralization rules (`{n, plural, one {...} other {...}}`)
- *   - Date/number formatting (use Intl directly)
- *   - Lazy-loaded locale files (everything is in one bundle)
+ * v0.9d 范围之外：
+ *   - 复数规则（`{n, plural, one {...} other {...}}`）
+ *   - 日期/数字格式化（直接使用 Intl）
+ *   - 懒加载 locale 文件（全部打包在一个 bundle 中）
  *   - ICU MessageFormat
  *
- * Adding a string:
- *   1. Add a key to the `en` dictionary (the source of truth)
- *   2. Add the same key to the other locales (Chinese for v0.9d)
- *   3. Use `t('key.name', { var: 'value' })` in components
+ * 添加一个字符串：
+ *   1. 在 `en` 字典中添加 key（作为单一真相源）
+ *   2. 在其他 locale 中添加相同的 key（v0.9d 中的中文）
+ *   3. 在组件中使用 `t('key.name', { var: 'value' })`
  *
- * If a key is missing in the active locale, the `en` version is
- * used as a fallback and a console.warn fires in dev. We never
- * throw — broken translations are a UX bug, not a crash.
+ * 如果活动 locale 中缺少某个 key，
+ * 则使用 `en` 版本作为后备，并在 dev
+ * 模式下触发 console.warn。我们绝不
+ * 抛出 —— 损坏的翻译是 UX bug，
+ * 不是崩溃。
  */
 
 import { create } from 'zustand';
@@ -31,19 +33,19 @@ export type Locale = 'en' | 'zh';
 export const SUPPORTED_LOCALES: Locale[] = ['en', 'zh'];
 export const DEFAULT_LOCALE: Locale = 'en';
 
-/** Human-readable label for each locale (used in the UI). */
+/** 每个 locale 的人类可读标签（用于 UI 展示）。 */
 export const LOCALE_LABEL: Record<Locale, string> = {
   en: 'English',
   zh: '中文',
 };
 
-/** Type-safe dictionary shape. Every locale must match it. */
+/** 类型安全的字典结构。每个 locale 必须匹配此结构。 */
 export type Dictionary = Record<string, string>;
 
 const en: Dictionary = {
   'app.name': 'polyrocket',
   'app.tagline': 'Local-first Polymarket analysis',
-  // Model pill (v0.12d, v0.13b; zh fallback added v0.119)
+  // 模型徽标 (v0.12d, v0.13b; v0.119 增加 zh 回退)
   'model.scoring_with': 'scoring with',
   'model.unknown': 'unknown',
   'model.tooltip_with': 'Currently scoring with: {{model}}',
@@ -61,7 +63,7 @@ const en: Dictionary = {
   'nav.settings_section': 'Settings',
   'nav.preferences': 'Preferences',
   'nav.categories': 'Categories',
-  // Page titles (v0.11a)
+  // 页面标题 (v0.11a)
   'page.dashboard': 'Dashboard',
   'page.markets': 'Markets',
   'page.market_detail': 'Market Detail',
@@ -82,11 +84,11 @@ const en: Dictionary = {
   'page.help': 'Help',
   'page.welcome': 'Welcome',
   'page.trade': 'Trade',
-  'page.bankroll': 'Bankroll', // v0.78 — M11 (added v0.119 zh-fallback)
-  // Bankroll page (v0.78 — M11; zh fallback added v0.119)
+  'page.bankroll': 'Bankroll', // v0.78 — M11 (v0.119 增加 zh 回退)
+  // 资金管理页面 (v0.78 — M11; v0.119 增加 zh 回退)
   'bankroll.title': 'Bankroll Allocation',
   'bankroll.subtitle': 'AI-driven Kelly-based allocation across active signals.',
-  // Settings → bankroll card (v0.119 zh-fallback added)
+  // Settings → 资金管理卡片 (v0.119 增加 zh 回退)
   'settings.bankroll.title': 'Bankroll Allocation',
   'settings.bankroll.desc': 'AI-driven Kelly-based bet allocation. Edit in /bankroll.',
   'bankroll.config': 'Allocation Config',
@@ -100,11 +102,11 @@ const en: Dictionary = {
   'bankroll.max_exposure': 'Max total exposure',
   'bankroll.recompute': 'Recompute',
   'bankroll.not_enough': 'Bankroll too small for current Kelly sizing. Increase bankroll or lower Kelly multiplier.',
-  // Status / generic
+  // 状态 / 通用
   'status.loading': 'Loading…',
   'status.empty': 'Nothing here yet.',
   'status.error_prefix': 'Error',
-  // History page (v0.12b)
+  // 历史记录页面 (v0.12b)
   'history.kpi.total': 'Total Bets',
   'history.kpi.open': 'Open',
   'history.kpi.winrate': 'Win Rate',
@@ -128,7 +130,7 @@ const en: Dictionary = {
   'history.col.tx': 'Tx',
   'history.profit': 'profit',
   'history.loss': 'loss',
-  // Onboarding page
+  // 引导页面
   'onboarding.welcome': 'Welcome to polyrocket',
   'onboarding.subtitle': 'Get started in 3 steps',
   'onboarding.welcome_toast': 'Welcome to polyrocket!',
@@ -136,10 +138,10 @@ const en: Dictionary = {
   'onboarding.feature.multi_llm': 'Multi-LLM',
   'onboarding.feature.self_custody': 'Self-custody',
   'onboarding.feature.os_keyring': 'OS keyring',
-  // Settings page
+  // 设置页面
   'settings.section.appearance': 'Appearance',
   'settings.section.language': 'Language',
-  // Markets page (v0.13a)
+  // 市场页面 (v0.13a)
   'markets.title': 'Markets',
   'markets.col.slug': 'Slug',
   'markets.col.question': 'Question',
@@ -153,7 +155,7 @@ const en: Dictionary = {
   'markets.empty': 'No markets cached yet. Click "Sync" to fetch from Polymarket.',
   'markets.filter.all': 'All',
   'markets.filter.active': 'Active only',
-  // Signals page (v0.13a)
+  // 信号页面 (v0.13a)
   'signals.title': 'Active Signals',
   'signals.trade_button': 'Trade →', // v0.52b
   'signals.col.market': 'Market',
@@ -166,7 +168,7 @@ const en: Dictionary = {
   'signals.col.rationale': 'Rationale',
   'signals.recompute': 'Recompute',
   'signals.empty': 'No active signals. Try recomputing.',
-  // Copy page (v0.13a)
+  // 跟单页面 (v0.13a)
   'copy.title': 'Copy Trading',
   'copy.targets': 'Tracked Addresses',
   'copy.events': 'Recent Fills',
@@ -184,7 +186,7 @@ const en: Dictionary = {
   'copy.add': 'Add Address',
   'copy.empty_targets': 'No tracked addresses. Add one to start mirroring.',
   'copy.empty_events': 'No recent fills detected.',
-  // PnL page (v0.13a)
+  // 盈亏页面 (v0.13a)
   'pnl.title': 'P&L',
   'pnl.kpi.realized': 'Realized P&L',
   'pnl.kpi.unrealized': 'Unrealized P&L',
@@ -198,7 +200,7 @@ const en: Dictionary = {
   'pnl.col.pnl': 'P&L',
   'pnl.col.settled': 'Settled',
   'pnl.empty': 'No bets placed yet — P&L will appear here after your first bet settles.',
-  // Analysis page (v0.14a)
+  // 分析页面 (v0.14a)
   'analysis.run.title': 'Run multi-LLM analysis',
   'analysis.run.desc': 'Fan out to enabled providers, build consensus, return per-LLM recommendations.',
   'analysis.input.placeholder': 'market id (paste from /markets)',
@@ -225,7 +227,7 @@ const en: Dictionary = {
   'analysis.recommendation.rationale': 'Rationale',
   'analysis.toast.failed': 'Analysis failed',
   'analysis.toast.decision_recorded': 'Decision recorded',
-  // Analysis page — progress grid (v0.15c)
+  // 分析页面 —— 进度网格 (v0.15c)
   'analysis.progress.running': 'Analyzing… ({{done}}/{{total}})',
   'analysis.progress.done': 'Done — {{ok}} ok, {{failed}} failed ({{total}} total)',
   'analysis.progress.total_latency': '{{ms}}ms',
@@ -236,7 +238,7 @@ const en: Dictionary = {
   'analysis.progress.status.failed': 'failed',
   'analysis.progress.row.pending': 'pending',
   'analysis.progress.row.running': 'running…',
-  // Train page — progress panel (v0.17c)
+  // 训练页面 —— 进度面板 (v0.17c)
   'train.progress.running': 'Training… ({{trials}} trials planned)',
   'train.progress.done': 'Done — {{status}}',
   'train.progress.duration': '{{ms}}ms',
@@ -247,10 +249,10 @@ const en: Dictionary = {
   'train.progress.col.reg': 'reg',
   'train.progress.col.brier': 'Brier',
   'train.progress.best_brier': 'Best Brier: {{value}}',
-  // v0.21c — per-trial Promote buttons
+  // v0.21c —— 每次 trial 的 Promote 按钮
   'train.progress.promote_best': 'Promote best',
   'train.progress.promote_trial': 'Promote #{{n}}',
-  // LlmPerf page (v0.14a)
+  // LLM 性能页面 (v0.14a)
   'llmperf.kpi.models': 'Models tracked',
   'llmperf.kpi.cost': 'Total cost',
   'llmperf.kpi.wins': 'Total wins',
@@ -273,7 +275,7 @@ const en: Dictionary = {
   'llmperf.btn.export': 'Export CSV',
   'llmperf.toast.exported': 'Exported',
   'llmperf.toast.export_failed': 'Export failed',
-  // LlmMgmt page (v0.14a)
+  // LLM 管理页面 (v0.14a)
   'llmmgmt.keyring': 'OS keyring:',
   'llmmgmt.keys_count': '{{n}} LLM keys',
   'llmmgmt.pm_api': 'PM API',
@@ -318,7 +320,7 @@ const en: Dictionary = {
   'llmmgmt.test.ok_toast': '{{provider}} OK',
   'llmmgmt.test.ok_latency': 'latency {{ms}}ms',
   'llmmgmt.test.failed': '{{provider}} failed',
-  // Wallets page (v0.14b)
+  // 钱包页面 (v0.14b)
   'wallets.title': 'Wallets',
   'wallets.subtitle': 'Register wallet addresses for trading. Private keys are stored in the OS keyring — never in SQLite.',
   'wallets.refresh': 'Refresh',
@@ -350,7 +352,7 @@ const en: Dictionary = {
   'wallets.add.notice': 'Note: private keys are stored in the OS keyring under alias <code>{{path}}</code> — never in SQLite or any plain file.',
   'wallets.add.toast.added': 'Added wallet {{addr}}',
   'wallets.add.toast.failed': 'Failed to add wallet',
-  // Notifications page (v0.14b)
+  // 通知页面 (v0.14b)
   'notifications.title': 'Notifications',
   'notifications.subtitle': 'Recent system notifications (toasts, OS banners, etc.)',
   'notifications.refresh': 'Refresh',
@@ -360,7 +362,7 @@ const en: Dictionary = {
   'notifications.col.at': 'At',
   'notifications.empty': 'No notifications yet. The daily brief, mirror fills, and keyring errors will appear here.',
   'notifications.empty.title': 'No notifications',
-  // Notifications page — toast queue UI (v0.14b)
+  // 通知页面 —— toast 队列 UI (v0.14b)
   'notifications.toast.subtitle': 'Live toast queue. {{n}} active.',
   'notifications.toast.clear': 'Clear all',
   'notifications.toast.dismiss_aria': 'dismiss',
@@ -383,9 +385,9 @@ const en: Dictionary = {
   'notifications.event.brief': 'Daily brief',
   'notifications.event.brief_hint': 'When 00:00 UTC refresh runs (silent on success)',
   'notifications.event.settings_link': 'Notification settings',
-  // Settings page (v0.14b)
+  // 设置页面 (v0.14b)
   'settings.title': 'Settings',
-  // v0.74f — appearance card (theme + language picker, moved from sidebar)
+  // v0.74f —— 外观卡片（主题 + 语言选择器，从侧边栏迁移）
   'settings.appearance.title': 'Appearance',
   'settings.appearance.desc': 'Theme and language. Changes apply immediately and persist across restarts.',
   'settings.appearance.theme_label': 'Theme',
@@ -394,7 +396,7 @@ const en: Dictionary = {
   'settings.btn.save': 'Save',
   'settings.btn.reset_toast': 'Settings reset to defaults',
   'settings.btn.save_toast': 'Settings saved',
-  // v0.36b — backup & restore
+  // v0.36b —— 备份与恢复
   'prefs.backup.title': 'Backup & restore',
   'prefs.backup.desc': 'Export your UI prefs (auto-promote margin, after-train toggle, etc.) to a JSON file, or import from one. Useful for sharing configs or backing up before a re-install.',
   'prefs.backup.export': 'Export',
@@ -425,7 +427,7 @@ const en: Dictionary = {
   'settings.storage.db_path': '~/Library/Application Support/com.polyrocket.app/polyrocket.db',
   'settings.storage.keyring': 'macOS Keychain / Windows Credential Manager / Linux Secret Service',
   'settings.storage.env_note': 'Note: .env is dev-only and gated by <code>POLYROCKET_ENV=dev</code> + <code>POLYROCKET_KEYRING_ONLY=0</code>.',
-  // Audit page (v0.14c)
+  // 审计页面 (v0.14c)
   'audit.search.placeholder': 'Search action / target / actor…',
   'audit.col.when': 'When',
   'audit.col.actor': 'Actor',
@@ -439,7 +441,7 @@ const en: Dictionary = {
   'audit.empty.no_writes': 'No write operations have been recorded yet.',
   'audit.empty.no_match': 'No entries match your filters.',
   'audit.footer': 'Showing {{shown}} of {{total}} entries · every L2 write op hits the audit log (X1 governance)',
-  // Help page (v0.14c)
+  // 帮助页面 (v0.14c)
   'help.title': 'Help & reference',
   'help.subtitle': 'Quick links, key concepts, and troubleshooting.',
   'help.quick.title': 'Quick start',
@@ -469,7 +471,7 @@ const en: Dictionary = {
   'help.external.docs': 'polyrocket docs',
   'help.external.polymarket': 'Polymarket docs',
   'help.external.github': 'GitHub repo',
-  // ModelLab page (v0.14c)
+  // 模型实验室页面 (v0.14c)
   'modellab.title': 'Model performance',
   'modellab.kpi.versions': 'Model versions',
   'modellab.kpi.best_brier': 'Best Brier',
@@ -492,58 +494,57 @@ const en: Dictionary = {
   'train.toast.completed': 'Training completed',
   'train.toast.brier': 'Best Brier: {{value}}',
   'train.toast.failed': 'Training failed',
-  // Promote page (v0.18c)
+  // 晋升页面 (v0.18c)
   'promote.btn.promote': 'Promote to active',
   'promote.btn.promoting': 'Promoting…',
   'promote.toast.promoted': 'Model promoted',
   'promote.toast.version': 'Now active: {{version}}',
   'promote.toast.failed': 'Promote failed',
-  // v0.23b — Auto-promote if better
+  // v0.23b —— 自动晋升（若更优）
   'promote.btn.auto_promote': 'Promote if better',
   'promote.btn.auto_promoting': 'Checking…',
   'promote.toast.auto_promoted': 'Auto-promoted (improved by {{delta}})',
   'promote.toast.auto_skipped': 'Not promoted (improvement {{delta}} < margin {{margin}})',
   'promote.toast.auto_failed': 'Auto-promote failed',
-  // v0.23c — Auto-promote margin setting
+  // v0.23c —— 自动晋升 margin 设置
   'auto_promote.title': 'Auto-promote if better',
   'auto_promote.desc': 'After each train, the Python sidecar compares the candidate\'s Brier score to the active model\'s. If the candidate is at least the margin better, it is auto-promoted. Otherwise, no action.',
   'auto_promote.margin.label': 'Brier margin',
   'auto_promote.margin.hint': 'How much better the candidate must be (default 0.005). Lower = more aggressive auto-promote. Set to 1.0 to disable.',
   'auto_promote.margin.saved': 'Margin saved',
-  // v0.28c — auto-run after train toggle
+  // v0.28c —— 训练后自动运行开关
   'auto_promote.after_train.label': 'Auto-run after train',
   'auto_promote.after_train.desc': 'When ON, every successful train triggers a background auto-promote (using the margin above). The ModelLab page auto-refreshes when the auto-promote finishes. When OFF, you must click "Promote if better" manually.',
-  // v0.28c — auto-promote:finished toasts
+  // v0.28c —— auto-promote:finished 提示
   'auto_promote.toast.auto_promoted': 'Auto-promoted to',
   'auto_promote.toast.auto_skipped': 'Auto-promote skipped',
   'promote.last_candidate.hint': 'Click "Promote" to make this the active model.',
-  // v0.19c — Promote history panel
+  // v0.19c —— 晋升历史面板
   'promote.history.title': 'Promotion history',
   'promote.history.desc': 'Past promoted models, newest first.',
   'promote.history.empty': 'No promotions yet',
   'promote.history.empty_desc': 'Train a model and click Promote to start the history.',
-  // v0.30a — trial-type filter chips
+  // v0.30a —— trial 类型筛选 chip
   'promote.history.filter.all': 'All',
   'promote.history.filter.best': 'Best trial',
   'promote.history.filter.bulk': 'Bulk',
   'promote.history.filter_empty': 'No entries match the "{{filter}}" filter.',
   'promote.history.brier': 'Brier',
   'promote.history.active': 'active',
-  // v0.34a — promote history archive modal
+  // v0.34a —— 晋升历史归档模态框
   'promote.archive.title': 'Promote history archive',
-  // v0.40a — multi-model comparison modal
+  // v0.40a —— 多模型对比模态框
   'compare.title': 'Compare models',
   'compare.best': 'best',
   'compare.lowest_brier': 'lowest Brier',
   'compare.hint': 'Select 2-3 entries in the history panel to compare.',
   'compare.button': 'Compare ({{count}})',
-  // v0.42e-3 — weights (w0, w1, w2) section in
-  // the comparison modal. Sourced from the
-  // sidecar's archive.jsonl.
+  // v0.42e-3 —— weights (w0, w1, w2) 章节,位于
+  // 比较弹窗中。来源是 sidecar 的 archive.jsonl。
   'compare.weights_title': 'weights (archive)',
   'compare.weights_loading': 'loading…',
   'compare.weights_missing': '(no archive entry yet — in-memory only)',
-  // v0.43 — backtest modal
+  // v0.43 —— 回测模态框
   'backtest.title': 'Backtest model',
   'backtest.button': 'Backtest',
   'backtest.target_label': 'Target model',
@@ -558,22 +559,22 @@ const en: Dictionary = {
   'backtest.no_target': 'no target model selected',
   'backtest.invalid_json': 'invalid JSON: {{error}}',
   'backtest.sample_count': '{{n}} samples',
-  // v0.46 — backtest auto-populate from resolved markets
+  // v0.46 —— 从已结算市场自动填充回测
   'backtest.pull_resolved': 'Pull from resolved markets',
   'backtest.pull_limit': 'Limit',
   'backtest.resolved_available': 'available',
   'backtest.pull_hint': 'v0.47+: samples use the latest price_snapshots entry per market (or 0.5 fallback when no snapshot exists, e.g. pre-v0.47 DBs). market_age_hours is fixed at 24 (the "predict 1 day before close" convention). Edit the textarea to use real prices if you have them.',
   'backtest.no_resolved_markets': 'no resolved markets in the DB — sync markets first, then come back',
-  // v0.39b — auto-promote OS notification
+  // v0.39b —— 自动晋升桌面通知
   'auto_promote.notify.label': 'Desktop notification on auto-promote',
   'auto_promote.notify.desc': 'When ON, a real OS notification (macOS Notification Center / Windows toast) fires when a background auto-promote completes. The in-app toast always fires regardless.',
-  // v0.42e-2 — skipped auto-promote OS notification
+  // v0.42e-2 —— 跳过自动晋升桌面通知
   'auto_promote.notify_skipped.label': 'Desktop notification on auto-promote SKIPPED',
   'auto_promote.notify_skipped.desc': 'When ON, a real OS notification fires when a background auto-promote evaluates the candidate and decides NOT to promote it (e.g. brier did not improve). Off by default — most users do not want a "no improvement" ping after every train.',
   'auto_promote.toast.auto_promoted_body': 'A new model was auto-promoted',
-  // v0.42e-2 — skipped auto-promote OS notification body
+  // v0.42e-2 —— 跳过自动晋升桌面通知正文
   'auto_promote.toast.auto_skipped_body': 'No improvement over the active model',
-  // v0.42c — opt-in lifecycle telemetry
+  // v0.42c —— 选择性生命周期遥测
   'telemetry.title': 'Telemetry',
   'telemetry.desc': 'Opt-in machine-parseable lifecycle events. Default OFF.',
   'telemetry.label': 'Send telemetry events to stderr',
@@ -581,13 +582,13 @@ const en: Dictionary = {
   'telemetry.capture_hint': '$ polyrocket 2> telemetry.log',
   'telemetry.pushed': 'telemetry enabled',
   'telemetry.push_failed': 'failed to update telemetry state',
-  // v0.49a — on-disk session file inventory
+  // v0.49a —— 磁盘上的 session 文件清单
   'telemetry.logs_title': 'Session log files',
   'telemetry.logs_empty': 'No telemetry sessions recorded yet. Enable telemetry above and restart to start a session.',
   'telemetry.purge_old': 'Purge old',
   'telemetry.purged': 'purged {{n}} old session file(s)',
   'telemetry.purge_failed': 'failed to purge old telemetry files',
-  // v0.49b — active model summary
+  // v0.49b —— 当前模型概要
   'active_model.title': 'Active model',
   'active_model.desc': 'The model Rust considers currently active. Source: <sidecar model dir>/active.json. Same view the degradation detector sees.',
   'active_model.empty': 'No model promoted yet. Train a model and promote it from Model Lab.',
@@ -596,13 +597,13 @@ const en: Dictionary = {
   'active_model.brier': 'Train Brier:',
   'active_model.promoted_at': 'Promoted at:',
   'active_model.source': 'Source:',
-  // v0.49c — scheduler self-test
+  // v0.49c —— 调度器自检
   'scheduler.self_test_title': 'Scheduler self-test',
   'scheduler.self_test_desc': 'Background loops (8 total). Green = ticked within 3x the expected interval. Red = late. Yellow = never ticked (still in stagger sleep).',
   'scheduler.all_healthy': 'all loops healthy',
   'scheduler.some_unhealthy': 'one or more loops unhealthy',
   'scheduler.never': 'never',
-  // v0.50a — order types
+  // v0.50a —— 订单类型
   'order_type.market': 'Market',
   'order_type.limit': 'Limit',
   'order_type.stop_loss': 'Stop-loss',
@@ -611,7 +612,7 @@ const en: Dictionary = {
   'order_type.invalid_for_market': 'Market orders cannot have limit_price or stop_price.',
   'order_type.post_only_limit_only': 'Post-only is only valid for limit orders.',
   'order_type.invalid_order_type': 'Unknown order type: {{name}}',
-  // v0.51a — CLOB feed status
+  // v0.51a —— CLOB 行情状态
   'clob.title': 'CLOB feed',
   'clob.desc': 'Real-time order-book data from Polymarket. v0.51a only — the live WebSocket listener lands in a later v0.51+. Without credentials the L1 falls back to v0.47a price_snapshots.',
   'clob.not_configured': 'not configured',
@@ -623,7 +624,7 @@ const en: Dictionary = {
   'clob.submit_stub': 'deterministic stub (no creds)',
   'clob.submit_http': 'live HTTP submit',
   'clob.submit_failed': 'CLOB rejected: {{msg}}',
-  // v0.52 — place-bet form
+  // v0.52 —— 下注表单
   'place_bet.title': 'Place bet',
   'place_bet.desc': 'Construct an order (Market / Limit / StopLoss) and submit it. Live validation via `validateOrderArgs`.',
   'place_bet.market_id': 'Market ID',
@@ -643,16 +644,16 @@ const en: Dictionary = {
   'trade.title': 'Trade',
   'trade.desc': 'Place a manual order against a Polymarket market. v0.52a — Limit / StopLoss / post-only supported.',
   'trade.body': 'Use this page when you want to place a bet outside the signal flow. The form validates live against the Rust `validate_order_args` IPC, so errors surface before submission. The submit goes through `placeSignedOrder`, which uses the v0.51c CLOB submit path (real HTTP when creds are present, deterministic stub otherwise).',
-  // v0.44c — paper trading mode
+  // v0.44c —— 模拟盘模式
   'paper_mode.title': 'Paper trading mode',
   'paper_mode.desc': 'Mirror executor writes to paper_fills (no CLOB submission) when ON. Validate your config without risking real money.',
   'paper_mode.label': 'Enable paper trading mode',
   'paper_mode.hint': 'When ON, picked mirrors go to the `paper_fills` table instead of `bets`, and the CLOB signing step is skipped. The decision logic (sizing, exposure caps, frequency) is unchanged. Mirrors are marked `paper_submitted`. Default OFF.',
   'paper_mode.pushed': 'paper mode enabled',
   'paper_mode.push_failed': 'failed to update paper mode',
-  // v0.44c — copy page banner
+  // v0.44c —— 跟单页横幅
   'copy.paper_mode_banner': 'paper mode — {{n}} hypothetical fills captured',
-  // v0.48b — model degradation alert
+  // v0.48b —— 模型衰退提醒
   'degradation.title': 'Model degradation alerts',
   'degradation.desc': 'OS notification when the live Brier of the FALLBACK model drifts above the train-time Brier by more than the threshold on recent resolved markets.',
   'degradation.label': 'Notify on model degradation',
@@ -691,7 +692,7 @@ const en: Dictionary = {
   'network.saved': 'Proxy saved. Changes take effect immediately.',
   'network.cleared': 'Proxy cleared. Changes take effect immediately.',
   'network.hint': 'Authenticated proxies (with username/password) are not yet supported in the UI. Set the HTTP_PROXY / HTTPS_PROXY env var before launch for those.',
-  // v0.45c — dashboard paper PnL card
+  // v0.45c —— 仪表盘模拟盘盈亏卡
   'dashboard.paper.title': 'Paper trading PnL',
   'dashboard.paper.desc': 'What would have happened if your mirrors were placed as live bets.',
   'dashboard.paper.total_fills': 'Total fills',
@@ -700,7 +701,7 @@ const en: Dictionary = {
   'dashboard.paper.win_rate_hint': '{{won}} won / {{lost}} lost',
   'dashboard.paper.realized_pnl': 'Realized PnL',
   'dashboard.paper.pnl_hint': 'sum across settled paper_fills',
-  // v0.50c — fill analytics
+  // v0.50c —— 成交分析
   'dashboard.fill_analytics.title': 'Fill analytics',
   'dashboard.fill_analytics.desc': 'Aggregate stats across the real-mode `bets` table. Per-order-type breakdown + post-only share.',
   'dashboard.fill_analytics.total': 'Total fills',
@@ -727,16 +728,16 @@ const en: Dictionary = {
   'promote.archive.range': '{{start}}–{{end}} of {{total}}',
   'common.prev': 'Prev',
   'common.next': 'Next',
-  // v0.24a — per-trial badge labels
+  // v0.24a —— 每个 trial 的徽标标签
   'promote.history.trial_best': 'best trial',
   'promote.history.trial_n': 'trial #{{n}}',
   'promote.history.reason_fallback': 'Promoted',
-  // v0.25b — Bulk promote (all 4 trials)
+  // v0.25b —— 批量晋升（全部 4 个 trial）
   'train.progress.promote_all': 'Promote all 4',
   'promote.toast.all_promoted': 'Promoted all {{count}} trials',
   'promote.toast.all_partial': 'Promoted {{ok}}/{{count}} trials (some failed)',
   'promote.toast.all_failed': 'Bulk promote failed',
-  // v0.20c — Rollback button + confirmation
+  // v0.20c —— 回滚按钮 + 确认
   'rollback.btn.rollback': 'Rollback',
   'rollback.toast.rolled_back': 'Model rolled back',
   'rollback.toast.version': 'Now active: {{version}}',
@@ -746,7 +747,7 @@ const en: Dictionary = {
   'rollback.confirm.warning': 'This action cannot be undone. The current model is not backed up.',
   'rollback.confirm.confirm': 'Roll back',
   'rollback.confirm.cancel': 'Cancel',
-  // v0.22a — Promote history chart (Brier sparkline)
+  // v0.22a —— 晋升历史曲线（Brier 趋势线）
   'promote.chart.title': 'Brier over time',
   'promote.chart.empty': 'No brier data yet — promote a model to see the trend.',
   'promote.chart.range': 'Brier {{min}} → {{max}}',
@@ -760,7 +761,7 @@ const en: Dictionary = {
   'modellab.sm.done': 'done',
   'modellab.sm.error': 'error',
   'modellab.sm.note': '<code>queued → running → (done | error)</code> — both done and error are terminal. Version promotion uses <code>is_better()</code>: lower Brier wins, tiebreak by win rate, then by n_predictions.',
-  // MarketDetail page (v0.14c)
+  // 市场详情页面 (v0.14c)
   'marketdetail.back_markets': 'Markets',
   'marketdetail.not_found': 'Market not found',
   'marketdetail.not_found_desc': 'No market with id {{id}}',
@@ -783,7 +784,7 @@ const en: Dictionary = {
   'marketdetail.activity.title': 'Activity',
   'marketdetail.activity.desc': 'Coming soon — M5 copy events + M3 bet history',
   'marketdetail.activity.body': 'Activity timeline will be wired in M3 + M5.',
-  // Dashboard page (v0.14d)
+  // 仪表盘页面 (v0.14d)
   'dashboard.kpi.equity': 'Total Equity',
   'dashboard.kpi.equity_hint': '{{n}} open',
   'dashboard.kpi.open_pnl': 'Open PnL',
@@ -823,7 +824,7 @@ const en: Dictionary = {
   'dashboard.positions.size_at': '${{size}} @ {{price}} · {{when}}',
   'dashboard.recent.bet_text': '{{status}} {{side}} ${{size}} @ {{price}} ({{sign}}${{pnl}})',
   'dashboard.recent.signal_text': '{{side}} {{edge}} on {{question}}',
-  // Brief page (v0.14d)
+  // 简报页面 (v0.14d)
   'brief.title': 'Daily Brief',
   'brief.subtitle': 'Top markets worth watching today. Scored by edge × confidence × consensus.',
   'brief.refresh': 'Refresh',
@@ -850,8 +851,8 @@ const en: Dictionary = {
   'common.loading': 'Loading…',
   'common.error': 'Something went wrong',
   'common.close': 'Close',
-  'common.refresh': 'Refresh', // v0.49a — telemetry logs refresh button
-  // v0.53b — welcome wizard
+  'common.refresh': 'Refresh', // v0.49a —— 遥测日志刷新按钮
+  // v0.53b —— 欢迎向导
   'welcome.hero_title': 'Welcome to polyrocket',
   'welcome.hero_tagline': 'Polymarket analysis in your pocket. Local-first, multi-LLM, OS keyring.',
   'welcome.locale_label': 'Language',
@@ -938,7 +939,7 @@ const en: Dictionary = {
   'welcome.banner_missing_pm': 'no Polymarket CLOB',
   'welcome.banner_missing_wallet': 'no trading wallet',
   'welcome.banner_complete': 'Complete setup',
-  // v0.55c — re-run setup card on /settings
+  // v0.55c —— 在 /settings 上重新运行设置卡
   'welcome.rerun_title': 'Re-run first-run setup',
   'welcome.rerun_desc': 'Walk through the wizard again. Existing settings (LLM keys, wallet, storage path) are preserved unless you explicitly reset.',
   'welcome.rerun_body': 'Use this when you want to revisit a step you skipped (e.g. add a wallet, change storage path, configure a new LLM provider). The full flow is non-destructive — your data and active model are not touched.',
@@ -964,12 +965,96 @@ const en: Dictionary = {
   'error.not_found': 'The requested item no longer exists.',
   'error.internal': 'An internal error occurred.',
   'error.unknown': 'An unknown error occurred.',
+  // v0.126 —— 竞品分析功能
+  'nav.arb_board': 'Arbitrage Board',
+  'nav.smart_money': 'Smart Money',
+  'nav.news': 'News',
+  'nav.football': 'Football',
+  'nav.insights': 'Insights',
+  'nav.trading': 'Trading',
+  'nav.tools': 'Tools',
+  'smart_money.score': 'Smart Money Score',
+  'smart_money.yes_side': 'YES side',
+  'smart_money.no_side': 'NO side',
+  'smart_money.methodology': 'Score Methodology',
+  'smart_money.wallet_count': 'Wallet count',
+  'smart_money.avg_pnl': 'Avg PnL',
+  'smart_money.win_rate': 'Win rate',
+  'smart_money.median_position': 'Median position',
+  'smart_money.top_wallets': 'Top wallets',
+  'calendar.title': 'Schedule Calendar',
+  'calendar.no_fixtures': 'No fixtures this month',
+  'spike.detected': 'Spike Detected',
+  'spike.price_moved': 'Price moved',
+  'spike.view_market': 'View Market',
+  'news.catalyst': 'Catalyst News',
+  'news.relevance': 'Relevance',
+  'news.impact': 'Impact',
+  'news.refresh': 'Refresh news',
+  'news.no_news': 'No news items found for this market',
+  'arb.title': 'Arbitrage Opportunities',
+  'arb.yes_cost': 'YES cost',
+  'arb.no_cost': 'NO cost',
+  'arb.profit_margin': 'Profit margin',
+  'arb.cross_platform': 'Cross-Platform Arbitrage',
+  'arb.no_opportunities': 'No arbitrage opportunities found',
+  'arb.scan': 'Scan for Arbitrage',
+  'poisson.score_matrix': 'Score Matrix',
+  'poisson.most_likely': 'Most likely score',
+  'poisson.lambda_h': 'λ home',
+  'poisson.lambda_a': 'λ away',
+  'uma.disputed': 'UMA Disputed',
+  'uma.resolving': 'Resolving',
+  'uma.clear': 'No disputes',
+  // Phase 1.1：群体智慧
+  'crowd.title': 'Crowd Opinion',
+  'crowd.description': 'Capital-weighted holder sentiment',
+  'crowd.capital_split': 'Capital Split',
+  'crowd.holders': 'holders',
+  'crowd.hhi': 'HHI Concentration',
+  'crowd.hhi_diversified': 'Diversified',
+  'crowd.hhi_moderate': 'Moderate',
+  'crowd.hhi_concentrated': 'Concentrated',
+  'crowd.hhi_monopoly': 'Whale monopoly',
+  'crowd.top3_share': 'Top-3 Share',
+  'crowd.top3_desc': 'of total capital',
+  'crowd.smart_divergence': 'Smart Money Divergence',
+  'crowd.crowd_yes': 'Crowd YES',
+  'crowd.smart_yes': 'Smart YES',
+  'crowd.divergence': 'Divergence',
+  'crowd.divergence_alert': 'Significant divergence — retail may be overreacting',
+  'crowd.empty': 'No holder data',
+  'crowd.empty_desc': 'No bets found for this market yet',
+  // Phase 1.2：均值回归
+  'reversion.title': 'Mean Reversion',
+  'reversion.description': 'Statistical overreaction detector',
+  'reversion.bollinger_bands': 'Bollinger Bands (2σ)',
+  'reversion.lower': 'Lower',
+  'reversion.mean': 'Mean',
+  'reversion.upper': 'Upper',
+  'reversion.z_score': 'Z-Score',
+  'reversion.oversold': 'oversold',
+  'reversion.overbought': 'overbought',
+  'reversion.signal': 'Fade Signal',
+  'reversion.confidence': 'Confidence',
+  'reversion.fade_yes': 'Fade YES (price too high)',
+  'reversion.fade_no': 'Fade NO (price too low)',
+  'reversion.no_signal': 'No signal — price within normal range',
+  'reversion.insufficient_data': 'Insufficient data',
+  'reversion.insufficient_desc': 'Need at least 2 price snapshots for analysis',
+  'rest_days': 'Rest days',
+  'fatigue_index': 'Fatigue index',
+  'nl_query.placeholder': 'Ask anything about football markets...',
+  'nl_query.results': 'AI Results',
+  'nl_query.no_results': 'No matching markets found',
+  'page.arb_board': 'Arbitrage Board',
+  'page.smart_money': 'Smart Money',
 };
 
 const zh: Dictionary = {
   'app.name': 'polyrocket',
   'app.tagline': '本地优先的 Polymarket 分析',
-  // Model pill (v0.12d, v0.13b; zh fallback added v0.119)
+  // 模型徽标 (v0.12d, v0.13b; v0.119 增加 zh 回退)
   'model.scoring_with': '正在使用',
   'model.unknown': '未知',
   'model.tooltip_with': '当前打分模型: {{model}}',
@@ -987,7 +1072,7 @@ const zh: Dictionary = {
   'nav.settings_section': '设置',
   'nav.preferences': '偏好',
   'nav.categories': '分类',
-  // Page titles (v0.11a)
+  // 页面标题 (v0.11a)
   'page.dashboard': '仪表盘',
   'page.markets': '市场',
   'page.market_detail': '市场详情',
@@ -1008,11 +1093,11 @@ const zh: Dictionary = {
   'page.help': '帮助',
   'page.welcome': '欢迎',
   'page.trade': '交易',
-  'page.bankroll': '资金管理', // v0.78 — M11 (added v0.119 zh-fallback)
-  // Bankroll page (v0.78 — M11; zh fallback added v0.119)
+  'page.bankroll': '资金管理', // v0.78 — M11 (v0.119 增加 zh 回退)
+  // 资金管理页面 (v0.78 — M11; v0.119 增加 zh 回退)
   'bankroll.title': '资金分配',
   'bankroll.subtitle': '基于 AI 的 Kelly 仓位分配,覆盖活跃信号。',
-  // Settings → bankroll card (v0.119 zh-fallback added)
+  // Settings → 资金管理卡片 (v0.119 增加 zh 回退)
   'settings.bankroll.title': '资金分配',
   'settings.bankroll.desc': '基于 AI 的 Kelly 注单分配。在 /bankroll 编辑。',
   'bankroll.config': '分配配置',
@@ -1026,11 +1111,11 @@ const zh: Dictionary = {
   'bankroll.max_exposure': '最大总仓位',
   'bankroll.recompute': '重算',
   'bankroll.not_enough': '资金不足,无法按当前 Kelly 比例下注。请增加资金或降低 Kelly 倍数。',
-  // Status / generic
+  // 状态 / 通用
   'status.loading': '加载中…',
   'status.empty': '暂无数据。',
   'status.error_prefix': '错误',
-  // History page (v0.12b)
+  // 历史记录页面 (v0.12b)
   'history.kpi.total': '总投注数',
   'history.kpi.open': '进行中',
   'history.kpi.winrate': '胜率',
@@ -1054,7 +1139,7 @@ const zh: Dictionary = {
   'history.col.tx': 'Tx',
   'history.profit': '盈利',
   'history.loss': '亏损',
-  // Onboarding page
+  // 引导页面
   'onboarding.welcome': '欢迎使用 polyrocket',
   'onboarding.subtitle': '3 步快速开始',
   'onboarding.welcome_toast': '欢迎使用 polyrocket！',
@@ -1062,10 +1147,10 @@ const zh: Dictionary = {
   'onboarding.feature.multi_llm': '多 LLM',
   'onboarding.feature.self_custody': '自托管',
   'onboarding.feature.os_keyring': '系统钥匙串',
-  // Settings page
+  // 设置页面
   'settings.section.appearance': '外观',
   'settings.section.language': '语言',
-  // Markets page (v0.13a)
+  // 市场页面 (v0.13a)
   'markets.title': '市场',
   'markets.col.slug': '标识',
   'markets.col.question': '问题',
@@ -1079,7 +1164,7 @@ const zh: Dictionary = {
   'markets.empty': '暂无市场缓存。点击 "同步" 从 Polymarket 拉取。',
   'markets.filter.all': '全部',
   'markets.filter.active': '仅活跃',
-  // Signals page (v0.13a)
+  // 信号页面 (v0.13a)
   'signals.title': '活跃信号',
   'signals.trade_button': '下单 →', // v0.52b
   'signals.col.market': '市场',
@@ -1092,7 +1177,7 @@ const zh: Dictionary = {
   'signals.col.rationale': '理由',
   'signals.recompute': '重算',
   'signals.empty': '暂无活跃信号。试试重算。',
-  // Copy page (v0.13a)
+  // 跟单页面 (v0.13a)
   'copy.title': '跟单交易',
   'copy.targets': '已跟踪地址',
   'copy.events': '最近成交',
@@ -1110,7 +1195,7 @@ const zh: Dictionary = {
   'copy.add': '添加地址',
   'copy.empty_targets': '暂无跟踪地址。添加一个开始跟单。',
   'copy.empty_events': '暂无最近成交。',
-  // PnL page (v0.13a)
+  // 盈亏页面 (v0.13a)
   'pnl.title': '盈亏',
   'pnl.kpi.realized': '已实现盈亏',
   'pnl.kpi.unrealized': '未实现盈亏',
@@ -1124,7 +1209,7 @@ const zh: Dictionary = {
   'pnl.col.pnl': '盈亏',
   'pnl.col.settled': '结算时间',
   'pnl.empty': '暂无投注记录 — 首次投注结算后此处显示盈亏。',
-  // Analysis page (v0.14a)
+  // 分析页面 (v0.14a)
   'analysis.run.title': '运行多 LLM 分析',
   'analysis.run.desc': '并发调用已启用的 provider, 生成共识, 返回各 LLM 的建议。',
   'analysis.input.placeholder': '市场 id (从 /markets 复制)',
@@ -1151,7 +1236,7 @@ const zh: Dictionary = {
   'analysis.recommendation.rationale': '理由',
   'analysis.toast.failed': '分析失败',
   'analysis.toast.decision_recorded': '决策已记录',
-  // Analysis page — progress grid (v0.15c)
+  // 分析页面 —— 进度网格 (v0.15c)
   'analysis.progress.running': '分析中… ({{done}}/{{total}})',
   'analysis.progress.done': '完成 — {{ok}} 成功, {{failed}} 失败 ({{total}} 总计)',
   'analysis.progress.total_latency': '{{ms}}ms',
@@ -1162,7 +1247,7 @@ const zh: Dictionary = {
   'analysis.progress.status.failed': '失败',
   'analysis.progress.row.pending': '等待',
   'analysis.progress.row.running': '运行中…',
-  // Train page — progress panel (v0.17c)
+  // 训练页面 —— 进度面板 (v0.17c)
   'train.progress.running': '训练中… (预计 {{trials}} 轮)',
   'train.progress.done': '完成 — {{status}}',
   'train.progress.duration': '{{ms}}ms',
@@ -1173,10 +1258,10 @@ const zh: Dictionary = {
   'train.progress.col.reg': 'reg',
   'train.progress.col.brier': 'Brier',
   'train.progress.best_brier': '最佳 Brier: {{value}}',
-  // v0.21c — per-trial Promote buttons
+  // v0.21c —— 每次 trial 的 Promote 按钮
   'train.progress.promote_best': '晋升最佳',
   'train.progress.promote_trial': '晋升 #{{n}}',
-  // LlmPerf page (v0.14a)
+  // LLM 性能页面 (v0.14a)
   'llmperf.kpi.models': '已跟踪模型',
   'llmperf.kpi.cost': '总成本',
   'llmperf.kpi.wins': '总胜数',
@@ -1199,7 +1284,7 @@ const zh: Dictionary = {
   'llmperf.btn.export': '导出 CSV',
   'llmperf.toast.exported': '已导出',
   'llmperf.toast.export_failed': '导出失败',
-  // LlmMgmt page (v0.14a)
+  // LLM 管理页面 (v0.14a)
   'llmmgmt.keyring': '系统钥匙串:',
   'llmmgmt.keys_count': '{{n}} 个 LLM key',
   'llmmgmt.pm_api': 'PM API',
@@ -1244,7 +1329,7 @@ const zh: Dictionary = {
   'llmmgmt.test.ok_toast': '{{provider}} 正常',
   'llmmgmt.test.ok_latency': '延迟 {{ms}}ms',
   'llmmgmt.test.failed': '{{provider}} 失败',
-  // Wallets page (v0.14b)
+  // 钱包页面 (v0.14b)
   'wallets.title': '钱包',
   'wallets.subtitle': '注册用于交易的钱包地址。私钥存于系统钥匙串, 不会落 SQLite。',
   'wallets.refresh': '刷新',
@@ -1276,7 +1361,7 @@ const zh: Dictionary = {
   'wallets.add.notice': '注: 私钥存在系统钥匙串的别名 <code>{{path}}</code> 下 — 不会落 SQLite 或任何明文文件。',
   'wallets.add.toast.added': '已添加钱包 {{addr}}',
   'wallets.add.toast.failed': '添加钱包失败',
-  // Notifications page (v0.14b)
+  // 通知页面 (v0.14b)
   'notifications.title': '通知',
   'notifications.subtitle': '最近的系统通知 (toast、OS 横幅等)',
   'notifications.refresh': '刷新',
@@ -1286,7 +1371,7 @@ const zh: Dictionary = {
   'notifications.col.at': '时间',
   'notifications.empty': '暂无通知。每日简报、跟单成交、钥匙串错误等会显示在此。',
   'notifications.empty.title': '暂无通知',
-  // Notifications page — toast queue UI (v0.14b)
+  // 通知页面 —— toast 队列 UI (v0.14b)
   'notifications.toast.subtitle': '实时 toast 队列。当前 {{n}} 条。',
   'notifications.toast.clear': '全部清空',
   'notifications.toast.dismiss_aria': '关闭',
@@ -1309,7 +1394,7 @@ const zh: Dictionary = {
   'notifications.event.brief': '每日简报',
   'notifications.event.brief_hint': 'UTC 00:00 刷新运行时 (成功时静默)',
   'notifications.event.settings_link': '通知设置',
-  // Settings page (v0.14b)
+  // 设置页面 (v0.14b)
   'settings.title': '设置',
   // v0.74f — 外观(主题 + 语言,从 sidebar 迁移)
   'settings.appearance.title': '外观',
@@ -1320,7 +1405,7 @@ const zh: Dictionary = {
   'settings.btn.save': '保存',
   'settings.btn.reset_toast': '设置已重置为默认值',
   'settings.btn.save_toast': '设置已保存',
-  // v0.36b — backup & restore
+  // v0.36b —— 备份与恢复
   'prefs.backup.title': '备份与恢复',
   'prefs.backup.desc': '将你的 UI 偏好（自动晋升阈值、训练后自动运行等）导出为 JSON 文件，或从 JSON 文件导入。适合分享配置或在重装前备份。',
   'prefs.backup.export': '导出',
@@ -1351,7 +1436,7 @@ const zh: Dictionary = {
   'settings.storage.db_path': '~/Library/Application Support/com.polyrocket.app/polyrocket.db',
   'settings.storage.keyring': 'macOS Keychain / Windows Credential Manager / Linux Secret Service',
   'settings.storage.env_note': '注: .env 仅在开发模式下生效, 由 <code>POLYROCKET_ENV=dev</code> + <code>POLYROCKET_KEYRING_ONLY=0</code> 控制。',
-  // Audit page (v0.14c)
+  // 审计页面 (v0.14c)
   'audit.search.placeholder': '搜索 action / target / actor…',
   'audit.col.when': '时间',
   'audit.col.actor': '操作者',
@@ -1365,7 +1450,7 @@ const zh: Dictionary = {
   'audit.empty.no_writes': '尚未记录任何写操作。',
   'audit.empty.no_match': '没有匹配筛选条件的记录。',
   'audit.footer': '显示 {{shown}} / {{total}} 条 · 每次 L2 写操作都会落审计日志 (X1 治理)',
-  // Help page (v0.14c)
+  // 帮助页面 (v0.14c)
   'help.title': '帮助与参考',
   'help.subtitle': '快速链接、关键概念与故障排查。',
   'help.quick.title': '快速开始',
@@ -1395,7 +1480,7 @@ const zh: Dictionary = {
   'help.external.docs': 'polyrocket 文档',
   'help.external.polymarket': 'Polymarket 文档',
   'help.external.github': 'GitHub 仓库',
-  // ModelLab page (v0.14c)
+  // 模型实验室页面 (v0.14c)
   'modellab.title': '模型表现',
   'modellab.kpi.versions': '模型版本',
   'modellab.kpi.best_brier': '最佳 Brier',
@@ -1418,46 +1503,46 @@ const zh: Dictionary = {
   'train.toast.completed': '训练已完成',
   'train.toast.brier': '最佳 Brier: {{value}}',
   'train.toast.failed': '训练失败',
-  // Promote page (v0.18c)
+  // 晋升页面 (v0.18c)
   'promote.btn.promote': '晋升为活动模型',
   'promote.btn.promoting': '晋升中…',
   'promote.toast.promoted': '模型已晋升',
   'promote.toast.version': '现活动模型: {{version}}',
   'promote.toast.failed': '晋升失败',
-  // v0.23b — Auto-promote if better
+  // v0.23b —— 自动晋升（若更优）
   'promote.btn.auto_promote': '自动晋升（若更优）',
   'promote.btn.auto_promoting': '检查中…',
   'promote.toast.auto_promoted': '已自动晋升（提升 {{delta}}）',
   'promote.toast.auto_skipped': '未晋升（提升 {{delta}} < 阈值 {{margin}}）',
   'promote.toast.auto_failed': '自动晋升失败',
-  // v0.23c — Auto-promote margin setting
+  // v0.23c —— 自动晋升 margin 设置
   'auto_promote.title': '自动晋升阈值',
   'auto_promote.desc': '每次训练后，Python sidecar 会比较候选模型与当前活动模型的 Brier 分数。若候选模型至少比当前活动模型好（低）margin，则自动晋升；否则不操作。',
   'auto_promote.margin.label': 'Brier 阈值',
   'auto_promote.margin.hint': '候选模型需比当前活动模型好（低）的程度（默认 0.005）。越小越激进。设为 1.0 等同于禁用。',
   'auto_promote.margin.saved': '阈值已保存',
-  // v0.28c — auto-run after train toggle
+  // v0.28c —— 训练后自动运行开关
   'auto_promote.after_train.label': '训练后自动运行',
   'auto_promote.after_train.desc': '开启后，每次成功训练都会触发后台自动晋升（使用上面的阈值）。ModelLab 页面在自动晋升完成时自动刷新。关闭后，需手动点击 "若更优则晋升"。',
-  // v0.28c — auto-promote:finished toasts
+  // v0.28c —— auto-promote:finished 提示
   'auto_promote.toast.auto_promoted': '已自动晋升至',
   'auto_promote.toast.auto_skipped': '已跳过自动晋升',
   'promote.last_candidate.hint': '点击 "晋升" 将其设为活动模型。',
-  // v0.19c — Promote history panel
+  // v0.19c —— 晋升历史面板
   'promote.history.title': '晋升历史',
   'promote.history.desc': '历史晋升过的模型，最新的在前。',
   'promote.history.empty': '暂无晋升记录',
   'promote.history.empty_desc': '训练一个模型并点击 "晋升" 即可开始记录历史。',
-  // v0.30a — trial-type filter chips
+  // v0.30a —— trial 类型筛选 chip
   'promote.history.filter.all': '全部',
   'promote.history.filter.best': '最优试验',
   'promote.history.filter.bulk': '批量',
   'promote.history.filter_empty': '没有匹配 "{{filter}}" 过滤器的记录。',
   'promote.history.brier': 'Brier',
   'promote.history.active': '当前',
-  // v0.34a — promote history archive modal
+  // v0.34a —— 晋升历史归档模态框
   'promote.archive.title': '晋升历史归档',
-  // v0.40a — multi-model comparison modal
+  // v0.40a —— 多模型对比模态框
   'compare.title': '对比模型',
   'compare.best': '最优',
   'compare.lowest_brier': '最低 Brier',
@@ -1488,14 +1573,14 @@ const zh: Dictionary = {
   'backtest.resolved_available': '可用',
   'backtest.pull_hint': 'v0.47+: 样本使用每个市场最新的 price_snapshots 记录(无快照时退回 0.5,例如 v0.47 之前的数据库)。market_age_hours 固定为 24(预测日 = 收盘日前 1 天)。如果你有真实价格,编辑文本框再运行。',
   'backtest.no_resolved_markets': '数据库中暂无已结算市场 — 请先同步市场,再回来。',
-  // v0.39b — auto-promote OS notification
+  // v0.39b —— 自动晋升桌面通知
   'auto_promote.notify.label': '自动晋升时发送桌面通知',
   'auto_promote.notify.desc': '开启后，后台自动晋升完成时会发送真实系统通知（macOS 通知中心 / Windows 通知）。应用内 Toast 始终会显示。',
-  // v0.42e-2 — 跳过自动晋升的桌面通知
+  // v0.42e-2 —— 跳过自动晋升时的桌面通知
   'auto_promote.notify_skipped.label': '跳过自动晋升时发送桌面通知',
   'auto_promote.notify_skipped.desc': '开启后，当后台自动晋升未实际晋升（例如 "candidate not better than active"）时也会发送真实系统通知。默认关闭 —— 大多数用户不需要每次训练都收到"没有改进"提示。',
   'auto_promote.toast.auto_promoted_body': '新模型已自动晋升',
-  // v0.42e-2 — 已跳过自动晋升
+  // v0.42e-2 —— 已跳过自动晋升
   'auto_promote.toast.auto_skipped_body': '未超过当前模型',
   // v0.42c — 遥测开关
   'telemetry.title': '遥测',
@@ -1505,13 +1590,13 @@ const zh: Dictionary = {
   'telemetry.capture_hint': '$ polyrocket 2> telemetry.log',
   'telemetry.pushed': '遥测已开启',
   'telemetry.push_failed': '遥测状态更新失败',
-  // v0.49a — on-disk session file inventory
+  // v0.49a —— 磁盘上的 session 文件清单
   'telemetry.logs_title': '会话日志文件',
   'telemetry.logs_empty': '尚无遥测会话记录。开启遥测并重启即可创建会话。',
   'telemetry.purge_old': '清理旧文件',
   'telemetry.purged': '已清理 {{n}} 个旧会话文件',
   'telemetry.purge_failed': '清理旧遥测文件失败',
-  // v0.49b — active model summary
+  // v0.49b —— 当前活动模型概要
   'active_model.title': '当前模型',
   'active_model.desc': 'Rust 当前认为处于激活状态的模型。来源：<sidecar model dir>/active.json。与降级检测器看到的是同一份数据。',
   'active_model.empty': '尚未晋升任何模型。请到模型实验室训练并晋升。',
@@ -1520,13 +1605,13 @@ const zh: Dictionary = {
   'active_model.brier': '训练 Brier：',
   'active_model.promoted_at': '晋升时间：',
   'active_model.source': '来源：',
-  // v0.49c — scheduler self-test
+  // v0.49c —— 调度器自检
   'scheduler.self_test_title': '调度器自检',
   'scheduler.self_test_desc': '8 个后台循环。全绿 = 在 3 倍预期间隔内 tick。红色 = 落后。黄色 = 从未 tick（仍在 stagger 等待中）。',
   'scheduler.all_healthy': '全部循环健康',
   'scheduler.some_unhealthy': '部分循环异常',
   'scheduler.never': '未启动',
-  // v0.50a — order types
+  // v0.50a —— 订单类型
   'order_type.market': '市价单',
   'order_type.limit': '限价单',
   'order_type.stop_loss': '止损单',
@@ -1535,7 +1620,7 @@ const zh: Dictionary = {
   'order_type.invalid_for_market': '市价单不能带限价或止损价。',
   'order_type.post_only_limit_only': '只挂单（post-only）仅对限价单有效。',
   'order_type.invalid_order_type': '未知订单类型：{{name}}',
-  // v0.51a — CLOB feed status
+  // v0.51a —— CLOB 行情状态
   'clob.title': 'CLOB 行情源',
   'clob.desc': 'Polymarket 实时订单簿数据。v0.51a 阶段 — 真正的 WebSocket 监听在 v0.51+。无凭据时 L1 回退到 v0.47a price_snapshots。',
   'clob.not_configured': '未配置',
@@ -1547,7 +1632,7 @@ const zh: Dictionary = {
   'clob.submit_stub': '确定性 stub（无凭据）',
   'clob.submit_http': '真实 HTTP 提交',
   'clob.submit_failed': 'CLOB 拒绝：{{msg}}',
-  // v0.52 — place-bet form
+  // v0.52 —— 下注表单
   'place_bet.title': '下单',
   'place_bet.desc': '构造一笔订单（市价 / 限价 / 止损）并提交。通过 `validateOrderArgs` 实时校验。',
   'place_bet.market_id': '市场 ID',
@@ -1567,14 +1652,14 @@ const zh: Dictionary = {
   'trade.title': '交易',
   'trade.desc': '在 Polymarket 市场上手动下单。v0.52a — 支持限价 / 止损 / post-only。',
   'trade.body': '当你想脱离信号流手动下单时进入此页。表单通过 Rust `validate_order_args` IPC 实时校验，错误在提交前就可见。提交走 `placeSignedOrder`，即 v0.51c 的 CLOB 路径（有凭据时走真实 HTTP，无凭据走确定性 stub）。',
-  // v0.44c — 模拟盘模式
+  // v0.44c —— 模拟盘模式
   'paper_mode.title': '模拟盘模式',
   'paper_mode.desc': '开启后,mirror executor 将命中的订单写入 paper_fills 表(不调 CLOB),可用于无风险验证配置。',
   'paper_mode.label': '启用模拟盘模式',
   'paper_mode.hint': '开启后,命中的 mirror 订单写入 `paper_fills` 表而非 `bets`,并跳过 CLOB 签名步骤。决策逻辑不变(仓位、风控、频率)。Mirror 状态标记为 `paper_submitted`。默认关闭。',
   'paper_mode.pushed': '模拟盘已开启',
   'paper_mode.push_failed': '模拟盘状态更新失败',
-  // v0.44c — 复制页横幅
+  // v0.44c —— 复制页横幅
   'copy.paper_mode_banner': '模拟盘模式 — 已捕获 {{n}} 笔虚拟成交',
   // v0.48b — 模型衰退提醒
   'degradation.title': '模型衰退提醒',
@@ -1615,7 +1700,7 @@ const zh: Dictionary = {
   'network.saved': '已保存。立即生效。',
   'network.cleared': '已清除。立即生效。',
   'network.hint': '带用户名/密码的鉴权代理暂不支持 UI 配置。需鉴权的代理请在启动前设置 HTTP_PROXY / HTTPS_PROXY 环境变量。',
-  // v0.45c — 仪表盘模拟盘卡片
+  // v0.45c —— 仪表盘模拟盘卡片
   'dashboard.paper.title': '模拟盘 PnL',
   'dashboard.paper.desc': '如果你的 mirror 被真实下单,会发生什么。',
   'dashboard.paper.total_fills': '总成交',
@@ -1624,7 +1709,7 @@ const zh: Dictionary = {
   'dashboard.paper.win_rate_hint': '{{won}} 胜 / {{lost}} 负',
   'dashboard.paper.realized_pnl': '已实现 PnL',
   'dashboard.paper.pnl_hint': '已结算 paper_fills 累计',
-  // v0.50c — fill analytics
+  // v0.50c —— 成交分析
   'dashboard.fill_analytics.title': '成交分析',
   'dashboard.fill_analytics.desc': '真实模式 `bets` 表的聚合统计。按订单类型拆分 + post-only 占比。',
   'dashboard.fill_analytics.total': '总成交数',
@@ -1651,16 +1736,16 @@ const zh: Dictionary = {
   'promote.archive.range': '第 {{start}}–{{end}} 条，共 {{total}} 条',
   'common.prev': '上一页',
   'common.next': '下一页',
-  // v0.24a — per-trial badge labels
+  // v0.24a —— 每个 trial 的徽标标签
   'promote.history.trial_best': '最佳',
   'promote.history.trial_n': '第 {{n}} 个试验',
   'promote.history.reason_fallback': '已提升',
-  // v0.25b — Bulk promote (all 4 trials)
+  // v0.25b —— 批量晋升（全部 4 个 trial）
   'train.progress.promote_all': '全部晋升 4 个',
   'promote.toast.all_promoted': '已晋升全部 {{count}} 个试验',
   'promote.toast.all_partial': '已晋升 {{ok}}/{{count}} 个试验（部分失败）',
   'promote.toast.all_failed': '批量晋升失败',
-  // v0.20c — Rollback button + confirmation
+  // v0.20c —— 回滚按钮 + 确认
   'rollback.btn.rollback': '回滚',
   'rollback.toast.rolled_back': '模型已回滚',
   'rollback.toast.version': '现活动模型: {{version}}',
@@ -1670,7 +1755,7 @@ const zh: Dictionary = {
   'rollback.confirm.warning': '此操作不可撤销，当前模型不会备份。',
   'rollback.confirm.confirm': '回滚',
   'rollback.confirm.cancel': '取消',
-  // v0.22a — Promote history chart (Brier sparkline)
+  // v0.22a —— 晋升历史曲线（Brier 趋势线）
   'promote.chart.title': 'Brier 趋势',
   'promote.chart.empty': '暂无 Brier 数据 — 晋升模型后即可看到趋势。',
   'promote.chart.range': 'Brier {{min}} → {{max}}',
@@ -1684,7 +1769,7 @@ const zh: Dictionary = {
   'modellab.sm.done': '完成',
   'modellab.sm.error': '错误',
   'modellab.sm.note': '<code>queued → running → (done | error)</code> — done 与 error 都是终态。版本晋升使用 <code>is_better()</code>：Brier 低者优先, 平局按胜率, 再按 n_predictions。',
-  // MarketDetail page (v0.14c)
+  // 市场详情页面 (v0.14c)
   'marketdetail.back_markets': '市场',
   'marketdetail.not_found': '未找到市场',
   'marketdetail.not_found_desc': '没有 id 为 {{id}} 的市场',
@@ -1707,7 +1792,7 @@ const zh: Dictionary = {
   'marketdetail.activity.title': '活动',
   'marketdetail.activity.desc': '敬请期待 — M5 跟单事件 + M3 投注历史',
   'marketdetail.activity.body': '活动时间线将在 M3 + M5 中接入。',
-  // Dashboard page (v0.14d)
+  // 仪表盘页面 (v0.14d)
   'dashboard.kpi.equity': '总权益',
   'dashboard.kpi.equity_hint': '{{n}} 笔未平仓',
   'dashboard.kpi.open_pnl': '浮动盈亏',
@@ -1747,7 +1832,7 @@ const zh: Dictionary = {
   'dashboard.positions.size_at': '${{size}} @ {{price}} · {{when}}',
   'dashboard.recent.bet_text': '{{status}} {{side}} ${{size}} @ {{price}} ({{sign}}${{pnl}})',
   'dashboard.recent.signal_text': '{{side}} {{edge}} @ {{question}}',
-  // Brief page (v0.14d)
+  // 简报页面 (v0.14d)
   'brief.title': '每日简报',
   'brief.subtitle': '今日值得关注的 Top 市场。按 edge × 置信度 × 共识 排序。',
   'brief.refresh': '刷新',
@@ -1775,7 +1860,7 @@ const zh: Dictionary = {
   'common.error': '出错了',
   'common.close': '关闭',
   'common.refresh': '刷新', // v0.49a
-  // v0.53b — welcome wizard
+  // v0.53b —— 欢迎向导
   'welcome.hero_title': '欢迎使用 polyrocket',
   'welcome.hero_tagline': '本地优先的 Polymarket 分析工具。多 LLM，密钥入 OS keyring。',
   'welcome.locale_label': '语言',
@@ -1862,7 +1947,7 @@ const zh: Dictionary = {
   'welcome.banner_missing_pm': '无 Polymarket CLOB',
   'welcome.banner_missing_wallet': '无交易钱包',
   'welcome.banner_complete': '去完成配置',
-  // v0.55c — re-run setup card on /settings (added in v0.119 zh-fallback)
+  // v0.55c — /settings 上重新运行 setup 卡片（v0.119 zh 回退中新增）
   'welcome.rerun_title': '重新运行首启配置',
   'welcome.rerun_desc': '再次走一遍引导 wizard。除非你显式重置,现有的设置(LLM 密钥、钱包、存储路径)都会保留。',
   'welcome.rerun_body': '当你需要回顾跳过的步骤时用这个(例如加钱包、改存储路径、配置新的 LLM provider)。完整流程是非破坏性的 —— 你的数据和当前模型不会被改动。',
@@ -1888,20 +1973,108 @@ const zh: Dictionary = {
   'error.not_found': '请求的项目已不存在。',
   'error.internal': '内部错误。',
   'error.unknown': '未知错误。',
+  // v0.126 — 竞品对标功能
+  'nav.arb_board': '套利面板',
+  'nav.smart_money': '聪明钱',
+  'nav.news': '新闻',
+  'nav.football': '足球',
+  'nav.insights': '洞察',
+  'nav.trading': '交易',
+  'nav.tools': '工具',
+  'smart_money.score': '聪明钱评分',
+  'smart_money.yes_side': 'YES 方向',
+  'smart_money.no_side': 'NO 方向',
+  'smart_money.methodology': '评分方法',
+  'smart_money.wallet_count': '钱包数量',
+  'smart_money.avg_pnl': '平均盈亏',
+  'smart_money.win_rate': '胜率',
+  'smart_money.median_position': '持仓中位数',
+  'smart_money.top_wallets': '头部钱包',
+  'smart_money.verdict_smarter': '更聪明 (win-rate',
+  'smart_money.score_smart': '聪明',
+  'smart_money.score_moderate': '中等',
+  'smart_money.score_weak': '偏弱',
+  'calendar.title': '赛程日历',
+  'calendar.no_fixtures': '本月无比赛',
+  'spike.detected': '价格剧变',
+  'spike.price_moved': '价格变动',
+  'spike.view_market': '查看市场',
+  'news.catalyst': '催化剂新闻',
+  'news.relevance': '相关度',
+  'news.impact': '影响',
+  'news.refresh': '刷新新闻',
+  'news.no_news': '该市场暂无相关新闻',
+  'arb.title': '套利机会',
+  'arb.yes_cost': 'YES 成本',
+  'arb.no_cost': 'NO 成本',
+  'arb.profit_margin': '利润率',
+  'arb.cross_platform': '跨平台套利',
+  'arb.no_opportunities': '未发现套利机会',
+  'arb.scan': '扫描套利',
+  'poisson.score_matrix': '比分矩阵',
+  'poisson.most_likely': '最可能比分',
+  'poisson.lambda_h': '主队 λ',
+  'poisson.lambda_a': '客队 λ',
+  'uma.disputed': 'UMA 争议中',
+  'uma.resolving': '解决中',
+  'uma.clear': '无争议',
+  // Phase 1.1: 群体智慧
+  'crowd.title': '群体意见',
+  'crowd.description': '资本加权持仓者情绪',
+  'crowd.capital_split': '资本分布',
+  'crowd.holders': '持仓者',
+  'crowd.hhi': 'HHI 集中度',
+  'crowd.hhi_diversified': '分散',
+  'crowd.hhi_moderate': '适中',
+  'crowd.hhi_concentrated': '集中',
+  'crowd.hhi_monopoly': '巨鲸垄断',
+  'crowd.top3_share': '前三占比',
+  'crowd.top3_desc': '占总资本',
+  'crowd.smart_divergence': '聪明钱分歧',
+  'crowd.crowd_yes': '群体 YES',
+  'crowd.smart_yes': '聪明钱 YES',
+  'crowd.divergence': '分歧度',
+  'crowd.divergence_alert': '显著分歧 — 散户可能过度反应',
+  'crowd.empty': '无持仓数据',
+  'crowd.empty_desc': '该市场尚无下注记录',
+  // Phase 1.2: 均值回归
+  'reversion.title': '均值回归',
+  'reversion.description': '统计过度反应检测器',
+  'reversion.bollinger_bands': '布林带 (2σ)',
+  'reversion.lower': '下轨',
+  'reversion.mean': '均值',
+  'reversion.upper': '上轨',
+  'reversion.z_score': 'Z 分数',
+  'reversion.oversold': '超卖',
+  'reversion.overbought': '超买',
+  'reversion.signal': '反转信号',
+  'reversion.confidence': '置信度',
+  'reversion.fade_yes': '反向做 YES（价格过高）',
+  'reversion.fade_no': '反向做 NO（价格过低）',
+  'reversion.no_signal': '无信号 — 价格在正常范围内',
+  'reversion.insufficient_data': '数据不足',
+  'reversion.insufficient_desc': '至少需要 2 个价格快照才能分析',
+  'rest_days': '休息天数',
+  'fatigue_index': '疲劳指数',
+  'nl_query.placeholder': '输入自然语言查询足球市场...',
+  'nl_query.results': 'AI 查询结果',
+  'nl_query.no_results': '未找到匹配的市场',
+  'page.arb_board': '套利面板',
+  'page.smart_money': '聪明钱',
 };
 
 const dictionaries: Record<Locale, Dictionary> = { en, zh };
 
 /**
- * Look up a key in a dictionary with `{{var}}` interpolation.
- * Returns the raw key (with `?` prefix) if not found, so the
- * missing translation is visible in the UI.
+ * 在字典中查找 key，支持 `{{var}}` 插值。
+ * 未找到时返回原始 key（带 `?` 前缀），
+ * 这样缺失的翻译会在 UI 中可见。
  */
 export function translate(locale: Locale, key: string, vars?: Record<string, string | number>): string {
   const dict = dictionaries[locale] ?? dictionaries[DEFAULT_LOCALE];
   let template = dict[key];
   if (template == null) {
-    // Fallback: en, then the key itself
+    // 回退:en,然后是 key 自身
     template = dictionaries[DEFAULT_LOCALE][key] ?? `?${key}?`;
     if (typeof import.meta !== 'undefined' && (import.meta as any).env?.DEV) {
       // eslint-disable-next-line no-console
@@ -1916,7 +2089,7 @@ export function translate(locale: Locale, key: string, vars?: Record<string, str
 }
 
 // -----------------------------------------------------------------------------
-// React state
+// React 状态
 // -----------------------------------------------------------------------------
 
 interface LocaleState {
@@ -1934,7 +2107,7 @@ export const useLocaleStore = create<LocaleState>()(
   ),
 );
 
-/** Hook: returns the current locale + a `t(key, vars?)` helper. */
+/** Hook：返回当前 locale 以及一个 `t(key, vars?)` 帮助函数。 */
 export function useT() {
   const locale = useLocaleStore((s) => s.locale);
   return {

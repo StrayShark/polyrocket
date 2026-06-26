@@ -1,24 +1,24 @@
 /**
- * LLM DTO type round-trip tests (v0.16c).
+ * LLM DTO 类型往返测试 (v0.16c)。
  *
- * The L1 DTOs (in `@/types/llm`) are the wire-format mirror
- * of the Rust DTOs (`commands::llm::LlmAnalysisDto`,
- * `LlmRecommendationDto`, etc.). If the shapes ever drift,
- * the L1 will silently mis-deserialize the IPC payload.
+ * L1 DTO（在 `@/types/llm` 中）是 Rust DTO
+ * （`commands::llm::LlmAnalysisDto`、
+ * `LlmRecommendationDto` 等）的线格式镜像。
+ * 若形态发生漂移，L1 会在反序列化
+ * IPC 负载时静默出错。
  *
- * These tests take a JSON literal that mimics what Rust
- * sends over IPC, parse it into the TS interface, and
- * assert every field. The literal is what we expect
- * production data to look like — if Rust adds a new
- * field, the test will fail until the TS interface
- * catches up.
+ * 这些测试使用一个 JSON literal 来模拟 Rust
+ * 通过 IPC 发送的内容，解析为 TS interface，
+ * 并断言每个字段。该 literal 即生产数据
+ * 预期形态 —— 如果 Rust 新增了字段，
+ * 测试将失败，直至 TS interface 同步更新。
  */
 import { describe, expect, it } from 'vitest';
 import type { LlmAnalysis, LlmRecommendation, LlmCallLog } from './llm';
-// RecordLlmDecisionArgs is in `@/ipc` (not `./llm`) because
-// it's the L1 wrapper's arg shape, not a DTO. The DTOs are
-// the wire-format mirror of the Rust DTOs; the wrapper args
-// mirror the Rust command's input struct.
+// RecordLlmDecisionArgs 在 `@/ipc`（而非 `./llm`）中，
+// 因为它是 L1 wrapper 的参数形态，而不是 DTO。
+// DTO 是 Rust DTO 的线格式镜像；wrapper 参数
+// 镜像的是 Rust command 的输入结构。
 import type { RecordLlmDecisionArgs } from '@/ipc';
 
 describe('LlmAnalysis shape (v0.16a wire format)', () => {
@@ -276,11 +276,10 @@ describe('RecordLlmDecisionArgs shape (v0.16b arg shape)', () => {
 });
 
 describe('top-recommendation picker logic (recMut)', () => {
-  // v0.16b — recMut picks the top recommendation for the
-  // modal. The logic is: parse_ok first, then confidence
-  // desc, then first in list. This test exercises the
-  // algorithm directly (without React) so we can verify
-  // the ordering rules.
+  // v0.16b —— recMut 为 modal 挑选 top recommendation。
+  // 逻辑是：先 parse_ok，然后按 confidence 降序，
+  // 再取列表中的首个。本测试直接（脱离 React）
+  // 跑算法，以便验证排序规则。
 
   type Rec = { id: number; parse_ok: boolean; confidence: number | null };
   function pickTop(recs: Rec[]): Rec | undefined {
@@ -302,7 +301,7 @@ describe('top-recommendation picker logic (recMut)', () => {
   it('skips parse_failed recs even if their confidence is set', () => {
     const top = pickTop([
       { id: 1, parse_ok: true, confidence: 0.5 },
-      { id: 2, parse_ok: false, confidence: 0.9 }, // highest but failed
+      { id: 2, parse_ok: false, confidence: 0.9 }, // confidence 最高但 parse_failed
       { id: 3, parse_ok: true, confidence: 0.4 },
     ]);
     expect(top?.id).toBe(1);

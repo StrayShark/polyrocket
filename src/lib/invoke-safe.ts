@@ -1,7 +1,7 @@
 /**
- * L1 — Unified invoke wrapper with error classification.
+ * L1 —— 统一的 invoke 包装与错误分类。
  *
- * The Rust `AppError` enum serializes as a string like
+ * Rust 的 `AppError` 枚举以字符串形式序列化，例如
  *   "database error: connection refused"
  *   "keyring error: entry not found"
  *   "invalid input: market_id is required"
@@ -11,18 +11,20 @@
  *   "io error: ..."
  *   "serde error: ..."
  *
- * This wrapper classifies those into a stable `AppErrorShape` that
- * components can switch on (render different UI, decide whether to
- * retry, etc.) instead of regex-parsing error strings.
+ * 该包装将它们分类为稳定的 `AppErrorShape`，
+ * 组件可以在其上做 switch（渲染不同的 UI、
+ * 决定是否重试等），而不是用正则去解析
+ * 错误字符串。
  *
- * v0.8b — replaces the bare `invoke()` calls scattered across routes
- * with a single safe entry point. TanStack Query catches the throw
- * and stores it in `query.error`, so the new shape flows naturally.
+ * v0.8b —— 用一个安全的入口点取代分散在
+ * 路由中的裸 `invoke()` 调用。TanStack Query
+ * 会捕获 throw 并存储到 `query.error` 中，
+ * 因此新的 shape 可以自然地流动。
  */
 
 import { invoke as tauriInvoke } from '@tauri-apps/api/core';
 
-/** Coarse classification matching the Rust `AppError` variants. */
+/** 与 Rust `AppError` 变体对应的粗粒度分类。 */
 export type AppErrorKind =
   | 'db'
   | 'http'
@@ -35,15 +37,15 @@ export type AppErrorKind =
   | 'network'
   | 'unknown';
 
-/** A structured, JSON-safe error returned by `safeInvoke`. */
+/** `safeInvoke` 返回的结构化、JSON 安全的错误。 */
 export interface AppErrorShape {
   kind: AppErrorKind;
   message: string;
-  /** Best-effort human hint; safe to render in UI. */
+  /** 尽力而为的人类提示；可直接在 UI 中渲染。 */
   hint: string;
-  /** Whether retrying the same call is likely to succeed. */
+  /** 重试相同调用是否可能成功。 */
   retryable: boolean;
-  /** Original raw error string from the Rust side. */
+  /** 来自 Rust 端的原始错误字符串。 */
   raw: string;
 }
 
@@ -74,8 +76,8 @@ const RETRYABLE: Record<AppErrorKind, boolean> = {
 };
 
 /**
- * Classify a raw error string from Rust.
- * Order matters: more specific prefixes first.
+ * 对来自 Rust 的原始错误字符串进行分类。
+ * 顺序很重要：更具体的前缀优先。
  */
 export function classifyError(raw: string): AppErrorShape {
   const lower = raw.toLowerCase();
@@ -109,16 +111,17 @@ export function classifyError(raw: string): AppErrorShape {
 }
 
 /**
- * Thin, type-safe wrapper around `invoke` that:
- *   1. Adds a `cmd` field to the args object (Tauri requires `args` to
- *      be an object, even if empty).
- *   2. Catches errors and re-throws them as an `AppErrorShape` so
- *      TanStack Query's `error` field is structured, not a string.
+ * 围绕 `invoke` 的轻量、类型安全的包装器：
+ *   1. 给 args 对象加上 `cmd` 字段（Tauri 要求
+ *      `args` 必须是一个对象，即使为空）。
+ *   2. 捕获错误并以 `AppErrorShape` 重新抛出，使
+ *      TanStack Query 的 `error` 字段是结构化的，
+ *      而不是一个字符串。
  *
- * Usage:
+ * 用法：
  *   const data = await safeInvoke<Market[]>('list_markets', { args: { ... } });
- *   // on failure, `error instanceof AppErrorShape` is true-ish;
- *   // call sites that want a string can use `error.message`.
+ *   // 失败时，`error instanceof AppErrorShape` 近似为 true；
+ *   // 想要字符串形式的调用方可以使用 `error.message`。
  */
 export async function safeInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   try {
@@ -129,12 +132,12 @@ export async function safeInvoke<T>(cmd: string, args?: Record<string, unknown>)
   }
 }
 
-/** Render-friendly summary: `${kind} · ${message}`. */
+/** 适合直接渲染的摘要形式：${kind}: ${message} */
 export function formatError(e: AppErrorShape): string {
   return `${e.kind}: ${e.message}`;
 }
 
-/** True if the error is one the user can fix by retrying. */
+/** 如果该错误可通过重试解决则返回 true。 */
 export function canRetry(e: AppErrorShape): boolean {
   return e.retryable;
 }

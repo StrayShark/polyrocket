@@ -1,9 +1,8 @@
 /**
- * v0.36a — Prefs import/export tests.
+ * v0.36a — 偏好导入/导出测试。
  *
- * Tests the round-trip: export → parse → equal to
- * the original. Also tests the validation: each
- * pref field with a wrong type is rejected.
+ * 测试往返：导出 → 解析 → 与原始值相等。
+ * 还测试校验：每个类型错误的 pref 字段都会被拒绝。
  */
 
 // @vitest-environment happy-dom
@@ -107,8 +106,8 @@ describe('prefs-io (v0.36a)', () => {
       expect(() => parsePrefsFromString(noPrefs)).toThrow(/prefs/);
     });
     it('uses default for missing fields (forward-compat)', () => {
-      // Simulate an old export that's missing
-      // autoPromoteAfterTrain (a v0.28c field)
+      // 模拟缺少
+      // autoPromoteAfterTrain（v0.28c 字段）的旧导出
       const oldExport = {
         version: PREFS_EXPORT_VERSION,
         exported_at_ms: 1,
@@ -119,7 +118,7 @@ describe('prefs-io (v0.36a)', () => {
           notificationsEnabled: true,
           advancedStats: false,
           autoPromoteBrierMargin: 0.005,
-          // no autoPromoteAfterTrain
+          // 无 autoPromoteAfterTrain
         },
       };
       const parsed = parsePrefsFromString(JSON.stringify(oldExport));
@@ -139,7 +138,7 @@ describe('prefs-io (v0.36a)', () => {
         exported_at_ms: 1,
         prefs: { ...FULL_PREFS, autoPromoteBrierMargin: 'many' as unknown as number },
       };
-      // 'many' is a string, not a number, so the type check fails
+      // 'many' 是字符串而非数字，因此类型检查会失败
       expect(() => parsePrefsFromString(JSON.stringify(bad))).toThrow(/autoPromoteBrierMargin/);
     });
     it('rejects wrong type for copyTradingEnabled', () => {
@@ -151,8 +150,8 @@ describe('prefs-io (v0.36a)', () => {
       expect(() => parsePrefsFromString(JSON.stringify(bad))).toThrow(/copyTradingEnabled/);
     });
 
-    // v0.116 — coverage ramp round 16. Cover lines 199, 209, 219, 264
-    // (the type-check throw branches in prefs-io).
+    // v0.116 —— 覆盖率提升第 16 轮。覆盖 prefs-io 中的第 199、209、219、264 行
+    // （类型检查 throw 分支）。
     it('rejects wrong type for autoPromoteSkippedNotify', () => {
       const bad = {
         version: PREFS_EXPORT_VERSION,

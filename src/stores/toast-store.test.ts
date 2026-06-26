@@ -1,20 +1,20 @@
-// v0.62a — toast-store tests.
+// v0.62a — toast-store 测试。
 //
-// The toast store is a small zustand store that
-// pushes Toast entries to an in-memory list
-// (auto-dismissed after ttl). Today 0% coverage.
-// This file covers:
-//   1. push adds a toast
-//   2. dismiss removes by id
-//   3. clear empties the list
-//   4. toast.* convenience helpers
+// toast store 是一个小型 zustand store,将
+// Toast 条目推送到内存列表
+//（在 ttl 后自动消失）。目前 0% 覆盖率。
+// 本文件覆盖：
+//   1. push 添加一个 toast
+//   2. dismiss 按 id 移除
+//   3. clear 清空列表
+//   4. toast.* 便捷助手
 
 // @vitest-environment happy-dom
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useToastStore, toast } from './toast-store';
 
-// Don't try to send system notifications in tests.
+// 在测试中不要尝试发送系统通知。
 vi.mock('@/ipc', () => ({
   sendNotification: vi.fn().mockResolvedValue(undefined),
 }));
@@ -78,8 +78,8 @@ describe('toast convenience helpers', () => {
     expect(useToastStore.getState().toasts[0].ttl).toBe(0);
   });
 
-  // v0.106 — coverage ramp. Cover toast.warning convenience helper
-  // (line 80 in source: `useToastStore.getState().push({ kind: 'warning', ..., systemNotify })`).
+  // v0.106 —— 覆盖率提升。覆盖 toast.warning 便捷辅助函数
+  // （源代码第 80 行：`useToastStore.getState().push({ kind: 'warning', ..., systemNotify })`）。
   it('toast.warning pushes a warning toast with ttl=6000 (covers line 80)', () => {
     toast.warning('be careful');
     expect(useToastStore.getState().toasts[0].kind).toBe('warning');
@@ -92,8 +92,8 @@ describe('toast convenience helpers', () => {
   });
 });
 
-// v0.106 — coverage ramp. Cover the setTimeout auto-dismiss branch
-// (line 62-66 in source: `if (t.ttl > 0) { setTimeout(...) }`).
+// v0.106 —— 覆盖率提升。覆盖 setTimeout 自动消失分支
+//（源代码 62-66 行：`if (t.ttl > 0) { setTimeout(...) }`）。
 describe('useToastStore TTL auto-dismiss', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -108,15 +108,15 @@ describe('useToastStore TTL auto-dismiss', () => {
     expect(useToastStore.getState().toasts).toHaveLength(1);
     vi.advanceTimersByTime(1000);
     expect(useToastStore.getState().toasts).toHaveLength(0);
-    // id is the dismissed toast
+    // id 是已消失的 toast
     expect(id).toMatch(/^t_/);
   });
 });
 
-// v0.106 — coverage ramp. Cover the kind-mapping ternary chain (lines 51-55)
-// and the systemNotify branch (line 47). With notificationsEnabled=true,
-// every kind ('info' / 'success' / 'warning' / 'error') hits a different
-// branch of the ternary.
+// v0.106 —— 覆盖率提升。覆盖 kind 映射三元链（51-55 行）
+// 和 systemNotify 分支（第 47 行）。当 notificationsEnabled=true 时，
+// 每个 kind（'info' / 'success' / 'warning' / 'error'）都会命中
+// 三元表达式的不同分支。
 describe('useToastStore systemNotify kind mapping', () => {
   beforeEach(() => {
     mockNotificationsEnabled = true;

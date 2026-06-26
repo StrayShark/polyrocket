@@ -1,7 +1,7 @@
 /**
- * L1 domain mirror — M1 Markets.
- * Mirrors src-tauri/src/domain/polymarket/mod.rs.
- * Pure functions, no IO. Safe to import from L1 routes.
+ * L1 领域镜像 —— M1 市场。
+ * 镜像 src-tauri/src/domain/polymarket/mod.rs。
+ * 纯函数，无 IO，可安全地从 L1 路由中导入。
  */
 
 export type Category =
@@ -27,14 +27,14 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   other: 'Other',
 };
 
-/** Category → string. Just returns the enum value (TS 字符串字面量已经显式) */
+/** Category → string。直接返回枚举值（TS 字符串字面量本身已经显式） */
 export function categoryAsString(c: Category): string {
   return c;
 }
 
 /**
- * Best-effort classify a free-form question string into a category.
- * Lowercased substring match. First match wins.
+ * Best-effort 把一段自由格式的问题文本分类到一个 category。
+ * 小写子串匹配，第一个匹配胜出。
  */
 /** 把自由文本 market 问题分类到 9 个 `Category` 之一。**best-effort**：lowercase substring match，第一个匹配胜。
  *

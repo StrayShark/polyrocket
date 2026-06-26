@@ -1,16 +1,15 @@
 /**
- * L1 — Prefs import/export (v0.36a).
+ * L1 —— Prefs 导入/导出（v0.36a）。
  *
- * The user can back up their UI prefs (auto-promote
- * margin, after-train toggle, etc.) to a JSON file
- * and restore it later. Useful for:
- *   - Sharing a preferred config with other users
- *   - Backup before a re-install
- *   - Replicating the same config across multiple
- *     machines
+ * 用户可以将其 UI prefs（auto-promote
+ * margin、after-train toggle 等）备份为
+ * JSON 文件以备后续恢复。适用于：
+ *   - 与其他用户共享首选配置
+ *   - 重新安装前进行备份
+ *   - 在多台机器之间复制相同配置
  *
- * The wire format is the UiPrefs shape with a
- * version field at the top:
+ * 线格式是带有顶层 version 字段的
+ * UiPrefs 结构：
  * ```
  * {
  *   "version": 1,
@@ -23,33 +22,33 @@
  * }
  * ```
  *
- * The version field is for future migrations. If we
- * add a new pref in v1.5, an old export (v1) would
- * be missing it; the importer would use the default
- * for the new pref.
+ * version 字段用于未来的迁移。如果
+ * 在 v1.5 中新增一个 pref，旧的（v1）
+ * 导出会缺少它；导入器将使用新 pref
+ * 的默认值。
  *
- * The exporter only includes the 7 UiPrefs fields,
- * NOT the internal store state (setPref / reset
- * functions). Those are not serializable.
+ * 导出器只包含 7 个 UiPrefs 字段，
+ * **不**包含内部 store 状态（setPref /
+ * reset 函数）。这些不可序列化。
  */
 import type { UiPrefs } from '@/stores/prefs-store';
 
 export const PREFS_EXPORT_VERSION = 1;
 
 export interface PrefsExport {
-  /** v0.36a — format version. Always 1 for now. */
+  /** v0.36a —— 格式版本。目前始终为 1。 */
   version: number;
-  /** v0.36a — when the export was created (unix millis). */
+  /** v0.36a —— 导出的创建时间（unix 毫秒）。 */
   exported_at_ms: number;
-  /** v0.36a — the actual prefs. All 11 UiPrefs fields
-   *  (was 10 until v0.44c added mirrorPaperMode). */
+  /** v0.36a —— 实际的 prefs。全部 11 个
+   *  UiPrefs 字段（v0.44c 之前是 10 个，
+   *  新增了 mirrorPaperMode）。 */
   prefs: UiPrefs;
 }
 
-/** Default values for each pref. Used when an import
- *  is missing a field (e.g. an old export with a
- *  newer field that didn't exist when the export
- *  was made — or vice versa). */
+/** 每个 pref 的默认值。当导入中缺少
+ *  某字段时使用（例如旧导出中包含
+ *  导出时还不存在的新字段 —— 或反之）。 */
 const PREF_DEFAULTS: UiPrefs = {
   defaultMinEdgePct: 5,
   defaultAllocationCapUsdc: 100,
@@ -66,8 +65,8 @@ const PREF_DEFAULTS: UiPrefs = {
 };
 
 /**
- * v0.36a — export prefs to a JSON string.
- * The output is the full PrefsExport envelope.
+ * v0.36a —— 将 prefs 导出为 JSON 字符串。
+ * 输出是完整的 PrefsExport 封装。
  */
 export function exportPrefsToString(prefs: UiPrefs): string {
   const envelope: PrefsExport = {
@@ -79,19 +78,19 @@ export function exportPrefsToString(prefs: UiPrefs): string {
 }
 
 /**
- * v0.36a — parse a JSON string into a validated
- * UiPrefs. Throws on invalid input (unknown version,
- * missing required fields, wrong types). The user-
- * facing error message is friendly; the developer-
- * facing error message includes the field name.
+ * v0.36a —— 将 JSON 字符串解析为已校验的
+ * UiPrefs。输入无效（未知版本、缺失
+ * 必填字段、类型错误）时抛出错误。
+ * 面向用户的错误消息是友好的；
+ * 面向开发者的错误消息包含字段名。
  *
- * Strategy:
+ * 策略：
  *  1. JSON.parse → unknown
- *  2. Validate it's an object with version + prefs
- *  3. For each known pref, validate the type
- *     and copy the value. Missing fields fall
- *     back to defaults (forward-compat).
- *  4. Reject unknown version (backward-incompat)
+ *  2. 校验它是包含 version + prefs 的对象
+ *  3. 对每个已知 pref，校验类型
+ *     并复制值。缺失的字段回退
+ *     到默认值（向前兼容）。
+ *  4. 拒绝未知版本（向后不兼容）
  */
 export function parsePrefsFromString(json: string): UiPrefs {
   let parsed: unknown;
@@ -118,8 +117,8 @@ export function parsePrefsFromString(json: string): UiPrefs {
     throw new Error('Invalid export: missing or invalid "prefs" field');
   }
   const rawPrefs = obj.prefs as Record<string, unknown>;
-  // Validate each known field, fall back to defaults
-  // for missing ones. Reject wrong types.
+  // 校验每个已知字段，缺失时
+  // 回退到默认值；类型错误则拒绝。
   const result: UiPrefs = { ...PREF_DEFAULTS };
   if ('defaultMinEdgePct' in rawPrefs) {
     const v = rawPrefs.defaultMinEdgePct;
@@ -170,9 +169,9 @@ export function parsePrefsFromString(json: string): UiPrefs {
     }
     result.autoPromoteAfterTrain = v;
   }
-  // v0.39b — autoPromoteNotify. New in v0.39; old
-  // exports don't have it (forward-compat: defaults
-  // to true).
+  // v0.39b — autoPromoteNotify。v0.39 引入;旧
+  // 导出不含此字段（向前兼容：默认
+  // 为 true）。
   if ('autoPromoteNotify' in rawPrefs) {
     const v = rawPrefs.autoPromoteNotify;
     if (typeof v !== 'boolean') {
@@ -180,9 +179,9 @@ export function parsePrefsFromString(json: string): UiPrefs {
     }
     result.autoPromoteNotify = v;
   }
-  // v0.42c — telemetryEnabled. New in v0.42; old
-  // exports don't have it (forward-compat: defaults
-  // to false).
+  // v0.42c — telemetryEnabled。v0.42 引入;旧
+  // 导出不含此字段（向前兼容：默认
+  // 为 false）。
   if ('telemetryEnabled' in rawPrefs) {
     const v = rawPrefs.telemetryEnabled;
     if (typeof v !== 'boolean') {
@@ -190,9 +189,9 @@ export function parsePrefsFromString(json: string): UiPrefs {
     }
     result.telemetryEnabled = v;
   }
-  // v0.42e-2 — autoPromoteSkippedNotify. New in
-  // v0.42; old exports don't have it (forward-
-  // compat: defaults to false).
+  // v0.42e-2 — autoPromoteSkippedNotify。v0.42 引入;
+  // 旧导出不含此字段（向前兼容：
+  // 默认为 false）。
   if ('autoPromoteSkippedNotify' in rawPrefs) {
     const v = rawPrefs.autoPromoteSkippedNotify;
     if (typeof v !== 'boolean') {
@@ -200,9 +199,9 @@ export function parsePrefsFromString(json: string): UiPrefs {
     }
     result.autoPromoteSkippedNotify = v;
   }
-  // v0.44c — mirrorPaperMode. New in v0.44; old
-  // exports don't have it (forward-compat:
-  // defaults to false).
+  // v0.44c — mirrorPaperMode。v0.44 引入;旧
+  // 导出不含此字段（向前兼容：
+  // 默认为 false）。
   if ('mirrorPaperMode' in rawPrefs) {
     const v = rawPrefs.mirrorPaperMode;
     if (typeof v !== 'boolean') {
@@ -210,9 +209,9 @@ export function parsePrefsFromString(json: string): UiPrefs {
     }
     result.mirrorPaperMode = v;
   }
-  // v0.48b — degradationAlertNotify. New in
-  // v0.48; old exports don't have it
-  // (forward-compat: defaults to true).
+  // v0.48b — degradationAlertNotify。v0.48 引入;
+  // 旧导出不含此字段
+  // （向前兼容：默认为 true）。
   if ('degradationAlertNotify' in rawPrefs) {
     const v = rawPrefs.degradationAlertNotify;
     if (typeof v !== 'boolean') {
@@ -224,10 +223,10 @@ export function parsePrefsFromString(json: string): UiPrefs {
 }
 
 /**
- * v0.36a — trigger a browser download of the prefs
- * as a JSON file. Creates a Blob, an anchor, clicks
- * it, then cleans up. The filename is
- * `polyrocket-prefs-YYYYMMDD.json`.
+ * v0.36a —— 触发浏览器将 prefs 下载为
+ * JSON 文件。创建 Blob、anchor，点击它，
+ * 然后清理。文件名为
+ * `polyrocket-prefs-YYYYMMDD.json`。
  */
 export function downloadPrefsAsFile(prefs: UiPrefs): void {
   const json = exportPrefsToString(prefs);
@@ -242,16 +241,16 @@ export function downloadPrefsAsFile(prefs: UiPrefs): void {
   a.href = url;
   a.download = filename;
   a.click();
-  // Revoke the URL on the next tick (the click is
-  // already in flight; revoking now is too early)
+  // 在下一个 tick 撤销 URL（点击
+  // 已经发出，现在撤销太早）
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 /**
- * v0.36a — read a File object and return its text
- * contents. Used by the Import button. Rejects
- * non-text files (the export is always JSON which
- * is text).
+ * v0.36a —— 读取一个 File 对象并返回其文本
+ * 内容。供 Import 按钮使用。拒绝
+ * 非文本文件（导出始终是 JSON 即
+ * 文本）。
  */
 export function readFileAsText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {

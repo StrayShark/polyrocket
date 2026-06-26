@@ -1,4 +1,4 @@
-// v0.57d — wallet JSON parsing tests.
+// v0.57d — 钱包 JSON 解析测试。
 
 import { describe, it, expect } from 'vitest';
 import { extractAddressFromJson } from './wallet-file';
@@ -48,9 +48,8 @@ describe('extractAddressFromJson (v0.57d)', () => {
   });
 
   it('returns null for short hex strings (not 40 chars)', () => {
-    // The regex requires exactly 40 hex chars
-    // after 0x. A short hex like 0xabc is
-    // rejected.
+    // regex 要求 0x 后正好 40 个十六进制字符。
+    // 像 0xabc 这种短十六进制会被拒绝。
     const content = JSON.stringify({ address: '0xabc' });
     expect(extractAddressFromJson(content)).toBe(null);
   });
@@ -71,9 +70,9 @@ describe('extractAddressFromJson (v0.57d)', () => {
   });
 
   it('handles plain JSON string (parses to a string, not object) — v0.96', () => {
-    // Some wallets export just the address as a top-level string.
-    // The string is a valid JSON value, but the parser needs to
-    // handle the "obj is a string" branch.
+    // 某些钱包仅将 address 导出为顶层字符串。
+    // 该字符串是合法的 JSON 值,但解析器需要
+    // 处理「obj 是字符串」这一分支。
     const addr = '0x' + 'f'.repeat(40);
     expect(extractAddressFromJson(JSON.stringify(addr))).toBe(addr);
   });
@@ -89,9 +88,8 @@ describe('extractAddressFromJson (v0.57d)', () => {
   });
 
   it('handles custom field name (not in standard list) — v0.96', () => {
-    // The "fallback walk" iterates Object.values when no standard
-    // field name matches. A custom field "myCustomKey" should
-    // still be found.
+    // 「fallback walk」在标准字段名都不匹配时迭代 Object.values。
+    // 自定义字段「myCustomKey」也应能被找到。
     const addr = '0x' + 'b'.repeat(40);
     const content = JSON.stringify({ myCustomKey: addr });
     expect(extractAddressFromJson(content)).toBe(addr);

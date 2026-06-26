@@ -9,8 +9,8 @@ let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 const DB_FILENAME = 'polyrocket.db';
 
 /**
- * Resolve DB path inside Tauri app data dir.
- * Falls back to ~/.polyrocket/polyrocket.db in browser dev.
+ * 解析 Tauri app data 目录下的 DB 路径。
+ * 在浏览器开发环境下回退到 ~/.polyrocket/polyrocket.db。
  */
 async function resolveDbPath(): Promise<string> {
   try {
@@ -18,7 +18,7 @@ async function resolveDbPath(): Promise<string> {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     return await join(dir, DB_FILENAME);
   } catch {
-    // not in Tauri context (vite dev in plain browser)
+    // 不在 Tauri 上下文中（在纯浏览器里跑 vite dev）
     const fallback = `${process.env.HOME}/.polyrocket`;
     if (!existsSync(fallback)) mkdirSync(fallback, { recursive: true });
     return `${fallback}/${DB_FILENAME}`;
@@ -29,7 +29,7 @@ export async function getDb() {
   if (_db) return _db;
   const path = await resolveDbPath();
   const sqlite = new Database(path);
-  // pragmas
+  // pragma 设置
   sqlite.pragma('journal_mode = WAL');
   sqlite.pragma('synchronous = NORMAL');
   sqlite.pragma('foreign_keys = ON');

@@ -1,6 +1,6 @@
 /**
- * L1 domain mirror — M6 PnL.
- * Mirrors src-tauri/src/domain/pnl/mod.rs.
+ * L1 领域镜像 —— M6 盈亏。
+ * 镜像 src-tauri/src/domain/pnl/mod.rs。
  */
 
 /** L1 dashboard KPI 聚合 DTO。**镜像** `src-tauri/src/domain/pnl::DashboardKpis`（Rust 端的 DTO）。L1 直接消费 IPC 返回的 JSON 解析到这个 type。

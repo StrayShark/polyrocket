@@ -1,17 +1,18 @@
-// polyrocket — test helpers (v0.66d).
+// polyrocket —— 测试辅助工具（v0.66d）。
 //
-// A tiny utility module shared across vitest test files.
-// Currently exports:
+// 一个跨 vitest 测试文件共享的小型工具模块。
+// 目前导出：
 //
 //   `withFakeTimersAndState(fn)`
-//     Wrap an async test body that needs vi.useFakeTimers +
-//     React state updates. In happy-dom + React 18, the
-//     state update from a setTimeout callback does NOT
-//     propagate to a test rig until a microtask flushes.
-//     This helper advances the fake timers, yields to the
-//     microtask queue, then re-asserts.
+//     包装一个需要 vi.useFakeTimers +
+//     React state 更新的异步测试体。在 happy-dom +
+//     React 18 中，来自 setTimeout 回调的
+//     state 更新在微任务 flush 之前
+//     不会传播到测试 rig。
+//     此辅助函数推进假定时器，让出
+//     微任务队列，然后重新断言。
 //
-//     Usage:
+//     用法：
 //       it('foo', async () => {
 //         await withFakeTimersAndState(async () => {
 //           rig.fireKey('g');
@@ -20,23 +21,24 @@
 //         expect(rig.pendingPrefix).toBeNull();
 //       });
 //
-//   Why this exists (v0.65b ship log): the original
-//   keyboard-nav prefix-timeout test couldn't get React
-//   setState from a setTimeout callback to reach the
-//   test rig. Tried 4 workarounds:
+//   存在原因（v0.65b ship log）：原始的
+//   keyboard-nav prefix-timeout 测试无法让
+//   来自 setTimeout 回调的 React setState
+//   到达测试 rig。尝试了 4 种变通方法：
 //
-//     1. vi.advanceTimersByTime(1500) in act()  — stays 'g'
-//     2. vi.runAllTimers() in act()             — stays 'g'
-//     3. vi.useFakeTimers({ toFake: [...] })    — stays 'g'
+//     1. vi.advanceTimersByTime(1500) in act()  — 仍为 'g'
+//     2. vi.runAllTimers() in act()             — 仍为 'g'
+//     3. vi.useFakeTimers({ toFake: [...] })    — 仍为 'g'
 //     4. await act(async () => { advance; await Promise.resolve() })
-//                                               — stays 'g'
+//                                               — 仍为 'g'
 //
-//   The pattern that DOES work in happy-dom: advance
-//   timers (sync, fires the callback) THEN yield a real
-//   microtask via `await Promise.resolve()` AFTER the
-//   advance. This helper encapsulates that. v0.66d
-//   retried the keyboard-nav test with this helper and
-//   the prefix-timeout test now passes.
+//   在 happy-dom 中有效的模式：在
+//   advance 之后（同步触发回调）通过
+//   `await Promise.resolve()` 让出真实微任务。
+//   此辅助函数封装了这一过程。
+//   v0.66d 使用此辅助重新尝试了
+//   keyboard-nav 测试，prefix-timeout
+//   测试现已通过。
 
 import { act } from '@testing-library/react';
 
@@ -45,16 +47,16 @@ export async function withFakeTimersAndState<T>(
 ): Promise<T> {
   return act(async () => {
     const result = await fn();
-    // Yield to the microtask queue so React's scheduler
-    // can flush any pending setState from inside the
-    // timer callback. Without this, state updates
-    // scheduled by setTimeout are stuck in the React
-    // batch and don't reach the test rig.
+    // 让出微任务队列，使 React 的调度器
+    // 能够 flush 来自定时器回调内部的
+    // 任何待处理 setState。如果没有这一步，
+    // 由 setTimeout 调度的 state 更新会
+    // 卡在 React 批处理中，无法到达测试 rig。
     await Promise.resolve();
-    // Yield once more for the nested scheduler pass.
-    // (React 18 sometimes needs 2 microtask flushes
-    // to fully propagate a useState update from a
-    // setTimeout callback into a test assertion.)
+    // 再让出一次以应对嵌套的调度器 pass。
+    // （React 18 有时需要 2 次微任务 flush
+    // 才能将来自 setTimeout 回调的
+    // useState 更新完全传播到测试断言中。）
     await Promise.resolve();
     return result;
   });

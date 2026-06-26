@@ -1,8 +1,8 @@
 import { useQuery, type UseQueryOptions } from '@tanstack/react-query';
 
 /**
- * Wrap an IPC call into a typed React Query hook.
- * Layer rules: this is the ONLY place that calls ipc.ts.
+ * 将 IPC 调用包装为带类型的 React Query hook。
+ * 分层规则：这是唯一调用 ipc.ts 的地方。
  */
 export function useInvoke<TData, TArgs = void>(
   key: readonly unknown[],

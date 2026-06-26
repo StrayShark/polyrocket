@@ -1,14 +1,14 @@
 /**
- * Vitest setup file — runs before every test file.
+ * Vitest setup 文件 —— 在每个测试文件之前运行。
  *
- * - Imports `@testing-library/jest-dom` for `toBeInTheDocument()`
- *   and friends in .test.tsx files
- * - (Reserved for future global mocks / window.matchMedia shims)
+ * - 导入 `@testing-library/jest-dom` 以在 .test.tsx 文件中
+ *   使用 `toBeInTheDocument()` 等匹配器
+ * - （为未来的全局 mock / window.matchMedia shim 预留）
  */
 import '@testing-library/jest-dom/vitest';
 import { afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
-// happy-dom doesn't auto-clean DOM between tests, which leaks
-// modals / portals from one test into the next.
+// happy-dom 不会在测试之间自动清理 DOM，会导致
+// modal / portal 跨测试泄漏。
 afterEach(() => cleanup());

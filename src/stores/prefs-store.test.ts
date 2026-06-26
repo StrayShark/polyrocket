@@ -1,11 +1,11 @@
-// v0.62a — prefs-store tests.
+// v0.62a — prefs-store 测试。
 //
-// The prefs store is a zustand+persist store for
-// 11 UiPrefs fields. Today 50% functions coverage.
-// This file covers the helper actions:
-//   1. setPref updates a single field
-//   2. resetPrefs restores defaults
-//   3. setNotificationsEnabled toggle
+// prefs store 是 11 个 UiPrefs 字段的 zustand+persist store。
+// 目前函数覆盖率为 50%。
+// 本文件覆盖以下助手 action：
+//   1. setPref 更新单个字段
+//   2. resetPrefs 恢复默认值
+//   3. setNotificationsEnabled 开关
 
 // @vitest-environment happy-dom
 
@@ -14,7 +14,7 @@ import { usePrefsStore } from './prefs-store';
 
 describe('usePrefsStore actions', () => {
   beforeEach(() => {
-    // reset to defaults before each test
+    // 每个测试前重置为默认值
     usePrefsStore.persist?.clearStorage?.();
     usePrefsStore.setState({
       defaultMinEdgePct: 5,

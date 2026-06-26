@@ -15,9 +15,9 @@ export interface Toast {
   kind: ToastKind;
   title: string;
   body?: string;
-  /** ms to auto-dismiss; 0 = manual close only. */
+  /** 自动关闭的毫秒数；0 = 仅手动关闭。 */
   ttl: number;
-  /** If true, also send a system notification (respects prefs.notificationsEnabled). */
+  /** 如果为 true，同时发送系统通知（受 prefs.notificationsEnabled 控制）。 */
   systemNotify?: boolean;
 }
 
@@ -43,18 +43,18 @@ export const useToastStore = create<ToastState>((set) => ({
     const id = `t_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     set((s) => ({ toasts: [...s.toasts, { ...t, id }] }));
 
-    // Best-effort system notification (fire-and-forget).
+    // 尽力而为的系统通知（触发后不关心结果）。
     if (t.systemNotify) {
       const prefs = usePrefsStore.getState();
       if (prefs.notificationsEnabled) {
-        // Map toast kind → notify kind for the OS payload.
+        // 把 toast kind 映射为 OS 通知用的 notify kind。
         const kind =
           t.kind === 'success' ? 'info' :
           t.kind === 'warning' ? 'info' :
           t.kind === 'error' ? 'keyring_error' :
           'info';
         sendNotification(kind, t.title, t.body ?? '', prefs.notificationsEnabled).catch(() => {
-          // Silently ignore — best-effort only
+          // 静默忽略 —— 仅 best-effort
         });
       }
     }
@@ -70,7 +70,7 @@ export const useToastStore = create<ToastState>((set) => ({
   clear: () => set({ toasts: [] }),
 }));
 
-/** Convenience helpers */
+/** 便捷辅助函数 */
 export const toast = {
   info: (title: string, body?: string, systemNotify = false) =>
     useToastStore.getState().push({ kind: 'info', title, body, ttl: 4000, systemNotify }),

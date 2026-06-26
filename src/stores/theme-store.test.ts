@@ -1,12 +1,12 @@
-// v0.62a — theme-store tests.
+// v0.62a —— theme-store 测试。
 //
-// The theme store is a small zustand store that
-// persists `theme` (dark / light / matrix) to
-// localStorage and applies `data-theme` to <html>.
-// Today 0% coverage. This file covers:
-//   1. setTheme updates the state
-//   2. cycleTheme advances dark → light → matrix → dark
-//   3. SSR-safe (no document access in test env)
+// theme store 是一个小型 zustand store，
+// 将 `theme`（dark / light / matrix）持久化到
+// localStorage 并将 `data-theme` 应用到 <html>。
+// 当前覆盖率为 0%。本文件覆盖：
+//   1. setTheme 更新状态
+//   2. cycleTheme 按 dark → light → matrix → dark 推进
+//   3. SSR 安全（测试环境中不访问 document）
 
 // @vitest-environment happy-dom
 
@@ -15,7 +15,7 @@ import { useThemeStore } from './theme-store';
 
 describe('useThemeStore', () => {
   beforeEach(() => {
-    // reset to default dark
+    // 重置为默认 dark
     useThemeStore.setState({ theme: 'dark' });
   });
 
@@ -46,8 +46,8 @@ describe('useThemeStore', () => {
     expect(useThemeStore.getState().theme).toBe('dark');
   });
 
-  // v0.106 — coverage ramp. Cover applyToDom (lines 23-26) and the
-  // onRehydrateStorage branch (line 51: `if (state?.theme) applyToDom(...)`).
+  // v0.106 —— 覆盖率提升。覆盖 applyToDom（第 23-26 行）以及
+  // onRehydrateStorage 分支（第 51 行：`if (state?.theme) applyToDom(...)`）。
   it('setTheme applies data-theme attribute to <html>', () => {
     useThemeStore.getState().setTheme('matrix');
     expect(document.documentElement.getAttribute('data-theme')).toBe('matrix');

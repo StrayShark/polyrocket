@@ -1,6 +1,6 @@
 /**
- * L1 domain mirror — M3 Bets.
- * Mirrors src-tauri/src/domain/bet/mod.rs.
+ * L1 领域镜像 —— M3 投注。
+ * 镜像 src-tauri/src/domain/bet/mod.rs。
  */
 
 export type BetMode = 'A_jump' | 'B_signed';

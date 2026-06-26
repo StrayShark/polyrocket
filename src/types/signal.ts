@@ -1,4 +1,4 @@
-// Signal DTOs (mirror src-tauri/src/commands/signal.rs + domain::signal)
+// Signal DTO（镜像 src-tauri/src/commands/signal.rs + domain::signal）
 
 /** L1 Signal DTO。**镜像** `src-tauri/src/commands/signal.rs::SignalDto`。
  *

@@ -1,53 +1,53 @@
-// v0.57d — env-file parsing helper.
+// v0.57d — env 文件解析助手。
 //
-// The LLM management page lets the user pick a
-// .env / .key / .txt file from disk to import a
-// secret. The picker returns an absolute path;
-// we read the file via the Tauri fs plugin (or
-// the browser File API in tests) and extract
-// the API key.
+// LLM 管理页允许用户从磁盘选择
+// .env / .key / .txt 文件来导入
+// secret。选择器返回绝对路径；
+// 我们通过 Tauri fs 插件
+// （或在测试中使用浏览器 File API）读取文件，
+// 并提取 API key。
 //
-// ## Format
+// ## 格式
 //
-// We accept two shapes:
+// 接受两种形式：
 //
-//   1. Plain key file — the file content IS the
-//      secret. e.g. `sk-abc123...` on a single
-//      line. The file is usually <1024 bytes.
+//   1. 纯 key 文件 —— 文件内容本身就是
+//      secret。例如单行的 `sk-abc123...`。
+//      文件通常 <1024 字节。
 //
-//   2. .env-shaped — `KEY=VALUE` lines, possibly
-//      with comments. We parse the FIRST line
-//      that has a non-empty value, ignoring:
-//        - lines starting with `#` (comments)
-//        - empty lines
-//        - lines with an empty value
-//      We DO NOT pin the key name; the user
-//      can have any of `OPENAI_API_KEY`,
-//      `ANTHROPIC_API_KEY`, etc. The picker
-//      surface filters to .env / .key / .txt
-//      but the parser is permissive.
+//   2. .env 形式 —— `KEY=VALUE` 行，可能
+//      包含注释。我们解析第一个
+//      具有非空值的行，忽略：
+//        - 以 `#` 开头的行（注释）
+//        - 空行
+//        - value 为空的行
+//      我们不固定 key 名称；用户
+//      可以使用 `OPENAI_API_KEY`、
+//      `ANTHROPIC_API_KEY` 等任意名称。
+//      选择器界面过滤为 .env / .key / .txt，
+//      但解析器是宽松的。
 //
-// Returns: the secret string, or `null` if the
-// file is empty / no value line found.
+// 返回：secret 字符串，如果
+// 文件为空 / 未找到 value 行则返回 `null`。
 
-/** Read a file as text. In the Tauri build this
- * goes through the tauri-plugin-fs API (added
- * v0.57d as a dependency). In tests / web the
- * browser FileReader is used. */
+/** 以文本方式读取文件。在 Tauri 构建中，
+ * 通过 tauri-plugin-fs API（v0.57d
+ * 作为依赖加入）进行读取。在测试 / web 中
+ * 使用浏览器 FileReader。 */
 export async function readFileText(path: string): Promise<string> {
-  // Try the Tauri fs plugin first. We dynamic-
-  // import so the web build doesn't break (the
-  // plugin isn't registered in the Vite dev
-  // server).
+  // 首先尝试 Tauri fs 插件。动态
+  // import 以避免 web 构建报错（该
+  // 插件未在 Vite dev
+  // server 中注册）。
   try {
     const { readTextFile } = await import(
       /* @vite-ignore */ '@tauri-apps/plugin-fs'
     );
     return await readTextFile(path);
   } catch {
-    // Web fallback: try fetch with file:// URL.
-    // Works for tests that mock the IPC layer
-    // but not for a real prod Tauri build.
+    // Web 后备方案：使用 file:// URL 进行 fetch。
+    // 适用于 mock 了 IPC 层的测试，
+    // 但不能用于真实的生产 Tauri 构建。
     const res = await fetch(path);
     if (!res.ok) {
       throw new Error(`readFileText: HTTP ${res.status}`);
@@ -56,9 +56,9 @@ export async function readFileText(path: string): Promise<string> {
   }
 }
 
-/** Parse a .env-shaped file and return the FIRST
- * non-empty KEY=VALUE pair's value. Returns
- * null if no value line is found. */
+/** 解析 .env 形式的文件并返回第一个
+ * 非空 KEY=VALUE 对的 value。如果
+ * 未找到 value 行则返回 null。 */
 export function extractSecretFromEnv(content: string): string | null {
   const lines = content.split(/\r?\n/);
   for (const raw of lines) {
@@ -67,13 +67,13 @@ export function extractSecretFromEnv(content: string): string | null {
     if (line.startsWith('#')) continue;
     const eq = line.indexOf('=');
     if (eq === -1) {
-      // No `=` — treat the whole line as the
-      // secret (plain key file). This is the
-      // common shape for `sk-...` files.
+      // 没有 `=` —— 将整行视为
+      // secret（纯 key 文件）。这是
+      // `sk-...` 文件的常见形式。
       return line;
     }
     const value = line.slice(eq + 1).trim();
-    // Strip surrounding quotes if present.
+    // 如果存在包裹引号则去除。
     const unquoted = value.replace(/^["'](.*)["']$/, '$1');
     if (unquoted) return unquoted;
   }

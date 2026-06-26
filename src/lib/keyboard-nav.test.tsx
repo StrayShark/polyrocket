@@ -1,17 +1,17 @@
-// v0.64b — keyboard-nav library tests (v0.64b lib 12% → ~80%).
+// v0.64b — keyboard-nav 库测试（v0.64b lib 12% → ~80%）。
 //
-// L1 keyboard chord system (Gmail-style: `g` + key → navigate).
-// Three exports to cover:
-//   1. `useNavBindings` — pure data, returns 12 bindings
-//      (9 two-key + 3 single-key).
-//   2. `formatKeys` — pretty-print for help dialog.
-//   3. `useKeyboardNav` — the actual keydown listener
-//      (with prefix mode, 1.2s timeout, form-field skip,
-//      modifier-key skip).
+// L1 键盘 chord 系统（Gmail 风格：`g` + 键 → 导航）。
+// 需要覆盖的三个导出：
+//   1. `useNavBindings` —— 纯数据，返回 12 个绑定
+//     （9 个双键 + 3 个单键）。
+//   2. `formatKeys` —— 用于帮助对话框的格式化输出。
+//   3. `useKeyboardNav` —— 实际的 keydown 监听器
+//     （含 prefix 模式、1.2s 超时、跳过表单字段、
+//      跳过修饰键）。
 //
-// We test (1) and (2) directly, and (3) via a TestRig
-// component that mounts `useKeyboardNav` and dispatches
-// synthetic `KeyboardEvent`s to `document`.
+// 我们直接测试 (1) 和 (2),(3) 通过 TestRig 组件
+// 挂载 `useKeyboardNav` 并向 `document`
+// 派发合成的 `KeyboardEvent`。
 
 // @vitest-environment happy-dom
 
@@ -20,11 +20,11 @@ import { render, act } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useNavBindings, useKeyboardNav, formatKeys, type KbdBinding } from './keyboard-nav';
-// v0.68e — added @testing-library/user-event as a devDependency
-// for future keyboard tests. happy-dom currently has issues
-// with user-event's keyboard dispatch (test timeout), so we
-// stick with fireEvent for now. If the project moves to jsdom,
-// user-event's keyboard('g') will work end-to-end.
+// v0.68e — 添加了 @testing-library/user-event 作为开发依赖,
+// 用于未来的键盘测试。happy-dom 目前与
+// user-event 的键盘派发存在一些问题（测试超时），所以我们
+// 暂时继续使用 fireEvent。如果项目迁移到 jsdom，
+// user-event 的 keyboard('g') 将可以端到端工作。
 
 // ---- (1) useNavBindings -------------------------------------------------
 describe('useNavBindings', () => {
@@ -99,9 +99,9 @@ describe('formatKeys', () => {
 });
 
 // ---- (3) useKeyboardNav (the real keyboard listener) -------------------
-// We mount the hook with a known binding set + a test-rig that
-// exposes `pendingPrefix` + dispatches synthetic keyboard events
-// to `document`. Then we assert the right action fired.
+// 我们使用已知的绑定集挂载 hook + 一个测试装置,该装置
+// 暴露 `pendingPrefix` + 向 `document` 派发合成的键盘事件。
+// 然后我们断言正确的 action 被触发。
 
 interface Rig {
   bindings: KbdBinding[];
@@ -151,7 +151,7 @@ function makeRig(): Rig {
     },
   };
 
-  // The TestRig — has to be inside a Router so nav works.
+  // TestRig —— 必须放在 Router 内以便 nav 工作。
   function TestRig() {
     const { pendingPrefix } = useKeyboardNav(BINDINGS);
     rigInstance.pendingPrefix = pendingPrefix;
@@ -210,26 +210,25 @@ describe('useKeyboardNav', () => {
     expect(rig.pendingPrefix).toBe('g');
     rig.fireKey('x');
     expect(rig.navigatedTo).toBe('/x');
-    // After firing, prefix clears
+    // 触发后,prefix 清空
     expect(rig.pendingPrefix).toBeNull();
   });
 
   it('two-key chord prefix schedules a 1200ms reset timer', () => {
-    // v0.68e — try @testing-library/user-event for end-to-end
-    // timer behavior. user-event uses real timers + a more
-    // thorough keyboard simulation than fireEvent.
+    // v0.68e —— 尝试 @testing-library/user-event 以端到端测试
+    // timer 行为。user-event 使用真实 timers + 比 fireEvent
+    // 更彻底的键盘模拟。
     //
-    // Result in happy-dom: user-event.setup().keyboard('g')
-    // hangs (test timeout). The reason: happy-dom doesn't
-    // implement enough of the DOM/keyboard spec for
-    // user-event to settle the async keyboard dispatch.
-    // We tried with vi.useFakeTimers + advanceTimers wiring;
-    // still hangs. user-event works in real browsers + jsdom
-    // but not happy-dom (per user-event github issue tracker).
+    // happy-dom 中的结果:user-event.setup().keyboard('g')
+    // 会挂起(测试超时)。原因:happy-dom 没有实现足够的
+    // DOM/keyboard 规范,user-event 无法处理异步键盘分派。
+    // 我们尝试了 vi.useFakeTimers + advanceTimers 接线;
+    // 仍然挂起。user-event 在真实浏览器 + jsdom 中可用,
+    // 但在 happy-dom 中不行(参见 user-event GitHub issue tracker)。
     //
-    // Fallback: source-level assertion via vi.spyOn(setTimeout).
-    // If/when the project switches from happy-dom to jsdom,
-    // this test can switch to user-event for end-to-end coverage.
+    // 兜底:通过 vi.spyOn(setTimeout) 进行源码级断言。
+    // 如果/当项目从 happy-dom 切换到 jsdom 时,
+    // 该测试可切换到 user-event 以获得端到端覆盖。
     const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
     const rig = makeRig();
     rig.fireKey('g');
@@ -242,23 +241,23 @@ describe('useKeyboardNav', () => {
   });
 
   it('clearPrefix (Esc-style abort) cancels the pending prefix', () => {
-    // v0.67e — second half of the timeout-equivalent path.
-    // The hook exposes `clearPrefix` so callers (e.g.
-    // <KbdHelpDialog>) can cancel a pending prefix without
-    // waiting for the timer. This test verifies the public
-    // surface works end-to-end (no fake timers needed).
+    // v0.67e —— timeout 等价路径的后半段。
+    // 该 hook 暴露 `clearPrefix`,以便调用方(例如
+    // <KbdHelpDialog>)可以在不等待 timer 的情况下
+    // 取消 pending prefix。此测试验证公共 surface
+    // 端到端工作(无需 fake timers)。
     const rig = makeRig();
     rig.fireKey('g');
     expect(rig.pendingPrefix).toBe('g');
-    // We don't have direct access to `clearPrefix` from
-    // the rig, but Escape (single-key binding) calls
-    // onCloseDialog, NOT clearPrefix. So we use a fresh
-    // 2-key binding that just no-ops as a proxy for
-    // "the user pressed Escape which would clear the
-    // prefix via the dialog consumer". This is testing
-    // the API surface, not the timer logic.
+    // 我们无法从 rig 直接访问 `clearPrefix`,
+    // 但 Escape(单键绑定)会调用 onCloseDialog,
+    // 而不是 clearPrefix。因此我们使用一个仅仅
+    // no-op 的全新 2-key 绑定作为代理,
+    // 用于「用户按下 Escape,该操作会通过 dialog
+    // consumer 清除 prefix」的等价场景。这里
+    // 测试的是 API surface,而不是 timer 逻辑。
     //
-    // The timer-based test is above.
+    // 基于 timer 的测试在上述位置。
   });
 
   it('skips capture when target is an INPUT', () => {
@@ -330,7 +329,7 @@ describe('useKeyboardNav', () => {
     rig.fireKey('g');
     expect(rig.pendingPrefix).toBe('g');
     rig.fireKey('z');
-    // No binding matches g+z, so navigatedTo stays null + prefix clears
+    // 没有绑定匹配 g+z,因此 navigatedTo 保持 null + prefix 清空
     expect(rig.navigatedTo).toBeNull();
     expect(rig.pendingPrefix).toBeNull();
   });

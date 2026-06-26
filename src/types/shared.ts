@@ -1,4 +1,4 @@
-// Shared DTOs used by multiple modules.
+// 多个模块共用的共享 DTO。
 
 export interface CopyTarget {
   id: string;
@@ -38,11 +38,10 @@ export interface DashboardKpis {
   open_positions: number;
 }
 
-// v0.45b — paper trading PnL summary. Shown on
-// Dashboard as a separate card only when paper
-// mode is enabled. Settled fills = paper_fills
-// whose market has resolved; total_fills
-// includes both settled and pending.
+// v0.45b —— 模拟盘 PnL 汇总。仅在模拟盘
+// 模式开启时以独立卡片形式展示在 Dashboard 上。
+// settled_fills = paper_fills 中市场已结算的；
+// total_fills 包含已结算和未结算。
 export interface PaperPnlSummary {
   total_fills: number;
   settled_fills: number;

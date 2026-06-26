@@ -1,4 +1,4 @@
-// Bet DTOs (mirror src-tauri/src/commands/bet.rs + domain::bet)
+// Bet DTO（镜像 src-tauri/src/commands/bet.rs + domain::bet）
 
 export type BetMode = 'A_jump' | 'B_signed';
 export type BetStatus = 'open' | 'won' | 'lost' | 'cancelled';
@@ -20,28 +20,28 @@ export interface Bet {
   status: BetStatus;
   tx_hash: string | null;
   notes: string | null;
-  // v0.50a — order type (defaulted to 'market' on
-  // the Rust side for back-compat).
+  // v0.50a —— 订单类型（在 Rust 端
+  // 默认为 'market' 以保持向后兼容）。
   order_type?: OrderType;
-  // v0.50a — limit / stop price (only set for
-  // non-market orders).
+  // v0.50a —— 限价 / 止损价（仅对
+  // 非市价单设置）。
   limit_price?: number | null;
   stop_price?: number | null;
-  // v0.50b — post-only flag.
+  // v0.50b —— post-only 标记。
   post_only?: boolean;
-  // v0.51b — fill columns populated by the
-  // post-submit reconciliation step (real HTTP
-  // path or stub fallback).
+  // v0.51b —— 由提交后的对账步骤
+  // （真实 HTTP 路径或 stub 回退）
+  // 填充的成交字段。
   filled_at?: number | null;
   fill_price?: number | null;
   fill_size?: string | null;
   partial?: boolean;
 }
 
-// v0.44c — paper fill DTO. The mirror of a Bet
-// minus tx_hash, plus an explicit mirror_id link.
-// Used by listPaperFills and the [PAPER] badges
-// in Copy / PnL pages.
+// v0.44c —— paper fill DTO。Bet 的镜像
+// 减去 tx_hash，再加上一个显式 mirror_id 链接。
+// 供 listPaperFills 及 Copy / PnL 页面中的
+// [PAPER] 标签使用。
 export interface PaperFill {
   id: string;
   mirror_id: string;
@@ -63,7 +63,7 @@ export interface PlaceJumpArgs {
   signal_id?: number;
 }
 
-// v0.50a — order types. Mirrors src-tauri OrderType.
+// v0.50a —— 订单类型。镜像 src-tauri OrderType。
 export type OrderType = 'market' | 'limit' | 'stop_loss';
 
 export interface PlaceSignedArgs {
@@ -73,17 +73,17 @@ export interface PlaceSignedArgs {
   price: number;
   size: string;
   signal_id?: number;
-  /** Alias of the key stored in OS keyring (e.g. "primary", "trade-1") */
+  /** OS keyring 中存储的 key 别名（例如 "primary"、"trade-1"） */
   key_alias: string;
-  /** v0.50a — order type. Defaults to 'market' when
-   * omitted (back-compat for pre-v0.50 call sites). */
+  /** v0.50a —— 订单类型。省略时默认为
+   * 'market'（对 v0.50 之前的调用方保持向后兼容）。 */
   order_type?: OrderType;
-  /** v0.50a — limit price (required for 'limit' orders;
-   * optional for 'stop_loss', defaults to stop_price). */
+  /** v0.50a —— 限价（'limit' 订单必填；
+   * 'stop_loss' 可选，默认为 stop_price）。 */
   limit_price?: number;
-  /** v0.50a — stop price (required for 'stop_loss'). */
+  /** v0.50a —— 止损价（'stop_loss' 必填）。 */
   stop_price?: number;
-  /** v0.50b — post-only flag (limit orders only). */
+  /** v0.50b —— post-only 标记（仅限价单）。 */
   post_only?: boolean;
 }
 
@@ -93,10 +93,10 @@ export interface ListBetsArgs {
   limit?: number;
 }
 
-/** v0.50a — args for `validateOrderArgs`. Mirrors
- * `commands::bet::ValidateOrderArgsArgs`. The L1
- * calls this for preflight validation before
- * invoking `placeSignedOrder`. */
+/** v0.50a —— `validateOrderArgs` 的参数。
+ * 镜像 `commands::bet::ValidateOrderArgsArgs`。
+ * L1 在调用 `placeSignedOrder` 之前
+ * 进行预校验时会调用它。 */
 export interface ValidateOrderArgsArgs {
   market_id: string;
   side: BetSide;

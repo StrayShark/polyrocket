@@ -17,7 +17,7 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
-  /* numbers, addresses, ids, timestamps → mono (spec v2.2 §3.2) */
+  /* 数字、地址、id、时间戳 → 等宽字体（spec v2.2 §3.2） */
   .font-mono,
   code,
   kbd,
@@ -32,14 +32,16 @@
       border-color var(--duration-theme) var(--ease-out);
   }
 
-  /* v0.119 — a11y: honor `prefers-reduced-motion` (macOS / Windows / Linux
-     accessibility setting). When reduced motion is preferred:
-     - Disable all transitions (instant state changes)
-     - Disable all non-essential animations (loader spin / skeleton pulse
-       are kept since they communicate loading state and don't induce
-       motion sickness — but they slow down from 1s to 4s so they're
-       less visually distracting)
-     Per WCAG 2.1 SC 2.3.3 (Animation from Interactions). */
+  /* v0.119 —— a11y：尊重 `prefers-reduced-motion`
+     （macOS / Windows / Linux 的可访问性设置）。
+     当用户偏好减少动画时：
+     - 禁用所有过渡（即时的状态变化）
+     - 禁用所有非必要的动画（loader spin /
+       skeleton pulse 保留，因为它们传达
+       加载状态且不会引起晕动症 —— 但
+       它们从 1 秒减慢到 4 秒以降低
+       视觉上的干扰）
+     遵循 WCAG 2.1 SC 2.3.3（动画交互）。 */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -51,10 +53,12 @@
     }
   }
 
-  /* v0.119 — Cursor-merge: native form widgets (range slider, checkbox,
-     radio, progress) inherit the single CTA color via `accent-color`.
-     Without this, browser-native widgets stay browser-blue, breaking
-     the "single accent color" rule on settings/bankroll pages. */
+  /* v0.119 —— Cursor-merge：原生表单控件
+     （range slider、checkbox、radio、progress）
+     通过 `accent-color` 继承单一的 CTA 颜色。
+     没有这一规则时，浏览器原生控件保持
+     浏览器默认蓝色，会在 settings/bankroll
+     页面上破坏「单一强调色」规则。 */
   input[type='range'],
   input[type='checkbox'],
   input[type='radio'],
@@ -64,10 +68,11 @@
 }
 
 @layer base {
-  /* v0.119 — Modal enter/exit animation keyframes.
-     160ms duration with --ease-out (cubic-bezier(0.16, 1, 0.3, 1))
-     matches the duration-base token. Backdrop fades in; dialog
-     scales + fades in from 0.96 → 1 for a subtle "rise" effect. */
+  /* v0.119 —— 模态框进入/退出动画的关键帧。
+     160ms 时长搭配 --ease-out（cubic-bezier(0.16, 1, 0.3, 1)）
+     与 duration-base token 一致。
+     背景淡入；对话框从 0.96 缩放并淡入到 1，
+     形成一种细微的「升起」效果。 */
   @keyframes modal-backdrop-in {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -93,7 +98,7 @@
 }
 
 @layer components {
-  /* Cursor-style scrollbar */
+  /* Cursor 风格的滚动条 */
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
@@ -106,18 +111,21 @@
     background: var(--border-strong);
   }
 
-  /* Sidebar nav-item — used by AppShell.tsx.
+  /* 侧边栏 nav-item —— 由 AppShell.tsx 使用。
    *
-   * v0.74c fix: this class was referenced in AppShell since
-   * initial commit but never defined in CSS. Result: sidebar
-   * icons rendered at default 24×24, layout broken (block
-   * instead of flex, no padding, no hover state). The
-   * spec describes the visual target: "Cursor / VS Code
-   * sidebar density — 24px row, 12px font, 4px icon-text gap,
-   * muted-text-by-default with active accent".
+   * v0.74c 修复：自首次提交以来，AppShell
+   * 引用了这个 class，但 CSS 中从未定义。
+   * 结果：侧边栏图标以默认 24×24 渲染，
+   * 布局被破坏（block 而非 flex，
+   * 没有 padding，没有 hover 状态）。
+   * 规格中描述了视觉目标：
+   * 「Cursor / VS Code 侧边栏密度 —— 
+   * 24px 行，12px 字体，4px 图标-文字间距，
+   * 默认使用 muted 文字，激活时使用强调色」。
    *
-   * The class is custom (not a Tailwind utility) so it lives
-   * in @layer components to keep specificity predictable.
+   * 该 class 是自定义的（非 Tailwind utility），
+   * 因此放在 @layer components 中以保持
+   * 可预测的特异性。
    */
   .nav-item {
     display: flex;

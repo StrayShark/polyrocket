@@ -1,18 +1,18 @@
-/* polyrocket themes — spec v2.2 §3
- * 3 themes = SAME layout / structure / typography / radius / shadow / motion.
- * Only color tokens differ. See polyradar-dev-governance.md §11.
+/* polyrocket 主题 —— spec v2.2 §3
+ * 3 个主题 = 相同的布局 / 结构 / 排版 / 圆角 / 阴影 / 动效。
+ * 只有颜色 token 不同。参见 polyradar-dev-governance.md §11。
  */
 
 :root {
   --font-sans: 'Inter', 'SF Pro Display', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, monospace;
 
-  /* Radius — identical across all themes (spec v2.2 §3.4) */
+  /* 圆角 —— 在所有主题中相同（spec v2.2 §3.4） */
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 8px;
 
-  /* Motion — identical across all themes (spec v2.2 §3.6) */
+  /* 动效 —— 在所有主题中相同（spec v2.2 §3.6） */
   --duration-fast: 80ms;
   --duration-base: 160ms;
   --duration-theme: 180ms;
@@ -20,9 +20,11 @@
 }
 
 html[data-theme='dark'] {
-  /* Cursor / VS Code Dark+ inspired, accent pivoted to pitch green (v0.119
-     football pivot). v0.58c — muted (#6B6B6B → #858585, 3.13:1
-     → 4.52:1) bumped to clear WCAG AA (>= 4.5:1 for normal text on bg). */
+  /* Cursor / VS Code Dark+ 风格，强调色调整为 pitch green
+     （v0.119 足球轴心）。v0.58c —— muted
+     （#6B6B6B → #858585，3.13:1 → 4.52:1）
+     提升至满足 WCAG AA（普通文字对背景
+     >= 4.5:1）。 */
   --bg: #1E1E1E;
   --surface: #181818;
   --surface-2: #252526;
@@ -32,9 +34,11 @@ html[data-theme='dark'] {
   --fg: #D4D4D4;
   --fg-secondary: #9D9D9D;
   --muted: #858585;
-  /* v0.119 — pitch green accent (football pivot). Was #3B9CE0.
-     Bumped from #2e7d32 (3.25:1 — FAIL WCAG AA) to #43A047 (5.05:1 PASS)
-     to preserve v0.58c a11y commitment. */
+  /* v0.119 —— pitch green 强调色（足球轴心）。
+     之前是 #3B9CE0。从 #2e7d32（3.25:1 —— 
+     WCAG AA 不合格）提升到 #43A047
+     （5.05:1 通过），以保留 v0.58c 的
+     a11y 承诺。 */
   --accent: #43A047;
   --accent-hover: #4CAF50;
   --bull: #4EC9B0;
@@ -54,7 +58,7 @@ html[data-theme='light'] {
   --fg: #1F2328;
   --fg-secondary: #4B5263;
   --muted: #6B7280;
-  /* v0.119 — pitch green accent (football pivot). Was #2563EB. */
+  /* v0.119 —— pitch green 强调色（足球轴心）。之前是 #2563EB。 */
   --accent: #1b5e20;
   --accent-hover: #2e7d32;
   --bull: #1A7F37;
@@ -65,14 +69,16 @@ html[data-theme='light'] {
 }
 
 html[data-theme='matrix'] {
-  /* OpenAI Codex CLI matrix inspired.
-     v0.58c — muted (#5C5C5C → #858585, 2.96:1
-     → 5.37:1) bumped to clear WCAG AA.
-     Previous value was the worst a11y offender
-     in the whole theme system.
-     v0.119 — accent repivoted from OpenAI green to bright lime (#a4ff00)
-     for football-pivot accent differentiation. The OpenAI green had
-     4.4:1 contrast vs bg (FAIL AA). New lime has 13.6:1 (PASS AAA). */
+  /* 灵感来自 OpenAI Codex CLI matrix。
+     v0.58c —— muted（#5C5C5C → #858585，
+     2.96:1 → 5.37:1）提升至满足 WCAG AA。
+     之前的值是整个主题系统中 a11y
+     最差的违规项。
+     v0.119 —— 强调色从 OpenAI 绿色
+     调整为亮黄绿色（#a4ff00），以实现
+     足球轴心的强调色差异化。OpenAI 绿
+     对比度为 4.4:1（不满足 AA）。
+     新的黄绿色对比度为 13.6:1（满足 AAA）。 */
   --bg: #0A0A0A;
   --surface: #0F0F0F;
   --surface-2: #161616;

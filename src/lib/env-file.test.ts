@@ -1,15 +1,14 @@
-// v0.57d — env-file parsing tests.
+// v0.57d — env-file 解析测试。
 //
-// Covers the helper that reads .env / .key /
-// .txt files and extracts a secret. The picker
-// is the dialog plugin (v0.54a); the parser is
-// pure (no IO), so we test it directly here.
+// 覆盖读取 .env / .key / .txt 文件并提取密钥的助手。
+// 选择器是 dialog 插件（v0.54a）；解析器是
+// 纯函数（无 IO），因此我们在此直接测试。
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { extractSecretFromEnv, readFileText } from './env-file';
 
-// v0.97 — mock @tauri-apps/plugin-fs so the dynamic import
-// inside readFileText resolves to a known impl in tests.
+// v0.97 — mock 掉 @tauri-apps/plugin-fs,以便 readFileText 内部的动态
+// import 在测试中解析为已知实现。
 const { mockReadTextFile } = vi.hoisted(() => ({
   mockReadTextFile: vi.fn(),
 }));
@@ -55,9 +54,8 @@ SECOND=second-value
   });
 
   it('treats a line without `=` as a plain key file', () => {
-    // Common shape: a `sk-...` line on its own
-    // with no key=value. The whole line is the
-    // secret.
+    // 常见形式:一行独立的 `sk-...`,
+    // 没有 key=value。整行就是 secret。
     expect(extractSecretFromEnv('sk-plain-789')).toBe('sk-plain-789');
   });
 
@@ -98,8 +96,8 @@ describe('readFileText (v0.97)', () => {
     expect(await readFileText('/x')).toBe('hello world');
   });
 
-  // v0.106 — coverage ramp. Cover the web-fetch fallback (lines 51-55)
-  // when the Tauri plugin throws.
+  // v0.106 —— 覆盖率提升。覆盖 web-fetch 兜底路径（第 51-55 行）,
+  // 即 Tauri plugin 抛错时的情况。
   it('falls back to fetch when Tauri plugin throws (covers lines 51-55)', async () => {
     mockReadTextFile.mockRejectedValue(new Error('not in Tauri'));
     const mockFetch = vi.fn().mockResolvedValue({

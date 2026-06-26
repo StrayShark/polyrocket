@@ -1,13 +1,13 @@
-// v0.62a — csv lib tests.
+// v0.62a — csv lib 测试。
 //
-// `toCsv` and `downloadCsv` are used by the
-// LLM stats export. Today 0% coverage.
-// This file covers:
-//   1. toCsv: empty array → empty string
-//   2. toCsv: simple rows → header + body
-//   3. toCsv: quoted cells (commas, quotes, newlines)
-//   4. toCsv: custom column order
-//   5. downloadCsv: triggers a download (blob URL)
+// `toCsv` 和 `downloadCsv` 被
+// LLM 统计导出使用。目前 0% 覆盖率。
+// 本文件覆盖：
+//   1. toCsv: 空数组 → 空字符串
+//   2. toCsv: 简单行 → 表头 + 内容
+//   3. toCsv: 带引号的单元格（逗号、引号、换行）
+//   4. toCsv: 自定义列顺序
+//   5. downloadCsv: 触发下载（blob URL）
 
 // @vitest-environment happy-dom
 

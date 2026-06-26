@@ -1,17 +1,17 @@
-// v0.77i — welcome-store migrate branches (+5 tests, 46.1%→85% br).
+// v0.77i — welcome-store migrate 分支（+5 个测试,46.1%→85% 分支覆盖率）。
 //
-// welcome-store.ts has 14 uncovered branches in `migrateLegacy()`
-// (legacy key migration) + the persist storage getter. The store
-// reads `polyrocket.onboarding` (legacy v0.13) on first init and
-// migrates to `polyrocket.welcome` (v0.53+). 5 tests cover all
-// reachable branches.
+// welcome-store.ts 在 `migrateLegacy()`(旧 key 迁移)
+// 和 persist storage getter 中有 14 个未覆盖的分支。
+// store 在首次初始化时读取 `polyrocket.onboarding`（旧版 v0.13）
+// 并迁移到 `polyrocket.welcome`（v0.53+）。5 个测试覆盖所有
+// 可达的分支。
 //
 // @vitest-environment happy-dom
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useWelcomeStore } from '@/stores/welcome-store';
 
-void useWelcomeStore; // referenced for module init side effect
+void useWelcomeStore; // 引用以触发模块初始化副作用
 const STORAGE_KEY = 'polyrocket.welcome';
 const LEGACY_KEY = 'polyrocket.onboarding';
 
@@ -22,7 +22,7 @@ describe('welcome-store migrate branches (v0.77i)', () => {
   });
 
   it('migrateLegacy: no legacy key → no-op', async () => {
-    // No legacy key set
+    // 未设置旧版 key
     window.localStorage.clear();
     const { useWelcomeStore: fresh } = await import('@/stores/welcome-store');
     const s = fresh.getState();
@@ -82,23 +82,23 @@ describe('welcome-store migrate branches (v0.77i)', () => {
     );
     const { useWelcomeStore: fresh } = await import('@/stores/welcome-store');
     void fresh;
-    // Wait for persist middleware to hydrate
+    // 等待 persist 中间件完成 hydrate
     await new Promise(r => setTimeout(r, 50));
-    // Legacy key should be removed (regardless of new key state)
+    // 旧 key 应该被移除（与新 key 状态无关）
     expect(window.localStorage.getItem(LEGACY_KEY)).toBeNull();
   });
 
   it('migrateLegacy: invalid JSON → caught (no crash)', async () => {
     window.localStorage.setItem(LEGACY_KEY, 'not valid json');
-    // Should not throw
+    // 不应抛出
     const { useWelcomeStore: fresh } = await import('@/stores/welcome-store');
     const s = fresh.getState();
     expect(s.step).toBe('welcome'); // default
   });
 
   it('expected step constants are 6 entries in WELCOME_STEPS', () => {
-    // v0.77i — sanity check that the WELCOME_STEPS array
-    // (re-imported via dynamic import to avoid coupling)
+    // v0.77i —— 健全性检查，验证 WELCOME_STEPS 数组
+    // （通过动态导入重新导入以避免耦合）
     const expected = ['welcome', 'storage', 'theme', 'llm', 'polymarket', 'finish'];
     expect(expected).toHaveLength(6);
   });

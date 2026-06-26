@@ -1,9 +1,9 @@
-// v0.94 — format.ts edge case tests (5 tests, +~5 stmts).
+// v0.94 — format.ts 边界用例测试（5 个测试,+~5 条语句）。
 //
-// Adds tests for fmtRelativeTime, fmtDate, fmtDateTime, fmtAddress
-// (the 4 most-used formatters that weren't covered by the existing
-// formatRetentionAge-only test file). Each formatter has a `null`
-// / `undefined` branch and several magnitude branches.
+// 为 fmtRelativeTime、fmtDate、fmtDateTime、fmtAddress 添加测试
+//（现有 formatRetentionAge-only 测试文件未覆盖的 4 个最常用
+// 格式化器）。每个格式化器都有一个 `null`
+// / `undefined` 分支以及若干数量级分支。
 
 import { describe, it, expect } from 'vitest';
 import {
@@ -59,7 +59,7 @@ describe('fmtDate (v0.94)', () => {
   });
 
   it('formats timestamp as US locale short date', () => {
-    // Use Date.now() to avoid timezone drift
+    // 使用 Date.now() 避免时区漂移
     const out = fmtDate(Date.now() - 24 * 3_600_000);
     expect(out).toMatch(/[A-Z][a-z]{2} \d+, \d{4}/);
   });
@@ -73,9 +73,9 @@ describe('fmtDateTime (v0.94)', () => {
 
   it('formats timestamp as US locale date+time', () => {
     const out = fmtDateTime(Date.now() - 60_000);
-    // Date part
+    // 日期部分
     expect(out).toMatch(/[A-Z][a-z]{2} \d+/);
-    // Time part (HH:MM AM/PM or HH:MM)
+    // 时间部分(HH:MM AM/PM 或 HH:MM)
     expect(out).toMatch(/\d{1,2}:\d{2}/);
   });
 });

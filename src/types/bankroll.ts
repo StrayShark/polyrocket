@@ -1,8 +1,8 @@
-// v0.78 — bankroll allocation DTOs (L1 ↔ L2 boundary).
+// v0.78 —— 资金分配 DTO（L1 ↔ L2 边界）。
 //
-// Mirror of `src-tauri/src/commands/bankroll.rs` types. The
-// Rust side derives `specta::Type` on these so the codegen
-// pipeline (v0.76+) can pick them up in Phase 3.
+// 镜像 `src-tauri/src/commands/bankroll.rs` 中的类型。
+// Rust 端在这些类型上派生 `specta::Type`，以便
+// codegen pipeline（v0.76+）能在 Phase 3 中识别它们。
 
 export type BetSide = 'Yes' | 'No';
 

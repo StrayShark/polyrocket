@@ -1,4 +1,4 @@
-/** Convert a value to a CSV cell string. */
+/** 将一个值转换为 CSV 单元格字符串。 */
 function cell(v: unknown): string {
   if (v === null || v === undefined) return '';
   const s = typeof v === 'string' ? v : String(v);
@@ -9,10 +9,11 @@ function cell(v: unknown): string {
 }
 
 /**
- * Convert an array of plain objects to a CSV string. Keys of the
- * first row determine column order. Numbers, booleans, and nulls
- * are coerced via String(). Use lib/format.ts for human-readable
- * display — this is for export only.
+ * 将一个普通对象数组转换为 CSV 字符串。
+ * 第一行的 keys 决定列顺序。
+ * 数字、布尔值和 null 通过 String()
+ * 强制转换。人类可读的展示请使用
+ * lib/format.ts —— 此函数仅用于导出。
  */
 export function toCsv<T extends Record<string, unknown>>(
   rows: T[],
@@ -27,7 +28,7 @@ export function toCsv<T extends Record<string, unknown>>(
   return `${header}\n${body}\n`;
 }
 
-/** Trigger a browser download of the CSV string. */
+/** 触发浏览器下载 CSV 字符串。 */
 export function downloadCsv(filename: string, csv: string): void {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);

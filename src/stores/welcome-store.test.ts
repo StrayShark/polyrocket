@@ -1,10 +1,10 @@
-// v0.53c — vitest coverage for the welcome store.
+// v0.53c — welcome store 的 vitest 覆盖率。
 //
-// 1. defaults are correct
-// 2. setStep / setDone / setConfigured transitions
-// 3. pendingConfigs returns the right keys
-// 4. legacy polyrocket.onboarding localStorage key
-//    is migrated on first read
+// 1. 默认值正确
+// 2. setStep / setDone / setConfigured 状态转换
+// 3. pendingConfigs 返回正确的 keys
+// 4. 旧版 polyrocket.onboarding localStorage key
+//    在首次读取时被迁移
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
@@ -14,10 +14,10 @@ import {
 } from './welcome-store';
 
 beforeEach(() => {
-  // Reset the store between tests.
+  // 在每个测试之间重置 store。
   useWelcomeStore.getState().reset();
-  // Wipe the localStorage so the legacy migration
-  // tests start from a clean slate.
+  // 清空 localStorage，确保旧版迁移
+  // 测试从一个干净的状态开始。
   if (typeof window !== 'undefined') {
     window.localStorage.clear();
   }
@@ -79,7 +79,7 @@ describe('welcome store transitions', () => {
     s.setConfigured('polymarketApi', true);
     expect(useWelcomeStore.getState().configured.llmAtLeastOne).toBe(true);
     expect(useWelcomeStore.getState().configured.polymarketApi).toBe(true);
-    // Other flags stay false.
+    // 其他 flag 保持 false。
     expect(useWelcomeStore.getState().configured.walletPk).toBe(false);
   });
 });
@@ -87,7 +87,7 @@ describe('welcome store transitions', () => {
 describe('pendingConfigs', () => {
   it('returns the list of unconfigured items', () => {
     const s = useWelcomeStore.getState();
-    // Nothing configured yet.
+    // 尚未配置任何项。
     expect(pendingConfigs(s)).toEqual(['llm', 'polymarket', 'wallet']);
     s.setConfigured('llmAtLeastOne', true);
     expect(pendingConfigs(useWelcomeStore.getState())).toEqual([
@@ -101,10 +101,9 @@ describe('pendingConfigs', () => {
 
   it('storage + theme are NOT in the pending list (they\'re setup, not secrets)', () => {
     const s = useWelcomeStore.getState();
-    // Even unconfigured, storage/theme don't appear
-    // — they're nice-to-have, not blocking. The
-    // user can complete the wizard without picking
-    // a custom path or a non-default theme.
+    // 即使未配置，storage/theme 也不会出现
+    // ——它们是 nice-to-have，不是阻塞项。用户
+    // 无需选择自定义路径或非默认主题即可完成向导。
     expect(pendingConfigs(s)).not.toContain('storage');
     expect(pendingConfigs(s)).not.toContain('theme');
   });
@@ -120,17 +119,17 @@ describe('legacy polyrocket.onboarding migration', () => {
         version: 0,
       }),
     );
-    // Trigger migration by reading.
+    // 通过读取触发迁移。
     useWelcomeStore.persist.rehydrate();
-    // After migration, the old key is gone, the
-    // new key exists with done=true and step set
-    // to a sensible WelcomeStep.
+    // 迁移之后，旧 key 已删除，新 key
+    // 存在，done=true 且 step 设置为
+    // 一个合理的 WelcomeStep。
     expect(window.localStorage.getItem('polyrocket.onboarding')).toBeNull();
     const newRaw = window.localStorage.getItem('polyrocket.welcome');
     expect(newRaw).not.toBeNull();
     const parsed = JSON.parse(newRaw as string);
     expect(parsed.state.done).toBe(true);
-    // Old step 3 (llm) maps to 'llm'.
+    // 旧版 step 3 (llm) 映射到 'llm'。
     expect(parsed.state.step).toBe('llm');
   });
 });

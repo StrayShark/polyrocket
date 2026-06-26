@@ -18,28 +18,29 @@ import { Analysis } from '@/routes/Analysis';
 import { LlmPerf } from '@/routes/LlmPerf';
 import { LlmMgmt } from '@/routes/LlmMgmt';
 import { Brief } from '@/routes/Brief';
-// v0.57a — /onboarding route removed (replaced
-// by /welcome in v0.53b). The old Onboarding.tsx
-// is kept as .unused for archeology but is no
-// longer imported anywhere.
+// v0.57a —— /onboarding 路由已移除
+// （在 v0.53b 中被 /welcome 取代）。
+// 旧的 Onboarding.tsx 保留为 .unused 以备
+// 考古，但不再被任何地方导入。
 import { Welcome } from '@/routes/Welcome';
 import { Audit } from '@/routes/Audit';
 import { Notifications } from '@/routes/Notifications';
 import { Bankroll } from '@/routes/Bankroll';  // v0.78 — M11
 import { Help } from '@/routes/Help';
+import { ArbBoard } from '@/routes/ArbBoard';  // v0.126 — P1-4 arbitrage board
 import { AppShell } from '@/components/layout/AppShell';
 import { useThemeStore } from '@/stores/theme-store';
 import { ToastHost } from '@/components/feedback/Toast';
 import { ErrorBoundary } from '@/components/feedback/ErrorBoundary';
 import './styles/globals.css';
 
-// Initialize theme on app boot (before paint)
+// 在应用启动时初始化主题（在 paint 之前）
 const initialTheme = useThemeStore.getState().theme;
 document.documentElement.setAttribute('data-theme', initialTheme);
 
 const queryClient = new QueryClient();
-// v0.9a — smarter retry policy: backoff + jitter + respects error kind.
-// (Replaces the old hard-coded `retry: 1`.)
+// v0.9a —— 更智能的重试策略：backoff + jitter +
+// 尊重错误种类。（取代了原来硬编码的 `retry: 1`。）
 applyRetryPolicy(queryClient);
 
 const router = createBrowserRouter([
@@ -66,8 +67,9 @@ const router = createBrowserRouter([
       { path: 'welcome', element: <Welcome /> },
       { path: 'audit', element: <Audit /> },
       { path: 'notifications', element: <Notifications /> },
-      { path: 'bankroll', element: <Bankroll /> },  // v0.78 — M11
+      { path: 'bankroll', element: <Bankroll /> },  // v0.78 —— M11
       { path: 'help', element: <Help /> },
+      { path: 'arb-board', element: <ArbBoard /> },  // v0.126 —— P1-4
     ],
   },
 ]);

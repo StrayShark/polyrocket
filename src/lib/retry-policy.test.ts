@@ -35,9 +35,9 @@ describe('shouldRetry', () => {
 
 describe('retryDelayMs', () => {
   it('grows exponentially across attempts', () => {
-    // n=0: 500 ± 100  (range 400-600)
-    // n=1: 1500 ± 300 (range 1200-1800)
-    // n=2: 4500 ± 900 (range 3600-5400)
+    // n=0: 500 ± 100  （范围 400-600）
+    // n=1: 1500 ± 300 （范围 1200-1800）
+    // n=2: 4500 ± 900 （范围 3600-5400）
     for (let trial = 0; trial < 20; trial++) {
       const d0 = retryDelayMs(0);
       expect(d0).toBeGreaterThanOrEqual(400);
@@ -54,13 +54,13 @@ describe('retryDelayMs', () => {
   });
 
   it('jitter is non-deterministic (returns different values)', () => {
-    // The loop below is the actual assertion; the unused a/b were
-    // removed — we sample fresh values inside the loop instead.
+    // 下面的循环才是真正的断言;不再使用的 a/b 变量
+    // 已被移除 —— 我们改为在循环内部取新的值。
     let sameCount = 0;
     for (let i = 0; i < 10; i++) {
       if (retryDelayMs(1) === retryDelayMs(1)) sameCount++;
     }
-    // At least 9 of 10 should differ
+    // 10 次中至少有 9 次应不同
     expect(sameCount).toBeLessThan(10);
   });
 });
@@ -69,7 +69,7 @@ describe('applyRetryPolicy (v0.95)', () => {
   it('sets queries default options: refetchOnWindowFocus false, retry=shouldRetry, retryDelay=retryDelayMs, staleTime 30s', () => {
     const client = {
       setDefaultOptions: (opts: unknown) => {
-        // Stash the options for assertion
+        // 暂存 options 以便断言
         (client as unknown as { opts: unknown }).opts = opts;
       },
     } as unknown as Parameters<typeof applyRetryPolicy>[0];
@@ -79,7 +79,7 @@ describe('applyRetryPolicy (v0.95)', () => {
     expect(opts.queries.retry).toBe(shouldRetry);
     expect(opts.queries.retryDelay).toBe(retryDelayMs);
     expect(opts.queries.staleTime).toBe(30_000);
-    // Mutations should not auto-retry
+    // Mutations 不应自动重试
     expect(opts.mutations.retry).toBe(false);
   });
 });

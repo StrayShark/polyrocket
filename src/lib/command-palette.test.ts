@@ -14,7 +14,7 @@ describe('buildPaletteCommands', () => {
   it('returns the canonical set', () => {
     const cmds = sample();
     expect(cmds.length).toBeGreaterThanOrEqual(10);
-    // Every command has a non-empty label
+    // 每个命令都有非空 label
     for (const c of cmds) {
       expect(c.label.length).toBeGreaterThan(0);
       expect(c.id.length).toBeGreaterThan(0);
@@ -47,8 +47,8 @@ describe('scoreCommand', () => {
   });
 
   it('alias exact scores above label substring', () => {
-    // Note: the label itself does NOT start with the query, so the
-    // alias path is the one that fires.
+    // 注意：label 本身不以 query 开头，所以
+      // alias 路径才是实际生效的路径。
     const cmd: PaletteCommand = {
       id: 'a', label: 'Refresh signals', aliases: ['recompute'], category: 'Actions', action: noop,
     };
@@ -72,7 +72,7 @@ describe('filterCommands', () => {
   it('returns stable order for empty query (limited to 10)', () => {
     const out = filterCommands(cmds, '');
     expect(out.length).toBeLessThanOrEqual(10);
-    // The first 3 should be the navigation items by definition order
+    // 前 3 个应按定义顺序为导航项
     expect(out[0].id).toBe('nav.dashboard');
   });
 
@@ -81,9 +81,11 @@ describe('filterCommands', () => {
     expect(out[0].id).toBe('act.sync');
   });
 
-  it('ranks alias "recompute" → Recompute signals first', () => {
-    const out = filterCommands(cmds, 'recompute');
-    expect(out[0].id).toBe('act.recompute');
+  it('ranks alias "arbitrage" → Arb Board first', () => {
+    // v0.126 —— recompute / purge 动作已移除 (v0.123 football-only),
+    // 改用「arbitrage」alias 测试 ranking 逻辑。
+    const out = filterCommands(cmds, 'arbitrage');
+    expect(out[0].id).toBe('nav.arb-board');
   });
 
   it('respects the limit', () => {

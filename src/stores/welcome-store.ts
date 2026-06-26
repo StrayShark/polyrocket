@@ -1,9 +1,9 @@
-// v0.53b — welcome (first-run landing) zustand store.
+// v0.53b — welcome（首次运行落地页）zustand store。
 //
-// Renamed from v0.13 'polyrocket.onboarding' to
-// 'polyrocket.welcome' (v0.53 spec). On first read
-// the store migrates the old key once and deletes
-// it, so users mid-onboarding don't lose state.
+// 在 v0.53 规范中从 v0.13 'polyrocket.onboarding' 重命名为
+// 'polyrocket.welcome'。首次读取时,
+// store 会迁移旧 key 一次然后删除它,
+// 因此 onboarding 进行中的用户不会丢失状态。
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
@@ -38,9 +38,9 @@ export interface WelcomeState {
   done: boolean;
   step: WelcomeStep;
   locale: string;
-  // Sub-step tracking. Each main step has its own
-  // skip / partial-completion state. The Dashboard
-  // banner uses these to decide what to nag about.
+  // 子步骤追踪。每个主步骤都有自己的
+  // 跳过 / 部分完成状态。Dashboard
+  // 横幅根据这些状态决定要催哪些项。
   configured: {
     storagePath: boolean;
     theme: boolean;
@@ -69,11 +69,11 @@ const initial = {
 };
 
 /**
- * One-time migration: if the old
- * `polyrocket.onboarding` key exists, copy the
- * relevant fields over and delete the old key.
- * We do this lazily on first store read so a user
- * who already has `done=true` keeps that state.
+ * 一次性迁移：如果旧的
+ * `polyrocket.onboarding` key 存在，则将
+ * 相关字段复制过去并删除旧 key。
+ * 我们在首次 store 读取时惰性执行，以便已经
+ * 拥有 `done=true` 的用户保留该状态。
  */
 function migrateLegacy(): void {
   try {
@@ -85,10 +85,10 @@ function migrateLegacy(): void {
     };
     const newRaw = window.localStorage.getItem(STORAGE_KEY);
     if (!newRaw) {
-      // Copy with the field renames we know about.
-      // Old: step was a number 0..3 (welcome /
-      // theme / wallet / llm). New: step is a
-      // WelcomeStep string. We map the closest.
+      // 复制字段，并做已知重命名。
+      // 旧版：step 是数字 0..3（welcome /
+      // theme / wallet / llm）。新版：step 是
+      // WelcomeStep 字符串。映射到最接近的一项。
       const stepNum = parsed.state?.step ?? 0;
       const newStep: WelcomeStep =
         stepNum === 0
@@ -96,7 +96,7 @@ function migrateLegacy(): void {
           : stepNum === 1
             ? 'theme'
             : stepNum === 2
-              ? 'storage' // wallet -> storage (closest)
+              ? 'storage' // wallet -> storage（最接近）
               : 'llm';
       window.localStorage.setItem(
         STORAGE_KEY,
@@ -112,8 +112,8 @@ function migrateLegacy(): void {
     }
     window.localStorage.removeItem(LEGACY_KEY);
   } catch {
-    // best-effort; if migration fails, the user
-    // just gets a fresh welcome on next launch.
+    // 尽力而为；如果迁移失败，用户
+    // 在下次启动时只会获得一个全新的 welcome 流程。
   }
 }
 
@@ -159,10 +159,9 @@ export const useWelcomeStore = create<WelcomeState>()(
   ),
 );
 
-/** v0.53b — the helper used by the L1 to decide
- * whether the user has unfinished setup. Returns
- * the list of "still needed" sub-configs. The
- * Dashboard banner iterates over this. */
+/** v0.53b —— L1 用来判断用户是否还有未完成
+ * 设置的辅助函数。返回「仍需配置」的
+ * 子项列表。Dashboard 横幅会迭代此列表。 */
 export function pendingConfigs(s: WelcomeState): string[] {
   const out: string[] = [];
   if (!s.configured.llmAtLeastOne) out.push('llm');

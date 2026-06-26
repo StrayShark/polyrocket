@@ -1,6 +1,6 @@
 /**
- * L1 domain mirror — M2 Signals.
- * Mirrors src-tauri/src/domain/signal/mod.rs.
+ * L1 领域镜像 —— M2 信号。
+ * 镜像 src-tauri/src/domain/signal/mod.rs。
  */
 
 export interface Signal {

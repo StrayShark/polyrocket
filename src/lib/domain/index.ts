@@ -1,4 +1,4 @@
-/** Barrel — re-export all L1 domain mirrors. */
+/** Barrel —— 重新导出所有 L1 领域镜像。 */
 
 export * from './markets';
 export * from './signals';

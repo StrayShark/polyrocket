@@ -1,6 +1,6 @@
 /**
- * L1 domain mirror — M9 Consensus.
- * Mirrors src-tauri/src/domain/consensus/mod.rs.
+ * L1 领域镜像 —— M9 共识。
+ * 镜像 src-tauri/src/domain/consensus/mod.rs。
  */
 
 export type ConsensusSide = 'YES' | 'NO' | 'MAYBE';
@@ -16,13 +16,13 @@ export function parseConsensusSide(s: string): ConsensusSide | null {
 
 export interface Consensus {
   side: ConsensusSide;
-  /** 0..1, fraction of LLMs agreeing. */
+  /** 0..1，LLM 达成一致的比例。 */
   strength: number;
   nModels: number;
   avgConfidence: number;
 }
 
-/** Pick the majority side; strength = agreement fraction. */
+/** 选取多数方；strength = 一致性比例。 */
 /** 多 LLM 投票产生 consensus。**L1 镜像 Rust 端 `domain::consensus::*`**。
  *
  * **算法**：

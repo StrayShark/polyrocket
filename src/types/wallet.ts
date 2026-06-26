@@ -1,5 +1,5 @@
-// Mirror of src-tauri/src/commands/* DTOs (L1 ↔ L2 contract).
-// Spec: docs/overview.md §1.2 (L1 → L2 IPC).
+// src-tauri/src/commands/* DTO 的镜像（L1 ↔ L2 契约）。
+// 设计文档:docs/overview.md §1.2（L1 → L2 IPC）。
 
 export type WalletType = 'eoa' | 'smart';
 

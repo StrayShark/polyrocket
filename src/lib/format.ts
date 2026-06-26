@@ -1,4 +1,4 @@
-/** Format helpers — numbers, percentages, currency, time, addresses. */
+/** 格式化辅助函数 —— 数字、百分比、货币、时间、地址。 */
 
 const NF_USDC = new Intl.NumberFormat('en-US', {
   minimumFractionDigits: 2,
@@ -93,10 +93,10 @@ export const fmtDateTime = (ms: number | null | undefined): string => {
 };
 
 /**
- * v0.13c — format a millisecond duration as a human-friendly
- * retention age (e.g. "7 days", "1.5 years"). Used in the audit
- * retention settings card so the user sees the policy in
- * natural-language units.
+ * v0.13c —— 将毫秒级时长格式化为人类友好的
+ * 保留时长（例如 "7 days"、"1.5 years"）。
+ * 用于审计保留设置卡片，让用户能用
+ * 自然语言看到策略。
  */
 export const formatRetentionAge = (ms: number | null | undefined): string => {
   if (ms === null || ms === undefined) return '—';

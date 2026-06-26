@@ -1,6 +1,6 @@
 /**
- * L1 domain mirror — M5 Copy.
- * Mirrors src-tauri/src/domain/copy/mod.rs.
+ * L1 领域镜像 —— M5 跟单。
+ * 镜像 src-tauri/src/domain/copy/mod.rs。
  */
 
 /** 一个被跟踪的 copy target（whale 地址）。L1 「Copy」面板展示用。

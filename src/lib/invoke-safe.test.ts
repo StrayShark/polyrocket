@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { classifyError, canRetry, formatError, safeInvoke, type AppErrorShape } from './invoke-safe';
 
-// v0.97 — mock @tauri-apps/api/core so safeInvoke is testable
+// v0.97 — mock 掉 @tauri-apps/api/core 以便测试 safeInvoke
 const { mockTauriInvoke } = vi.hoisted(() => ({
   mockTauriInvoke: vi.fn(),
 }));

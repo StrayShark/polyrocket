@@ -1,13 +1,13 @@
-// v0.55 — mirror executor DTOs.
+// v0.55 —— mirror executor DTO。
 //
-// Mirrors `src-tauri/src/commands/mirror_executor.rs`
-// (MirrorRow, ListMirrorsArgs, EnqueueArgs, etc.)
-// and `src-tauri/src/domain/mirror/mod.rs`
-// (ExecutorPassResult, MirrorQueueStats).
+// 镜像 `src-tauri/src/commands/mirror_executor.rs`
+// (MirrorRow, ListMirrorsArgs, EnqueueArgs, 等)
+// 以及 `src-tauri/src/domain/mirror/mod.rs`
+// (ExecutorPassResult, MirrorQueueStats)。
 //
-// The L1 uses these in `enqueue_mirror` /
-// `list_mirrors` / `run_mirror_executor_pass` /
-// `mirror_queue_stats` IPCs.
+// L1 在 `enqueue_mirror` / `list_mirrors` /
+// `run_mirror_executor_pass` / `mirror_queue_stats`
+// 这几个 IPC 中使用这些类型。
 
 export interface EnqueueMirrorArgs {
   event_id: number;
@@ -36,30 +36,30 @@ export interface ListMirrorsArgs {
 }
 
 export interface RunMirrorPassArgs {
-  /** Optional override of the per-cycle
-   * exposure cap (USDC). When omitted, the
-   * executor uses the configured cap. */
+  /** 单次循环曝光上限（USDC）的可选
+   * 覆盖值。省略时执行器
+   * 使用已配置的 cap。 */
   exposure_cap_usdc?: number;
-  /** When true, dry-run: enqueue + size
-   * decisions are computed but no orders are
-   * actually submitted. */
+  /** 当为 true 时为 dry-run：会计算
+   * 入队与仓位决策，但实际不会
+   * 提交订单。 */
   dry_run?: boolean;
 }
 
 export interface ExecutorPassResult {
-  /** True when the pass ran (even if no orders
-   * were submitted — the queue may be empty). */
+  /** 当 pass 执行时为 true（即使没有
+   * 提交订单 —— 队列可能为空）。 */
   ok: boolean;
-  /** ISO timestamp at the start of the pass. */
+  /** 本次 pass 开始时的 ISO 时间戳。 */
   started_at: string;
-  /** ISO timestamp at the end of the pass. */
+  /** 本次 pass 结束时的 ISO 时间戳。 */
   finished_at: string;
-  /** Number of orders submitted this pass. */
+  /** 本次 pass 提交的订单数。 */
   submitted: number;
-  /** Number of orders rejected (cap / flipped
-   * / size / wallet). */
+  /** 被拒绝的订单数（cap / flipped /
+   * size / wallet）。 */
   rejected: number;
-  /** Per-reject breakdown (by reason). */
+  /** 按原因分类的拒绝明细。 */
   reject_breakdown: {
     cap?: number;
     flipped?: number;
@@ -67,11 +67,11 @@ export interface ExecutorPassResult {
     wallet?: number;
     other?: number;
   };
-  /** Total exposure in USDC after the pass. */
+  /** 本次 pass 后的 USDC 总敞口。 */
   total_exposure_usdc: number;
-  /** Headroom in USDC (cap - exposure). */
+  /** USDC 剩余空间（cap - exposure）。 */
   headroom_usdc: number;
-  /** Optional message for the L1 toast. */
+  /** 供 L1 toast 使用的可选消息。 */
   message?: string;
 }
 

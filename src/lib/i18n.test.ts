@@ -25,8 +25,8 @@ describe('translate', () => {
   });
 
   it('falls back to en for missing keys in active locale', () => {
-    // Simulate: a key only in `en` (we add one temporarily via dictionaries).
-    // The function should fall back gracefully.
+    // 模拟:一个仅存在于 `en` 的 key(我们暂时通过 dictionaries 添加)。
+    // 该函数应当优雅地回退。
     const out = translate('zh', 'nonexistent.key' as any);
     expect(out).toBe('?nonexistent.key?');
   });
@@ -61,7 +61,7 @@ describe('page title keys (v0.11a)', () => {
       const zhVal = translate('zh', key);
       expect(enVal).not.toBe(`?${key}?`);
       expect(zhVal).not.toBe(`?${key}?`);
-      // zh should differ from en (we did real translations)
+      // zh 应与 en 不同（我们做了真实的翻译）
       expect(zhVal).not.toBe(enVal);
     }
   });
@@ -116,7 +116,7 @@ describe('Markets / Signals / Copy / PnL keys (v0.13a)', () => {
 describe('Analysis / LlmPerf / LlmMgmt keys (v0.14a)', () => {
   it('every new key is in both locales', () => {
     const keys = [
-      // Analysis
+      // 分析
       'analysis.run.title', 'analysis.run.desc', 'analysis.input.placeholder',
       'analysis.btn.analyze', 'analysis.btn.recommendation', 'analysis.btn.follow',
       'analysis.btn.skip', 'analysis.kpi.side', 'analysis.kpi.prob',
@@ -164,7 +164,7 @@ describe('Analysis / LlmPerf / LlmMgmt keys (v0.14a)', () => {
       'promote.chart.title', 'promote.chart.empty', 'promote.chart.range',
       'promote.chart.trend.up', 'promote.chart.trend.down',
       'promote.chart.trend.flat',
-      // LlmPerf
+      // LlmPerf（LLM 性能）
       'llmperf.kpi.models', 'llmperf.kpi.cost', 'llmperf.kpi.wins',
       'llmperf.kpi.roi', 'llmperf.delta.profitable', 'llmperf.delta.unprofitable',
       'llmperf.bucket.title', 'llmperf.bucket.desc', 'llmperf.bucket.empty',
@@ -173,7 +173,7 @@ describe('Analysis / LlmPerf / LlmMgmt keys (v0.14a)', () => {
       'llmperf.cost.cost', 'llmperf.cost.wins', 'llmperf.cost.roi',
       'llmperf.csv.preview', 'llmperf.btn.export',
       'llmperf.toast.exported', 'llmperf.toast.export_failed',
-      // LlmMgmt
+      // LlmMgmt（LLM 管理）
       'llmmgmt.keyring', 'llmmgmt.keys_count', 'llmmgmt.pm_api',
       'llmmgmt.wallet_pk', 'llmmgmt.keyring_backends',
       'llmmgmt.providers.title', 'llmmgmt.providers.desc',
@@ -207,7 +207,7 @@ describe('Analysis / LlmPerf / LlmMgmt keys (v0.14a)', () => {
 describe('Wallets / Settings / Notifications keys (v0.14b)', () => {
   it('every new key is in both locales', () => {
     const keys = [
-      // Wallets
+      // 钱包
       'wallets.title', 'wallets.subtitle', 'wallets.refresh',
       'wallets.add', 'wallets.add_first', 'wallets.empty',
       'wallets.empty_desc', 'wallets.card.created',
@@ -221,7 +221,7 @@ describe('Wallets / Settings / Notifications keys (v0.14b)', () => {
       'wallets.add.type_eoa', 'wallets.add.type_smart',
       'wallets.add.notice', 'wallets.add.toast.added',
       'wallets.add.toast.failed',
-      // Notifications
+      // 通知
       'notifications.title', 'notifications.subtitle',
       'notifications.refresh', 'notifications.col.kind',
       'notifications.col.title', 'notifications.col.body',
@@ -239,7 +239,7 @@ describe('Wallets / Settings / Notifications keys (v0.14b)', () => {
       'notifications.event.auto_disable', 'notifications.event.auto_disable_hint',
       'notifications.event.brief', 'notifications.event.brief_hint',
       'notifications.event.settings_link',
-      // Settings
+      // 设置
       'settings.title', 'settings.btn.reset', 'settings.btn.save',
       'settings.btn.reset_toast', 'settings.btn.save_toast',
       'settings.section.trading', 'settings.section.trading_desc',
@@ -267,13 +267,13 @@ describe('Wallets / Settings / Notifications keys (v0.14b)', () => {
 describe('Audit / Help / ModelLab / MarketDetail keys (v0.14c)', () => {
   it('every new key is in both locales', () => {
     const keys = [
-      // Audit
+      // 审计
       'audit.search.placeholder', 'audit.col.when', 'audit.col.actor',
       'audit.col.action', 'audit.col.target', 'audit.col.result',
       'audit.col.payload', 'audit.btn.refresh', 'audit.filter.all',
       'audit.empty', 'audit.empty.no_writes', 'audit.empty.no_match',
       'audit.footer',
-      // Help
+      // 帮助
       'help.title', 'help.subtitle', 'help.quick.title', 'help.quick.desc',
       'help.quick.step1', 'help.quick.step2', 'help.quick.step3',
       'help.quick.step4', 'help.quick.step5',
@@ -286,7 +286,7 @@ describe('Audit / Help / ModelLab / MarketDetail keys (v0.14c)', () => {
       'help.shortcuts.gs', 'help.shortcuts.gb', 'help.shortcuts.gl',
       'help.external.title', 'help.external.docs',
       'help.external.polymarket', 'help.external.github',
-      // ModelLab
+      // ModelLab（模型实验室）
       'modellab.title', 'modellab.kpi.versions', 'modellab.kpi.best_brier',
       'modellab.kpi.best_winrate', 'modellab.perf.title', 'modellab.perf.desc',
       'modellab.perf.empty', 'modellab.perf.empty_desc',
@@ -297,7 +297,7 @@ describe('Audit / Help / ModelLab / MarketDetail keys (v0.14c)', () => {
       'modellab.sm.title', 'modellab.sm.desc', 'modellab.sm.queued',
       'modellab.sm.running', 'modellab.sm.done', 'modellab.sm.error',
       'modellab.sm.note',
-      // MarketDetail
+      // MarketDetail（市场详情）
       'marketdetail.back_markets', 'marketdetail.not_found',
       'marketdetail.not_found_desc', 'marketdetail.btn.open_polymarket',
       'marketdetail.resolved', 'marketdetail.active', 'marketdetail.inactive',
@@ -322,7 +322,7 @@ describe('Audit / Help / ModelLab / MarketDetail keys (v0.14c)', () => {
 describe('Dashboard / Brief keys (v0.14d)', () => {
   it('every new key is in both locales', () => {
     const keys = [
-      // Dashboard
+      // 仪表盘
       'dashboard.kpi.equity', 'dashboard.kpi.equity_hint',
       'dashboard.kpi.open_pnl', 'dashboard.kpi.winrate', 'dashboard.kpi.brier',
       'dashboard.brier.good', 'dashboard.brier.fair', 'dashboard.brier.poor',
@@ -342,7 +342,7 @@ describe('Dashboard / Brief keys (v0.14d)', () => {
       'dashboard.positions.empty_desc', 'dashboard.positions.browse',
       'dashboard.positions.size_at', 'dashboard.recent.bet_text',
       'dashboard.recent.signal_text',
-      // Brief
+      // 简报
       'brief.title', 'brief.subtitle', 'brief.refresh', 'brief.rescore',
       'brief.empty.title', 'brief.empty.desc', 'brief.empty.generate',
       'brief.entry.dismissed', 'brief.entry.closes', 'brief.entry.liq',
@@ -377,7 +377,7 @@ describe('LOCALE_LABEL', () => {
 
 describe('useT (v0.95)', () => {
   beforeEach(() => {
-    // Reset the zustand store between tests
+    // 在测试之间重置 zustand store
     useLocaleStore.setState({ locale: 'en' });
   });
 
@@ -390,7 +390,7 @@ describe('useT (v0.95)', () => {
   it('t() translates a known key in the current locale', () => {
     useLocaleStore.setState({ locale: 'zh' });
     const { result } = renderHook(() => useT());
-    // The page.title key is in both locales
+    // page.title key 在两个 locale 中都存在
     expect(result.current.t('page.title')).toBeTruthy();
   });
 });

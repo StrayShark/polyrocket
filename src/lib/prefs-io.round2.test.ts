@@ -1,10 +1,10 @@
-// v0.77e — prefs-io branches round 2 (+5 tests, 73.6%→95% br).
+// v0.77e — prefs-io 分支 round 2（+5 测试,73.6%→95% 分支覆盖率）。
 //
-// prefs-io.ts is the import/export layer for UI prefs. Existing
-// 10 tests (v0.36a) cover the main happy path + 5 throw
-// branches. The remaining 19 uncovered branches are likely in
-// `parsePrefsFromString` per-field validation + `readFileAsText`
-// error paths + `downloadPrefsAsFile` browser API call.
+// prefs-io.ts 是 UI 偏好的导入/导出层。现有的
+// 10 个测试（v0.36a）覆盖了主要正常路径 + 5 个抛出
+// 分支。剩余 19 个未覆盖的分支很可能位于
+// `parsePrefsFromString` 的逐字段校验 + `readFileAsText`
+// 的错误路径 + `downloadPrefsAsFile` 的浏览器 API 调用中。
 //
 // @vitest-environment happy-dom
 
@@ -33,8 +33,8 @@ const FULL_PREFS: UiPrefs = {
   degradationAlertNotify: false,
 };
 
-describe('prefs-io round 2 (v0.77e — branch closing)', () => {
-  describe('parsePrefsFromString — per-field validation', () => {
+describe('prefs-io round 2 (v0.77e —— 关闭分支)', () => {
+  describe('parsePrefsFromString —— 逐字段校验', () => {
     it('throws when defaultMinEdgePct is not a number', () => {
       const bad = JSON.stringify({
         version: 1,
@@ -63,7 +63,7 @@ describe('prefs-io round 2 (v0.77e — branch closing)', () => {
   describe('readFileAsText — error path', () => {
     it('rejects when FileReader errors out', async () => {
       const fakeFile = new File(['test'], 'test.txt', { type: 'text/plain' });
-      // Override FileReader for this test
+      // 为此测试覆盖 FileReader
       const origFileReader = globalThis.FileReader;
       globalThis.FileReader = class {
         readAsText() {
